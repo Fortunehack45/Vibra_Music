@@ -469,7 +469,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _lyricsChecked.value = true
     }
 
-    private val _account = MutableStateFlow<Account?>(null)
+    private val _account = MutableStateFlow<Account?>(
+        authStore.sessions
+            .firstOrNull { it.accountId == authStore.activeAccountId }
+            ?.profiles
+            ?.firstOrNull { it.profileId == authStore.activeProfileId }
+            ?.let { Account(it.name, it.handle, it.avatar) }
+            ?: authStore.sessions.firstOrNull()?.profiles?.firstOrNull()?.let { Account(it.name, it.handle, it.avatar) }
+    )
     val account: StateFlow<Account?> = _account.asStateFlow()
 
     /**
@@ -2703,6 +2710,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         Innertube.selectChannel(profile.pageId, profile.dataSyncId, profile.authUser)
         _selectedChannelKey.value = profile.profileId
         _selectedChannelName.value = profile.name
+        _account.value = Account(profile.name, profile.handle, profile.avatar)
         StreamResolver.onSessionChanged()
         clearListenerState(restoreCached = true)
         reloadForAccount()

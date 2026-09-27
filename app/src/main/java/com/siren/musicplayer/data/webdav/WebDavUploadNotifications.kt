@@ -3,6 +3,7 @@ package com.siren.musicplayer.data.webdav
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
+import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.siren.musicplayer.R
 import com.siren.musicplayer.data.model.Song
@@ -88,16 +89,18 @@ object WebDavUploadNotifications {
     private fun post(context: Context, notification: android.app.Notification) {
         runCatching {
             val manager = context.getSystemService(NotificationManager::class.java) ?: return
-            manager.createNotificationChannel(
-                NotificationChannel(
-                    CHANNEL_ID,
-                    context.getString(R.string.upload_channel_name),
-                    NotificationManager.IMPORTANCE_LOW,
-                ).apply {
-                    description = context.getString(R.string.upload_channel_description)
-                    setShowBadge(false)
-                },
-            )
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                manager.createNotificationChannel(
+                    NotificationChannel(
+                        CHANNEL_ID,
+                        context.getString(R.string.upload_channel_name),
+                        NotificationManager.IMPORTANCE_LOW,
+                    ).apply {
+                        description = context.getString(R.string.upload_channel_description)
+                        setShowBadge(false)
+                    },
+                )
+            }
             manager.notify(NOTIFICATION_ID, notification)
         }
     }

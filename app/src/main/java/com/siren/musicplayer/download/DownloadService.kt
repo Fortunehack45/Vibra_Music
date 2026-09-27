@@ -232,19 +232,21 @@ class DownloadService : Service() {
     }
 
     private fun createChannel() {
-        val manager = getSystemService(NotificationManager::class.java) ?: return
-        manager.createNotificationChannel(
-            NotificationChannel(
-                CHANNEL_ID,
-                "Downloads",
-                // Progress, not news. It belongs in the shade without a sound
-                // or a heads-up every time a track finishes.
-                NotificationManager.IMPORTANCE_LOW,
-            ).apply {
-                description = "Songs being saved to your Music folder"
-                setShowBadge(false)
-            },
-        )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val manager = getSystemService(NotificationManager::class.java) ?: return
+            manager.createNotificationChannel(
+                NotificationChannel(
+                    CHANNEL_ID,
+                    "Downloads",
+                    // Progress, not news. It belongs in the shade without a sound
+                    // or a heads-up every time a track finishes.
+                    NotificationManager.IMPORTANCE_LOW,
+                ).apply {
+                    description = "Songs being saved to your Music folder"
+                    setShowBadge(false)
+                },
+            )
+        }
     }
 
     private companion object {

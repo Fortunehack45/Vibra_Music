@@ -76,12 +76,12 @@ android {
 
     defaultConfig {
         applicationId = "com.siren.musicplayer"
-        // 26 keeps reach wide; real-time blur (RenderEffect) kicks in on API 31+,
-        // Haze falls back to a translucent scrim below that.
-        minSdk = 26
+        // 24 supports Android 7.0+ (Nougat and Android Go). Real-time blur kicks
+        // in on API 31+, Haze falls back to a translucent scrim below that.
+        minSdk = 24
         targetSdk = 36
-        versionCode = 23
-        versionName = "1.7.1"
+        versionCode = 24
+        versionName = "1.7.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         externalNativeBuild {
@@ -197,6 +197,7 @@ android {
         }
     }
     compileOptions {
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -268,6 +269,8 @@ val newPipeExtractorStripped = tasks.register<org.gradle.api.tasks.bundling.Jar>
 }
 
 dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+
     // ---- Compose (Material 3) ----
     val composeBom = platform("androidx.compose:compose-bom:2024.12.01")
     implementation(composeBom)

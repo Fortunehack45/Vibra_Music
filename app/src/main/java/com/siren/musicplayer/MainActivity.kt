@@ -3183,8 +3183,17 @@ private fun SirenMusicApp(
                             // [TopBarDownloadButton], which decides that for
                             // itself rather than being told.
                             TopBarDownloadButton(onClick = { showDownloadManager = true })
+
+                            val activeAvatar = googleAccounts
+                                .firstOrNull { it.accountId == activeAccountId }
+                                ?.profiles
+                                ?.firstOrNull { it.profileId == activeProfileId }
+                                ?.avatar
+                                ?: googleAccounts.firstOrNull()?.profiles?.firstOrNull { !it.avatar.isNullOrBlank() }?.avatar
+
                             TopBarAccountButton(
                                 account = account,
+                                avatarUrl = activeAvatar,
                                 onClick = {
                                     if (signedIn) {
                                         viewModel.loadChannels()

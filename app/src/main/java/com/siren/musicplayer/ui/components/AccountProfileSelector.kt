@@ -1,6 +1,7 @@
 package com.siren.musicplayer.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -64,25 +65,42 @@ fun AccountProfileSelector(
 ) {
     var managing by remember { mutableStateOf(false) }
     val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
+    val useLiquidGlass = LocalLiquidGlassEnabled.current && isGlassSupported()
+    val isGlassActive = useLiquidGlass && !reduceDynamicBlur
     val shape = MaterialTheme.shapes.extraLarge
+
+    val scrimColor = if (isGlassActive) {
+        Color.Black.copy(alpha = 0.28f)
+    } else {
+        MaterialTheme.colorScheme.scrim.copy(alpha = .48f)
+    }
+
+    val contentColor = if (isGlassActive) {
+        glassContentColor()
+    } else {
+        MaterialTheme.colorScheme.onSurface
+    }
+
     Column(
-        modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.scrim.copy(alpha = .48f))
+        modifier = modifier.fillMaxSize().background(scrimColor)
             .clickable(onClick = onDismiss),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Surface(
             color = Color.Transparent,
-            contentColor = MaterialTheme.colorScheme.onSurface,
+            contentColor = contentColor,
             shape = shape,
             modifier = Modifier
                 .padding(top = 56.dp, start = 20.dp, end = 20.dp)
                 .fillMaxWidth()
                 .clip(shape)
                 .then(
-                    if (reduceDynamicBlur) {
-                        Modifier.background(MaterialTheme.colorScheme.surface)
-                    } else {
-                        Modifier.optimizedHazeEffect(
+                    when {
+                        isGlassActive -> Modifier
+                            .liquidGlass(shape)
+                            .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
+                        reduceDynamicBlur -> Modifier.background(MaterialTheme.colorScheme.surface)
+                        else -> Modifier.optimizedHazeEffect(
                             state = hazeState,
                             style = HazeMaterials.thin(MaterialTheme.colorScheme.surface),
                         )

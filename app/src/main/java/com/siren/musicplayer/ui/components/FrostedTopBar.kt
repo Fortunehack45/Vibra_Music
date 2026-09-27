@@ -528,6 +528,7 @@ private fun artworkPageSurface(
 @Composable
 fun TopBarAccountButton(
     account: Account?,
+    avatarUrl: String? = null,
     onClick: () -> Unit,
     onSwipeProfile: ((forward: Boolean) -> Boolean)? = null,
     modifier: Modifier = Modifier,
@@ -555,7 +556,7 @@ fun TopBarAccountButton(
                 )
             },
     ) {
-        val photo = account?.thumbnailUrl
+        val photo = avatarUrl?.takeIf { it.isNotBlank() } ?: account?.thumbnailUrl?.takeIf { it.isNotBlank() }
         if (photo != null) {
             AsyncImage(
                 model = photo,

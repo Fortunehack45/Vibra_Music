@@ -26,6 +26,7 @@ func setupTestServer() *httptest.Server {
 	mux.HandleFunc("GET /api/parties/{code}", handleGetParty)
 	mux.HandleFunc("POST /api/parties/{code}/leave", handleLeaveParty)
 	mux.HandleFunc("GET /invite/{code}", handleInviteLanding)
+	mux.HandleFunc("GET /.well-known/assetlinks.json", handleAssetLinks)
 	mux.HandleFunc("GET /ws/parties/{code}", handleWebSocket)
 
 	return httptest.NewServer(corsMiddleware(mux))
@@ -274,5 +275,36 @@ func TestInviteLanding(t *testing.T) {
 	}
 	if !strings.Contains(content, code) {
 		t.Errorf("Expected HTML content to contain party code %s", code)
+	}
+}
+
+func TestAssetLinksEndpoint(t *testing.T) {
+	ts := setupTestServer()
+	defer ts.Close()
+
+	res, err := http.Get(ts.URL + "/.well-known/assetlinks.json")
+	if err != nil {
+		t.Fatalf("GET /.well-known/assetlinks.json failed: %v", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("Expected 200 for assetlinks, got %d", res.StatusCode)
+	}
+
+	contentType := res.Header.Get("Content-Type")
+	if !strings.Contains(contentType, "application/json") {
+		t.Errorf("Expected Content-Type application/json, got %s", contentType)
+	}
+
+	buf := new(bytes.Buffer)
+	_, _ = buf.ReadFrom(res.Body)
+	body := buf.String()
+
+	if !strings.Contains(body, "com.siren.musicplayer") {
+		t.Errorf("Expected assetlinks to contain package com.siren.musicplayer, got %s", body)
+	}
+	if !strings.Contains(body, "C7:B2:26:F2:2A:AC:AB:05:AE:1B:57:29:C4:A6:C0:A2:92:54:C5:16:2F:23:8B:86:84:89:E3:27:00:0F:52:B8") {
+		t.Errorf("Expected assetlinks to contain release keystore SHA256 fingerprint, got %s", body)
 	}
 }

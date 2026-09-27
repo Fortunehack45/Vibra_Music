@@ -16,10 +16,11 @@ data class ParsedJamInvite(
 /** Relays a Siren Music web or scheme invite from [com.siren.musicplayer.MainActivity] to Compose. */
 object JamInviteLink {
 
-    const val ORIGIN = "https://siren.musicplayer.in"
+    const val ORIGIN = "https://siren-music.onrender.com"
 
     private const val EXTRA_CONSUMED = "siren.jamInviteConsumed"
-    private const val HOST = "siren.musicplayer.in"
+    private const val HOST = "siren-music.onrender.com"
+    private const val LEGACY_HOST = "siren.musicplayer.in"
     private const val CUSTOM_SCHEME = "siren"
     private const val CUSTOM_HOST = "party"
 
@@ -50,7 +51,8 @@ object JamInviteLink {
     /**
      * Parses an incoming invite:
      * 1. siren://party/<CODE>?server=<SERVER>
-     * 2. https://siren.musicplayer.in/invite/<CODE>?server=<SERVER>
+     * 2. https://siren-music.onrender.com/invite/<CODE>?server=<SERVER>
+     * 3. https://siren.musicplayer.in/invite/<CODE>?server=<SERVER>
      */
     fun parseInvite(value: String?): ParsedJamInvite? {
         val uri = runCatching { URI(value ?: return null) }.getOrNull() ?: return null
@@ -67,8 +69,8 @@ object JamInviteLink {
             return ParsedJamInvite(code = code, serverUrl = server)
         }
 
-        // 2. Official web domain: https://siren.musicplayer.in/invite/<CODE>
-        if (scheme == "https" && host == HOST) {
+        // 2. Official web domain: https://siren-music.onrender.com/invite/<CODE> (or legacy siren.musicplayer.in)
+        if (scheme == "https" && (isOfficialHost(host))) {
             val match = INVITE_PATH.matchEntire(uri.path.orEmpty()) ?: return null
             val code = match.groupValues[1].uppercase()
             return ParsedJamInvite(code = code, serverUrl = server)
@@ -77,12 +79,20 @@ object JamInviteLink {
         return null
     }
 
+    private fun isOfficialHost(host: String): Boolean {
+        val defaultHost = runCatching { URI(ListenTogether.defaultServer).host?.lowercase() }.getOrNull() ?: HOST
+        return host.equals(HOST, ignoreCase = true) ||
+            host.equals(defaultHost, ignoreCase = true) ||
+            host.equals(LEGACY_HOST, ignoreCase = true)
+    }
+
     fun url(code: String, customServer: String? = null): String {
         val base = customServer?.trim()?.trimEnd('/')
-        return if (!base.isNullOrBlank() && !base.equals(ORIGIN, ignoreCase = true)) {
+        val defaultBase = runCatching { ListenTogether.defaultServer }.getOrDefault(ORIGIN)
+        return if (!base.isNullOrBlank() && !base.equals(defaultBase, ignoreCase = true) && !base.equals(ORIGIN, ignoreCase = true)) {
             "$base/invite/${code.uppercase()}"
         } else {
-            "$ORIGIN/invite/${code.uppercase()}"
+            "$defaultBase/invite/${code.uppercase()}"
         }
     }
 

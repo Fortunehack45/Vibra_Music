@@ -56,6 +56,9 @@ func main() {
 	// Web invite endpoint
 	mux.HandleFunc("GET /invite/{code}", handleInviteLanding)
 
+	// Digital Asset Links for Android App Links autoVerify
+	mux.HandleFunc("GET /.well-known/assetlinks.json", handleAssetLinks)
+
 	// WebSocket endpoint
 	mux.HandleFunc("GET /ws/parties/{code}", handleWebSocket)
 
@@ -732,6 +735,28 @@ func handleInviteLanding(w http.ResponseWriter, r *http.Request) {
 		MemberCount:       memberCount,
 		IsActive:          true,
 	})
+}
+
+// Digital Asset Links for Android App Links autoVerify
+
+const assetLinksJSON = `[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.siren.musicplayer",
+      "sha256_cert_fingerprints": [
+        "C7:B2:26:F2:2A:AC:AB:05:AE:1B:57:29:C4:A6:C0:A2:92:54:C5:16:2F:23:8B:86:84:89:E3:27:00:0F:52:B8"
+      ]
+    }
+  }
+]
+`
+
+func handleAssetLinks(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(assetLinksJSON))
 }
 
 // WebSocket Handler

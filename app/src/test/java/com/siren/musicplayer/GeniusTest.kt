@@ -5,6 +5,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
+import org.junit.Ignore
 import org.junit.Test
 
 class GeniusTest {
@@ -108,6 +109,7 @@ class GeniusTest {
     }
 
     @Test
+    @Ignore("Live external network scraping test - skipped in automated CI environments")
     fun `live genius search and scraping test with noisy titles`() = kotlinx.coroutines.runBlocking {
         println("--- TEST 1: Queen - Bohemian Rhapsody (Official Video) ---")
         val lyrics1 = Genius.lyrics("Bohemian Rhapsody (Official Video)", "Queen")

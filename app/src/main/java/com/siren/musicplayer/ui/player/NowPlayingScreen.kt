@@ -73,6 +73,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.graphics.drawscope.ContentDrawScope
+import com.siren.musicplayer.ui.components.LocalAppBackdrop
+import com.siren.musicplayer.ui.components.LocalLiquidGlassEnabled
+import com.siren.musicplayer.ui.components.isGlassSupported
+import com.siren.musicplayer.ui.components.backdrop.backdrops.rememberLayerBackdrop
+import com.siren.musicplayer.ui.components.backdrop.backdrops.layerBackdrop
 import androidx.compose.runtime.State
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -624,10 +631,17 @@ fun NowPlayingScreen(
     // their contrast and stays visually stable through artwork transitions.
     StatusBarIcons(dark = false)
 
-    // Kept local to the player: a modal player is not in the page's Haze
-    // source tree, so it needs its own source for the same frosted material as
-    // the bottom navigation pill.
     val playerHaze = remember { HazeState() }
+    val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
+    val useGlass = LocalLiquidGlassEnabled.current && isGlassSupported()
+    val glassActive = useGlass && !reduceDynamicBlur
+    val paintPlayerBackdrop: ContentDrawScope.() -> Unit = remember {
+        {
+            drawRect(Color.Black)
+            drawContent()
+        }
+    }
+    val playerBackdrop = rememberLayerBackdrop(onDraw = paintPlayerBackdrop)
     var showAudioPipeline by remember { mutableStateOf(false) }
     var showAudioOutput by remember { mutableStateOf(false) }
     var showLyricsProviders by remember { mutableStateOf(false) }
@@ -1431,19 +1445,25 @@ fun NowPlayingScreen(
         val versionAligning by AppSettings.versionAlignmentInProgress.collectAsStateWithLifecycle()
         val transitionWindow by AppSettings.smartTransitionWindow.collectAsStateWithLifecycle()
         val panelOpen = lyricsOpen || queueOpen
-
-        Box(modifier = modifier.fillMaxSize()) {
-            LandscapePlayerLayout(
-                pane = when {
-                    lyricsOpen -> PlayerPane.Lyrics
-                    queueOpen -> PlayerPane.Queue
-                    else -> PlayerPane.Main
-                },
-                background = { backgroundModifier ->
-                    // The whole screen is the sheets' frost source: there is
-                    // no full-bleed banner here to be it instead.
-                    fullArtworkBlurContent(backgroundModifier.hazeSource(playerHaze))
-                },
+        CompositionLocalProvider(
+            LocalAppBackdrop provides playerBackdrop,
+        ) {
+            Box(modifier = modifier.fillMaxSize()) {
+                LandscapePlayerLayout(
+                    pane = when {
+                        lyricsOpen -> PlayerPane.Lyrics
+                        queueOpen -> PlayerPane.Queue
+                        else -> PlayerPane.Main
+                    },
+                    background = { backgroundModifier ->
+                        // The whole screen is the sheets' frost source: there is
+                        // no full-bleed banner here to be it instead.
+                        fullArtworkBlurContent(
+                            backgroundModifier
+                                .hazeSource(playerHaze)
+                                .then(if (glassActive) Modifier.layerBackdrop(playerBackdrop) else Modifier),
+                        )
+                    },
                 artwork = { artworkModifier ->
                     LandscapeArtwork(
                         artRequest = art.request,
@@ -1636,10 +1656,16 @@ fun NowPlayingScreen(
             )
             playerOverlays()
         }
+        }
         return
     }
 
     Box(modifier = modifier.fillMaxSize().onSizeChanged { playerBounds = it }.background(Color.Black)) {
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .then(if (glassActive) Modifier.layerBackdrop(playerBackdrop) else Modifier),
+        ) {
         // Anchored to the sleeve's bottom edge, so the screen carries on in the
         // colours the artwork ended in rather than in a quantiser's idea of what
         // the artwork was about. Position ticks recompose this screen twice a
@@ -1970,7 +1996,11 @@ fun NowPlayingScreen(
                     .background(Color.Black),
             )
         }
+        }
 
+        CompositionLocalProvider(
+            LocalAppBackdrop provides playerBackdrop,
+        ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -2964,6 +2994,7 @@ fun NowPlayingScreen(
             }
         }
         playerOverlays()
+        }
     }
 }
 

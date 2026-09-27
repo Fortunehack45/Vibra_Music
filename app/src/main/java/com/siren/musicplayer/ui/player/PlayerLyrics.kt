@@ -25,6 +25,12 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import com.siren.musicplayer.ui.components.GLASS_EDGE_COLOR
+import com.siren.musicplayer.ui.components.GLASS_EDGE_WIDTH
+import com.siren.musicplayer.ui.components.LocalLiquidGlassEnabled
+import com.siren.musicplayer.ui.components.isGlassSupported
+import com.siren.musicplayer.ui.components.liquidGlass
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.interaction.DragInteraction
@@ -1105,6 +1111,7 @@ internal fun TranslationToggleButton(
     onClick: () -> Unit,
 ) {
     val active = showingTranslation || state is LyricsTranslationUiState.Loading
+    val useGlass = LocalLiquidGlassEnabled.current && isGlassSupported()
     val tint = when {
         !enabled || state is LyricsTranslationUiState.SameLanguage -> Color.White.copy(alpha = 0.42f)
         active -> Color.White
@@ -1114,11 +1121,24 @@ internal fun TranslationToggleButton(
         targetValue = if (active) 0.34f else 0.18f,
         label = "translateDisc",
     )
+    val shape = CircleShape
     Box(
         modifier = Modifier
             .size(34.dp)
-            .clip(CircleShape)
-            .background(Color.White.copy(alpha = discAlpha))
+            .clip(shape)
+            .then(
+                if (useGlass) {
+                    Modifier
+                        .liquidGlass(shape)
+                        .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
+                        .then(
+                            if (active) Modifier.background(Color.White.copy(alpha = 0.12f))
+                            else Modifier
+                        )
+                } else {
+                    Modifier.background(Color.White.copy(alpha = discAlpha))
+                }
+            )
             .clickable(
                 enabled = enabled,
                 interactionSource = remember { MutableInteractionSource() },
@@ -1156,6 +1176,7 @@ internal fun RomanizationToggleButton(
     onClick: () -> Unit,
 ) {
     val active = showingRomanization || state is LyricsTranslationUiState.Loading
+    val useGlass = LocalLiquidGlassEnabled.current && isGlassSupported()
     val tint = when {
         !enabled || state is LyricsTranslationUiState.SameLanguage -> Color.White.copy(alpha = 0.42f)
         active -> Color.White
@@ -1165,11 +1186,24 @@ internal fun RomanizationToggleButton(
         targetValue = if (active) 0.34f else 0.18f,
         label = "romanizeDisc",
     )
+    val shape = CircleShape
     Box(
         modifier = Modifier
             .size(34.dp)
-            .clip(CircleShape)
-            .background(Color.White.copy(alpha = discAlpha))
+            .clip(shape)
+            .then(
+                if (useGlass) {
+                    Modifier
+                        .liquidGlass(shape)
+                        .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
+                        .then(
+                            if (active) Modifier.background(Color.White.copy(alpha = 0.12f))
+                            else Modifier
+                        )
+                } else {
+                    Modifier.background(Color.White.copy(alpha = discAlpha))
+                }
+            )
             .clickable(
                 enabled = enabled,
                 interactionSource = remember { MutableInteractionSource() },

@@ -51,6 +51,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import com.siren.musicplayer.ui.components.GLASS_EDGE_COLOR
+import com.siren.musicplayer.ui.components.GLASS_EDGE_WIDTH
+import com.siren.musicplayer.ui.components.LocalLiquidGlassEnabled
+import com.siren.musicplayer.ui.components.isGlassSupported
+import com.siren.musicplayer.ui.components.liquidGlass
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.VolumeDown
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
@@ -615,15 +620,29 @@ internal fun CircleGlyph(
     haptic: Haptic = Haptic.Tap,
 ) {
     val haptics = rememberHaptics()
+    val useGlass = LocalLiquidGlassEnabled.current && isGlassSupported()
     val discAlpha by animateFloatAsState(
         targetValue = if (active) 0.34f else 0.18f,
         label = "glyphDisc",
     )
+    val shape = CircleShape
     Box(
         modifier = Modifier
             .size(34.dp)
-            .clip(CircleShape)
-            .background(Color.White.copy(alpha = discAlpha))
+            .clip(shape)
+            .then(
+                if (useGlass) {
+                    Modifier
+                        .liquidGlass(shape)
+                        .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
+                        .then(
+                            if (active) Modifier.background(Color.White.copy(alpha = 0.12f))
+                            else Modifier
+                        )
+                } else {
+                    Modifier.background(Color.White.copy(alpha = discAlpha))
+                }
+            )
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -753,11 +772,21 @@ private fun Pill(
     modifier: Modifier = Modifier,
     content: @Composable RowScope.() -> Unit,
 ) {
+    val useGlass = LocalLiquidGlassEnabled.current && isGlassSupported()
+    val shape = CircleShape
     Row(
         modifier = modifier
             .height(BOTTOM_ACTION_SIZE)
-            .clip(CircleShape)
-            .background(Color.White.copy(alpha = 0.12f))
+            .clip(shape)
+            .then(
+                if (useGlass) {
+                    Modifier
+                        .liquidGlass(shape)
+                        .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
+                } else {
+                    Modifier.background(Color.White.copy(alpha = 0.12f))
+                }
+            )
             .animateContentSize(
                 animationSpec = spring(
                     dampingRatio = 0.82f,
@@ -771,11 +800,12 @@ private fun Pill(
 
 @Composable
 private fun PillDivider() {
+    val useGlass = LocalLiquidGlassEnabled.current && isGlassSupported()
     Box(
         Modifier
-            .width(1.dp)
-            .fillMaxHeight()
-            .background(Color.White.copy(alpha = 0.20f)),
+            .width(GLASS_EDGE_WIDTH)
+            .fillMaxHeight(0.6f)
+            .background(if (useGlass) GLASS_EDGE_COLOR else Color.White.copy(alpha = 0.20f)),
     )
 }
 
@@ -1080,12 +1110,25 @@ private fun BottomGlyph(
     // costs no recomposition. Starts a full window in the past so the first tap
     // is never the one that gets swallowed.
     val lastTap = remember { mutableLongStateOf(-tapWindowMs) }
+    val useGlass = LocalLiquidGlassEnabled.current && isGlassSupported()
+    val shape = CircleShape
     Box(
         modifier = Modifier
             .size(BOTTOM_ACTION_SIZE)
-            .clip(CircleShape)
-            .background(
-                if (highlighted) Color.White.copy(alpha = 0.20f) else Color.Transparent,
+            .clip(shape)
+            .then(
+                if (highlighted) {
+                    if (useGlass) {
+                        Modifier
+                            .liquidGlass(shape)
+                            .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
+                            .background(Color.White.copy(alpha = 0.10f))
+                    } else {
+                        Modifier.background(Color.White.copy(alpha = 0.20f))
+                    }
+                } else {
+                    Modifier.background(Color.Transparent)
+                }
             )
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },

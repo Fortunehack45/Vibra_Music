@@ -3215,10 +3215,12 @@ class PlaybackService : MediaLibraryService() {
             withContext(Dispatchers.Main) {
                 val live = this@PlaybackService.player ?: return@withContext
                 if (live.currentMediaItem?.mediaId != mediaId) return@withContext
+                val wasPlaying = live.playWhenReady
                 swappingMediaId = mediaId
                 live.replaceMediaItem(live.currentMediaItemIndex, fallback)
                 live.seekTo(live.currentMediaItemIndex, position)
                 live.prepare()
+                if (wasPlaying) live.play()
             }
         }
         return true
@@ -3362,9 +3364,11 @@ class PlaybackService : MediaLibraryService() {
                 // current item then would rewrite whatever the listener skipped
                 // to instead.
                 if (live.currentMediaItem?.mediaId != mediaId) return@withContext
+                val wasPlaying = live.playWhenReady
                 live.replaceMediaItem(live.currentMediaItemIndex, declared)
                 live.seekTo(live.currentMediaItemIndex, position)
                 live.prepare()
+                if (wasPlaying) live.play()
             }
         }
         return true
@@ -4393,6 +4397,8 @@ class PlaybackService : MediaLibraryService() {
             }
             swappingMediaId = mediaId
             val abandoned = item.localConfiguration?.uri
+            val wasPlaying = player.playWhenReady
+            val restorePosition = if (player.currentPosition > position) player.currentPosition else position
             player.replaceMediaItem(
                 player.currentMediaItemIndex,
                 item.buildUpon()
@@ -4402,8 +4408,11 @@ class PlaybackService : MediaLibraryService() {
                     .setMimeType(null)
                     .build(),
             )
-            player.seekTo(player.currentMediaItemIndex, position)
+            player.seekTo(player.currentMediaItemIndex, restorePosition)
             player.prepare()
+            if (wasPlaying) {
+                player.play()
+            }
             // Whatever the replacement wrote is a prefix of a file nothing will
             // ever finish, under a key the *next* upgrade of this track would
             // key to as well — see [AudioCache.discardRendition]. Off the main

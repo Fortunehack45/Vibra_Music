@@ -913,17 +913,17 @@ class PartySync(
         focusLost = false
         rejoining = false
         val stashed = PartyPersonalQueueStash.load()
-        if (stashed != null) {
+        PartyPersonalQueueStash.clear()
+        if (stashed != null && stashed.songs.isNotEmpty()) {
             val exo = player() ?: return
             val items = stashed.songs.map { it.toMediaItem() }
             exo.setMediaItems(items, stashed.index, stashed.positionMs)
             exo.prepare()
-            if (stashed.wasPlaying) {
+            if (exo.playWhenReady || stashed.wasPlaying) {
                 exo.play()
             } else {
                 exo.pause()
             }
-            PartyPersonalQueueStash.clear()
         }
     }
 

@@ -2012,8 +2012,7 @@ fun NowPlayingScreen(
                 .toggleSpotifyCanvasControlsOnTap(
                     enabled = spotifyCanvasPresentation,
                     onToggle = { spotifyCanvasControlsOpen = !spotifyCanvasControlsOpen },
-                )
-                .then(skipSwipeGesture),
+                ),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             // The only strip that passes drags through to the sheet, so the
@@ -2386,6 +2385,7 @@ fun NowPlayingScreen(
                             scaleY = idle
                             translationX = swipeSettle.value * (1f - collapse)
                         }
+                        .then(skipSwipeGesture)
                         // Collapsed, the sleeve is the way back: tapping the
                         // thumbnail puts the queue or the lyrics away again.
                         .then(

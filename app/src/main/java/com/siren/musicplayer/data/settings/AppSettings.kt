@@ -866,7 +866,16 @@ object AppSettings {
         preferMusicOnly.value = prefs.getBoolean(KEY_PREFER_MUSIC_ONLY, false)
         smartVersionAlignment.value = prefs.getBoolean(KEY_SMART_VERSION_ALIGNMENT, true)
         reduceDynamicBlur.value = prefs.getBoolean(KEY_REDUCE_BLUR, false)
-        liquidGlass.value = prefs.getBoolean(KEY_LIQUID_GLASS, true)
+        val migratedLiquidGlassV175 = prefs.getBoolean(KEY_LIQUID_GLASS_DEFAULT_V1_7_5, false)
+        if (!migratedLiquidGlassV175) {
+            prefs.edit()
+                .putBoolean(KEY_LIQUID_GLASS, true)
+                .putBoolean(KEY_LIQUID_GLASS_DEFAULT_V1_7_5, true)
+                .apply()
+            liquidGlass.value = true
+        } else {
+            liquidGlass.value = prefs.getBoolean(KEY_LIQUID_GLASS, true)
+        }
         lyricsBlur.value = prefs.getBoolean(KEY_LYRICS_BLUR, true)
         lyricsOffsetMs.value = prefs.getInt(KEY_LYRICS_OFFSET_MS, 0)
             .coerceIn(MIN_LYRICS_OFFSET_MS, MAX_LYRICS_OFFSET_MS)
@@ -1970,6 +1979,7 @@ object AppSettings {
     private const val KEY_SMART_VERSION_ALIGNMENT = "smart_version_alignment"
     private const val KEY_REDUCE_BLUR = "reduce_dynamic_blur"
     private const val KEY_LIQUID_GLASS = "liquid_glass"
+    private const val KEY_LIQUID_GLASS_DEFAULT_V1_7_5 = "liquid_glass_forced_on_v175"
     private const val KEY_LYRICS_BLUR = "lyrics_blur"
     private const val KEY_LYRICS_OFFSET_MS = "lyrics_offset_ms"
     private const val KEY_TRANSLATION_LANGUAGE = "translation_language"

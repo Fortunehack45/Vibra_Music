@@ -49,7 +49,7 @@ val lastfmSecret: String = (
 val listenTogetherServer: String = (
     localProps.getProperty("LISTEN_TOGETHER_SERVER")
         ?: System.getenv("LISTEN_TOGETHER_SERVER")
-        ?: "https://siren-party.onrender.com"
+        ?: "https://siren-music.onrender.com"
     ).trim().trimEnd('/')
 
 /*

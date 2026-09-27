@@ -25,16 +25,29 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Accept Android Licenses
-        run: yes | sdkmanager --licenses || true
+      - name: Accept Android Licenses & Ensure SDK Components
+        run: |
+          export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/cmdline-tools/16.0/bin:$ANDROID_HOME/platform-tools:$PATH"
+          yes | sdkmanager --licenses || true
+          if [ ! -d "$ANDROID_HOME/platforms/android-37" ]; then
+            if [ -d "$ANDROID_HOME/platforms/android-37.0" ]; then
+              ln -s "$ANDROID_HOME/platforms/android-37.0" "$ANDROID_HOME/platforms/android-37"
+            else
+              sdkmanager "platforms;android-37" || true
+              if [ ! -d "$ANDROID_HOME/platforms/android-37" ]; then
+                HIGHEST_PLATFORM=$(ls -d $ANDROID_HOME/platforms/android-* 2>/dev/null | sort -V | tail -n 1)
+                if [ -n "$HIGHEST_PLATFORM" ]; then
+                  ln -s "$HIGHEST_PLATFORM" "$ANDROID_HOME/platforms/android-37"
+                fi
+              fi
+            fi
+          fi
 
       - name: Setup local.properties
         run: |
           echo "LASTFM_API_KEY=${{ secrets.LASTFM_API_KEY }}" > local.properties
           echo "LASTFM_SECRET=${{ secrets.LASTFM_SECRET }}" >> local.properties
+          echo "LISTEN_TOGETHER_SERVER=https://siren-music.onrender.com" >> local.properties
 
       - name: Grant Execute Permissions
         run: chmod +x gradlew
@@ -58,11 +71,23 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Accept Android Licenses
-        run: yes | sdkmanager --licenses || true
+      - name: Accept Android Licenses & Ensure SDK Components
+        run: |
+          export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/cmdline-tools/16.0/bin:$ANDROID_HOME/platform-tools:$PATH"
+          yes | sdkmanager --licenses || true
+          if [ ! -d "$ANDROID_HOME/platforms/android-37" ]; then
+            if [ -d "$ANDROID_HOME/platforms/android-37.0" ]; then
+              ln -s "$ANDROID_HOME/platforms/android-37.0" "$ANDROID_HOME/platforms/android-37"
+            else
+              sdkmanager "platforms;android-37" || true
+              if [ ! -d "$ANDROID_HOME/platforms/android-37" ]; then
+                HIGHEST_PLATFORM=$(ls -d $ANDROID_HOME/platforms/android-* 2>/dev/null | sort -V | tail -n 1)
+                if [ -n "$HIGHEST_PLATFORM" ]; then
+                  ln -s "$HIGHEST_PLATFORM" "$ANDROID_HOME/platforms/android-37"
+                fi
+              fi
+            fi
+          fi
 
       - name: Setup Secrets (Keystore & local.properties)
         env:
@@ -75,6 +100,7 @@ jobs:
         run: |
           echo "LASTFM_API_KEY=${LASTFM_API_KEY}" > local.properties
           echo "LASTFM_SECRET=${LASTFM_SECRET}" >> local.properties
+          echo "LISTEN_TOGETHER_SERVER=https://siren-music.onrender.com" >> local.properties
 
           if [ -n "$KEYSTORE_BASE64" ]; then
             echo "$KEYSTORE_BASE64" | base64 -d > siren-music-release.jks

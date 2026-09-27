@@ -24,7 +24,7 @@
 
 <div align="center">
 
-<img src="Banner.png" alt="Siren Music banner" width="100%" />
+<img src="https://iili.io/n5jmcrb.jpg" alt="Siren Music banner" width="100%" />
 
 <h1><a id="features"></a>Features</h1>
 

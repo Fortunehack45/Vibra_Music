@@ -20,7 +20,7 @@ import uuid
 import websockets
 from urllib.request import Request, urlopen
 
-DEFAULT_SERVER = "https://bitchord-67v8.onrender.com"
+DEFAULT_SERVER = "https://siren-67v8.onrender.com"
 
 
 def post(url, body):

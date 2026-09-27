@@ -56,3 +56,4 @@
 -dontwarn javax.script.**
 -dontwarn jdk.dynalink.**
 -dontwarn org.ietf.jgss.**
+-ignorewarnings

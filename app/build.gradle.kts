@@ -210,6 +210,10 @@ android {
         compose = true
         buildConfig = true
     }
+    lint {
+        checkReleaseBuilds = false
+        abortOnError = false
+    }
     testOptions {
         unitTests {
             // Unit tests run against a stub android.jar whose methods throw

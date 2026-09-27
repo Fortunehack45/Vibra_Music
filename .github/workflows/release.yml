@@ -45,8 +45,8 @@ jobs:
 
       - name: Setup local.properties
         run: |
-          echo "LASTFM_API_KEY=${{ secrets.LASTFM_API_KEY }}" > local.properties
-          echo "LASTFM_SECRET=${{ secrets.LASTFM_SECRET }}" >> local.properties
+          echo "LASTFM_API_KEY=${{ secrets.LASTFM_API_KEY || '4ea1e882eb80524d4ed3a250f47cefe5' }}" > local.properties
+          echo "LASTFM_SECRET=${{ secrets.LASTFM_SECRET || '00f3857fc1d79480e51242b3720a140a' }}" >> local.properties
           echo "LISTEN_TOGETHER_SERVER=https://siren-music.onrender.com" >> local.properties
 
       - name: Grant Execute Permissions
@@ -98,17 +98,16 @@ jobs:
           LASTFM_API_KEY: ${{ secrets.LASTFM_API_KEY }}
           LASTFM_SECRET: ${{ secrets.LASTFM_SECRET }}
         run: |
-          echo "LASTFM_API_KEY=${LASTFM_API_KEY}" > local.properties
-          echo "LASTFM_SECRET=${LASTFM_SECRET}" >> local.properties
+          echo "LASTFM_API_KEY=${LASTFM_API_KEY:-4ea1e882eb80524d4ed3a250f47cefe5}" > local.properties
+          echo "LASTFM_SECRET=${LASTFM_SECRET:-00f3857fc1d79480e51242b3720a140a}" >> local.properties
           echo "LISTEN_TOGETHER_SERVER=https://siren-music.onrender.com" >> local.properties
 
-          if [ -n "$KEYSTORE_BASE64" ]; then
-            echo "$KEYSTORE_BASE64" | base64 -d > siren-music-release.jks
-            echo "storeFile=siren-music-release.jks" > keystore.properties
-            echo "storePassword=${KEYSTORE_PASSWORD:-SirenMusicRelease2026!}" >> keystore.properties
-            echo "keyAlias=${KEY_ALIAS:-sirenmusic}" >> keystore.properties
-            echo "keyPassword=${KEY_PASSWORD:-SirenMusicRelease2026!}" >> keystore.properties
-          fi
+          KS_B64="${KEYSTORE_BASE64:-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}"
+          echo "$KS_B64" | base64 -d > siren-music-release.jks
+          echo "storeFile=siren-music-release.jks" > keystore.properties
+          echo "storePassword=${KEYSTORE_PASSWORD:-SirenMusicRelease2026!}" >> keystore.properties
+          echo "keyAlias=${KEY_ALIAS:-sirenmusic}" >> keystore.properties
+          echo "keyPassword=${KEY_PASSWORD:-SirenMusicRelease2026!}" >> keystore.properties
 
       - name: Grant Execute Permissions
         run: chmod +x gradlew

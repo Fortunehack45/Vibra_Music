@@ -11,7 +11,7 @@
 
 <br/>
 
-[**Features**](#features) · [**Contributing**](#contributing) · [**Support**](#support) · [**Disclaimer**](#disclaimer)
+[**Features**](#features) · [**Download**](#download) · [**Community**](#community) · [**Contributing**](#contributing) · [**Disclaimer**](#disclaimer)
 
 <br/>
 
@@ -77,6 +77,18 @@
 <h1><a id="download"></a>Download</h1>
 
 Grab the latest signed APK from the [Releases](https://github.com/Fortunehack45/Vibra_Music_Releases/releases) page. Sideloading requires enabling "Install unknown apps" for whichever app you download it with.
+
+</div>
+
+---
+
+<div align="center">
+
+<h1><a id="community"></a>Community & Links</h1>
+
+Join the community and stay connected with the latest updates, discussions, and news!
+
+[**Telegram Community**](https://t.me/vibramusictg) · [**Official Website**](https://fortuneadebayo.space/) · [**Developer (X / Twitter)**](https://x.com/OnNerd_eth) · [**GitHub Releases**](https://github.com/Fortunehack45/Vibra_Music_Releases)
 
 </div>
 

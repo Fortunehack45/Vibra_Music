@@ -16,7 +16,7 @@ import java.util.concurrent.TimeUnit
  */
 private const val LYRICS_TIMEOUT_SECONDS = 6L
 
-internal const val LYRICS_AGENT = "VibraMusic (https://github.com/Fortunehack45/Vibra_Music)"
+internal const val LYRICS_AGENT = "VibraMusic (https://github.com/Fortunehack45/Vibra_Music_Releases)"
 
 internal val lyricsJson = Json { ignoreUnknownKeys = true; isLenient = true }
 

@@ -1366,19 +1366,19 @@ fun SettingsScreen(
                         textDecoration = TextDecoration.Underline,
                     ),
                 )
-                withLink(LinkAnnotation.Url("https://github.com/Fortunehack45/Vibra_Music", linkStyles)) {
+                withLink(LinkAnnotation.Url("https://github.com/Fortunehack45/Vibra_Music_Releases", linkStyles)) {
                     append("GitHub")
                 }
                 append("  ")
-                withLink(LinkAnnotation.Url("https://github.com/kushagrasinghx", linkStyles)) {
+                withLink(LinkAnnotation.Url("https://x.com/OnNerd_eth", linkStyles)) {
                     append("Developer")
                 }
                 append("  ")
-                withLink(LinkAnnotation.Url("https://discord.gg/pDdKfrdHY6", linkStyles)) {
-                    append("Discord")
+                withLink(LinkAnnotation.Url("https://t.me/vibramusictg", linkStyles)) {
+                    append("Telegram")
                 }
                 append("  ")
-                withLink(LinkAnnotation.Url("https://github.com/Fortunehack45/Vibra_Music", linkStyles)) {
+                withLink(LinkAnnotation.Url("https://fortuneadebayo.space/", linkStyles)) {
                     append("Website")
                 }
                 append("\n~YouTube Music & Listen Together Backend")

@@ -785,7 +785,8 @@ var inviteTemplate = template.Must(template.New("invite").Parse(`<!DOCTYPE html>
             <a id="joinBtn" href="{{.IntentURI}}" class="btn">Join Party in Vibra Music</a>
             <p class="footer-note">
                 Didn’t open automatically? Tap the button above.<br>
-                Don't have Vibra Music yet? <a href="https://github.com/Fortunehack45/Vibra_Music_Releases/releases" target="_blank" rel="noopener">Download APK here</a>.
+                Don't have Vibra Music yet? <a href="https://github.com/Fortunehack45/Vibra_Music_Releases/releases" target="_blank" rel="noopener">Download APK here</a>.<br>
+                <a href="https://t.me/vibramusictg" target="_blank" rel="noopener">Telegram</a> · <a href="https://fortuneadebayo.space/" target="_blank" rel="noopener">Website</a> · <a href="https://x.com/OnNerd_eth" target="_blank" rel="noopener">Developer</a>
             </p>
             <script>
                 var intentUri = {{.IntentURI}};

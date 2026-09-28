@@ -13,6 +13,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -73,6 +74,7 @@ fun SpotifyCanvasAuthScreen(
                 .padding(16.dp)
                 .verticalScroll(rememberScrollState())
         ) {
+            // Active Status Banner
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -118,6 +120,7 @@ fun SpotifyCanvasAuthScreen(
                 }
             }
 
+            // Toggles
             SpotifyCanvasSettingToggle(
                 title = stringResource(R.string.spotify_canvas_auto_hide),
                 subtitle = stringResource(R.string.spotify_canvas_auto_hide_subtitle),
@@ -132,19 +135,64 @@ fun SpotifyCanvasAuthScreen(
                 onCheckedChange = AppSettings::setPrioritizeSpotifyCanvas,
             )
 
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Bring-your-own section & guide
             Text(
-                text = stringResource(R.string.spotify_canvas_setup_steps),
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(top = 16.dp, bottom = 16.dp)
+                text = stringResource(R.string.spotify_canvas_bring_your_own_title),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(bottom = 6.dp)
             )
+
+            Text(
+                text = stringResource(R.string.spotify_canvas_bring_your_own_desc),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                )
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Text(
+                        text = stringResource(R.string.spotify_canvas_guide_header),
+                        style = MaterialTheme.typography.titleSmall,
+                        modifier = Modifier.padding(bottom = 6.dp)
+                    )
+                    Text(
+                        text = stringResource(R.string.spotify_canvas_setup_steps),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        lineHeight = MaterialTheme.typography.bodySmall.lineHeight * 1.2f
+                    )
+                }
+            }
 
             OutlinedTextField(
                 value = tokenInput,
                 onValueChange = { tokenInput = it },
                 label = { Text(stringResource(R.string.spotify_canvas_custom_optional)) },
                 placeholder = { Text(stringResource(R.string.spotify_canvas_placeholder)) },
-                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-                singleLine = true
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
+                singleLine = true,
+                trailingIcon = {
+                    if (tokenInput.isNotBlank()) {
+                        IconButton(onClick = { tokenInput = "" }) {
+                            Icon(
+                                Icons.Rounded.Close,
+                                contentDescription = stringResource(R.string.clear_queue)
+                            )
+                        }
+                    }
+                }
             )
 
             if (currentToken.isNotBlank()) {
@@ -154,7 +202,9 @@ fun SpotifyCanvasAuthScreen(
                         SpotifyToken.invalidate()
                         tokenInput = ""
                     },
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp)
                 ) {
                     Text(stringResource(R.string.spotify_canvas_revert_builtin))
                 }

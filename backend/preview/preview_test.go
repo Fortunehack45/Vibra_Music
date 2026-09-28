@@ -3,7 +3,6 @@ package preview
 import (
 	"bytes"
 	"image/png"
-	"os"
 	"testing"
 )
 

@@ -188,7 +188,7 @@ fun SpotifyCanvasAuthScreen(
                         IconButton(onClick = { tokenInput = "" }) {
                             Icon(
                                 Icons.Rounded.Close,
-                                contentDescription = stringResource(R.string.clear_queue)
+                                contentDescription = stringResource(R.string.clear)
                             )
                         }
                     }

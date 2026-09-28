@@ -66,6 +66,17 @@ internal object SpotifyToken {
         appContext = context.applicationContext
     }
 
+    @Volatile private var lastCookie: String? = null
+
+    fun invalidate() {
+        cachedAccessToken = null
+        accessTokenExpiresAtMs = 0L
+        cachedClientId = null
+        cachedClientToken = null
+        clientTokenExpiresAtMs = 0L
+        lastCookie = null
+    }
+
     /**
      * The current bearer token, or null when there is no cookie to mint one
      * from, [init] was never called, or the harvest failed. Cached until
@@ -78,15 +89,26 @@ internal object SpotifyToken {
      * enough.
      */
     suspend fun accessToken(): String? {
-        val cookie = AppSettings.spotifySpdcToken.value
-        if (cookie.isBlank()) return null
+        val userCookie = AppSettings.spotifySpdcToken.value.trim()
+        val cookie = if (userCookie.isNotBlank()) userCookie else SpotifyTokenSecret.getBuiltInSpdc()
+        if (cookie.isNullOrBlank()) return null
 
         val now = System.currentTimeMillis()
-        cachedAccessToken?.let { if (now < accessTokenExpiresAtMs - 30_000) return it }
+        if (cookie != lastCookie) {
+            invalidate()
+            lastCookie = cookie
+        } else {
+            cachedAccessToken?.let { if (now < accessTokenExpiresAtMs - 30_000) return it }
+        }
 
         return harvestMutex.withLock {
             val stillNow = System.currentTimeMillis()
-            cachedAccessToken?.let { if (stillNow < accessTokenExpiresAtMs - 30_000) return@withLock it }
+            if (cookie == lastCookie) {
+                cachedAccessToken?.let { if (stillNow < accessTokenExpiresAtMs - 30_000) return@withLock it }
+            } else {
+                invalidate()
+                lastCookie = cookie
+            }
 
             val context = appContext
             if (context == null) {

@@ -45,6 +45,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.okhttp.OkHttpDataSource
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import com.siren.musicplayer.ui.rememberIsForeground
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
@@ -191,6 +192,17 @@ fun CanvasArtworkPlayer(
     val reportAspect by rememberUpdatedState(onAspectRatioChanged)
 
     val player = remember {
+        val loadControl = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(
+                /* minBufferMs = */ 2_000,
+                /* maxBufferMs = */ 5_000,
+                /* bufferForPlaybackMs = */ 500,
+                /* bufferForPlaybackAfterRebufferMs = */ 1_000,
+            )
+            .setTargetBufferBytes(4 * 1024 * 1024)
+            .setPrioritizeTimeOverSizeThresholds(true)
+            .build()
+
         ExoPlayer.Builder(context)
             // Shares the app's one OkHttp client, as everything that fetches
             // over the network here does — and wrapped in CanvasCache so a
@@ -200,6 +212,7 @@ fun CanvasArtworkPlayer(
             .setMediaSourceFactory(
                 DefaultMediaSourceFactory(CanvasCache.dataSourceFactory(OkHttpDataSource.Factory(Http.client))),
             )
+            .setLoadControl(loadControl)
             .build()
             .apply {
                 volume = 0f
@@ -266,8 +279,8 @@ fun CanvasArtworkPlayer(
     // regardless of playback state, so coming back from background always has
     // a surface ready and `onRenderedFirstFrame()` fires naturally.
     val foreground = rememberIsForeground()
-    LaunchedEffect(foreground, pausedForTransition) {
-        player.playWhenReady = foreground && !pausedForTransition
+    LaunchedEffect(foreground, isPlaying, pausedForTransition) {
+        player.playWhenReady = foreground && isPlaying && !pausedForTransition
     }
 
     // Repaint onto a surface that has just been handed back. A TextureView's
@@ -312,12 +325,13 @@ fun CanvasArtworkPlayer(
     // folded into the one above: that one is keyed on [rendered] so it fires
     // again on every fade-in, and this one only needs to start once a fade-in
     // has actually happened and then keep going for as long as it holds.
-    LaunchedEffect(rendered, refreshFrameEveryMs, frameCapturePx, clipAspect, contentMode, alignPortraitTop) {
+    LaunchedEffect(rendered, refreshFrameEveryMs, frameCapturePx, clipAspect, contentMode, alignPortraitTop, isPlaying) {
         val interval = refreshFrameEveryMs ?: return@LaunchedEffect
         Log.d(TAG, "periodic frame refresh started, interval=$interval")
-        if (!rendered) return@LaunchedEffect
+        if (!rendered || !isPlaying) return@LaunchedEffect
         while (isActive) {
             delay(interval)
+            if (!isPlaying) continue
             val view = textureView ?: continue
             val bitmap = view.captureAt(frameCapturePx, clipAspect, contentMode, alignPortraitTop)
             if (bitmap != null) {

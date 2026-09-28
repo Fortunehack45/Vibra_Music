@@ -508,6 +508,12 @@ private val meshCache = object : LinkedHashMap<String, ArtworkMesh>(0, 0.75f, tr
     override fun removeEldestEntry(eldest: Map.Entry<String, ArtworkMesh>) = size > MESH_CACHE_ENTRIES
 }
 
+/** Clears in-memory backdrop and mesh image caches on system memory pressure. */
+fun clearBackdropCaches() {
+    synchronized(fullBlurCache) { fullBlurCache.clear() }
+    synchronized(meshCache) { meshCache.clear() }
+}
+
 /** A session's worth of covers, at four kilobytes of texture each. */
 private const val MESH_CACHE_ENTRIES = 64
 

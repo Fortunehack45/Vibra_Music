@@ -7684,7 +7684,7 @@ class PlaybackService : MediaLibraryService() {
          */
         const val AUDITION_BUFFER_MS = 40_000
 
-        const val AUDITION_BUFFER_BYTES = 24 * 1024 * 1024
+        const val AUDITION_BUFFER_BYTES = 12 * 1024 * 1024
 
         /**
          * The pause between releasing the audition player and swapping onto

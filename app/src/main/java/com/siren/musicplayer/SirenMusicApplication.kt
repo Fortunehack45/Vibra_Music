@@ -3,7 +3,8 @@ package com.siren.musicplayer
 
 
 import android.app.Application
-
+import android.util.Log
+import java.io.File
 import androidx.annotation.OptIn
 
 import androidx.media3.common.util.UnstableApi
@@ -75,8 +76,27 @@ class SirenMusicApplication : Application(), SingletonImageLoader.Factory {
     @OptIn(UnstableApi::class)
 
     override fun onCreate() {
-
         super.onCreate()
+
+        val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            runCatching {
+                Log.e("SirenMusic", "FATAL CRASH on thread ${thread.name}", throwable)
+                val runtime = Runtime.getRuntime()
+                val usedMemMb = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)
+                val maxMemMb = runtime.maxMemory() / (1024 * 1024)
+                val crashFile = File(filesDir, "last_crash.log")
+                crashFile.writeText(
+                    "Timestamp: ${System.currentTimeMillis()}\n" +
+                    "Version: ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})\n" +
+                    "Thread: ${thread.name}\n" +
+                    "Memory: ${usedMemMb}MB / ${maxMemMb}MB\n" +
+                    "Exception: ${throwable.javaClass.name}: ${throwable.message}\n\n" +
+                    Log.getStackTraceString(throwable)
+                )
+            }
+            defaultHandler?.uncaughtException(thread, throwable)
+        }
 
         // PlaybackService shares this process, so seeding the cookie here means
 
@@ -297,34 +317,37 @@ class SirenMusicApplication : Application(), SingletonImageLoader.Factory {
             }
 
             .memoryCache {
-
                 MemoryCache.Builder()
-
-                    .maxSizePercent(context, 0.20)
-
+                    .maxSizePercent(context, 0.12)
                     .build()
-
             }
-
             .diskCache {
-
                 DiskCache.Builder()
-
                     .directory(cacheDir.resolve("image_cache"))
-
                     .maxSizeBytes(100L * 1024 * 1024)
-
                     .build()
-
             }
-
             // Covers arriving with a hard cut read as the list flickering as
-
             // it scrolls; a short fade reads as them developing.
-
             .crossfade(200)
-
             .build()
+
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        val loader = SingletonImageLoader.get(this)
+        if (level >= TRIM_MEMORY_MODERATE) {
+            loader.memoryCache?.clear()
+            com.siren.musicplayer.ui.player.clearBackdropCaches()
+        } else if (level >= TRIM_MEMORY_RUNNING_LOW) {
+            loader.memoryCache?.trimMemory(level)
+        }
+    }
+
+    override fun onLowMemory() {
+        super.onLowMemory()
+        SingletonImageLoader.get(this).memoryCache?.clear()
+        com.siren.musicplayer.ui.player.clearBackdropCaches()
+    }
 
 
 

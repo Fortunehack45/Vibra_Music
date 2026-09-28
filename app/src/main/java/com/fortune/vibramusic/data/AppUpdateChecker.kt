@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.data
+package com.fortune.vibramusic.data
 
 import android.content.Context
 import android.content.Intent
@@ -43,7 +43,7 @@ object AppUpdateChecker {
     private const val CACHE_SUBDIR = "updates"
 
     private const val LATEST_RELEASE_URL =
-        "https://api.github.com/repos/Fortunehack45/Vibra_Music/releases/latest"
+        "https://api.github.com/repos/Fortunehack45/Vibra_Music_Releases/releases/latest"
 
     private val json = Json { ignoreUnknownKeys = true }
 

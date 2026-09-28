@@ -76,7 +76,7 @@
 
 <h1><a id="download"></a>Download</h1>
 
-Grab the latest signed APK from the [Releases](https://github.com/Fortunehack45/Vibra_Music/releases) page. Sideloading requires enabling "Install unknown apps" for whichever app you download it with.
+Grab the latest signed APK from the [Releases](https://github.com/Fortunehack45/Vibra_Music_Releases/releases) page. Sideloading requires enabling "Install unknown apps" for whichever app you download it with.
 
 </div>
 

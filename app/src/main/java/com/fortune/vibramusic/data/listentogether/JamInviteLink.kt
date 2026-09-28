@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.data.listentogether
+package com.fortune.vibramusic.data.listentogether
 
 import android.content.Intent
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,6 +22,7 @@ object JamInviteLink {
     private const val HOST = "vibra-music.onrender.com"
     private const val LEGACY_HOST = "siren-music.onrender.com"
     private const val CUSTOM_SCHEME = "vibra"
+    private const val LEGACY_SCHEME = "siren"
     private const val CUSTOM_HOST = "party"
 
     private val _pending = MutableStateFlow<ParsedJamInvite?>(null)
@@ -50,9 +51,10 @@ object JamInviteLink {
 
     /**
      * Parses an incoming invite:
-     * 1. siren://party/<CODE>?server=<SERVER>
-     * 2. https://siren-music.onrender.com/invite/<CODE>?server=<SERVER>
-     * 3. https://siren.musicplayer.in/invite/<CODE>?server=<SERVER>
+     * 1. vibra://party/<CODE>?server=<SERVER> (or legacy siren://party/<CODE>)
+     * 2. https://vibra-music.onrender.com/invite/<CODE>?server=<SERVER>
+     * 3. https://siren-music.onrender.com/invite/<CODE>?server=<SERVER>
+     * 4. https://siren.musicplayer.in/invite/<CODE>?server=<SERVER>
      */
     fun parseInvite(value: String?): ParsedJamInvite? {
         val uri = runCatching { URI(value ?: return null) }.getOrNull() ?: return null
@@ -61,15 +63,15 @@ object JamInviteLink {
         val query = uri.rawQuery
         val server = extractQueryParam(query, "server")?.let { sanitizeServerUrl(it) }
 
-        // 1. Custom scheme: siren://party/<CODE> or siren://party?code=<CODE>
-        if (scheme == CUSTOM_SCHEME && host == CUSTOM_HOST) {
+        // 1. Custom scheme: vibra://party/<CODE> or legacy siren://party/<CODE>
+        if ((scheme == CUSTOM_SCHEME || scheme == LEGACY_SCHEME) && host == CUSTOM_HOST) {
             val pathPart = uri.path.orEmpty().trim('/').takeIf { it.isNotBlank() }
             val candidate = pathPart ?: extractQueryParam(query, "code") ?: return null
             val code = cleanCode(candidate) ?: return null
             return ParsedJamInvite(code = code, serverUrl = server)
         }
 
-        // 2. Official web domain: https://siren-music.onrender.com/invite/<CODE> (or legacy siren.musicplayer.in)
+        // 2. Official web domain: https://vibra-music.onrender.com/invite/<CODE> (or legacy hosts)
         if (scheme == "https" && (isOfficialHost(host))) {
             val match = INVITE_PATH.matchEntire(uri.path.orEmpty()) ?: return null
             val code = match.groupValues[1].uppercase()
@@ -102,9 +104,9 @@ object JamInviteLink {
         val base = customServer?.trim()?.trimEnd('/')
         return if (!base.isNullOrBlank()) {
             val encoded = runCatching { URLEncoder.encode(base, "UTF-8") }.getOrDefault(base)
-            "siren://party/$normalizedCode?server=$encoded"
+            "vibra://party/$normalizedCode?server=$encoded"
         } else {
-            "siren://party/$normalizedCode"
+            "vibra://party/$normalizedCode"
         }
     }
 

@@ -74,11 +74,11 @@ class JamInviteLinkTest {
             JamInviteLink.url("abc123", "https://my-party.onrender.com/"),
         )
         assertEquals(
-            "https://siren-music.onrender.com/invite/ABC123",
+            "https://vibra-music.onrender.com/invite/ABC123",
             JamInviteLink.url("abc123", ""),
         )
         assertEquals(
-            "https://siren-music.onrender.com/invite/ABC123",
+            "https://vibra-music.onrender.com/invite/ABC123",
             JamInviteLink.url("abc123", null),
         )
     }
@@ -86,34 +86,49 @@ class JamInviteLinkTest {
     @Test
     fun `builds custom scheme URL`() {
         assertEquals(
-            "siren://party/ABC123?server=https%3A%2F%2Fmy-party.onrender.com",
+            "vibra://party/ABC123?server=https%3A%2F%2Fmy-party.onrender.com",
             JamInviteLink.schemeUrl("abc123", "https://my-party.onrender.com"),
         )
         assertEquals(
-            "siren://party/ABC123",
+            "vibra://party/ABC123",
             JamInviteLink.schemeUrl("abc123", null),
         )
     }
 
     @Test
     fun `parses custom scheme invite with server`() {
-        val invite = JamInviteLink.parseInvite("siren://party/a1b2c3?server=https%3A%2F%2Fmy-party.onrender.com")
+        val invite = JamInviteLink.parseInvite("vibra://party/a1b2c3?server=https%3A%2F%2Fmy-party.onrender.com")
         assertEquals("A1B2C3", invite?.code)
         assertEquals("https://my-party.onrender.com", invite?.serverUrl)
+
+        // Also accepts legacy siren scheme
+        val legacy = JamInviteLink.parseInvite("siren://party/a1b2c3?server=https%3A%2F%2Fmy-party.onrender.com")
+        assertEquals("A1B2C3", legacy?.code)
+        assertEquals("https://my-party.onrender.com", legacy?.serverUrl)
     }
 
     @Test
     fun `parses custom scheme invite without server`() {
-        val invite = JamInviteLink.parseInvite("siren://party/XYZ789")
+        val invite = JamInviteLink.parseInvite("vibra://party/XYZ789")
         assertEquals("XYZ789", invite?.code)
         assertNull(invite?.serverUrl)
+
+        // Also accepts legacy siren scheme
+        val legacy = JamInviteLink.parseInvite("siren://party/XYZ789")
+        assertEquals("XYZ789", legacy?.code)
+        assertNull(legacy?.serverUrl)
     }
 
     @Test
     fun `parses web invite with server parameter`() {
-        val invite = JamInviteLink.parseInvite("https://siren-music.onrender.com/invite/ABC123?server=https%3A%2F%2Fcustom.example.com")
+        val invite = JamInviteLink.parseInvite("https://vibra-music.onrender.com/invite/ABC123?server=https%3A%2F%2Fcustom.example.com")
         assertEquals("ABC123", invite?.code)
         assertEquals("https://custom.example.com", invite?.serverUrl)
+
+        // Also accepts legacy siren host
+        val legacy = JamInviteLink.parseInvite("https://siren-music.onrender.com/invite/ABC123?server=https%3A%2F%2Fcustom.example.com")
+        assertEquals("ABC123", legacy?.code)
+        assertEquals("https://custom.example.com", legacy?.serverUrl)
     }
 
     @Test
@@ -144,7 +159,7 @@ class JamInviteLinkTest {
         } else {
             JamInviteLink.url(code, activePartyHost)
         }
-        assertEquals("https://siren-music.onrender.com/invite/JAM001", link)
+        assertEquals("https://vibra-music.onrender.com/invite/JAM001", link)
     }
 
     @Test
@@ -157,7 +172,7 @@ class JamInviteLinkTest {
             JamInviteLink.url(code, customHost)
         }
         assertEquals("https://custom.jam.example.com/invite/JAM002", link)
-        assertNotEquals("https://siren-music.onrender.com/invite/JAM002", link)
+        assertNotEquals("https://vibra-music.onrender.com/invite/JAM002", link)
     }
 
     @Test

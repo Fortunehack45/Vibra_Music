@@ -167,7 +167,7 @@ class DiscordRPC(
          */
         private const val APPLICATION_ID = "1411019391843172514"
 
-        const val PROJECT_URL = "https://github.com/Fortunehack45/Vibra_Music"
+        const val PROJECT_URL = "https://github.com/Fortunehack45/Vibra_Music_Releases"
 
         const val DEFAULT_BUTTON_1 = "Listen on YouTube Music"
         const val DEFAULT_BUTTON_2 = "Visit Vibra Music"
@@ -179,11 +179,10 @@ class DiscordRPC(
          * The sleeve drawn for a track with no usable artwork.
          *
          * Has to be a URL Discord's mirroring endpoint can fetch, so it points
-         * at the launcher icon in the repo rather than the copy bundled in the
-         * APK — a `res/` drawable has no address the presence can carry.
+         * at the launcher icon in the public releases repo rather than a private repo.
          */
         private const val FALLBACK_ART_URL =
-            "https://raw.githubusercontent.com/Fortunehack45/Vibra_Music/main/app/src/main/ic_launcher-playstore.png"
+            "https://raw.githubusercontent.com/Fortunehack45/Vibra_Music_Releases/main/app-icon.png"
 
         fun watchUrl(song: Song): String =
             "https://music.youtube.com/watch?v=${song.videoId}"

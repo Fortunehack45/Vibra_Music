@@ -65,22 +65,35 @@ object AppUpdateChecker {
     @Volatile
     private var downloadCancelled = false
 
-    suspend fun check() = withContext(Dispatchers.IO) {
+    suspend fun check(): UpdateInfo? = withContext(Dispatchers.IO) {
         runCatching {
-            val request = Request.Builder().url(LATEST_RELEASE_URL).build()
+            val request = Request.Builder()
+                .url(LATEST_RELEASE_URL)
+                .header("User-Agent", "VibraMusic-App/${BuildConfig.VERSION_NAME}")
+                .header("Accept", "application/vnd.github+json")
+                .build()
             val body = Http.client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) null else response.body?.string()
-            } ?: return@runCatching
-            val release = json.parseToJsonElement(body) as? JsonObject ?: return@runCatching
-            val tag = release["tag_name"]?.jsonPrimitive?.contentOrNull ?: return@runCatching
-            val url = release["html_url"]?.jsonPrimitive?.contentOrNull ?: return@runCatching
+                if (!response.isSuccessful) {
+                    android.util.Log.w("AppUpdateChecker", "Update check failed: HTTP ${response.code} ${response.message}")
+                    null
+                } else {
+                    response.body?.string()
+                }
+            } ?: return@runCatching null
+            val release = json.parseToJsonElement(body) as? JsonObject ?: return@runCatching null
+            val tag = release["tag_name"]?.jsonPrimitive?.contentOrNull ?: return@runCatching null
+            val url = release["html_url"]?.jsonPrimitive?.contentOrNull ?: return@runCatching null
             val apkUrl = apkAssetUrl(release)
             val notes = release["body"]?.jsonPrimitive?.contentOrNull
             val latest = tag.removePrefix("v")
             if (isNewer(latest, BuildConfig.VERSION_NAME)) {
-                _available.value = UpdateInfo(latest, url, apkUrl, notes)
+                val info = UpdateInfo(latest, url, apkUrl, notes)
+                _available.value = info
+                info
+            } else {
+                null
             }
-        }
+        }.getOrNull()
     }
 
     /**
@@ -94,21 +107,30 @@ object AppUpdateChecker {
     }
 
     /**
-     * The release usually carries exactly one `.apk`; take its direct download
-     * URL. A release without one (source-only draft, renamed asset) leaves
-     * [UpdateInfo.apkUrl] null and the UI falls back to opening the releases
-     * page as before.
+     * Finds the most appropriate `.apk` asset for this device's ABI, falling
+     * back to universal or the first available APK.
      */
     private fun apkAssetUrl(release: JsonObject): String? = runCatching {
-        release["assets"]?.jsonArray
+        val assets = release["assets"]?.jsonArray
             ?.mapNotNull { it as? JsonObject }
-            ?.firstOrNull { asset ->
+            ?.filter { asset ->
                 asset["name"]?.jsonPrimitive?.contentOrNull?.endsWith(".apk", ignoreCase = true) == true &&
                     asset["state"]?.jsonPrimitive?.contentOrNull == "uploaded"
+            } ?: return null
+        if (assets.isEmpty()) return null
+
+        val supportedAbis = Build.SUPPORTED_ABIS ?: emptyArray()
+        val best = supportedAbis.firstNotNullOfOrNull { abi ->
+            assets.firstOrNull { asset ->
+                val name = asset["name"]?.jsonPrimitive?.contentOrNull ?: ""
+                name.contains(abi, ignoreCase = true)
             }
-            ?.get("browser_download_url")
-            ?.jsonPrimitive
-            ?.contentOrNull
+        } ?: assets.firstOrNull { asset ->
+            val name = asset["name"]?.jsonPrimitive?.contentOrNull ?: ""
+            name.contains("universal", ignoreCase = true)
+        } ?: assets.first()
+
+        best["browser_download_url"]?.jsonPrimitive?.contentOrNull
     }.getOrNull()
 
     /**
@@ -129,7 +151,10 @@ object AppUpdateChecker {
             dir.listFiles()?.forEach { it.delete() }
             val target = File(dir, "vibra-${info.version}.apk")
 
-            val request = Request.Builder().url(url).build()
+            val request = Request.Builder()
+                .url(url)
+                .header("User-Agent", "VibraMusic-App/${BuildConfig.VERSION_NAME}")
+                .build()
             Http.client.newCall(request).execute().use { response ->
                 check(response.isSuccessful) { "Download failed: HTTP ${response.code}" }
                 val body = response.body ?: error("Empty download body")

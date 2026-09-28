@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic
+package com.fortune.vibramusic
 
 import android.Manifest
 import android.content.Context
@@ -2525,6 +2525,17 @@ private fun VibraMusicApp(
                             onListenTogether = { showListenTogether = true },
                             onSpotifyCanvasAuth = { showSpotifyCanvasAuth = true },
                             onAppLanguage = { showAppLanguage = true },
+                            onCheckForUpdates = {
+                                scope.launch {
+                                    android.widget.Toast.makeText(context, "Checking for updates...", android.widget.Toast.LENGTH_SHORT).show()
+                                    val update = AppUpdateChecker.check()
+                                    if (update != null) {
+                                        showUpdateDialog = true
+                                    } else {
+                                        android.widget.Toast.makeText(context, "Vibra Music is up to date", android.widget.Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            },
                             contentPadding = listPadding,
                         )
                     } else if (page != null && page.browseId.isDeviceFolder()) {
@@ -3993,9 +4004,10 @@ private fun VibraMusicApp(
             }
         }
 
-        // ---- Update available (once per launch) ----
+        // ---- Update available (once per launch or manual check) ----
         if (showUpdateDialog) {
-            updateNotice?.let { update ->
+            val activeUpdate = updateNotice ?: AppUpdateChecker.available.value
+            activeUpdate?.let { update ->
                 UpdateAvailableDialog(
                     version = update.version,
                     notes = update.notes,

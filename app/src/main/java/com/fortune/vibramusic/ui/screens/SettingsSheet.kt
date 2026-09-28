@@ -67,6 +67,7 @@ import androidx.compose.material.icons.rounded.SmartDisplay
 import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material.icons.rounded.SurroundSound
 import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.Upgrade
 import androidx.compose.material.icons.rounded.VolumeOff
 import androidx.compose.material.icons.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.Waves
@@ -178,6 +179,7 @@ fun SettingsScreen(
     onListenTogether: () -> Unit,
     onSpotifyCanvasAuth: () -> Unit,
     onAppLanguage: () -> Unit,
+    onCheckForUpdates: () -> Unit = {},
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier,
 ) {
@@ -1344,6 +1346,15 @@ fun SettingsScreen(
                         )
                     },
                     onClick = { AppSettings.setShowNerdStats(!nerdStats) },
+                )
+            }
+            val checkForUpdatesTitle = "Check for updates"
+            row(checkForUpdatesTitle, "update", "version", "github", "upgrade") {
+                SettingsRow(
+                    icon = Icons.Rounded.Upgrade,
+                    title = checkForUpdatesTitle,
+                    subtitle = "Vibra Music $version · Tap to check",
+                    onClick = onCheckForUpdates,
                 )
             }
         }

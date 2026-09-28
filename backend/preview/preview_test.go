@@ -3,6 +3,7 @@ package preview
 import (
 	"bytes"
 	"image/png"
+	"os"
 	"testing"
 )
 
@@ -25,4 +26,18 @@ func TestGenerateCard(t *testing.T) {
 	if bounds.Dx() != Width || bounds.Dy() != Height {
 		t.Fatalf("Expected %dx%d, got %dx%d", Width, Height, bounds.Dx(), bounds.Dy())
 	}
+}
+
+func TestEmbedImages(t *testing.T) {
+	logoImg, err := png.Decode(bytes.NewReader(appLogoBytes))
+	if err != nil {
+		t.Fatalf("Failed to decode appLogoBytes: %v", err)
+	}
+	t.Logf("app_logo.png bounds: %v", logoImg.Bounds())
+
+	iconImg, err := png.Decode(bytes.NewReader(appIconBytes))
+	if err != nil {
+		t.Fatalf("Failed to decode appIconBytes: %v", err)
+	}
+	t.Logf("app_icon.png bounds: %v", iconImg.Bounds())
 }

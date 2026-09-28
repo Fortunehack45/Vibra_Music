@@ -18,12 +18,13 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"github.com/Fortunehack45/Siren-Music/backend/clock"
-	"github.com/Fortunehack45/Siren-Music/backend/codes"
-	"github.com/Fortunehack45/Siren-Music/backend/config"
-	"github.com/Fortunehack45/Siren-Music/backend/hub"
-	"github.com/Fortunehack45/Siren-Music/backend/party"
-	"github.com/Fortunehack45/Siren-Music/backend/protocol"
+	"github.com/Fortunehack45/Vibra_Music/backend/clock"
+	"github.com/Fortunehack45/Vibra_Music/backend/codes"
+	"github.com/Fortunehack45/Vibra_Music/backend/config"
+	"github.com/Fortunehack45/Vibra_Music/backend/hub"
+	"github.com/Fortunehack45/Vibra_Music/backend/party"
+	"github.com/Fortunehack45/Vibra_Music/backend/preview"
+	"github.com/Fortunehack45/Vibra_Music/backend/protocol"
 )
 
 var (
@@ -53,8 +54,9 @@ func main() {
 	mux.HandleFunc("GET /api/parties/{code}/preview", handlePreviewParty)
 	mux.HandleFunc("POST /api/parties/{code}/leave", handleLeaveParty)
 
-	// Web invite endpoint
+	// Web invite endpoint & social preview card
 	mux.HandleFunc("GET /invite/{code}", handleInviteLanding)
+	mux.HandleFunc("GET /invite/{code}/preview.png", handleInvitePreviewImage)
 
 	// Digital Asset Links for Android App Links autoVerify
 	mux.HandleFunc("GET /.well-known/assetlinks.json", handleAssetLinks)
@@ -65,7 +67,7 @@ func main() {
 	handler := corsMiddleware(mux)
 
 	addr := fmt.Sprintf("0.0.0.0:%d", config.Port)
-	log.Printf("Siren Music Listen Together (Go) starting on %s...", addr)
+	log.Printf("Vibra Music Listen Together (Go) starting on %s...", addr)
 	server := &http.Server{
 		Addr:              addr,
 		Handler:           handler,
@@ -208,7 +210,7 @@ func handleRoot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	jsonResponse(w, http.StatusOK, map[string]interface{}{
-		"service":    "siren-listen-together",
+		"service":    "vibra-listen-together",
 		"maxMembers": config.MaxMembers,
 		"parties":    store.Len(),
 		"serverMs":   clock.NowMs(),
@@ -479,9 +481,13 @@ type invitePageData struct {
 	IntentURI         template.URL
 	SafeDeepLink      template.URL
 	ServerOrigin      string
+	HostName          string
+	HostAvatarUrl     string
 	CurrentSongTitle  string
 	CurrentSongArtist string
+	CurrentSongThumb  string
 	MemberCount       int
+	MaxMembers        int
 	IsActive          bool
 }
 
@@ -490,11 +496,28 @@ var inviteTemplate = template.Must(template.New("invite").Parse(`<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Siren Music Listen Together - Party {{.Code}}</title>
+    <title>{{if .HostName}}Join {{.HostName}}'s Party{{else}}Vibra Music Listen Together{{end}} - {{.Code}}</title>
+    
+    <!-- Open Graph / WhatsApp / Telegram / Discord Preview Metadata -->
+    <meta property="og:type" content="music.song">
+    <meta property="og:site_name" content="Vibra Music">
+    <meta property="og:title" content="Join {{if .HostName}}{{.HostName}}'s{{else}}a{{end}} Party on Vibra Music">
+    <meta property="og:description" content="Party {{.Code}} • {{if .CurrentSongTitle}}Now Playing: {{.CurrentSongTitle}} by {{.CurrentSongArtist}} • {{end}}{{.MemberCount}} listening in real time">
+    <meta property="og:image" content="{{.ServerOrigin}}/invite/{{.Code}}/preview.png">
+    <meta property="og:image:type" content="image/png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Join {{if .HostName}}{{.HostName}}'s{{else}}a{{end}} Party on Vibra Music">
+    <meta name="twitter:description" content="Party {{.Code}} • Real-time synchronized playback on Vibra Music">
+    <meta name="twitter:image" content="{{.ServerOrigin}}/invite/{{.Code}}/preview.png">
+
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
-            background-color: #0b0b0e;
+            background-color: #0b0b12;
             color: #f3f3f7;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             min-height: 100vh;
@@ -502,31 +525,63 @@ var inviteTemplate = template.Must(template.New("invite").Parse(`<!DOCTYPE html>
             align-items: center;
             justify-content: center;
             padding: 24px;
+            background-image: 
+                radial-gradient(circle at 15% 15%, rgba(124, 77, 255, 0.12) 0%, transparent 40%),
+                radial-gradient(circle at 85% 85%, rgba(61, 90, 254, 0.12) 0%, transparent 40%);
         }
         .container {
-            background: rgba(22, 22, 30, 0.85);
-            backdrop-filter: blur(24px);
-            -webkit-backdrop-filter: blur(24px);
+            background: rgba(22, 22, 34, 0.88);
+            backdrop-filter: blur(28px);
+            -webkit-backdrop-filter: blur(28px);
             border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 28px;
-            max-width: 440px;
+            border-radius: 32px;
+            max-width: 450px;
             width: 100%;
-            padding: 36px 28px;
+            padding: 36px 30px;
             text-align: center;
-            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), 0 0 40px rgba(124, 77, 255, 0.1);
+            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6), 0 0 50px rgba(124, 77, 255, 0.12);
+        }
+        .brand-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+        .brand-logo-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .brand-logo {
+            width: 32px;
+            height: 32px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #7c4dff, #3d5afe);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            box-shadow: 0 4px 12px rgba(124, 77, 255, 0.4);
+        }
+        .brand-title {
+            font-size: 16px;
+            font-weight: 700;
+            letter-spacing: -0.3px;
+            color: #ffffff;
         }
         .badge {
             display: inline-flex;
             align-items: center;
             gap: 6px;
-            background: rgba(124, 77, 255, 0.15);
+            background: rgba(124, 77, 255, 0.16);
             color: #b388ff;
-            font-size: 13px;
+            font-size: 12px;
             font-weight: 600;
-            padding: 6px 14px;
+            padding: 5px 12px;
             border-radius: 9999px;
-            margin-bottom: 20px;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.3px;
         }
         .badge-dot {
             width: 8px;
@@ -539,31 +594,96 @@ var inviteTemplate = template.Must(template.New("invite").Parse(`<!DOCTYPE html>
             background: #ff5252;
             box-shadow: 0 0 8px #ff5252;
         }
+        .avatar-wrap {
+            position: relative;
+            width: 96px;
+            height: 96px;
+            margin: 0 auto 16px;
+        }
+        .host-avatar {
+            width: 96px;
+            height: 96px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid #7c4dff;
+            box-shadow: 0 0 20px rgba(124, 77, 255, 0.5);
+        }
+        .fallback-avatar {
+            width: 96px;
+            height: 96px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #7c4dff, #3d5afe);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 38px;
+            font-weight: 800;
+            color: #ffffff;
+            box-shadow: 0 0 20px rgba(124, 77, 255, 0.5);
+            margin: 0 auto 16px;
+        }
         h1 {
-            font-size: 24px;
+            font-size: 22px;
             font-weight: 700;
-            margin-bottom: 8px;
-            letter-spacing: -0.5px;
+            margin-bottom: 6px;
+            letter-spacing: -0.4px;
         }
         .subtitle {
             color: #9e9ea7;
-            font-size: 15px;
+            font-size: 14px;
             line-height: 1.5;
-            margin-bottom: 28px;
+            margin-bottom: 24px;
+        }
+        .song-card {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 12px 14px;
+            margin-bottom: 20px;
+            text-align: left;
+        }
+        .song-thumb {
+            width: 44px;
+            height: 44px;
+            border-radius: 10px;
+            object-fit: cover;
+            background: #20202e;
+        }
+        .song-info {
+            flex: 1;
+            min-width: 0;
+        }
+        .song-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #ffffff;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .song-artist {
+            font-size: 12px;
+            color: #a0a0ab;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
         .code-box {
             background: rgba(255, 255, 255, 0.04);
             border: 1px solid rgba(255, 255, 255, 0.1);
             border-radius: 18px;
-            padding: 16px 20px;
-            margin-bottom: 28px;
+            padding: 14px 20px;
+            margin-bottom: 24px;
         }
         .code-label {
-            font-size: 12px;
+            font-size: 11px;
             color: #71717a;
             text-transform: uppercase;
             letter-spacing: 1.5px;
-            margin-bottom: 6px;
+            margin-bottom: 4px;
         }
         .code-val {
             font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
@@ -571,14 +691,6 @@ var inviteTemplate = template.Must(template.New("invite").Parse(`<!DOCTYPE html>
             font-weight: 800;
             letter-spacing: 6px;
             color: #ffffff;
-        }
-        .now-playing {
-            font-size: 14px;
-            color: #d1d1d6;
-            margin-top: 10px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
         }
         .btn {
             display: block;
@@ -603,7 +715,7 @@ var inviteTemplate = template.Must(template.New("invite").Parse(`<!DOCTYPE html>
             transform: scale(0.98);
         }
         .footer-note {
-            margin-top: 24px;
+            margin-top: 22px;
             font-size: 13px;
             color: #71717a;
             line-height: 1.5;
@@ -619,24 +731,61 @@ var inviteTemplate = template.Must(template.New("invite").Parse(`<!DOCTYPE html>
 </head>
 <body>
     <div class="container">
-        {{if .IsActive}}
-            <div class="badge">
-                <span class="badge-dot"></span>
-                <span>Listen Together • {{.MemberCount}} in party</span>
+        <div class="brand-header">
+            <div class="brand-logo-group">
+                <div class="brand-logo">🎵</div>
+                <div class="brand-title">Vibra Music</div>
             </div>
-            <h1>Join the Music Party</h1>
-            <p class="subtitle">Opening Siren Music to sync playback in real time.</p>
+            {{if .IsActive}}
+                <div class="badge">
+                    <span class="badge-dot"></span>
+                    <span>{{.MemberCount}} in party</span>
+                </div>
+            {{else}}
+                <div class="badge">
+                    <span class="badge-dot offline"></span>
+                    <span>Inactive</span>
+                </div>
+            {{end}}
+        </div>
+
+        {{if .IsActive}}
+            {{if .HostAvatarUrl}}
+                <div class="avatar-wrap">
+                    <img src="{{.HostAvatarUrl}}" class="host-avatar" alt="{{.HostName}}" />
+                </div>
+            {{else}}
+                <div class="fallback-avatar">
+                    {{if .HostName}}{{.HostName | printf "%.1s"}}{{else}}V{{end}}
+                </div>
+            {{end}}
+
+            <h1>{{if .HostName}}{{.HostName}}{{else}}Host{{end}} invited you</h1>
+            <p class="subtitle">Listen together in real time on Vibra Music.</p>
+
+            {{if .CurrentSongTitle}}
+                <div class="song-card">
+                    {{if .CurrentSongThumb}}
+                        <img src="{{.CurrentSongThumb}}" class="song-thumb" alt="Track thumbnail" />
+                    {{else}}
+                        <div class="song-thumb" style="display:flex;align-items:center;justify-content:center;">🎵</div>
+                    {{end}}
+                    <div class="song-info">
+                        <div class="song-title">{{.CurrentSongTitle}}</div>
+                        <div class="song-artist">{{.CurrentSongArtist}}</div>
+                    </div>
+                </div>
+            {{end}}
+
             <div class="code-box">
                 <div class="code-label">Party Code</div>
                 <div class="code-val">{{.Code}}</div>
-                {{if .CurrentSongTitle}}
-                    <div class="now-playing">🎵 {{.CurrentSongTitle}} - {{.CurrentSongArtist}}</div>
-                {{end}}
             </div>
-            <a id="joinBtn" href="{{.IntentURI}}" class="btn">Join Party in Siren Music</a>
+
+            <a id="joinBtn" href="{{.IntentURI}}" class="btn">Join Party in Vibra Music</a>
             <p class="footer-note">
                 Didn’t open automatically? Tap the button above.<br>
-                Don't have Siren Music yet? <a href="https://github.com/Fortunehack45/Siren-Music/releases" target="_blank" rel="noopener">Download it here</a>.
+                Don't have Vibra Music yet? <a href="https://github.com/Fortunehack45/Vibra_Music/releases" target="_blank" rel="noopener">Download APK here</a>.
             </p>
             <script>
                 var intentUri = {{.IntentURI}};
@@ -651,10 +800,7 @@ var inviteTemplate = template.Must(template.New("invite").Parse(`<!DOCTYPE html>
                 setTimeout(launch, 100);
             </script>
         {{else}}
-            <div class="badge">
-                <span class="badge-dot offline"></span>
-                <span>Party Inactive</span>
-            </div>
+            <div class="fallback-avatar" style="background:#2a2a38;">✕</div>
             <h1>Party Not Found</h1>
             <p class="subtitle">This party code has expired or does not exist on this server.</p>
             <div class="code-box">
@@ -662,7 +808,7 @@ var inviteTemplate = template.Must(template.New("invite").Parse(`<!DOCTYPE html>
                 <div class="code-val" style="color: #a1a1aa;">{{.Code}}</div>
             </div>
             <p class="footer-note">
-                Please ask the host for a new invite link or check your server configuration.
+                Please ask the host for a new invite link.
             </p>
         {{end}}
     </div>
@@ -710,17 +856,42 @@ func handleInviteLanding(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	deepLink := fmt.Sprintf("siren://party/%s?server=%s", url.PathEscape(code), url.QueryEscape(origin))
-	intentURI := fmt.Sprintf("intent://party/%s?server=%s#Intent;scheme=siren;package=com.siren.musicplayer;end", url.PathEscape(code), url.QueryEscape(origin))
+	deepLink := fmt.Sprintf("vibra://party/%s?server=%s", url.PathEscape(code), url.QueryEscape(origin))
+	intentURI := fmt.Sprintf("intent://party/%s?server=%s#Intent;scheme=vibra;package=com.fortune.vibramusic;end", url.PathEscape(code), url.QueryEscape(origin))
 
+	hostName := ""
+	hostAvatarUrl := ""
 	currentSongTitle := ""
 	currentSongArtist := ""
+	currentSongThumb := ""
 	p.Lock()
+	for _, m := range p.Members {
+		if m.IsHost {
+			hostName = m.DisplayName
+			if m.AvatarUrl != nil {
+				hostAvatarUrl = *m.AvatarUrl
+			}
+			break
+		}
+	}
+	if hostName == "" && len(p.Members) > 0 {
+		for _, m := range p.Members {
+			hostName = m.DisplayName
+			if m.AvatarUrl != nil {
+				hostAvatarUrl = *m.AvatarUrl
+			}
+			break
+		}
+	}
 	if p.Playback != nil && p.Playback.Track != nil {
 		currentSongTitle = p.Playback.Track.Title
 		currentSongArtist = p.Playback.Track.Artist
+		if p.Playback.Track.ThumbnailUrl != nil {
+			currentSongThumb = *p.Playback.Track.ThumbnailUrl
+		}
 	}
 	memberCount := len(p.Members)
+	maxMembers := p.MaxMembers
 	p.Unlock()
 
 	w.WriteHeader(http.StatusOK)
@@ -730,11 +901,63 @@ func handleInviteLanding(w http.ResponseWriter, r *http.Request) {
 		IntentURI:         template.URL(intentURI),
 		SafeDeepLink:      template.URL(deepLink),
 		ServerOrigin:      origin,
+		HostName:          hostName,
+		HostAvatarUrl:     hostAvatarUrl,
 		CurrentSongTitle:  currentSongTitle,
 		CurrentSongArtist: currentSongArtist,
+		CurrentSongThumb:  currentSongThumb,
 		MemberCount:       memberCount,
+		MaxMembers:        maxMembers,
 		IsActive:          true,
 	})
+}
+
+func handleInvitePreviewImage(w http.ResponseWriter, r *http.Request) {
+	code := codes.Normalise(r.PathValue("code"))
+	p := store.Find(code)
+
+	hostName := ""
+	hostAvatarUrl := ""
+	currentSongTitle := ""
+	currentSongArtist := ""
+
+	if p != nil {
+		p.Lock()
+		for _, m := range p.Members {
+			if m.IsHost {
+				hostName = m.DisplayName
+				if m.AvatarUrl != nil {
+					hostAvatarUrl = *m.AvatarUrl
+				}
+				break
+			}
+		}
+		if hostName == "" && len(p.Members) > 0 {
+			for _, m := range p.Members {
+				hostName = m.DisplayName
+				if m.AvatarUrl != nil {
+					hostAvatarUrl = *m.AvatarUrl
+				}
+				break
+			}
+		}
+		if p.Playback != nil && p.Playback.Track != nil {
+			currentSongTitle = p.Playback.Track.Title
+			currentSongArtist = p.Playback.Track.Artist
+		}
+		p.Unlock()
+	}
+
+	cardBytes, err := preview.GenerateCard(code, hostName, hostAvatarUrl, currentSongTitle, currentSongArtist)
+	if err != nil {
+		http.Error(w, "Failed to render card", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "image/png")
+	w.Header().Set("Cache-Control", "public, max-age=60")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(cardBytes)
 }
 
 // Digital Asset Links for Android App Links autoVerify
@@ -744,7 +967,7 @@ const assetLinksJSON = `[
     "relation": ["delegate_permission/common.handle_all_urls"],
     "target": {
       "namespace": "android_app",
-      "package_name": "com.siren.musicplayer",
+      "package_name": "com.fortune.vibramusic",
       "sha256_cert_fingerprints": [
         "C7:B2:26:F2:2A:AC:AB:05:AE:1B:57:29:C4:A6:C0:A2:92:54:C5:16:2F:23:8B:86:84:89:E3:27:00:0F:52:B8"
       ]

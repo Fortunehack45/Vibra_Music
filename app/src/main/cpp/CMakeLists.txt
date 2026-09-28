@@ -11,37 +11,37 @@
 # to that same tree without duplicating this module.
 
 cmake_minimum_required(VERSION 3.22.1)
-project(siren_analysis LANGUAGES CXX)
+project(vibra_analysis LANGUAGES CXX)
 
-get_filename_component(SIREN_NATIVE_DIR
+get_filename_component(VIBRA_NATIVE_DIR
     "${CMAKE_CURRENT_SOURCE_DIR}/../../../../native"
     ABSOLUTE)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-add_library(siren_analysis SHARED
-    ${SIREN_NATIVE_DIR}/analyzer/audio_analysis.cpp
-    ${SIREN_NATIVE_DIR}/analyzer/tempo_analysis.cpp
-    ${SIREN_NATIVE_DIR}/analyzer/resampler.cpp
-    ${SIREN_NATIVE_DIR}/analyzer/mel_spectrogram.cpp
-    ${SIREN_NATIVE_DIR}/analyzer/vocal_spectrogram.cpp
+add_library(vibra_analysis SHARED
+    ${VIBRA_NATIVE_DIR}/analyzer/audio_analysis.cpp
+    ${VIBRA_NATIVE_DIR}/analyzer/tempo_analysis.cpp
+    ${VIBRA_NATIVE_DIR}/analyzer/resampler.cpp
+    ${VIBRA_NATIVE_DIR}/analyzer/mel_spectrogram.cpp
+    ${VIBRA_NATIVE_DIR}/analyzer/vocal_spectrogram.cpp
     jni/analysis_jni.cpp
     jni/mel_jni.cpp
     jni/vocal_jni.cpp
 )
 
-target_include_directories(siren_analysis PRIVATE
+target_include_directories(vibra_analysis PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
-    ${SIREN_NATIVE_DIR}
+    ${VIBRA_NATIVE_DIR}
 )
 
 # -ffast-math is deliberately NOT enabled: the analyzer's log/mel-adjacent
 # arithmetic (see audio_analysis.cpp) is tuned against exact IEEE behaviour.
-target_compile_options(siren_analysis PRIVATE -O3 -fvisibility=hidden -fexceptions)
+target_compile_options(vibra_analysis PRIVATE -O3 -fvisibility=hidden -fexceptions)
 
 find_library(log-lib log)
-target_link_libraries(siren_analysis
+target_link_libraries(vibra_analysis
     ${log-lib}
     "-lc++_static"
     "-lc++abi"
@@ -50,4 +50,4 @@ target_link_libraries(siren_analysis
 # 16KB page-size support (Android 15+ 16KB kernels, Play requirement): align
 # LOAD segments to 16KB. A superset of 4KB alignment, so 4KB devices are
 # unaffected. APK-side alignment of uncompressed .so files is handled by AGP.
-target_link_options(siren_analysis PRIVATE "-Wl,-z,max-page-size=16384")
+target_link_options(vibra_analysis PRIVATE "-Wl,-z,max-page-size=16384")

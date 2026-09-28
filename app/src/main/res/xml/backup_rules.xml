@@ -9,6 +9,10 @@
    because they hold the same credentials in cleartext.
 -->
 <full-backup-content>
+    <exclude domain="sharedpref" path="vibra_auth.xml" />
+    <exclude domain="sharedpref" path="vibra_auth_plain.xml" />
+    <exclude domain="sharedpref" path="vibra_sources.xml" />
+    <exclude domain="sharedpref" path="vibra_sources_plain.xml" />
     <exclude domain="sharedpref" path="siren_auth.xml" />
     <exclude domain="sharedpref" path="siren_auth_plain.xml" />
     <exclude domain="sharedpref" path="siren_sources.xml" />

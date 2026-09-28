@@ -1,4 +1,4 @@
-# Siren Music — Listen Together
+# Vibra Music — Listen Together
 
 The party server behind **Listen together**: create a six-character code, share
 it, and up to five signed-in devices listen to the same thing at the same time.

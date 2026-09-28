@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/Fortunehack45/Siren-Music/backend/codes"
-	"github.com/Fortunehack45/Siren-Music/backend/config"
+	"github.com/Fortunehack45/Vibra_Music/backend/codes"
+	"github.com/Fortunehack45/Vibra_Music/backend/config"
 )
 
 func TestCodeNormalisation(t *testing.T) {

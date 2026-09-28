@@ -48,7 +48,7 @@
         android:maxSdkVersion="28" />
 
     <application
-        android:name=".SirenMusicApplication"
+        android:name=".VibraMusicApplication"
         android:allowBackup="true"
         android:largeHeap="true"
         android:appCategory="audio"
@@ -60,7 +60,7 @@
         android:localeConfig="@xml/locales_config"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.SirenMusic"
+        android:theme="@style/Theme.VibraMusic"
         tools:targetApi="34">
 
         <!--
@@ -110,7 +110,7 @@
             android:exported="true"
             android:launchMode="singleTask"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"
-            android:theme="@style/Theme.SirenMusic">
+            android:theme="@style/Theme.VibraMusic">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -197,9 +197,20 @@
             </intent-filter>
 
             <!-- Public Listen Together invites on the live server. autoVerify opens
-                 Siren Music directly once the domain publishes its assetlinks
+                 Vibra Music directly once the domain publishes its assetlinks
                  association for the production signing certificate. -->
             <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="https"
+                    android:host="vibra-music.onrender.com"
+                    android:pathPattern="/invite/.*" />
+            </intent-filter>
+
+            <!-- Legacy domain support for earlier party links. -->
+            <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
@@ -208,8 +219,6 @@
                     android:host="siren-music.onrender.com"
                     android:pathPattern="/invite/.*" />
             </intent-filter>
-
-            <!-- Legacy domain support for earlier party links. -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -226,9 +235,16 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data
+                    android:scheme="vibra"
+                    android:host="party" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
                     android:scheme="siren"
                     android:host="party" />
-                
             </intent-filter>
 
             <!--

@@ -13,7 +13,7 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"github.com/Fortunehack45/Siren-Music/backend/protocol"
+	"github.com/Fortunehack45/Vibra_Music/backend/protocol"
 )
 
 func setupTestServer() *httptest.Server {
@@ -26,6 +26,7 @@ func setupTestServer() *httptest.Server {
 	mux.HandleFunc("GET /api/parties/{code}", handleGetParty)
 	mux.HandleFunc("POST /api/parties/{code}/leave", handleLeaveParty)
 	mux.HandleFunc("GET /invite/{code}", handleInviteLanding)
+	mux.HandleFunc("GET /invite/{code}/preview.png", handleInvitePreviewImage)
 	mux.HandleFunc("GET /.well-known/assetlinks.json", handleAssetLinks)
 	mux.HandleFunc("GET /ws/parties/{code}", handleWebSocket)
 
@@ -269,12 +270,28 @@ func TestInviteLanding(t *testing.T) {
 	_, _ = buf.ReadFrom(resActive.Body)
 	content := buf.String()
 
-	expectedDeepLinkPrefix := "siren://party/" + code
+	expectedDeepLinkPrefix := "vibra://party/" + code
 	if !strings.Contains(content, expectedDeepLinkPrefix) {
 		t.Errorf("Expected HTML content to contain deep link %s", expectedDeepLinkPrefix)
 	}
 	if !strings.Contains(content, code) {
 		t.Errorf("Expected HTML content to contain party code %s", code)
+	}
+	if !strings.Contains(content, "preview.png") {
+		t.Errorf("Expected HTML content to contain preview.png Open Graph image")
+	}
+
+	// 4. Test social preview image endpoint
+	resImg, err := http.Get(ts.URL + "/invite/" + code + "/preview.png")
+	if err != nil {
+		t.Fatalf("GET /invite/%s/preview.png failed: %v", code, err)
+	}
+	defer resImg.Body.Close()
+	if resImg.StatusCode != http.StatusOK {
+		t.Errorf("Expected 200 for preview image, got %d", resImg.StatusCode)
+	}
+	if cType := resImg.Header.Get("Content-Type"); cType != "image/png" {
+		t.Errorf("Expected Content-Type image/png, got %s", cType)
 	}
 }
 
@@ -301,8 +318,8 @@ func TestAssetLinksEndpoint(t *testing.T) {
 	_, _ = buf.ReadFrom(res.Body)
 	body := buf.String()
 
-	if !strings.Contains(body, "com.siren.musicplayer") {
-		t.Errorf("Expected assetlinks to contain package com.siren.musicplayer, got %s", body)
+	if !strings.Contains(body, "com.fortune.vibramusic") {
+		t.Errorf("Expected assetlinks to contain package com.fortune.vibramusic, got %s", body)
 	}
 	if !strings.Contains(body, "C7:B2:26:F2:2A:AC:AB:05:AE:1B:57:29:C4:A6:C0:A2:92:54:C5:16:2F:23:8B:86:84:89:E3:27:00:0F:52:B8") {
 		t.Errorf("Expected assetlinks to contain release keystore SHA256 fingerprint, got %s", body)

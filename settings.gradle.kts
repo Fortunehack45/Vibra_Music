@@ -15,6 +15,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Siren Music"
+rootProject.name = "Vibra Music"
 include(":app")
  

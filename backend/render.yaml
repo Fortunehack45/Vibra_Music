@@ -1,4 +1,4 @@
-# Render blueprint for Siren Music Listen Together (Go backend)
+# Render blueprint for Vibra Music Listen Together (Go backend)
 #
 # Deploy this service manually on Render Dashboard (Recommended):
 # - New -> Web Service, connect repo
@@ -13,7 +13,7 @@
 
 services:
   - type: web
-    name: siren-listen-together
+    name: vibra-music
     runtime: go
     plan: free
     region: singapore

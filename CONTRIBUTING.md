@@ -51,7 +51,7 @@ Windows:
 
 Run a specific test:
 ```bash
-./gradlew testDevDebugUnitTest --tests "com.siren.musicplayer.playback.audio.DirectAudioStreamingRegressionTest"
+./gradlew testDevDebugUnitTest --tests "com.fortune.vibramusic.playback.audio.DirectAudioStreamingRegressionTest"
 ```
 
 ## Code Quality

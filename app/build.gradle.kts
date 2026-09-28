@@ -49,7 +49,7 @@ val lastfmSecret: String = (
 val listenTogetherServer: String = (
     localProps.getProperty("LISTEN_TOGETHER_SERVER")
         ?: System.getenv("LISTEN_TOGETHER_SERVER")
-        ?: "https://siren-music.onrender.com"
+        ?: "https://vibra-music.onrender.com"
     ).trim().trimEnd('/')
 
 /*
@@ -70,18 +70,18 @@ val listenTogetherServer: String = (
 val betaSuffix = ""
 
 android {
-    namespace = "com.siren.musicplayer"
+    namespace = "com.fortune.vibramusic"
     // InnerTubeX's AAR requires compiling against 37; targetSdk (runtime behaviour) stays 36.
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.siren.musicplayer"
+        applicationId = "com.fortune.vibramusic"
         // 24 supports Android 7.0+ (Nougat and Android Go). Real-time blur kicks
         // in on API 31+, Haze falls back to a translucent scrim below that.
         minSdk = 24
         targetSdk = 36
-        versionCode = 29
-        versionName = "1.7.7"
+        versionCode = 30
+        versionName = "1.8.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         externalNativeBuild {
@@ -123,8 +123,8 @@ android {
     productFlavors {
         create("dev") {
             dimension = "env"
-            applicationId = "com.dev.sirenmusicplayer"
-            resValue("string", "app_name", "Siren Music Dev")
+            applicationId = "com.dev.fortune.vibramusic"
+            resValue("string", "app_name", "Vibra Music Dev")
         }
         create("prod") {
             dimension = "env"
@@ -326,7 +326,7 @@ dependencies {
     // a camera scanner and an Activity with it, and nothing here reads a code —
     // a party is joined by tapping somebody else's link or typing six
     // characters. This produces the bit matrix; the drawing is ours, in
-    // [com.siren.musicplayer.ui.components.QrCode], so the result is styled like
+    // [com.fortune.vibramusic.ui.components.QrCode], so the result is styled like
     // the rest of the app rather than a stock black-and-white bitmap.
     implementation("com.google.zxing:core:3.5.3")
 

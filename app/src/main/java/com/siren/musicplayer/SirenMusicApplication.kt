@@ -334,12 +334,9 @@ class SirenMusicApplication : Application(), SingletonImageLoader.Factory {
 
     override fun onTrimMemory(level: Int) {
         super.onTrimMemory(level)
-        val loader = SingletonImageLoader.get(this)
-        if (level >= TRIM_MEMORY_MODERATE) {
-            loader.memoryCache?.clear()
+        if (level >= TRIM_MEMORY_BACKGROUND || level >= TRIM_MEMORY_RUNNING_LOW) {
+            SingletonImageLoader.get(this).memoryCache?.clear()
             com.siren.musicplayer.ui.player.clearBackdropCaches()
-        } else if (level >= TRIM_MEMORY_RUNNING_LOW) {
-            loader.memoryCache?.trimMemory(level)
         }
     }
 

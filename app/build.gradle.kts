@@ -1,4 +1,5 @@
 import java.util.Properties
+import java.io.File
 import java.io.FileInputStream
 
 plugins {
@@ -74,14 +75,32 @@ android {
     // InnerTubeX's AAR requires compiling against 37; targetSdk (runtime behaviour) stays 36.
     compileSdk = 37
 
+    val detectedNdk = System.getenv("ANDROID_NDK_VERSION")
+        ?: (System.getenv("ANDROID_NDK_HOME") ?: System.getenv("ANDROID_NDK"))?.let { File(it).name }
+        ?: run {
+            val sdkDir = localProps.getProperty("sdk.dir")?.let { File(it) }
+                ?: System.getenv("ANDROID_HOME")?.let { File(it) }
+                ?: System.getenv("ANDROID_SDK_ROOT")?.let { File(it) }
+            val ndkDir = sdkDir?.let { File(it, "ndk") }
+            if (ndkDir?.exists() == true) {
+                ndkDir.listFiles()
+                    ?.filter { it.isDirectory && File(it, "source.properties").exists() }
+                    ?.map { it.name }
+                    ?.maxOrNull()
+            } else null
+        }
+    if (!detectedNdk.isNullOrBlank()) {
+        ndkVersion = detectedNdk
+    }
+
     defaultConfig {
         applicationId = "com.fortune.vibramusic"
         // 24 supports Android 7.0+ (Nougat and Android Go). Real-time blur kicks
         // in on API 31+, Haze falls back to a translucent scrim below that.
         minSdk = 24
         targetSdk = 36
-        versionCode = 37
-        versionName = "1.8.7"
+        versionCode = 38
+        versionName = "1.8.8"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         externalNativeBuild {

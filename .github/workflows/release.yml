@@ -42,6 +42,24 @@ jobs:
               fi
             fi
           fi
+          # Detect pre-installed NDK so AGP uses it directly without downloading
+          NDK_SRC=""
+          if [ -n "$ANDROID_NDK_HOME" ] && [ -d "$ANDROID_NDK_HOME" ]; then
+            NDK_SRC="$ANDROID_NDK_HOME"
+          elif [ -n "$ANDROID_NDK" ] && [ -d "$ANDROID_NDK" ]; then
+            NDK_SRC="$ANDROID_NDK"
+          elif [ -d "$ANDROID_HOME/ndk" ]; then
+            NDK_SRC=$(ls -d $ANDROID_HOME/ndk/* 2>/dev/null | sort -V | tail -n 1)
+          fi
+          if [ -n "$NDK_SRC" ] && [ -d "$NDK_SRC" ]; then
+            NDK_VER=$(basename "$NDK_SRC")
+            echo "Detected NDK version: $NDK_VER at $NDK_SRC"
+            echo "ANDROID_NDK_VERSION=$NDK_VER" >> $GITHUB_ENV
+            mkdir -p "$ANDROID_HOME/ndk"
+            if [ ! -d "$ANDROID_HOME/ndk/$NDK_VER" ]; then
+              ln -s "$NDK_SRC" "$ANDROID_HOME/ndk/$NDK_VER"
+            fi
+          fi
 
       - name: Setup local.properties
         run: |
@@ -86,6 +104,24 @@ jobs:
                   ln -s "$HIGHEST_PLATFORM" "$ANDROID_HOME/platforms/android-37"
                 fi
               fi
+            fi
+          fi
+          # Detect pre-installed NDK so AGP uses it directly without downloading
+          NDK_SRC=""
+          if [ -n "$ANDROID_NDK_HOME" ] && [ -d "$ANDROID_NDK_HOME" ]; then
+            NDK_SRC="$ANDROID_NDK_HOME"
+          elif [ -n "$ANDROID_NDK" ] && [ -d "$ANDROID_NDK" ]; then
+            NDK_SRC="$ANDROID_NDK"
+          elif [ -d "$ANDROID_HOME/ndk" ]; then
+            NDK_SRC=$(ls -d $ANDROID_HOME/ndk/* 2>/dev/null | sort -V | tail -n 1)
+          fi
+          if [ -n "$NDK_SRC" ] && [ -d "$NDK_SRC" ]; then
+            NDK_VER=$(basename "$NDK_SRC")
+            echo "Detected NDK version: $NDK_VER at $NDK_SRC"
+            echo "ANDROID_NDK_VERSION=$NDK_VER" >> $GITHUB_ENV
+            mkdir -p "$ANDROID_HOME/ndk"
+            if [ ! -d "$ANDROID_HOME/ndk/$NDK_VER" ]; then
+              ln -s "$NDK_SRC" "$ANDROID_HOME/ndk/$NDK_VER"
             fi
           fi
 

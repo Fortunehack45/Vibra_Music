@@ -2,14 +2,20 @@ package preview
 
 import (
 	"bytes"
+	"context"
 	_ "embed"
+	"fmt"
 	"image"
 	"image/color"
 	_ "image/jpeg"
 	"image/png"
+	"io"
 	"math"
+	"net"
 	"net/http"
+	"net/url"
 	"strings"
+	"syscall"
 	"time"
 
 	xdraw "golang.org/x/image/draw"
@@ -35,8 +41,90 @@ const (
 	Height = 630
 )
 
+func isPrivateOrRestrictedIP(ip net.IP) bool {
+	if ip == nil {
+		return true
+	}
+	if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsMulticast() || ip.IsUnspecified() {
+		return true
+	}
+	if ipv4 := ip.To4(); ipv4 != nil {
+		if ipv4[0] == 127 || ipv4[0] == 10 || ipv4[0] == 0 {
+			return true
+		}
+		if ipv4[0] == 172 && (ipv4[1] >= 16 && ipv4[1] <= 31) {
+			return true
+		}
+		if ipv4[0] == 192 && ipv4[1] == 168 {
+			return true
+		}
+		if ipv4[0] == 169 && ipv4[1] == 254 { // Link-local & cloud metadata 169.254.169.254
+			return true
+		}
+		if ipv4[0] >= 224 {
+			return true
+		}
+	}
+	return false
+}
+
+var safeTransport = &http.Transport{
+	Proxy: http.ProxyFromEnvironment,
+	DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+		host, _, err := net.SplitHostPort(addr)
+		if err != nil {
+			return nil, err
+		}
+		ips, err := net.DefaultResolver.LookupIP(ctx, "ip", host)
+		if err != nil {
+			return nil, err
+		}
+		for _, ip := range ips {
+			if isPrivateOrRestrictedIP(ip) {
+				return nil, fmt.Errorf("ssrf prevention: restricted ip address %s for host %s", ip, host)
+			}
+		}
+		var dialer net.Dialer
+		dialer.Timeout = 2 * time.Second
+		dialer.Control = func(network, address string, c syscall.RawConn) error {
+			h, _, err := net.SplitHostPort(address)
+			if err == nil {
+				if ip := net.ParseIP(h); ip != nil && isPrivateOrRestrictedIP(ip) {
+					return fmt.Errorf("ssrf prevention: raw connection blocked to %s", ip)
+				}
+			}
+			return nil
+		}
+		return dialer.DialContext(ctx, network, addr)
+	},
+	ResponseHeaderTimeout: 3 * time.Second,
+	TLSHandshakeTimeout:   3 * time.Second,
+	MaxIdleConns:          10,
+	IdleConnTimeout:       30 * time.Second,
+}
+
 var httpClient = &http.Client{
-	Timeout: 3 * time.Second,
+	Transport: safeTransport,
+	Timeout:   4 * time.Second,
+	CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		if len(via) >= 2 {
+			return fmt.Errorf("too many redirects")
+		}
+		if req.URL.Scheme != "https" {
+			return fmt.Errorf("redirect to non-https rejected")
+		}
+		host := req.URL.Hostname()
+		ips, err := net.LookupIP(host)
+		if err != nil {
+			return err
+		}
+		for _, ip := range ips {
+			if isPrivateOrRestrictedIP(ip) {
+				return fmt.Errorf("redirect to restricted ip %s rejected", ip)
+			}
+		}
+		return nil
+	},
 }
 
 var (
@@ -167,18 +255,14 @@ func GenerateCard(code, hostName, avatarURL, songTitle, songArtist string) ([]by
 	if strings.TrimSpace(trackTitle) == "" {
 		trackTitle = "Synchronized Listening Room"
 	}
-	if len(trackTitle) > 34 {
-		trackTitle = trackTitle[:31] + "..."
-	}
+	trackTitle = truncateRunes(trackTitle, 34)
 	drawText(img, trackTitle, 225, 262, faceTitle, color.RGBA{R: 255, G: 255, B: 255, A: 255})
 
 	trackArtist := songArtist
 	if strings.TrimSpace(trackArtist) == "" {
 		trackArtist = "Vibra Music Party · YouTube Music Library"
 	}
-	if len(trackArtist) > 46 {
-		trackArtist = trackArtist[:43] + "..."
-	}
+	trackArtist = truncateRunes(trackArtist, 46)
 	drawText(img, trackArtist, 227, 292, faceSubtitle, color.RGBA{R: 168, G: 172, B: 195, A: 230})
 
 	// Audio Format Badge: HI-RES LOSSLESS pill (like in the app)
@@ -237,12 +321,33 @@ func GenerateCard(code, hostName, avatarURL, songTitle, songArtist string) ([]by
 	return buf.Bytes(), nil
 }
 
-func fetchImage(url string) (image.Image, error) {
-	req, err := http.NewRequest("GET", url, nil)
+func truncateRunes(s string, maxRunes int) string {
+	runes := []rune(s)
+	if len(runes) <= maxRunes {
+		return s
+	}
+	if maxRunes <= 3 {
+		return string(runes[:maxRunes])
+	}
+	return string(runes[:maxRunes-3]) + "..."
+}
+
+const maxImageBytes = 2 * 1024 * 1024 // 2 MB
+const maxDimension = 2048
+
+func fetchImage(rawURL string) (image.Image, error) {
+	parsed, err := url.Parse(rawURL)
+	if err != nil || parsed.Scheme != "https" || parsed.Host == "" {
+		return nil, fmt.Errorf("invalid image url or unsupported non-https scheme")
+	}
+
+	req, err := http.NewRequest("GET", parsed.String(), nil)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", "VibraMusic-Bot/1.8.1")
+	req.Header.Set("User-Agent", "VibraMusic-Bot/1.8.8")
+	req.Header.Set("Accept", "image/png,image/jpeg,image/*;q=0.8")
+
 	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, err
@@ -251,7 +356,28 @@ func fetchImage(url string) (image.Image, error) {
 	if resp.StatusCode != http.StatusOK {
 		return nil, http.ErrMissingFile
 	}
-	img, _, err := image.Decode(resp.Body)
+
+	// 1. Limit body size to 2 MB to prevent memory exhaustion / OOM
+	limitedReader := io.LimitReader(resp.Body, maxImageBytes+1)
+	data, err := io.ReadAll(limitedReader)
+	if err != nil {
+		return nil, err
+	}
+	if len(data) > maxImageBytes {
+		return nil, fmt.Errorf("image exceeds maximum allowed size (2MB)")
+	}
+
+	// 2. Decode config first to check dimensions before allocating full bitmap (decompression bomb defense)
+	cfg, _, err := image.DecodeConfig(bytes.NewReader(data))
+	if err != nil {
+		return nil, err
+	}
+	if cfg.Width <= 0 || cfg.Height <= 0 || cfg.Width > maxDimension || cfg.Height > maxDimension {
+		return nil, fmt.Errorf("image dimensions out of bounds: %dx%d", cfg.Width, cfg.Height)
+	}
+
+	// 3. Decode verified image
+	img, _, err := image.Decode(bytes.NewReader(data))
 	return img, err
 }
 

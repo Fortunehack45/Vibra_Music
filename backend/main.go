@@ -8,6 +8,7 @@ import (
 	"html/template"
 	"io"
 	"log"
+	"math"
 	"net"
 	"net/http"
 	"net/url"
@@ -27,17 +28,52 @@ import (
 	"github.com/Fortunehack45/Vibra_Music/backend/protocol"
 )
 
+type previewCacheItem struct {
+	bytes []byte
+	genAt time.Time
+}
+
 var (
-	store    = party.NewPartyStore()
-	hubInst  = hub.NewHub()
-	createLimiter = newIPRateLimiter(time.Minute, config.CreateRatePerMinute, config.RateLimitMaxEntries)
-	upgrader = websocket.Upgrader{
+	store          = party.NewPartyStore()
+	hubInst        = hub.NewHub()
+	createLimiter  = newIPRateLimiter(time.Minute, config.CreateRatePerMinute, config.RateLimitMaxEntries)
+	joinLimiter    = newIPRateLimiter(time.Minute, 30, config.RateLimitMaxEntries)
+	previewLimiter = newIPRateLimiter(time.Minute, 40, config.RateLimitMaxEntries)
+	wsLimiter      = newIPRateLimiter(time.Minute, 60, config.RateLimitMaxEntries)
+	imageLimiter   = newIPRateLimiter(time.Minute, 30, config.RateLimitMaxEntries)
+	previewCache   = make(map[string]previewCacheItem)
+	previewCacheMu sync.Mutex
+	upgrader       = websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool {
 			origin := r.Header.Get("Origin")
 			return origin == "" || config.IsAllowedOrigin(origin)
 		},
 	}
 )
+
+func getCachedPreviewCard(key string) []byte {
+	previewCacheMu.Lock()
+	defer previewCacheMu.Unlock()
+	item, ok := previewCache[key]
+	if ok && time.Since(item.genAt) < 2*time.Minute {
+		return item.bytes
+	}
+	return nil
+}
+
+func setCachedPreviewCard(key string, b []byte) {
+	previewCacheMu.Lock()
+	defer previewCacheMu.Unlock()
+	if len(previewCache) > 100 {
+		now := time.Now()
+		for k, v := range previewCache {
+			if now.Sub(v.genAt) > 5*time.Minute {
+				delete(previewCache, k)
+			}
+		}
+	}
+	previewCache[key] = previewCacheItem{bytes: b, genAt: time.Now()}
+}
 
 func main() {
 	go startHeartbeatTicker()
@@ -288,6 +324,10 @@ func handleCreateParty(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleJoinParty(w http.ResponseWriter, r *http.Request) {
+	if !joinLimiter.Allow(clientIP(r)) {
+		jsonError(w, http.StatusTooManyRequests, "join_rate_limited", "Too many join attempts. Please try again shortly.")
+		return
+	}
 	code := r.PathValue("code")
 	var req protocol.JoinRequest
 	if !decodeJSONBody(w, r, &req) {
@@ -336,16 +376,13 @@ func handleJoinParty(w http.ResponseWriter, r *http.Request) {
 // handlePreviewParty answers who is in a party, without a token and without
 // joining it.
 //
-// Deliberately unauthenticated: the whole point is to let somebody who has been
-// handed a code see who they would be joining before they commit a device slot
-// to it. What it discloses — display names, avatars, how full the party is — is
-// exactly what joining would disclose a second later, and anyone holding a code
-// can join. What it does not disclose is what the party is playing, its queue,
-// member or user ids, or anything that would let a caller act on the party.
-//
-// Not rate-limited beyond the service-wide limits: it takes no locks it does
-// not release, allocates a short slice, and creates nothing.
+// Deliberately unauthenticated to let users see who started a party before joining.
+// Protected by rate limiting and privacy bounds (at most 3 avatars disclosed to prevent scraping).
 func handlePreviewParty(w http.ResponseWriter, r *http.Request) {
+	if !previewLimiter.Allow(clientIP(r)) {
+		jsonError(w, http.StatusTooManyRequests, "preview_rate_limited", "Too many preview requests. Please try again shortly.")
+		return
+	}
 	code := r.PathValue("code")
 	p, err := store.Get(code)
 	if err != nil {
@@ -370,10 +407,15 @@ func handlePreviewParty(w http.ResponseWriter, r *http.Request) {
 	})
 	members := make([]map[string]interface{}, 0, len(ordered))
 	hostName := ""
-	for _, m := range ordered {
+	for i, m := range ordered {
+		var avatar *string
+		// Privacy guard: Only disclose avatars for the first 3 members to prevent mass scraping
+		if i < 3 {
+			avatar = m.AvatarUrl
+		}
 		members = append(members, map[string]interface{}{
 			"displayName": m.DisplayName,
-			"avatarUrl":   m.AvatarUrl,
+			"avatarUrl":   avatar,
 			"isHost":      m.IsHost,
 		})
 		if m.IsHost {
@@ -817,18 +859,24 @@ var inviteTemplate = template.Must(template.New("invite").Parse(`<!DOCTYPE html>
 </html>`))
 
 func requestOrigin(r *http.Request) string {
+	if config.PublicOrigin != "" {
+		return config.PublicOrigin
+	}
 	proto := "http"
 	if r.TLS != nil {
 		proto = "https"
 	}
 	if config.TrustProxy {
 		if forwardedProto := r.Header.Get("X-Forwarded-Proto"); forwardedProto != "" {
-			proto = strings.TrimSpace(strings.Split(forwardedProto, ",")[0])
+			p := strings.ToLower(strings.TrimSpace(strings.Split(forwardedProto, ",")[0]))
+			if p == "https" || p == "http" {
+				proto = p
+			}
 		}
 	}
 	host := r.Host
-	if host == "" {
-		host = "localhost"
+	if host == "" || !config.IsAllowedHost(host) {
+		host = "vibra-music.onrender.com"
 	}
 	return fmt.Sprintf("%s://%s", proto, host)
 }
@@ -914,6 +962,10 @@ func handleInviteLanding(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleInvitePreviewImage(w http.ResponseWriter, r *http.Request) {
+	if !imageLimiter.Allow(clientIP(r)) {
+		http.Error(w, "rate limited", http.StatusTooManyRequests)
+		return
+	}
 	code := codes.Normalise(r.PathValue("code"))
 	p := store.Find(code)
 
@@ -949,11 +1001,22 @@ func handleInvitePreviewImage(w http.ResponseWriter, r *http.Request) {
 		p.Unlock()
 	}
 
+	cacheKey := fmt.Sprintf("%s:%s:%s:%s", code, hostName, currentSongTitle, currentSongArtist)
+	if cached := getCachedPreviewCard(cacheKey); cached != nil {
+		w.Header().Set("Content-Type", "image/png")
+		w.Header().Set("Cache-Control", "public, max-age=60")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(cached)
+		return
+	}
+
 	cardBytes, err := preview.GenerateCard(code, hostName, hostAvatarUrl, currentSongTitle, currentSongArtist)
 	if err != nil {
 		http.Error(w, "Failed to render card", http.StatusInternalServerError)
 		return
 	}
+
+	setCachedPreviewCard(cacheKey, cardBytes)
 
 	w.Header().Set("Content-Type", "image/png")
 	w.Header().Set("Cache-Control", "public, max-age=60")
@@ -986,6 +1049,10 @@ func handleAssetLinks(w http.ResponseWriter, r *http.Request) {
 // WebSocket Handler
 
 func handleWebSocket(w http.ResponseWriter, r *http.Request) {
+	if !wsLimiter.Allow(clientIP(r)) {
+		http.Error(w, "too many websocket requests", http.StatusTooManyRequests)
+		return
+	}
 	code := r.PathValue("code")
 	token := parseBearerToken(r)
 	if token == "" {
@@ -1145,8 +1212,13 @@ func applyControl(p *party.Party, member *party.Member, action string, frame map
 	}
 
 	var posPtr *int64
-	if pos, ok := frame["positionMs"].(float64); ok {
+	if pos, ok := frame["positionMs"].(float64); ok && !math.IsNaN(pos) && !math.IsInf(pos, 0) {
 		pVal := int64(pos)
+		if pVal < 0 {
+			pVal = 0
+		} else if pVal > party.MaxPositionMs {
+			pVal = party.MaxPositionMs
+		}
 		posPtr = &pVal
 	}
 
@@ -1181,9 +1253,11 @@ func applyControl(p *party.Party, member *party.Member, action string, frame map
 			isPlaying = pVal
 		}
 		var qIndexPtr *int
-		if qIndex, ok := frame["queueIndex"].(float64); ok {
+		if qIndex, ok := frame["queueIndex"].(float64); ok && !math.IsNaN(qIndex) && !math.IsInf(qIndex, 0) {
 			qi := int(qIndex)
-			qIndexPtr = &qi
+			if qi >= -1 && qi < 10000 {
+				qIndexPtr = &qi
+			}
 		}
 		p.Playback.SetTrack(&member.MemberId, t, pos, isPlaying, qIndexPtr, &member.DisplayName)
 		return true, "", ""
@@ -1199,7 +1273,7 @@ func applyControl(p *party.Party, member *party.Member, action string, frame map
 			}
 		}
 		qIdx := -1
-		if idxNum, ok := frame["queueIndex"].(float64); ok {
+		if idxNum, ok := frame["queueIndex"].(float64); ok && !math.IsNaN(idxNum) && !math.IsInf(idxNum, 0) {
 			qIdx = int(idxNum)
 		}
 		p.Playback.SetQueue(&member.MemberId, tracks, qIdx)
@@ -1233,7 +1307,7 @@ func applyControl(p *party.Party, member *party.Member, action string, frame map
 	case protocol.ActionQueueRemove:
 		vid, _ := frame["videoId"].(string)
 		if vid == "" {
-			if idxNum, ok := frame["index"].(float64); ok {
+			if idxNum, ok := frame["index"].(float64); ok && !math.IsNaN(idxNum) && !math.IsInf(idxNum, 0) {
 				idx := int(idxNum)
 				if idx >= 0 && idx < len(p.Playback.Queue) {
 					vid = p.Playback.Queue[idx].VideoId
@@ -1257,14 +1331,19 @@ func applyControl(p *party.Party, member *party.Member, action string, frame map
 	case protocol.ActionQueueMove:
 		fromNum, okFrom := frame["fromIndex"].(float64)
 		toNum, okTo := frame["toIndex"].(float64)
-		if !okFrom || !okTo {
-			return false, "missing_indices", "queueMove requires fromIndex and toIndex"
+		if !okFrom || !okTo || math.IsNaN(fromNum) || math.IsInf(fromNum, 0) || math.IsNaN(toNum) || math.IsInf(toNum, 0) {
+			return false, "missing_indices", "queueMove requires valid fromIndex and toIndex"
+		}
+		fromIdx := int(fromNum)
+		toIdx := int(toNum)
+		if fromIdx < 0 || toIdx < 0 || fromIdx > 1000 || toIdx > 1000 {
+			return false, "invalid_indices", "queue move indices out of bounds"
 		}
 		var videoId string
 		if v, ok := frame["videoId"].(string); ok {
 			videoId = v
 		}
-		if !p.Playback.MoveUpcoming(&member.MemberId, int(fromNum), int(toNum), videoId) {
+		if !p.Playback.MoveUpcoming(&member.MemberId, fromIdx, toIdx, videoId) {
 			return false, "invalid_move", "Invalid queue move indices"
 		}
 		return true, "", ""
@@ -1283,8 +1362,14 @@ func applyControl(p *party.Party, member *party.Member, action string, frame map
 
 	case protocol.ActionSetMaxMembers:
 		value, ok := frame["maxMembers"].(float64)
-		if !ok { return false, "invalid_capacity", "Choose a party size between 2 and 10." }
-		if err := p.SetMaxMembers(member, int(value)); err != nil {
+		if !ok || math.IsNaN(value) || math.IsInf(value, 0) {
+			return false, "invalid_capacity", "Choose a party size between 2 and 10."
+		}
+		valInt := int(value)
+		if valInt < 2 || valInt > 10 {
+			return false, "invalid_capacity", "Choose a party size between 2 and 10."
+		}
+		if err := p.SetMaxMembers(member, valInt); err != nil {
 			pe := err.(*party.PartyError)
 			return false, pe.Code, pe.Message
 		}

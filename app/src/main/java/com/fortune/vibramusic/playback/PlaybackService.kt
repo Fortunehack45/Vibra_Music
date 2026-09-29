@@ -6623,24 +6623,31 @@ class PlaybackService : MediaLibraryService() {
             session: MediaSession,
             controller: MediaSession.ControllerInfo,
         ): MediaSession.ConnectionResult {
-            val sessionCommands = MediaSession.ConnectionResult.DEFAULT_SESSION_AND_LIBRARY_COMMANDS
+            val isInternal = controller.packageName == packageName
+            val sessionCommandsBuilder = MediaSession.ConnectionResult.DEFAULT_SESSION_AND_LIBRARY_COMMANDS
                 .buildUpon()
                 .add(favoriteCommand)
                 .add(autoplayCommand)
                 .add(shuffleCommand)
                 .add(startStationCommand)
-                .add(revertToOriginalCommand)
-                .add(swapToVersionCommand)
-                .add(beginRadioQueueCommand)
-                .add(commitRadioQueueCommand)
-                .add(upgradeQualityCommand)
-                .add(swapVersionCommand)
-                .add(reorderQueueCommand)
-                .add(queueDragCommand)
-                .build()
+
+            // Security: Only expose internal queue manipulation and custom mutation commands
+            // to Vibra's own UI process, protecting against unauthorized third-party apps
+            if (isInternal) {
+                sessionCommandsBuilder
+                    .add(revertToOriginalCommand)
+                    .add(swapToVersionCommand)
+                    .add(beginRadioQueueCommand)
+                    .add(commitRadioQueueCommand)
+                    .add(upgradeQualityCommand)
+                    .add(swapVersionCommand)
+                    .add(reorderQueueCommand)
+                    .add(queueDragCommand)
+            }
+
             return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
                 .setAvailablePlayerCommands(MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS)
-                .setAvailableSessionCommands(sessionCommands)
+                .setAvailableSessionCommands(sessionCommandsBuilder.build())
                 .build()
         }
 

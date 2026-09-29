@@ -5,6 +5,7 @@ import (
 	"crypto/subtle"
 	"encoding/hex"
 	"fmt"
+	"math"
 	"sort"
 	"sync"
 
@@ -28,6 +29,18 @@ func NewPartyError(status int, code, message string) *PartyError {
 	return &PartyError{Status: status, Code: code, Message: message}
 }
 
+func truncateRunes(s string, maxRunes int) string {
+	runes := []rune(s)
+	if len(runes) <= maxRunes {
+		return s
+	}
+	return string(runes[:maxRunes])
+}
+
+const (
+	MaxPositionMs = 24 * 60 * 60 * 1000 // 24 hours
+)
+
 // Track represents a song with metadata needed for display and synchronization.
 type Track struct {
 	VideoId      string  `json:"videoId"`
@@ -46,30 +59,22 @@ func TrackFromWire(raw map[string]interface{}) *Track {
 	if vid == "" {
 		return nil
 	}
-	if len(vid) > 128 {
-		vid = vid[:128]
-	}
+	vid = truncateRunes(vid, 128)
 
 	title, _ := raw["title"].(string)
-	if len(title) > 300 {
-		title = title[:300]
-	}
+	title = truncateRunes(title, 300)
 
 	artist, _ := raw["artist"].(string)
-	if len(artist) > 300 {
-		artist = artist[:300]
-	}
+	artist = truncateRunes(artist, 300)
 
 	var thumbPtr *string
 	if t, ok := raw["thumbnailUrl"].(string); ok && t != "" {
-		if len(t) > 1000 {
-			t = t[:1000]
-		}
+		t = truncateRunes(t, 1000)
 		thumbPtr = &t
 	}
 
 	var durPtr *int64
-	if d, ok := raw["durationMs"].(float64); ok && d > 0 {
+	if d, ok := raw["durationMs"].(float64); ok && !math.IsNaN(d) && !math.IsInf(d, 0) && d > 0 && d <= float64(MaxPositionMs) {
 		dur := int64(d)
 		durPtr = &dur
 	}
@@ -150,6 +155,8 @@ func (p *PlaybackState) Play(memberId *string, positionMs *int64) {
 	}
 	if startAt < 0 {
 		startAt = 0
+	} else if startAt > MaxPositionMs {
+		startAt = MaxPositionMs
 	}
 	p.PositionMs = startAt
 	p.IsPlaying = true
@@ -165,6 +172,8 @@ func (p *PlaybackState) Pause(memberId *string, positionMs *int64) {
 	}
 	if pauseAt < 0 {
 		pauseAt = 0
+	} else if pauseAt > MaxPositionMs {
+		pauseAt = MaxPositionMs
 	}
 	p.PositionMs = pauseAt
 	p.IsPlaying = false
@@ -175,6 +184,8 @@ func (p *PlaybackState) Pause(memberId *string, positionMs *int64) {
 func (p *PlaybackState) Seek(memberId *string, positionMs int64) {
 	if positionMs < 0 {
 		positionMs = 0
+	} else if positionMs > MaxPositionMs {
+		positionMs = MaxPositionMs
 	}
 	p.PositionMs = positionMs
 	lead := int64(0)
@@ -360,14 +371,14 @@ func (p *PlaybackState) MoveUpcoming(memberId *string, fromIdx, toIdx int, video
 		return true
 	}
 
+	// In-place rotation: smoothly shifts intermediate items without off-by-one index corruption
 	item := p.Queue[fromIdx]
-	p.Queue = append(p.Queue[:fromIdx], p.Queue[fromIdx+1:]...)
-	// Insert at toIdx
-	newQ := make([]*Track, 0, len(p.Queue)+1)
-	newQ = append(newQ, p.Queue[:toIdx]...)
-	newQ = append(newQ, item)
-	newQ = append(newQ, p.Queue[toIdx:]...)
-	p.Queue = newQ
+	if fromIdx < toIdx {
+		copy(p.Queue[fromIdx:toIdx], p.Queue[fromIdx+1:toIdx+1])
+	} else {
+		copy(p.Queue[toIdx+1:fromIdx+1], p.Queue[toIdx:fromIdx])
+	}
+	p.Queue[toIdx] = item
 
 	p.touchQueue(memberId)
 	return true
@@ -517,11 +528,15 @@ func (p *Party) Join(userId, deviceId, displayName string, avatarUrl *string) (*
 	// Rejoining device check
 	for _, m := range p.Members {
 		if m.DeviceId == deviceId {
+			tok, err := randomToken(24)
+			if err != nil {
+				return nil, NewPartyError(500, "internal_error", "Failed to generate security token.")
+			}
 			m.DisplayName = displayName
 			m.AvatarUrl = avatarUrl
 			m.UserId = userId
 			m.LastSeenMs = now
-			m.Token = randomToken(24)
+			m.Token = tok
 			p.Touch()
 			return m, nil
 		}
@@ -531,13 +546,22 @@ func (p *Party) Join(userId, deviceId, displayName string, avatarUrl *string) (*
 		return nil, NewPartyError(409, "party_full", fmt.Sprintf("This party is full (%d devices).", p.MaxMembers))
 	}
 
+	memId, err := randomHex(8)
+	if err != nil {
+		return nil, NewPartyError(500, "internal_error", "Failed to generate member id.")
+	}
+	tok, err := randomToken(24)
+	if err != nil {
+		return nil, NewPartyError(500, "internal_error", "Failed to generate security token.")
+	}
+
 	m := &Member{
-		MemberId:          randomHex(8),
+		MemberId:          memId,
 		UserId:            userId,
 		DeviceId:          deviceId,
 		DisplayName:       displayName,
 		AvatarUrl:         avatarUrl,
-		Token:             randomToken(24),
+		Token:             tok,
 		IsHost:            len(p.Members) == 0,
 		Connected:         false,
 		JoinedAtMs:        now,
@@ -831,14 +855,18 @@ func (s *PartyStore) Sweep(now int64) []*Party {
 	return changed
 }
 
-func randomHex(n int) string {
+func randomHex(n int) (string, error) {
 	b := make([]byte, n)
-	rand.Read(b)
-	return hex.EncodeToString(b)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("crypto rand failed: %w", err)
+	}
+	return hex.EncodeToString(b), nil
 }
 
-func randomToken(n int) string {
+func randomToken(n int) (string, error) {
 	b := make([]byte, n)
-	rand.Read(b)
-	return hex.EncodeToString(b)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("crypto rand failed: %w", err)
+	}
+	return hex.EncodeToString(b), nil
 }

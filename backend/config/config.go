@@ -1,21 +1,37 @@
 package config
 
 import (
+	"log"
+	"net"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
 )
 
-func getInt(key string, fallback int) int {
+func getIntBounded(key string, fallback, min, max int) int {
 	val := os.Getenv(key)
 	if val == "" {
 		return fallback
 	}
 	parsed, err := strconv.Atoi(strings.TrimSpace(val))
 	if err != nil {
+		log.Printf("config: invalid integer for %s=%q, using fallback %d", key, val, fallback)
+		return fallback
+	}
+	if parsed < min || parsed > max {
+		log.Printf("config: %s=%d out of bounds [%d, %d], using fallback %d", key, parsed, min, max, fallback)
 		return fallback
 	}
 	return parsed
+}
+
+func getString(key, fallback string) string {
+	val := strings.TrimSpace(os.Getenv(key))
+	if val == "" {
+		return fallback
+	}
+	return val
 }
 
 func getCSV(key string, fallback string) []string {
@@ -59,26 +75,60 @@ func IsAllowedOrigin(origin string) bool {
 	return false
 }
 
+// IsAllowedHost checks whether a Host header matches configured allowed hosts.
+func IsAllowedHost(host string) bool {
+	// Strip optional port
+	h, _, err := net.SplitHostPort(host)
+	if err != nil {
+		h = host
+	}
+	h = strings.ToLower(strings.TrimSpace(h))
+	for _, allowed := range AllowedHosts {
+		ah, _, err := net.SplitHostPort(allowed)
+		if err != nil {
+			ah = allowed
+		}
+		if strings.EqualFold(h, strings.TrimSpace(ah)) {
+			return true
+		}
+	}
+	return false
+}
+
 var (
-	MaxMembers           = getInt("JAM_MAX_MEMBERS", 5)
-	StateHeartbeatMs     = getInt("JAM_STATE_HEARTBEAT_MS", 5000)
-	PlayLeadMs           = getInt("JAM_PLAY_LEAD_MS", 350)
-	DisconnectGraceMs    = int64(getInt("JAM_DISCONNECT_GRACE_MS", 15*60*1000))
-	EmptyPartyTTLMs      = int64(getInt("JAM_EMPTY_PARTY_TTL_MS", 30*60*1000))
-	PartyMaxAgeMs        = int64(getInt("JAM_PARTY_MAX_AGE_MS", 12*60*60*1000))
-	ControlRatePerSecond = float64(getInt("JAM_CONTROL_RATE_PER_SECOND", 25))
-	MaxUpcomingQueue     = getInt("JAM_MAX_UPCOMING_QUEUE", 25)
-	MaxQueueLength       = getInt("JAM_MAX_QUEUE_LENGTH", 1+MaxUpcomingQueue)
-	// Render Free has 0.1 CPU. Fifty rooms (at most 250 sockets) is a safe
-	// starting ceiling; raise it only after measuring CPU and memory usage.
-	MaxParties           = getInt("JAM_MAX_PARTIES", 50)
-	CreateRatePerMinute  = getInt("JAM_CREATE_RATE_PER_MINUTE", 2)
-	RateLimitMaxEntries  = getInt("JAM_RATE_LIMIT_MAX_ENTRIES", 10000)
-	RequestMaxBytes      = int64(getInt("JAM_REQUEST_MAX_BYTES", 16*1024))
-	WebSocketMaxBytes    = int64(getInt("JAM_WEBSOCKET_MAX_BYTES", 16*1024))
-	ConnectionIdleMs     = int64(getInt("JAM_CONNECTION_IDLE_MS", 15*60*1000))
-	FrameRatePerSecond   = float64(getInt("JAM_FRAME_RATE_PER_SECOND", 30))
+	MaxMembers           = getIntBounded("JAM_MAX_MEMBERS", 5, 2, 50)
+	StateHeartbeatMs     = getIntBounded("JAM_STATE_HEARTBEAT_MS", 5000, 1000, 60000)
+	PlayLeadMs           = getIntBounded("JAM_PLAY_LEAD_MS", 350, 50, 5000)
+	DisconnectGraceMs    = int64(getIntBounded("JAM_DISCONNECT_GRACE_MS", 15*60*1000, 10000, 24*60*60*1000))
+	EmptyPartyTTLMs      = int64(getIntBounded("JAM_EMPTY_PARTY_TTL_MS", 30*60*1000, 10000, 24*60*60*1000))
+	PartyMaxAgeMs        = int64(getIntBounded("JAM_PARTY_MAX_AGE_MS", 12*60*60*1000, 60000, 7*24*60*60*1000))
+	ControlRatePerSecond = float64(getIntBounded("JAM_CONTROL_RATE_PER_SECOND", 25, 1, 500))
+	MaxUpcomingQueue     = getIntBounded("JAM_MAX_UPCOMING_QUEUE", 25, 1, 200)
+	MaxQueueLength       = getIntBounded("JAM_MAX_QUEUE_LENGTH", 1+MaxUpcomingQueue, 2, 500)
+	MaxParties           = getIntBounded("JAM_MAX_PARTIES", 50, 1, 1000)
+	CreateRatePerMinute  = getIntBounded("JAM_CREATE_RATE_PER_MINUTE", 2, 1, 60)
+	RateLimitMaxEntries  = getIntBounded("JAM_RATE_LIMIT_MAX_ENTRIES", 10000, 100, 1000000)
+	RequestMaxBytes      = int64(getIntBounded("JAM_REQUEST_MAX_BYTES", 16*1024, 1024, 10*1024*1024))
+	WebSocketMaxBytes    = int64(getIntBounded("JAM_WEBSOCKET_MAX_BYTES", 16*1024, 1024, 10*1024*1024))
+	ConnectionIdleMs     = int64(getIntBounded("JAM_CONNECTION_IDLE_MS", 15*60*1000, 10000, 24*60*60*1000))
+	FrameRatePerSecond   = float64(getIntBounded("JAM_FRAME_RATE_PER_SECOND", 30, 1, 500))
 	AllowedOrigins       = getCSV("JAM_ALLOWED_ORIGINS", "")
 	TrustProxy           = getBool("JAM_TRUST_PROXY", false)
-	Port                 = getInt("PORT", 8000)
+	Port                 = getIntBounded("PORT", 8000, 1, 65535)
+
+	// PublicOrigin defines the authoritative public canonical origin of this server
+	// (e.g. "https://vibra-music.onrender.com"). Prevents Host header poisoning of invite links.
+	PublicOrigin = strings.TrimRight(getString("JAM_PUBLIC_ORIGIN", "https://vibra-music.onrender.com"), "/")
+
+	// AllowedHosts defines hosts accepted in Host headers for invite pages.
+	AllowedHosts = getCSV("JAM_ALLOWED_HOSTS", "vibra-music.onrender.com,localhost,127.0.0.1,0.0.0.0")
 )
+
+func init() {
+	// If PublicOrigin has a hostname, ensure it is automatically allowed
+	if PublicOrigin != "" {
+		if u, err := url.Parse(PublicOrigin); err == nil && u.Host != "" {
+			AllowedHosts = append(AllowedHosts, u.Host)
+		}
+	}
+}

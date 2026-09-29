@@ -12,6 +12,7 @@ local.properties). Creates real parties on it; the server sweeps them once
 everybody disconnects.
 """
 
+import argparse
 import asyncio
 import json
 import sys
@@ -20,7 +21,7 @@ import uuid
 import websockets
 from urllib.request import Request, urlopen
 
-DEFAULT_SERVER = "https://siren-67v8.onrender.com"
+DEFAULT_SERVER = "http://127.0.0.1:8080"
 
 
 def post(url, body):
@@ -242,7 +243,23 @@ async def probe_autoplay_flag_on_join(base, report):
 
 
 async def main():
-    base = (sys.argv[1] if len(sys.argv) > 1 else DEFAULT_SERVER).rstrip("/")
+    parser = argparse.ArgumentParser(description="Probe Jam server state machine.")
+    parser.add_argument("server", nargs="?", default=DEFAULT_SERVER, help=f"Target server URL (default: {DEFAULT_SERVER})")
+    parser.add_argument("--allow-remote", action="store_true", help="Explicitly allow probing a non-localhost remote server")
+    args = parser.parse_args()
+
+    base = args.server.rstrip("/")
+    is_local = (
+        base.startswith("http://localhost")
+        or base.startswith("http://127.0.0.1")
+        or base.startswith("ws://localhost")
+        or base.startswith("ws://127.0.0.1")
+    )
+    if not is_local and not args.allow_remote:
+        print(f"Error: Target '{base}' is a remote host.")
+        print("To probe a remote environment, explicitly provide the '--allow-remote' flag.")
+        sys.exit(1)
+
     print(f"probing {base}\n")
     results = []
 
@@ -269,4 +286,5 @@ async def main():
         print(f"{'PASS' if ok else 'FAIL'}  {name}")
 
 
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())

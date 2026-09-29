@@ -18,6 +18,7 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.Request
 import java.io.File
+import java.security.MessageDigest
 
 /**
  * Vibra Music ships as a sideloaded APK off GitHub Releases rather than through
@@ -36,8 +37,10 @@ object AppUpdateChecker {
         val version: String,
         val releaseUrl: String,
         val apkUrl: String?,
+        val apkFileName: String? = null,
+        val checksumsUrl: String? = null,
         /** The release's own Markdown body, shown as this update's "what's new". */
-        val notes: String?,
+        val notes: String? = null,
     )
 
     private const val CACHE_SUBDIR = "updates"
@@ -83,11 +86,17 @@ object AppUpdateChecker {
             val release = json.parseToJsonElement(body) as? JsonObject ?: return@runCatching null
             val tag = release["tag_name"]?.jsonPrimitive?.contentOrNull ?: return@runCatching null
             val url = release["html_url"]?.jsonPrimitive?.contentOrNull ?: return@runCatching null
-            val apkUrl = apkAssetUrl(release)
+            val apkAssetInfo = apkAsset(release)
+            val apkUrl = apkAssetInfo?.first
+            val apkFileName = apkAssetInfo?.second
+            val checksumsUrl = release["assets"]?.jsonArray
+                ?.mapNotNull { it as? JsonObject }
+                ?.firstOrNull { it["name"]?.jsonPrimitive?.contentOrNull == "checksums.txt" }
+                ?.get("browser_download_url")?.jsonPrimitive?.contentOrNull
             val notes = release["body"]?.jsonPrimitive?.contentOrNull
             val latest = tag.removePrefix("v")
             if (isNewer(latest, BuildConfig.VERSION_NAME)) {
-                val info = UpdateInfo(latest, url, apkUrl, notes)
+                val info = UpdateInfo(latest, url, apkUrl, apkFileName, checksumsUrl, notes)
                 _available.value = info
                 info
             } else {
@@ -108,9 +117,9 @@ object AppUpdateChecker {
 
     /**
      * Finds the most appropriate `.apk` asset for this device's ABI, falling
-     * back to universal or the first available APK.
+     * back to universal or the first available APK. Returns Pair(downloadUrl, fileName).
      */
-    private fun apkAssetUrl(release: JsonObject): String? = runCatching {
+    private fun apkAsset(release: JsonObject): Pair<String, String>? = runCatching {
         val assets = release["assets"]?.jsonArray
             ?.mapNotNull { it as? JsonObject }
             ?.filter { asset ->
@@ -130,7 +139,9 @@ object AppUpdateChecker {
             name.contains("universal", ignoreCase = true)
         } ?: assets.first()
 
-        best["browser_download_url"]?.jsonPrimitive?.contentOrNull
+        val downloadUrl = best["browser_download_url"]?.jsonPrimitive?.contentOrNull ?: return null
+        val fileName = best["name"]?.jsonPrimitive?.contentOrNull ?: "app.apk"
+        Pair(downloadUrl, fileName)
     }.getOrNull()
 
     /**
@@ -138,6 +149,10 @@ object AppUpdateChecker {
      * through [download]. A finished file survives a cancelled dialog: until
      * the state is reset, "Install Now" comes straight back without a second
      * download.
+     *
+     * Security controls:
+     * 1. Validates HTTPS and trusted host domain (github.com or objects.githubusercontent.com)
+     * 2. Computes SHA-256 and verifies against official release checksums.txt when available
      */
     suspend fun downloadApk(context: Context): Unit = withContext(Dispatchers.IO) {
         val info = _available.value ?: return@withContext
@@ -146,6 +161,17 @@ object AppUpdateChecker {
         _download.value = DownloadState.Downloading(0f)
 
         runCatching {
+            // Security check 1: Enforce HTTPS and trusted host domain
+            val parsedUri = Uri.parse(url)
+            val host = parsedUri.host?.lowercase() ?: ""
+            val isTrustedHost = host == "github.com" ||
+                host.endsWith(".github.com") ||
+                host == "objects.githubusercontent.com" ||
+                host.endsWith(".githubusercontent.com")
+            if (parsedUri.scheme != "https" || !isTrustedHost) {
+                error("Untrusted update download URL: $url")
+            }
+
             val dir = File(context.cacheDir, CACHE_SUBDIR).apply { mkdirs() }
             // Drop anything left over from an earlier attempt.
             dir.listFiles()?.forEach { it.delete() }
@@ -181,6 +207,42 @@ object AppUpdateChecker {
                     }
                 }
             }
+
+            // Security check 2: Verify SHA-256 checksum against official release checksums.txt
+            if (!info.checksumsUrl.isNullOrBlank()) {
+                val checksumReq = Request.Builder()
+                    .url(info.checksumsUrl)
+                    .header("User-Agent", "VibraMusic-App/${BuildConfig.VERSION_NAME}")
+                    .build()
+                val checksumBody = Http.client.newCall(checksumReq).execute().use { resp ->
+                    if (resp.isSuccessful) resp.body?.string() else null
+                }
+                if (!checksumBody.isNullOrBlank()) {
+                    val digest = MessageDigest.getInstance("SHA-256")
+                    target.inputStream().use { fis ->
+                        val buf = ByteArray(64 * 1024)
+                        var n: Int
+                        while (fis.read(buf).also { n = it } != -1) {
+                            digest.update(buf, 0, n)
+                        }
+                    }
+                    val computedHash = digest.digest().joinToString("") { "%02x".format(it) }
+
+                    // Format of checksums.txt lines: "<sha256>  <filename>"
+                    val targetName = info.apkFileName ?: target.name
+                    val matchedLine = checksumBody.lineSequence().firstOrNull { line ->
+                        line.trim().endsWith(targetName, ignoreCase = true)
+                    }
+                    if (matchedLine != null) {
+                        val expectedHash = matchedLine.trim().split(Regex("\\s+")).firstOrNull() ?: ""
+                        if (!computedHash.equals(expectedHash, ignoreCase = true)) {
+                            target.delete()
+                            error("Integrity error: APK SHA-256 hash mismatch (expected $expectedHash, got $computedHash)")
+                        }
+                    }
+                }
+            }
+
             _download.value = DownloadState.Ready(target)
         }.onFailure { error ->
             _download.value = if (downloadCancelled) {

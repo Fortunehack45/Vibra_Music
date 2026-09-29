@@ -2700,17 +2700,18 @@ fun NowPlayingScreen(
                     // there's no account to record it against — and neither
                     // does a local file or a finished download, which carries
                     // no YouTube identity to rate.
-                    if (song.localUri == null && song.videoId.isNotBlank()) {
-                        CircleGlyph(
-                            icon = Icons.Rounded.Share,
-                            contentDescription = stringResource(R.string.share),
-                            onClick = { showShareOptionsSheet = true },
-                            active = isSelectingLyricsForShare,
-                            haptic = Haptic.Tap,
-                        )
-                        Spacer(Modifier.width(8.dp))
-                    }
-                    if (signedIn && song.localUri == null) {
+                    CircleGlyph(
+                        icon = Icons.Rounded.Share,
+                        contentDescription = stringResource(R.string.share),
+                        onClick = { showShareOptionsSheet = true },
+                        active = isSelectingLyricsForShare,
+                        haptic = Haptic.Tap,
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    val canLike = signedIn && song.videoId.isNotBlank() &&
+                        !song.videoId.startsWith("content://") &&
+                        !song.videoId.startsWith("file://")
+                    if (canLike) {
                         val liked = likeStatus == LikeStatus.LIKE
                         CircleGlyph(
                             icon = if (liked) VibraMusicIcons.HeartFilled else VibraMusicIcons.Heart,
@@ -3026,9 +3027,17 @@ fun NowPlayingScreen(
                 hasLyrics = !lyrics.isNullOrEmpty(),
                 onShareLink = {
                     showShareOptionsSheet = false
+                    val textToShare = if (song.videoId.isNotBlank() &&
+                        !song.videoId.startsWith("content://") &&
+                        !song.videoId.startsWith("file://")
+                    ) {
+                        "https://music.youtube.com/watch?v=${song.videoId}"
+                    } else {
+                        "${song.title} — ${song.artist}"
+                    }
                     val sendIntent = Intent(Intent.ACTION_SEND).apply {
                         type = "text/plain"
-                        putExtra(Intent.EXTRA_TEXT, "https://music.youtube.com/watch?v=${song.videoId}")
+                        putExtra(Intent.EXTRA_TEXT, textToShare)
                     }
                     context.startActivity(Intent.createChooser(sendIntent, song.title))
                 },

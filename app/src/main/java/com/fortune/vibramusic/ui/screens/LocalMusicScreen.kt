@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.ui.screens
+package com.fortune.vibramusic.ui.screens
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
@@ -7,12 +7,17 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.isSystemInDarkTheme
+import com.fortune.vibramusic.ui.components.GLASS_EDGE_COLOR
+import com.fortune.vibramusic.ui.components.GLASS_EDGE_WIDTH
+import com.fortune.vibramusic.ui.components.LocalLiquidGlassEnabled
+import com.fortune.vibramusic.ui.components.isGlassSupported
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -1566,9 +1571,18 @@ private fun LocalSearchField(
                     modifier = Modifier.size(19.dp),
                 )
             }
+            val useLiquidGlass = LocalLiquidGlassEnabled.current && isGlassSupported()
+            val dropdownShape = RoundedCornerShape(18.dp)
             DropdownMenu(
                 expanded = sortMenuOpen,
                 onDismissRequest = { sortMenuOpen = false },
+                shape = dropdownShape,
+                containerColor = if (useLiquidGlass) {
+                    Color(0xFF16161A).copy(alpha = 0.88f)
+                } else {
+                    MaterialTheme.colorScheme.surface
+                },
+                border = BorderStroke(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR),
             ) {
                 LocalMusicSort.entries.forEach { option ->
                     DropdownMenuItem(

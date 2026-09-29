@@ -54,7 +54,10 @@ import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.LocalOverscrollFactory
 import androidx.compose.material.icons.Icons
@@ -214,6 +217,10 @@ import com.fortune.vibramusic.ui.components.backdrop.backdrops.LayerBackdrop
 import com.fortune.vibramusic.ui.components.backdrop.backdrops.layerBackdrop
 import com.fortune.vibramusic.ui.components.backdrop.backdrops.rememberLayerBackdrop
 import com.fortune.vibramusic.ui.components.isGlassSupported
+import com.fortune.vibramusic.ui.components.GLASS_EDGE_COLOR
+import com.fortune.vibramusic.ui.components.GLASS_EDGE_WIDTH
+import com.fortune.vibramusic.ui.components.glassContentColor
+import com.fortune.vibramusic.ui.components.liquidGlass
 import com.fortune.vibramusic.data.sources.SourceConfig
 import com.fortune.vibramusic.data.sources.SourceKind
 import com.fortune.vibramusic.data.sources.SourceRegistry
@@ -4454,35 +4461,62 @@ private fun FrostedSortMenu(
     onDismiss: () -> Unit,
 ) {
     val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
-    val shape = MaterialTheme.shapes.extraLarge
+    val useLiquidGlass = LocalLiquidGlassEnabled.current && isGlassSupported()
+    val isGlassActive = useLiquidGlass && !reduceDynamicBlur
+    val shape = RoundedCornerShape(22.dp)
+
+    val scrimColor = if (isGlassActive) {
+        Color.Black.copy(alpha = 0.28f)
+    } else {
+        MaterialTheme.colorScheme.scrim.copy(alpha = .48f)
+    }
+
+    val contentColor = if (isGlassActive) {
+        glassContentColor()
+    } else {
+        MaterialTheme.colorScheme.onSurface
+    }
+
+    val activeColor = if (isGlassActive) {
+        Color.White
+    } else {
+        MaterialTheme.colorScheme.primary
+    }
+
     Box(
         Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.scrim.copy(alpha = .48f))
+            .background(scrimColor)
             .clickable(onClick = onDismiss),
         contentAlignment = Alignment.TopEnd,
     ) {
         Surface(
             color = Color.Transparent,
-            contentColor = MaterialTheme.colorScheme.onSurface,
+            contentColor = contentColor,
             shape = shape,
             modifier = Modifier
                 .padding(top = 56.dp, end = 20.dp)
                 .width(IntrinsicSize.Max)
                 .clip(shape)
                 .then(
-                    if (reduceDynamicBlur) {
-                        Modifier.background(MaterialTheme.colorScheme.surface)
-                    } else {
-                        Modifier.optimizedHazeEffect(
-                            state = hazeState,
-                            style = HazeMaterials.thin(MaterialTheme.colorScheme.surface),
-                        )
+                    when {
+                        isGlassActive -> Modifier
+                            .liquidGlass(shape)
+                            .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
+                        reduceDynamicBlur -> Modifier
+                            .background(MaterialTheme.colorScheme.surface)
+                            .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
+                        else -> Modifier
+                            .optimizedHazeEffect(
+                                state = hazeState,
+                                style = HazeMaterials.thin(Color(0xFF1E1E22).copy(alpha = 0.85f)),
+                            )
+                            .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
                     },
                 )
                 .clickable(onClick = {}),
         ) {
-            Column(Modifier.padding(vertical = 8.dp)) {
+            Column(Modifier.padding(vertical = 8.dp, horizontal = 4.dp)) {
                 // Date added is one row, Spotify-style: the arrow on it shows
                 // the direction — up for newest first, down for oldest — and
                 // tapping flips it, the rotation animating the flip. Up is
@@ -4499,20 +4533,24 @@ private fun FrostedSortMenu(
                     Modifier
                         .fillMaxWidth()
                         .heightIn(min = 48.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(if (dateActive && isGlassActive) Color.White.copy(alpha = 0.10f) else Color.Transparent)
                         .clickable(role = Role.Button) { onFlipDateDirection() }
-                        .padding(horizontal = 20.dp, vertical = 8.dp),
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
                         stringResource(R.string.sort_date_added_toggle),
                         style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = if (dateActive) FontWeight.Bold else FontWeight.Medium,
+                        color = if (dateActive) activeColor else contentColor.copy(alpha = 0.85f),
                         modifier = Modifier.weight(1f),
                     )
                     if (dateActive) {
                         Icon(
                             Icons.Rounded.ArrowUpward,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
+                            tint = activeColor,
                             modifier = Modifier.rotate(arrowRotation),
                         )
                     }
@@ -4520,24 +4558,29 @@ private fun FrostedSortMenu(
                 SongSort.entries
                     .filter { it != SongSort.DATE_ADDED_ASC && it != SongSort.DATE_ADDED_DESC }
                     .forEach { option ->
+                        val isSelected = option == selected
                         Row(
                             Modifier
                                 .fillMaxWidth()
                                 .heightIn(min = 44.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(if (isSelected && isGlassActive) Color.White.copy(alpha = 0.10f) else Color.Transparent)
                                 .clickable(role = Role.Button) { onSelect(option) }
-                                .padding(horizontal = 20.dp, vertical = 10.dp),
+                                .padding(horizontal = 16.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
                                 option.localizedLabel(),
                                 style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isSelected) activeColor else contentColor.copy(alpha = 0.85f),
                                 modifier = Modifier.weight(1f),
                             )
-                            if (option == selected) {
+                            if (isSelected) {
                                 Icon(
                                     Icons.Rounded.Check,
                                     contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
+                                    tint = activeColor,
                                 )
                             }
                         }

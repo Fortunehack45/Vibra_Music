@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.ui.player
+package com.fortune.vibramusic.ui.player
 
 import com.fortune.vibramusic.R
 
@@ -420,10 +420,10 @@ internal fun LandscapeCredits(
             }
         }
         Spacer(Modifier.width(10.dp))
-        // Same gate as the portrait player's: no account to like against for a
-        // guest, and no YouTube identity to rate a local file or a finished
-        // download against either.
-        if (signedIn && song.localUri == null) {
+        val canLike = signedIn && song.videoId.isNotBlank() &&
+            !song.videoId.startsWith("content://") &&
+            !song.videoId.startsWith("file://")
+        if (canLike) {
             val liked = likeStatus == LikeStatus.LIKE
             CircleGlyph(
                 icon = if (liked) VibraMusicIcons.HeartFilled else VibraMusicIcons.Heart,

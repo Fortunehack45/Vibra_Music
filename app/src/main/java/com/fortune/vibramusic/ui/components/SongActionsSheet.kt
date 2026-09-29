@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.ui.components
+package com.fortune.vibramusic.ui.components
 
 import com.fortune.vibramusic.R
 
@@ -255,7 +255,10 @@ fun SongActionsSheet(
             )
         }
 
-        if (signedIn && !isOffline) {
+        val isYouTubeTrack = song.videoId.isNotBlank() &&
+            !song.videoId.startsWith("content://") &&
+            !song.videoId.startsWith("file://")
+        if (signedIn && isYouTubeTrack) {
             ActionRow(
                 icon = if (liked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
                 label = if (liked) stringResource(R.string.remove_from_liked) else stringResource(R.string.like),

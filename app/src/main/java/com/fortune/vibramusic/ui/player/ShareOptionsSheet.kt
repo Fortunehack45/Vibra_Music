@@ -138,7 +138,14 @@ fun ShareOptionsSheet(
             ShareOptionItem(
                 icon = Icons.Rounded.Link,
                 title = stringResource(R.string.share),
-                subtitle = "https://music.youtube.com/watch?v=${song.videoId}",
+                subtitle = if (song.videoId.isNotBlank() &&
+                    !song.videoId.startsWith("content://") &&
+                    !song.videoId.startsWith("file://")
+                ) {
+                    "https://music.youtube.com/watch?v=${song.videoId}"
+                } else {
+                    "${song.title} — ${song.artist}"
+                },
                 onClick = {
                     haptics.play(Haptic.Tap)
                     onShareLink()

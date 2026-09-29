@@ -197,13 +197,21 @@ fun LyricShareSheet(
                 ) {
                     Column {
                         Text(
-                            text = stringResource(R.string.share_lyrics),
+                            text = if (cardStyle == LyricCardStyle.SONG_CARD) {
+                                stringResource(R.string.share)
+                            } else {
+                                stringResource(R.string.share_lyrics)
+                            },
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                             color = Color.White,
                         )
                         Text(
-                            text = stringResource(R.string.lyrics_selected, selectedLines.size, 5),
+                            text = if (cardStyle == LyricCardStyle.SONG_CARD) {
+                                song.title
+                            } else {
+                                stringResource(R.string.lyrics_selected, selectedLines.size, 5)
+                            },
                             style = MaterialTheme.typography.bodySmall,
                             color = Color.White.copy(alpha = 0.70f),
                         )
@@ -222,7 +230,7 @@ fun LyricShareSheet(
                 // Dynamic Live Card Preview
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth(if (ratio == LyricCardRatio.CARD_3_4) 0.62f else 0.50f)
+                        .fillMaxWidth(if (ratio == LyricCardRatio.CARD_3_4) 0.60f else 0.48f)
                         .align(Alignment.CenterHorizontally)
                         .aspectRatio(ratio.ratio)
                         .clip(RoundedCornerShape(20.dp))
@@ -254,6 +262,14 @@ fun LyricShareSheet(
 
                 Spacer(Modifier.height(18.dp))
 
+                // Style Switcher (Lyrics Card vs Song Card)
+                SegmentedStyleSelector(
+                    selectedStyle = cardStyle,
+                    onStyleSelected = { cardStyle = it },
+                )
+
+                Spacer(Modifier.height(16.dp))
+
                 // Ratio / Format Selector
                 Text(
                     text = "Card Format",
@@ -267,28 +283,52 @@ fun LyricShareSheet(
                     onSelect = { ratio = it },
                 )
 
-                Spacer(Modifier.height(16.dp))
+                if (cardStyle == LyricCardStyle.LYRICS_CARD) {
+                    Spacer(Modifier.height(16.dp))
 
-                // Alignment Selector
-                Text(
-                    text = "Text Alignment",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color.White.copy(alpha = 0.75f),
-                    modifier = Modifier.padding(bottom = 8.dp),
-                )
-                AlignmentSelector(
-                    current = alignment,
-                    onSelect = { alignment = it },
-                )
+                    // Alignment Selector
+                    Text(
+                        text = "Text Alignment",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White.copy(alpha = 0.75f),
+                        modifier = Modifier.padding(bottom = 8.dp),
+                    )
+                    AlignmentSelector(
+                        current = alignment,
+                        onSelect = { alignment = it },
+                    )
 
-                Spacer(Modifier.height(16.dp))
+                    Spacer(Modifier.height(14.dp))
 
-                // Style Switcher (Lyrics Card vs Song Card)
-                SegmentedStyleSelector(
-                    selectedStyle = cardStyle,
-                    onStyleSelected = { cardStyle = it },
-                )
+                    // Toggle Show Artwork
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .clickable { showArtwork = !showArtwork }
+                            .padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = "Show cover artwork",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium,
+                            color = Color.White,
+                        )
+                        Switch(
+                            checked = showArtwork,
+                            onCheckedChange = { showArtwork = it },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.Black,
+                                checkedTrackColor = Color.White,
+                                uncheckedThumbColor = Color.White.copy(alpha = 0.7f),
+                                uncheckedTrackColor = Color.White.copy(alpha = 0.2f),
+                            ),
+                        )
+                    }
+                }
 
                 Spacer(Modifier.height(18.dp))
 
@@ -319,37 +359,6 @@ fun LyricShareSheet(
                     current = font,
                     onSelect = { font = it },
                 )
-
-                if (cardStyle == LyricCardStyle.LYRICS_CARD) {
-                    Spacer(Modifier.height(14.dp))
-                    // Toggle Show Artwork
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(14.dp))
-                            .clickable { showArtwork = !showArtwork }
-                            .padding(vertical = 4.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = "Show cover artwork",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium,
-                            color = Color.White,
-                        )
-                        Switch(
-                            checked = showArtwork,
-                            onCheckedChange = { showArtwork = it },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = Color.Black,
-                                checkedTrackColor = Color.White,
-                                uncheckedThumbColor = Color.White.copy(alpha = 0.7f),
-                                uncheckedTrackColor = Color.White.copy(alpha = 0.2f),
-                            ),
-                        )
-                    }
-                }
 
                 Spacer(Modifier.height(22.dp))
 
@@ -626,24 +635,37 @@ private fun ActionButton(
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
-    val background = when {
-        accent -> Color.White
-        else -> Color.White.copy(alpha = 0.12f)
+    val background = if (accent) {
+        Color.White
+    } else {
+        Color.White.copy(alpha = 0.14f)
     }
-    val foreground = when {
-        accent -> Color.Black
-        else -> Color.White
+    val foreground = if (accent) {
+        Color.Black
+    } else {
+        Color.White
     }
     val borderModifier = if (!accent) {
-        Modifier.border(1.dp, Color.White.copy(alpha = 0.20f), RoundedCornerShape(16.dp))
+        Modifier.border(
+            width = 1.dp,
+            color = Color.White.copy(alpha = if (enabled) 0.24f else 0.10f),
+            shape = RoundedCornerShape(16.dp),
+        )
     } else {
         Modifier
     }
 
+    val finalBackground = if (accent) {
+        if (enabled) background else background.copy(alpha = 0.40f)
+    } else {
+        if (enabled) background else Color.White.copy(alpha = 0.06f)
+    }
+    val finalForeground = if (enabled) foreground else foreground.copy(alpha = 0.45f)
+
     Row(
         modifier = modifier
             .clip(RoundedCornerShape(16.dp))
-            .background(background.copy(alpha = if (enabled) 1f else 0.4f))
+            .background(finalBackground)
             .then(borderModifier)
             .clickable(enabled = enabled, onClick = onClick)
             .padding(vertical = 15.dp),
@@ -653,7 +675,7 @@ private fun ActionButton(
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = foreground,
+            tint = finalForeground,
             modifier = Modifier.size(20.dp),
         )
         Spacer(Modifier.width(8.dp))
@@ -661,7 +683,7 @@ private fun ActionButton(
             text = label,
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
-            color = foreground,
+            color = finalForeground,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )

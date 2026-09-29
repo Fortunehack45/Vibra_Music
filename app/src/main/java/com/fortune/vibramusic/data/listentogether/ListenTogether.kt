@@ -1594,6 +1594,9 @@ object ListenTogether {
                 // 422 is the server rejecting an identity, which here can only
                 // mean the account layer handed over something blank.
                 ?: if (status.value == 422) "This account can't be used to jam."
+                else if (body.contains("suspended", ignoreCase = true)) "The party server is suspended or unavailable."
+                else if (status.value == 429) "The party server is rate-limited. Please try again shortly."
+                else if (status.value == 503) "The party server is currently unavailable or asleep."
                 else "The party server said ${status.value}.",
             statusCode = status.value,
         )

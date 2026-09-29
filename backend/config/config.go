@@ -106,14 +106,14 @@ var (
 	MaxUpcomingQueue     = getIntBounded("JAM_MAX_UPCOMING_QUEUE", 25, 1, 200)
 	MaxQueueLength       = getIntBounded("JAM_MAX_QUEUE_LENGTH", 1+MaxUpcomingQueue, 2, 500)
 	MaxParties           = getIntBounded("JAM_MAX_PARTIES", 50, 1, 1000)
-	CreateRatePerMinute  = getIntBounded("JAM_CREATE_RATE_PER_MINUTE", 2, 1, 60)
+	CreateRatePerMinute  = getIntBounded("JAM_CREATE_RATE_PER_MINUTE", 10, 1, 60)
 	RateLimitMaxEntries  = getIntBounded("JAM_RATE_LIMIT_MAX_ENTRIES", 10000, 100, 1000000)
 	RequestMaxBytes      = int64(getIntBounded("JAM_REQUEST_MAX_BYTES", 16*1024, 1024, 10*1024*1024))
 	WebSocketMaxBytes    = int64(getIntBounded("JAM_WEBSOCKET_MAX_BYTES", 16*1024, 1024, 10*1024*1024))
 	ConnectionIdleMs     = int64(getIntBounded("JAM_CONNECTION_IDLE_MS", 15*60*1000, 10000, 24*60*60*1000))
 	FrameRatePerSecond   = float64(getIntBounded("JAM_FRAME_RATE_PER_SECOND", 30, 1, 500))
 	AllowedOrigins       = getCSV("JAM_ALLOWED_ORIGINS", "")
-	TrustProxy           = getBool("JAM_TRUST_PROXY", false)
+	TrustProxy           = getBool("JAM_TRUST_PROXY", true)
 	Port                 = getIntBounded("PORT", 8000, 1, 65535)
 
 	// PublicOrigin defines the authoritative public canonical origin of this server

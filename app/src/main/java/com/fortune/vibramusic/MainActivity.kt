@@ -147,10 +147,14 @@ import com.fortune.vibramusic.ui.screens.EqualizerScreen
 import com.fortune.vibramusic.ui.screens.HistoryScreen
 import com.fortune.vibramusic.ui.screens.ListenTogetherScreen
 import com.fortune.vibramusic.ui.screens.PartyServerEditor
+import com.fortune.vibramusic.ui.screens.CachedMusicScreen
 import com.fortune.vibramusic.ui.screens.SettingsScreen
 import com.fortune.vibramusic.ui.screens.SourceEditorAlert
 import com.fortune.vibramusic.ui.screens.SourcesScreen
 import com.fortune.vibramusic.ui.screens.SpotifyCanvasAuthScreen
+import com.fortune.vibramusic.ui.components.OfflinePromptBanner
+import com.fortune.vibramusic.ui.components.rememberIsNetworkConnected
+import com.fortune.vibramusic.data.cache.OfflineCacheManager
 import com.fortune.vibramusic.playback.AudioCache
 import com.fortune.vibramusic.playback.LinkRequest
 import com.fortune.vibramusic.playback.MusicLink
@@ -767,6 +771,9 @@ private fun VibraMusicApp(
     val hostOnlyMessage = stringResource(R.string.listen_together_host_only_notice)
     val showHostOnlyNotice: () -> Unit = { showQueueNotice(hostOnlyMessage) }
 
+    val isOnline by rememberIsNetworkConnected()
+    val cachedSongsList by OfflineCacheManager.cachedSongs.collectAsStateWithLifecycle()
+
     /**
      * Whether the host has taken the music, and say so if they have.
      *
@@ -998,6 +1005,7 @@ private fun VibraMusicApp(
         if (holdUntilAligned) AppSettings.versionAlignmentInProgress.value = true
         if (pauseWhileResolving) c.pause()
         try {
+            Toast.makeText(context, R.string.switching_to_audio, Toast.LENGTH_SHORT).show()
             TrackLog.d("Player", "audio switch requested for '${song.title}'", song.videoId)
             val audio = runCatching { YtMusicRepository.resolveAudio(song) }.getOrNull()
             val stillCurrent = c.currentMediaItemIndex == index &&
@@ -1007,6 +1015,7 @@ private fun VibraMusicApp(
             // to release the loading state and resume it immediately.
             if (audio == null || audio.videoId == song.videoId) {
                 TrackLog.w("Player", "audio switch found no distinct official song", song.videoId)
+                Toast.makeText(context, R.string.no_audio_version_found, Toast.LENGTH_SHORT).show()
                 if (stillCurrent && resumeAfterResolution) c.play()
                 return
             }
@@ -1030,14 +1039,9 @@ private fun VibraMusicApp(
             if (!holdUntilAligned || VersionAudioAligner.getCachedOffsetMs(song.videoId, target.videoId) != null) {
                 optimisticVersionSong = target
             }
-            // Let go of the bar *before* the command goes out: the service
-            // raises it again the moment its own job starts, and releasing
-            // first is what makes the handover correct whichever way that
-            // command dispatches — inline or on the next turn of the loop.
-            // The same line in the finally is the catch-all for every path
-            // that never got this far, where nothing else would release it.
             if (holdUntilAligned) AppSettings.versionAlignmentInProgress.value = false
             c.swapToVersion(target)
+            Toast.makeText(context, R.string.switched_to_audio, Toast.LENGTH_SHORT).show()
         } finally {
             if (holdUntilAligned) AppSettings.versionAlignmentInProgress.value = false
             switchingAudioVersion = false
@@ -1058,14 +1062,11 @@ private fun VibraMusicApp(
 
         val resumeAfterResolution = pauseWhileResolving && c.playWhenReady
         switchingAudioVersion = true
-        // Mirrors the music-only path: the bar lights up for the resolve and
-        // the service keeps it lit through the measure-and-cut, and the row
-        // stays on the audio version until that swap actually commits — see
-        // [alignmentPending] at the toggle.
         val holdUntilAligned = AppSettings.smartVersionAlignment.value
         if (holdUntilAligned) AppSettings.versionAlignmentInProgress.value = true
         if (pauseWhileResolving) c.pause()
         try {
+            Toast.makeText(context, R.string.switching_to_video, Toast.LENGTH_SHORT).show()
             TrackLog.d("Player", "video switch requested for '${song.title}'", song.videoId)
             val video = runCatching { YtMusicRepository.resolveVideo(song) }.getOrNull()
             val stillCurrent = c.currentMediaItemIndex == index &&
@@ -1073,6 +1074,7 @@ private fun VibraMusicApp(
 
             if (video == null || video.videoId == song.videoId) {
                 TrackLog.w("Player", "video switch found no distinct video", song.videoId)
+                Toast.makeText(context, R.string.no_video_version_found, Toast.LENGTH_SHORT).show()
                 if (stillCurrent && resumeAfterResolution) c.play()
                 return
             }
@@ -1092,19 +1094,14 @@ private fun VibraMusicApp(
                 playbackSourceType = song.playbackSourceType,
                 playbackSourceId = song.playbackSourceId,
             )
-            // Not while an alignment is still owed: claiming the video here
-            // would show a version the player is not playing yet, and would
-            // make the switch look finished before it had begun.
             if (!holdUntilAligned ||
                 VersionAudioAligner.getCachedOffsetMs(song.videoId, target.videoId) != null
             ) {
                 optimisticVersionSong = target
             }
-            // Released before the handover for the same reason as the
-            // music-only path above: the service owns the flag from here, and
-            // the finally only exists for the paths that never send.
             if (holdUntilAligned) AppSettings.versionAlignmentInProgress.value = false
             c.swapToVersion(target)
+            Toast.makeText(context, R.string.switched_to_video, Toast.LENGTH_SHORT).show()
         } finally {
             if (holdUntilAligned) AppSettings.versionAlignmentInProgress.value = false
             switchingAudioVersion = false
@@ -1281,8 +1278,14 @@ private fun VibraMusicApp(
                     playbackSourceType = PlaybackSourceType.SHARED_LINK,
                     playbackSourceId = song.videoId,
                 )
+                val existingSongs = if (AppSettings.dontRepeatSuggestions.value) {
+                    val queueSongs = (0 until controller.mediaItemCount).map { controller.getMediaItemAt(it).toSong() }
+                    listOf(seed) + queueSongs
+                } else {
+                    listOf(seed)
+                }
                 val related = loadAutoplayTracks(
-                    existing = listOf(seed),
+                    existing = existingSongs,
                     seedSong = seed,
                     limit = INITIAL_RADIO_TRACKS,
                 ).getOrElse {
@@ -2547,82 +2550,108 @@ private fun VibraMusicApp(
                         // A single downloaded playlist is not one of these: it has one
                         // running order and nothing to tab through, so it falls to the
                         // release page below.
-                        val localState = page.songs
-                        val localSongs = (localState as? com.fortune.vibramusic.data.model.UiState.Success)
-                            ?.data.orEmpty()
-                        // Only the Downloads folder has releases behind it: Local
-                        // Music is files this app never asked for, so there is
-                        // nothing on record about how they were grouped. Keyed on
-                        // the record as well as the list, so downloading an album
-                        // while its folder is open adds the folder rather than
-                        // waiting for the page to be reopened.
-                        val downloadCollections = remember(localSongs, savedCollections) {
-                            if (page.browseId == "local:downloads") {
-                                Downloads.collectionsAmong(localSongs)
-                            } else {
-                                emptyList()
-                            }
-                        }
-                        LocalMusicScreen(
-                            songs = localSongs,
-                            collections = downloadCollections,
-                            isDownloads = page.browseId == "local:downloads",
-                            currentSong = player.song,
-                            isPlaying = player.isPlaying,
-                            onDeleteDownloads = { selected ->
-                                scope.launch {
-                                    selected.forEach { song -> Downloads.delete(context, song.videoId) }
-                                }
-                            },
-                            onUploadToWebDav =
-                                if (com.fortune.vibramusic.data.webdav.WebDavConfig.isConfigured(webdavUrl)) {
-                                    { selected -> uploadToWebDav(selected) }
-                                } else {
-                                    null
+                        if (page.browseId == "local:cached") {
+                            CachedMusicScreen(
+                                songs = cachedSongsList,
+                                currentSong = player.song,
+                                isPlaying = player.isPlaying,
+                                onBack = { viewModel.closeDetail() },
+                                onSongClick = { songs, index ->
+                                    playFrom(
+                                        songs,
+                                        index,
+                                        QueueSource(page.title, PlaybackSourceType.BROWSE, page.browseId),
+                                    )
                                 },
-                            onSongClick = { songs, index ->
-                                playFrom(
-                                    songs,
-                                    index,
-                                    QueueSource(page.title, PlaybackSourceType.BROWSE, page.browseId),
-                                )
-                            },
-                            onSongLongPress = openSongMenu,
-                            onSongSwipe = onSongSwipe,
-                            onShuffle = { songs ->
-                                QueueShuffle.enableForNextQueue()
-                                playFrom(
-                                    songs,
-                                    songs.indices.random(),
-                                    QueueSource(page.title, PlaybackSourceType.BROWSE, page.browseId),
-                                )
-                            },
-                            emptyMessage = (localState as? com.fortune.vibramusic.data.model.UiState.Error)
-                                ?.message,
-                            // An album or artist here is a grouping of rows rather than
-                            // a page, so the menu is handed the rows themselves — there
-                            // is no id anything could be fetched with.
-                            onCollectionLongPress = { label, grouped ->
-                                // An artist grouping is never one of these — only a
-                                // release downloaded whole has a record to match,
-                                // which is exactly the distinction `asked` draws in
-                                // `albumEntries`.
-                                val downloadId = downloadCollections.firstOrNull {
-                                    it.title == label && it.songs == grouped
-                                }?.id
-                                browseActions = BrowseTarget(
-                                    browseId = null,
-                                    title = label,
-                                    subtitle = grouped.firstOrNull()?.artist.orEmpty()
-                                        .takeUnless { it == label }
-                                        .orEmpty(),
-                                    thumbnailUrl = grouped.firstOrNull()?.thumbnailUrl,
-                                    songs = grouped,
-                                    downloadId = downloadId,
-                                )
-                            },
-                            contentPadding = listPadding,
-                        )
+                                onSongLongPress = openSongMenu,
+                                onClearCache = {
+                                    OfflineCacheManager.clearCache()
+                                },
+                                onSaveAllToDownloads = {
+                                    cachedSongsList.forEach { song ->
+                                        Downloads.enqueue(context, song)
+                                    }
+                                },
+                                contentPadding = listPadding,
+                            )
+                        } else {
+                            val localState = page.songs
+                            val localSongs = (localState as? com.fortune.vibramusic.data.model.UiState.Success)
+                                ?.data.orEmpty()
+                            // Only the Downloads folder has releases behind it: Local
+                            // Music is files this app never asked for, so there is
+                            // nothing on record about how they were grouped. Keyed on
+                            // the record as well as the list, so downloading an album
+                            // while its folder is open adds the folder rather than
+                            // waiting for the page to be reopened.
+                            val downloadCollections = remember(localSongs, savedCollections) {
+                                if (page.browseId == "local:downloads") {
+                                    Downloads.collectionsAmong(localSongs)
+                                } else {
+                                    emptyList()
+                                }
+                            }
+                            LocalMusicScreen(
+                                songs = localSongs,
+                                collections = downloadCollections,
+                                isDownloads = page.browseId == "local:downloads",
+                                currentSong = player.song,
+                                isPlaying = player.isPlaying,
+                                onDeleteDownloads = { selected ->
+                                    scope.launch {
+                                        selected.forEach { song -> Downloads.delete(context, song.videoId) }
+                                    }
+                                },
+                                onUploadToWebDav =
+                                    if (com.fortune.vibramusic.data.webdav.WebDavConfig.isConfigured(webdavUrl)) {
+                                        { selected -> uploadToWebDav(selected) }
+                                    } else {
+                                        null
+                                    },
+                                onSongClick = { songs, index ->
+                                    playFrom(
+                                        songs,
+                                        index,
+                                        QueueSource(page.title, PlaybackSourceType.BROWSE, page.browseId),
+                                    )
+                                },
+                                onSongLongPress = openSongMenu,
+                                onSongSwipe = onSongSwipe,
+                                onShuffle = { songs ->
+                                    QueueShuffle.enableForNextQueue()
+                                    playFrom(
+                                        songs,
+                                        songs.indices.random(),
+                                        QueueSource(page.title, PlaybackSourceType.BROWSE, page.browseId),
+                                    )
+                                },
+                                emptyMessage = (localState as? com.fortune.vibramusic.data.model.UiState.Error)
+                                    ?.message,
+                                // An album or artist here is a grouping of rows rather than
+                                // a page, so the menu is handed the rows themselves — there
+                                // is no id anything could be fetched with.
+                                onCollectionLongPress = { label, grouped ->
+                                    // An artist grouping is never one of these — only a
+                                    // release downloaded whole has a record to match,
+                                    // which is exactly the distinction `asked` draws in
+                                    // `albumEntries`.
+                                    val downloadId = downloadCollections.firstOrNull {
+                                        it.title == label && it.songs == grouped
+                                    }?.id
+                                    browseActions = BrowseTarget(
+                                        browseId = null,
+                                        title = label,
+                                        subtitle = grouped.firstOrNull()?.artist.orEmpty()
+                                            .takeUnless { it == label }
+                                            .orEmpty(),
+                                        thumbnailUrl = grouped.firstOrNull()?.thumbnailUrl,
+                                        songs = grouped,
+                                        downloadId = downloadId,
+                                    )
+                                },
+                                contentPadding = listPadding,
+                            )
+                        }
                     } else if (page != null) {
                         // An album page's rows carry no album name of their own — the
                         // release is billed once, in the header the rows hang under — so
@@ -3255,6 +3284,13 @@ private fun VibraMusicApp(
                         .widthIn(max = FLOATING_BAR_MAX_WIDTH)
                         .fillMaxWidth(),
                 ) {
+                    OfflinePromptBanner(
+                        isOnline = isOnline,
+                        hasCachedMusic = cachedSongsList.isNotEmpty() && detail?.browseId != "local:cached",
+                        hasDownloads = savedDownloads.isNotEmpty() && detail?.browseId != "local:downloads",
+                        onOpenCachedMusic = { viewModel.openDetail("local:cached", context.getString(R.string.cached_music)) },
+                        onOpenDownloads = { viewModel.openDetail("local:downloads", context.getString(R.string.downloads)) },
+                    )
                     QueueActionNoticeHost(queueNotice)
                     // Liquid glass replaces the two stacked bars with the single
                     // component they are stacked to imitate: the now playing
@@ -3291,6 +3327,13 @@ private fun VibraMusicApp(
                         .fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
+                    OfflinePromptBanner(
+                        isOnline = isOnline,
+                        hasCachedMusic = cachedSongsList.isNotEmpty() && detail?.browseId != "local:cached",
+                        hasDownloads = savedDownloads.isNotEmpty() && detail?.browseId != "local:downloads",
+                        onOpenCachedMusic = { viewModel.openDetail("local:cached", context.getString(R.string.cached_music)) },
+                        onOpenDownloads = { viewModel.openDetail("local:downloads", context.getString(R.string.downloads)) },
+                    )
                     QueueActionNoticeHost(queueNotice)
                     player.song?.let { song ->
                         MiniPlayer(

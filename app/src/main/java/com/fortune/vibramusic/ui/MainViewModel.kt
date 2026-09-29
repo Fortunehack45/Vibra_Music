@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.ui
+package com.fortune.vibramusic.ui
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
@@ -2249,6 +2249,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     if (songs.isEmpty()) UiState.Error("No downloaded tracks")
                     else UiState.Success(songs)
                 }
+                browseId == "local:cached" -> {
+                    val songs = com.fortune.vibramusic.data.cache.OfflineCacheManager.getCachedSongs()
+                    if (songs.isEmpty()) UiState.Error("No cached tracks yet")
+                    else UiState.Success(songs)
+                }
                 browseId == "local:all" -> {
                     val context = getApplication<Application>()
                     if (!LocalMediaRepository.hasStoragePermission(context)) {
@@ -2356,6 +2361,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 browseId == "local:downloads" -> {
                     val songs = Downloads.getDownloadedSongs(context)
                     if (songs.isEmpty()) UiState.Error("No downloaded tracks")
+                    else UiState.Success(songs)
+                }
+                browseId == "local:cached" -> {
+                    val songs = com.fortune.vibramusic.data.cache.OfflineCacheManager.getCachedSongs()
+                    if (songs.isEmpty()) UiState.Error("No cached tracks yet")
                     else UiState.Success(songs)
                 }
                 browseId == "local:all" -> {
@@ -2506,6 +2516,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 browseId == "local:downloads" -> runCatching {
                     Downloads.getDownloadedSongs(context)
                         .ifEmpty { error("No downloaded tracks") }
+                }
+                browseId == "local:cached" -> runCatching {
+                    com.fortune.vibramusic.data.cache.OfflineCacheManager.getCachedSongs()
+                        .ifEmpty { error("No cached tracks yet") }
                 }
                 browseId == "local:all" -> runCatching {
                     if (!LocalMediaRepository.hasStoragePermission(context)) {

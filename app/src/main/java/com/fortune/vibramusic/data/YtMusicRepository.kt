@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.data
+package com.fortune.vibramusic.data
 
 import com.fortune.vibramusic.data.DebugLog as Log
 import com.fortune.vibramusic.data.innertube.Innertube
@@ -428,7 +428,9 @@ object YtMusicRepository {
                 ?.filterIsInstance<SearchResult.Track>()
                 ?.map { it.song }
                 .orEmpty()
-            TrackMatcher.best(candidates, target)?.let { match ->
+            val match = TrackMatcher.bestVideoForAudio(candidates, target)
+                ?: TrackMatcher.best(candidates, target)
+            if (match != null) {
                 Log.d(TAG, "video switch: '${song.title}' -> '${match.title}' ($query)")
                 videoVersionCache[song.videoId] = match
                 return match

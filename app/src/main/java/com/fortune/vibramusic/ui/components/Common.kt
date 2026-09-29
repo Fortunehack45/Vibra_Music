@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.ui.components
+package com.fortune.vibramusic.ui.components
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -341,16 +341,12 @@ fun SongRow(
     val swipeState = rememberSwipeToDismissBoxState(
         confirmValueChange = { value ->
             if (value != SwipeToDismissBoxValue.Settled && currentOnSwipeToQueue != null) {
-                val offset = try { swipeStateHolder.value?.requireOffset() ?: 0f } catch (e: Exception) { 0f }
-                // Only queue if the physical drag reached half the box width, ignoring short accidental flings.
-                if (abs(offset) >= boxWidth * 0.45f) {
-                    haptics.play(Haptic.Select)
-                    currentOnSwipeToQueue?.invoke()
-                }
+                haptics.play(Haptic.Select)
+                currentOnSwipeToQueue?.invoke()
             }
             false // never actually dismiss; snap back
         },
-        positionalThreshold = { distance -> distance * 0.5f },
+        positionalThreshold = { distance -> distance * 0.45f },
     )
     swipeStateHolder.value = swipeState
 

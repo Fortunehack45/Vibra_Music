@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.data.innertube
+package com.fortune.vibramusic.data.innertube
 
 import com.fortune.vibramusic.auth.normalizeDataSyncId
 import com.fortune.vibramusic.data.model.Account
@@ -101,7 +101,11 @@ object InnertubeParser {
                     parseResponsiveListItem(renderer, fallback ?: Credits())?.let { song ->
                         // The mixed All page stays music-only; the dedicated Videos
                         // filter is the one place music-video uploads belong.
-                        if (song.isVideo == includeVideos && seen.add("v:${song.videoId}")) {
+                        if (includeVideos) {
+                            if (seen.add("v:${song.videoId}")) {
+                                add(SearchResult.Track(song.copy(isVideo = true)))
+                            }
+                        } else if (!song.isVideo && seen.add("v:${song.videoId}")) {
                             add(SearchResult.Track(song))
                         }
                     }

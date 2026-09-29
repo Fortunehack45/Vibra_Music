@@ -10,6 +10,7 @@ import android.media.AudioManager
 import android.media.audiofx.AudioEffect
 import android.media.audiofx.LoudnessEnhancer
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
 import kotlinx.coroutines.sync.Mutex
@@ -2852,6 +2853,9 @@ class PlaybackService : MediaLibraryService() {
         // the sampler in [reportProgress].
         cancelStaleUpgradeJob()
         lookForBetterCopy(exoPlayer)
+        exoPlayer.currentMediaItem?.toSong()?.let { song ->
+            com.fortune.vibramusic.data.cache.OfflineCacheManager.recordCachedSong(song)
+        }
         // Covers crossfades too: a blended advance never reaches
         // onMediaItemTransition, and [adoptPlayer] calls this handler by hand.
         publishWidgetState()
@@ -6122,7 +6126,16 @@ class PlaybackService : MediaLibraryService() {
         if (AppSettings.stopOnTaskRemoved.value) {
             // Both, or a swipe-away mid-crossfade leaves the outgoing track
             // playing on its own out of a service that is on its way out.
-            eachPlayer { it.stop() }
+            eachPlayer {
+                it.stop()
+                it.clearMediaItems()
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                stopForeground(STOP_FOREGROUND_REMOVE)
+            } else {
+                @Suppress("DEPRECATION")
+                stopForeground(true)
+            }
             stopSelf()
         }
     }

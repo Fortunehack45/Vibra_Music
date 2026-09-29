@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.ui.player
+package com.fortune.vibramusic.ui.player
 
 import androidx.compose.ui.unit.constrainHeight
 import androidx.compose.ui.unit.constrainWidth
@@ -1633,6 +1633,7 @@ fun NowPlayingScreen(
                                     onRevealControls = {},
                                     onHideControls = {},
                                     translationProgress = particleProgress,
+                                    currentSong = song,
                                     modifier = Modifier.fillMaxSize(),
                                 )
                             }
@@ -2741,6 +2742,7 @@ fun NowPlayingScreen(
                                     onHideControls = { lyricsControlsOpen = false },
                                     translationProgress = particleProgress,
                                     onScrollingChange = { lyricsScrolling = it },
+                                    currentSong = song,
                                     modifier = Modifier.fillMaxSize(),
                                 )
                             }
@@ -2978,13 +2980,10 @@ fun NowPlayingScreen(
                     onValueChange = onVolumeChange,
                     onValueChangeFinished = onVolumeChangeFinished,
                 )
-            } else {
-                Spacer(Modifier.height(VOLUME_ROW_HEIGHT))
+                // The volume slider already has 13dp below its drawn track.
+                // Balance that invisible inset with the caption gap below the icons.
+                Spacer(Modifier.height(6.dp))
             }
-
-            // The volume slider already has 13dp below its drawn track.
-            // Balance that invisible inset with the caption gap below the icons.
-            Spacer(Modifier.height(6.dp))
 
             playerActions()
             Spacer(Modifier.height(18.dp))

@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.data.sources
+package com.fortune.vibramusic.data.sources
 
 import com.fortune.vibramusic.data.model.Song
 import kotlin.math.abs
@@ -146,6 +146,34 @@ object TrackMatcher {
                     secondsOf(candidate.durationText)?.let { actual -> -abs(expected - actual) } ?: -120
                 } ?: 0
                 candidate to (artist * 1_000 + duration)
+            }
+            .sortedByDescending { it.second }
+            .firstOrNull()
+            ?.first
+    }
+
+    /**
+     * Resolves an audio track to its matching music video version.
+     *
+     * A music video often includes an intro/outro, visual narrative or dialogue
+     * that makes its runtime drift from the studio album cut. This matcher
+     * matches on core title and credited artist while ranking by closest
+     * duration and official status, rather than rejecting candidates due to
+     * intro/outro length.
+     */
+    fun bestVideoForAudio(candidates: List<Song>, target: Target): Song? {
+        val wanted = parseTitle(target.title, target.artist)
+        if (wanted.core.isEmpty()) return null
+        return candidates
+            .mapNotNull { candidate ->
+                val got = parseTitle(candidate.title, candidate.artist)
+                if (wanted.core != got.core || wanted.versions != got.versions) return@mapNotNull null
+                val artist = artistScore(target.artist, candidate.artist) ?: return@mapNotNull null
+                val durationDiff = target.durationSec?.let { expected ->
+                    secondsOf(candidate.durationText)?.let { actual -> kotlin.math.abs(expected - actual) }
+                } ?: 0
+                val durationPenalty = -durationDiff
+                candidate to (artist * 1_000 + durationPenalty)
             }
             .sortedByDescending { it.second }
             .firstOrNull()

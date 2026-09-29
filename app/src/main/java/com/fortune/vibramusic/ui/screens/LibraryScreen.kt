@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.ui.screens
+package com.fortune.vibramusic.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -197,6 +197,13 @@ fun LibraryScreen(
                             thumbnailUrl = null,
                             videoId = null,
                             browseId = "local:downloads",
+                        ),
+                        ShelfItem(
+                            title = stringResource(R.string.cached_music),
+                            subtitle = stringResource(R.string.cached_music_subtitle),
+                            thumbnailUrl = null,
+                            videoId = null,
+                            browseId = "local:cached",
                         ),
                         ShelfItem(
                             title = stringResource(R.string.local_music),

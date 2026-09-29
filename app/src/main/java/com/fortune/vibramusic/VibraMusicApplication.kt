@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic
+package com.fortune.vibramusic
 
 
 
@@ -229,6 +229,7 @@ class VibraMusicApplication : Application(), SingletonImageLoader.Factory {
         // PlaybackService shares this one — so it's opened here, not there.
 
         AudioCache.init(this)
+        com.fortune.vibramusic.data.cache.OfflineCacheManager.init(this)
 
         // The offscreen WebView that mints a Spotify access token from the
 

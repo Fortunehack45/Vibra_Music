@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.ui.player
+package com.fortune.vibramusic.ui.player
 
 import android.os.Build
 import android.os.SystemClock
@@ -55,10 +55,13 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Language
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Translate
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -71,11 +74,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import com.fortune.vibramusic.data.model.Song
+import com.fortune.vibramusic.ui.lyrics.LyricShareSheet
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Alignment
@@ -1451,8 +1457,20 @@ internal fun LyricsPanel(
     /** Reports whether the lyric list is mid-scroll, so the player above it
      * can stand down its own swipe gestures for as long as it is. */
     onScrollingChange: (Boolean) -> Unit = {},
+    currentSong: Song? = null,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
+    var isSelectingForShare by remember { mutableStateOf(false) }
+    val selectedIndices = remember { mutableStateListOf<Int>() }
+    var showShareSheet by remember { mutableStateOf(false) }
+
+    LaunchedEffect(trackKey) {
+        isSelectingForShare = false
+        selectedIndices.clear()
+        showShareSheet = false
+    }
+
     val panelPlaying = isPlaying && active
     val clock = rememberLyricClock(trackKey, positionMs, panelPlaying)
     val subReveal = rememberSubLyricsReveal(subLines, trackKey)
@@ -1648,15 +1666,16 @@ internal fun LyricsPanel(
         return
     }
 
-    LazyColumn(
-        state = listState,
-        modifier = modifier
-            .bleedHorizontally(PLAYER_GUTTER)
-            .nestedScroll(controlsOnScroll)
-            .nestedScroll(keepScroll)
-            // Browsing leaves taps to each lyric row's seek action throughout the list.
-            .revealLyricsControlsOnTap(!controlsOpen, onBottomHalfTap)
-            .fadingEdges(),
+    Box(modifier = modifier) {
+        LazyColumn(
+            state = listState,
+            modifier = Modifier
+                .bleedHorizontally(PLAYER_GUTTER)
+                .nestedScroll(controlsOnScroll)
+                .nestedScroll(keepScroll)
+                // Browsing leaves taps to each lyric row's seek action throughout the list.
+                .revealLyricsControlsOnTap(!controlsOpen, onBottomHalfTap)
+                .fadingEdges(),
         // Each row carries GLOW_ROOM of its own inset for the halo, so the
         // list hands that much back — otherwise the lines would sit a glow's
         // width further apart and further in than they used to.
@@ -1863,6 +1882,7 @@ internal fun LyricsPanel(
                 // No width held back for the swell any more: nothing draws past
                 // its own bounds now that the playing line tops out at 1, so the
                 // text gets the full column and wraps where the panel does.
+                val isLineSelected = isSelectingForShare && selectedIndices.contains(index)
                 val shape = Modifier
                     .fillMaxWidth()
                     // The lane the other voice sings in, kept clear. Applied
@@ -1901,13 +1921,42 @@ internal fun LyricsPanel(
                                 )
                         }
                     }
-                    .blur(blur, BlurredEdgeTreatment.Unbounded)
-                    .clip(RoundedCornerShape(10.dp))
+                    .blur(if (isSelectingForShare) 0.dp else blur, BlurredEdgeTreatment.Unbounded)
+                    .clip(RoundedCornerShape(12.dp))
+                    .then(
+                        if (isLineSelected) {
+                            Modifier
+                                .background(Color(0xFFE50914).copy(alpha = 0.22f), RoundedCornerShape(12.dp))
+                                .border(1.5.dp, Color(0xFFE50914), RoundedCornerShape(12.dp))
+                                .padding(horizontal = 8.dp, vertical = 2.dp)
+                        } else if (isSelectingForShare) {
+                            Modifier
+                                .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(12.dp))
+                                .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(12.dp))
+                                .padding(horizontal = 8.dp, vertical = 2.dp)
+                        } else {
+                            Modifier
+                        }
+                    )
                     .clickable(
-                        enabled = isSynced,
+                        enabled = isSelectingForShare || isSynced,
                         interactionSource = interaction,
                         indication = LocalIndication.current,
-                    ) { onSeekToLine(line.timeMs) }
+                    ) {
+                        if (isSelectingForShare) {
+                            if (selectedIndices.contains(index)) {
+                                selectedIndices.remove(index)
+                            } else {
+                                if (selectedIndices.size >= 5) {
+                                    Toast.makeText(context, R.string.max_lyrics_reached, Toast.LENGTH_SHORT).show()
+                                } else {
+                                    selectedIndices.add(index)
+                                }
+                            }
+                        } else {
+                            onSeekToLine(line.timeMs)
+                        }
+                    }
                 // Lead and answering vocal are one row: they are one line of
                 // the song, they scale and dim together, and tapping either
                 // seeks to the same place.
@@ -2015,6 +2064,113 @@ internal fun LyricsPanel(
                             }
                     }
                 }
+            }
+        }
+    }
+
+        // Floating Selection Bar
+        if (isSelectingForShare) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 16.dp, start = 16.dp, end = 16.dp)
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color.Black.copy(alpha = 0.85f))
+                    .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(20.dp))
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconButton(
+                        onClick = {
+                            isSelectingForShare = false
+                            selectedIndices.clear()
+                        },
+                        modifier = Modifier.size(32.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Close,
+                            contentDescription = stringResource(R.string.cancel),
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+
+                    Text(
+                        text = if (selectedIndices.isEmpty()) {
+                            stringResource(R.string.select_up_to_5_lines)
+                        } else {
+                            stringResource(R.string.lyrics_selected, selectedIndices.size, 5)
+                        },
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(
+                                if (selectedIndices.isNotEmpty()) Color(0xFFE50914)
+                                else Color.White.copy(alpha = 0.15f)
+                            )
+                            .clickable(enabled = selectedIndices.isNotEmpty()) {
+                                showShareSheet = true
+                            }
+                            .padding(horizontal = 14.dp, vertical = 7.dp),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.share),
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = if (selectedIndices.isNotEmpty()) Color.White else Color.White.copy(alpha = 0.4f),
+                        )
+                    }
+                }
+            }
+        } else if (controlsOpen && currentSong != null && lines.isNotEmpty()) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 16.dp, end = 20.dp)
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.65f))
+                    .border(1.dp, Color.White.copy(alpha = 0.2f), CircleShape)
+                    .clickable {
+                        isSelectingForShare = true
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Share,
+                    contentDescription = stringResource(R.string.share_lyrics),
+                    tint = Color.White,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        }
+
+        if (showShareSheet && currentSong != null) {
+            val selectedLines = remember(selectedIndices, lines) {
+                selectedIndices.sorted().mapNotNull { idx ->
+                    lines.getOrNull(idx)?.text?.takeIf { it.isNotBlank() }
+                }
+            }
+            if (selectedLines.isNotEmpty()) {
+                LyricShareSheet(
+                    song = currentSong,
+                    selectedLines = selectedLines,
+                    onDismiss = {
+                        showShareSheet = false
+                        isSelectingForShare = false
+                        selectedIndices.clear()
+                    },
+                )
             }
         }
     }

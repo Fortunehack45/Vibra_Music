@@ -1,7 +1,8 @@
-﻿package com.fortune.vibramusic.data.listentogether
+package com.fortune.vibramusic.data.listentogether
 
 import android.content.Context
 import android.content.SharedPreferences
+import java.util.Locale
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
@@ -819,7 +820,7 @@ object ListenTogether {
     private suspend fun doJoinOnServer(serverBase: String, code: String, nickname: String): String {
         val who = identity(nickname) ?: throw PartyException("not_signed_in", "Sign in to listen together.")
         if (serverBase.isBlank()) throw PartyException("no_server", "Set the party server address first.")
-        val cleaned = code.filter { it.isLetterOrDigit() }.uppercase()
+        val cleaned = normaliseCode(code)
         if (cleaned.length != CODE_LENGTH) {
             throw PartyException("bad_code", "A party code is six letters or digits.")
         }
@@ -906,7 +907,7 @@ object ListenTogether {
                 }
             }
 
-            val cleanedTargetCode = targetCode.filter { it.isLetterOrDigit() }.uppercase()
+            val cleanedTargetCode = normaliseCode(targetCode)
             if (cleanedTargetCode.length != CODE_LENGTH) {
                 return@withContext if (_state.value.inParty) {
                     SwitchPartyResult.TargetFailedRecovered(_state.value.code.orEmpty(), "A party code is six letters or digits.")
@@ -1517,6 +1518,20 @@ object ListenTogether {
         _activity.value = next
     }
 
+    fun normaliseCode(raw: String): String {
+        val sb = StringBuilder()
+        for (ch in raw.uppercase(Locale.ROOT).trim()) {
+            if (!ch.isLetterOrDigit()) continue
+            when (ch) {
+                'I', 'L' -> sb.append('1')
+                'O' -> sb.append('0')
+                else -> sb.append(ch)
+            }
+        }
+        val s = sb.toString()
+        return if (s.length > CODE_LENGTH) s.take(CODE_LENGTH) else s
+    }
+
     /**
      * Who is in a party, before committing a slot to it.
      *
@@ -1527,7 +1542,7 @@ object ListenTogether {
      * on screen rather than after a confirmation the listener cannot act on.
      */
     suspend fun previewParty(code: String, server: String? = null): Result<PartyPreview> {
-        val cleaned = code.filter { it.isLetterOrDigit() }.uppercase()
+        val cleaned = normaliseCode(code)
         if (cleaned.length != CODE_LENGTH) {
             return Result.failure(PartyException("bad_code", "A party code is six letters or digits."))
         }

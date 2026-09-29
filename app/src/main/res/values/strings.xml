@@ -1154,4 +1154,46 @@
 
     <string name="card_songs_format">%1$s songs</string>
 
+    <!-- Convert Version Feedback -->
+    <string name="switching_to_video" translatable="false">Switching to video version…</string>
+    <string name="switching_to_audio" translatable="false">Switching to audio version…</string>
+    <string name="no_video_version_found" translatable="false">No video version found for this track</string>
+    <string name="no_audio_version_found" translatable="false">No audio version found for this track</string>
+    <string name="switched_to_video" translatable="false">Switched to video version</string>
+    <string name="switched_to_audio" translatable="false">Switched to audio version</string>
+
+    <!-- Lyrics Sharing Feature -->
+    <string name="share_lyrics" translatable="false">Share lyrics</string>
+    <string name="select_lyrics" translatable="false">Select lyrics</string>
+    <string name="select_up_to_5_lines" translatable="false">Select up to 5 lines</string>
+    <string name="lyrics_selected" translatable="false">%1$d of %2$d lines selected</string>
+    <string name="song_card" translatable="false">Song card</string>
+    <string name="lyrics_card" translatable="false">Lyrics card</string>
+    <string name="save_image" translatable="false">Save image</string>
+    <string name="image_saved" translatable="false">Lyrics card saved to Photos</string>
+    <string name="saving_image" translatable="false">Saving image…</string>
+    <string name="customize_lyrics_card" translatable="false">Customize</string>
+    <string name="share_to" translatable="false">Share to</string>
+    <string name="whatsapp" translatable="false">WhatsApp</string>
+    <string name="instagram_stories" translatable="false">Stories</string>
+    <string name="messages" translatable="false">Messages</string>
+    <string name="more_apps" translatable="false">More</string>
+    <string name="max_lyrics_reached" translatable="false">You can share up to 5 lines of lyrics</string>
+
+    <!-- Offline Music Cache & Offline Detection -->
+    <string name="cached_music" translatable="false">Cached music</string>
+    <string name="cached_music_subtitle" translatable="false">Songs saved on this device for offline playback</string>
+    <string name="cached_tracks_count" translatable="false">%1$d cached songs • %2$s</string>
+    <string name="clear_cache" translatable="false">Clear cache</string>
+    <string name="clear_cache_confirm" translatable="false">Clear offline cache?</string>
+    <string name="clear_cache_confirm_desc" translatable="false">This will remove %1$s of cached audio from temporary storage. Your permanent downloads will not be affected.</string>
+    <string name="cache_cleared" translatable="false">Offline cache cleared</string>
+    <string name="save_to_downloads" translatable="false">Save to downloads</string>
+    <string name="offline_title" translatable="false">You\'re offline</string>
+    <string name="offline_subtitle" translatable="false">Play your cached music or downloads</string>
+    <string name="play_cached_music" translatable="false">Play cached</string>
+    <string name="view_downloads" translatable="false">View downloads</string>
+    <string name="no_cached_music" translatable="false">No cached music</string>
+    <string name="no_cached_music_desc" translatable="false">Songs you stream are automatically cached here so you can listen without an internet connection.</string>
+
 </resources>

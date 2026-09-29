@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.playback
+package com.fortune.vibramusic.playback
 
 import android.content.Context
 import android.media.MediaDataSource
@@ -1224,6 +1224,29 @@ object AudioCache {
         return renditionKeysFor(videoId)
             .mapNotNull(::renditionFor)
             .sortedBy { it.contentLength }
+    }
+
+    /** Total bytes on disk currently taken by audio cache. */
+    fun totalCacheSpace(): Long = if (::cache.isInitialized) cache.cacheSpace else 0L
+
+    /** Whether audio for [videoId] is cached on disk. */
+    fun isVideoCached(videoId: String): Boolean {
+        if (!::cache.isInitialized) return false
+        val keys = renditionKeysFor(videoId)
+        return keys.any { key ->
+            cache.getCachedBytes(key, 0, C.LENGTH_UNSET.toLong()) > 200_000L
+        }
+    }
+
+    /** All video IDs that have substantial cached audio on disk. */
+    fun allCachedVideoIds(): Set<String> {
+        if (!::cache.isInitialized) return emptySet()
+        return cache.keys.mapNotNull { key ->
+            val vid = key.substringBefore('#')
+            if (vid.isNotBlank() && cache.getCachedBytes(key, 0, C.LENGTH_UNSET.toLong()) > 200_000L) {
+                vid
+            } else null
+        }.toSet()
     }
 
     /**

@@ -64,11 +64,14 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import android.content.Intent
+import android.widget.Toast
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Undo
 import androidx.compose.material.icons.rounded.FastForward
 import androidx.compose.material.icons.rounded.FastRewind
 import androidx.compose.material.icons.rounded.MoreHoriz
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -768,7 +771,18 @@ fun NowPlayingScreen(
     // out never gets a matching "stopped scrolling" event of its own.
     var lyricsScrolling by remember { mutableStateOf(false) }
     var queueScrolling by remember { mutableStateOf(false) }
-    LaunchedEffect(lyricsOpen) { if (!lyricsOpen) lyricsScrolling = false }
+    var showShareOptionsSheet by remember { mutableStateOf(false) }
+    var isSelectingLyricsForShare by remember { mutableStateOf(false) }
+    LaunchedEffect(song.videoId) {
+        showShareOptionsSheet = false
+        isSelectingLyricsForShare = false
+    }
+    LaunchedEffect(lyricsOpen) {
+        if (!lyricsOpen) {
+            lyricsScrolling = false
+            isSelectingLyricsForShare = false
+        }
+    }
     LaunchedEffect(queueOpen) { if (!queueOpen) queueScrolling = false }
     val panelScrolling = lyricsScrolling || queueScrolling
     var lyricsControlsOpen by remember {
@@ -2686,6 +2700,16 @@ fun NowPlayingScreen(
                     // there's no account to record it against — and neither
                     // does a local file or a finished download, which carries
                     // no YouTube identity to rate.
+                    if (song.localUri == null && song.videoId.isNotBlank()) {
+                        CircleGlyph(
+                            icon = Icons.Rounded.Share,
+                            contentDescription = stringResource(R.string.share),
+                            onClick = { showShareOptionsSheet = true },
+                            active = isSelectingLyricsForShare,
+                            haptic = Haptic.Tap,
+                        )
+                        Spacer(Modifier.width(8.dp))
+                    }
                     if (signedIn && song.localUri == null) {
                         val liked = likeStatus == LikeStatus.LIKE
                         CircleGlyph(
@@ -2743,6 +2767,8 @@ fun NowPlayingScreen(
                                     translationProgress = particleProgress,
                                     onScrollingChange = { lyricsScrolling = it },
                                     currentSong = song,
+                                    isSelectingForShare = isSelectingLyricsForShare,
+                                    onSelectingForShareChange = { isSelectingLyricsForShare = it },
                                     modifier = Modifier.fillMaxSize(),
                                 )
                             }
@@ -2993,6 +3019,31 @@ fun NowPlayingScreen(
             }
         }
         playerOverlays()
+
+        if (showShareOptionsSheet) {
+            ShareOptionsSheet(
+                song = song,
+                hasLyrics = !lyrics.isNullOrEmpty(),
+                onShareLink = {
+                    showShareOptionsSheet = false
+                    val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TEXT, "https://music.youtube.com/watch?v=${song.videoId}")
+                    }
+                    context.startActivity(Intent.createChooser(sendIntent, song.title))
+                },
+                onShareLyrics = {
+                    showShareOptionsSheet = false
+                    if (!lyrics.isNullOrEmpty()) {
+                        if (!lyricsOpen) openLyrics()
+                        isSelectingLyricsForShare = true
+                    } else {
+                        Toast.makeText(context, R.string.no_lyrics_for_track, Toast.LENGTH_SHORT).show()
+                    }
+                },
+                onDismiss = { showShareOptionsSheet = false },
+            )
+        }
         }
     }
 }

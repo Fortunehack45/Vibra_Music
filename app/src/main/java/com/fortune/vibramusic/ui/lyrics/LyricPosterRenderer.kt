@@ -15,6 +15,7 @@ import android.text.Layout
 import android.text.StaticLayout
 import android.text.TextPaint
 import androidx.core.content.res.ResourcesCompat
+import androidx.core.graphics.ColorUtils
 import androidx.palette.graphics.Palette
 import coil3.SingletonImageLoader
 import coil3.request.ImageRequest
@@ -31,7 +32,7 @@ object LyricPosterRenderer {
     const val POSTER_WIDTH = 1080
     const val POSTER_HEIGHT = 1920
 
-    private const val MARGIN = 80f
+    private const val MARGIN = 88f
     private const val CONTENT_WIDTH = POSTER_WIDTH - (MARGIN * 2f)
 
     suspend fun render(
@@ -41,10 +42,9 @@ object LyricPosterRenderer {
         val bitmap = Bitmap.createBitmap(POSTER_WIDTH, POSTER_HEIGHT, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
 
-        // Load artwork if present
-        val coverArt = config.song.thumbnailUrl?.let { url ->
-            loadBitmap(context, url)
-        }
+        // Load artwork if present (support remote thumbnailUrl, localUri, or fallback)
+        val artSource = config.song.thumbnailUrl ?: config.song.localUri
+        val coverArt = artSource?.let { loadBitmap(context, it) }
 
         // Determine background colors
         val (topColor, bottomColor) = resolveColors(config.palette, coverArt)
@@ -62,22 +62,22 @@ object LyricPosterRenderer {
         // Subtle specular glow on top
         val glowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             shader = LinearGradient(
-                0f, 0f, 0f, 400f,
-                Color.argb(35, 255, 255, 255),
+                0f, 0f, 0f, 440f,
+                Color.argb(32, 255, 255, 255),
                 Color.TRANSPARENT,
                 Shader.TileMode.CLAMP
             )
         }
-        canvas.drawRect(0f, 0f, POSTER_WIDTH.toFloat(), 400f, glowPaint)
+        canvas.drawRect(0f, 0f, POSTER_WIDTH.toFloat(), 440f, glowPaint)
 
         // Resolve typography font
         val mainTypeface = resolveTypeface(context, config.font)
 
-        // Draw brand watermark at top
+        // Draw brand watermark at top using Replay card aesthetic with official ic_logo
         drawWatermark(context, canvas, mainTypeface)
 
         when (config.cardStyle) {
-            LyricCardStyle.LYRICS_CARD -> drawLyricsCard(canvas, config, coverArt, mainTypeface)
+            LyricCardStyle.LYRICS_CARD -> drawLyricsCard(context, canvas, config, coverArt, mainTypeface)
             LyricCardStyle.SONG_CARD -> drawSongCard(canvas, config, coverArt, mainTypeface)
         }
 
@@ -85,40 +85,37 @@ object LyricPosterRenderer {
     }
 
     private fun drawWatermark(context: Context, canvas: Canvas, typeface: Typeface) {
+        val logo = runCatching {
+            ResourcesCompat.getDrawable(context.resources, R.drawable.ic_logo, null)
+        }.getOrNull()
+
+        val logoSize = 48f
+        val logoX = MARGIN
+        val logoY = 96f
+
+        if (logo != null) {
+            logo.setTint(Color.WHITE)
+            logo.setBounds(
+                logoX.toInt(),
+                logoY.toInt(),
+                (logoX + logoSize).toInt(),
+                (logoY + logoSize).toInt()
+            )
+            logo.draw(canvas)
+        }
+
         val brandPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             this.typeface = typeface
             textSize = 34f
-            color = Color.argb(190, 255, 255, 255)
-            letterSpacing = 0.08f
-        }
-
-        // Draw small red squircle emblem
-        val emblemSize = 44f
-        val emblemX = MARGIN
-        val emblemY = 88f
-
-        val emblemBg = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#E50914")
-        }
-        canvas.drawRoundRect(
-            RectF(emblemX, emblemY, emblemX + emblemSize, emblemY + emblemSize),
-            12f, 12f, emblemBg
-        )
-
-        // Inner V or note symbol
-        val emblemIcon = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.WHITE
-            this.typeface = typeface
-            textSize = 26f
-            textAlign = Paint.Align.CENTER
+            letterSpacing = 0.05f
         }
-        canvas.drawText("V", emblemX + (emblemSize / 2f), emblemY + 32f, emblemIcon)
 
-        // "Vibra Music" text
-        canvas.drawText("Vibra Music", emblemX + emblemSize + 20f, emblemY + 33f, brandPaint)
+        canvas.drawText("Vibra Music", logoX + logoSize + 18f, logoY + 36f, brandPaint)
     }
 
     private fun drawLyricsCard(
+        context: Context,
         canvas: Canvas,
         config: LyricShareConfig,
         coverArt: Bitmap?,
@@ -127,20 +124,20 @@ object LyricPosterRenderer {
         val lines = config.selectedLines.take(5)
         if (lines.isEmpty()) return
 
-        // Large opening quote glyph
-        val quotePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            this.typeface = typeface
-            textSize = 140f
-            color = Color.argb(120, 255, 255, 255)
+        // Dynamic typography sizing based on line count so the card fills the 9:16 poster gracefully
+        val (fontSize, lineSpacingExtra, lineSpacingMult) = when (lines.size) {
+            1 -> Triple(78f, 26f, 1.40f)
+            2 -> Triple(70f, 22f, 1.35f)
+            3 -> Triple(60f, 18f, 1.30f)
+            4 -> Triple(54f, 16f, 1.25f)
+            else -> Triple(48f, 14f, 1.20f)
         }
-        canvas.drawText("“", MARGIN, 260f, quotePaint)
 
-        // Lyrics Text Layout
         val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             this.typeface = typeface
-            textSize = if (lines.size <= 2) 64f else if (lines.size <= 4) 54f else 46f
+            textSize = fontSize
             color = Color.WHITE
-            letterSpacing = -0.01f
+            letterSpacing = -0.015f
         }
 
         val fullLyricsText = lines.joinToString("\n\n")
@@ -148,29 +145,50 @@ object LyricPosterRenderer {
             fullLyricsText, 0, fullLyricsText.length, textPaint, CONTENT_WIDTH.toInt()
         )
             .setAlignment(Layout.Alignment.ALIGN_NORMAL)
-            .setLineSpacing(12f, 1.15f)
+            .setLineSpacing(lineSpacingExtra, lineSpacingMult)
             .setIncludePad(false)
             .build()
 
+        // Available vertical space between top watermark and footer
+        val headerBottom = 190f
+        val footerY = POSTER_HEIGHT - 240f
+        val availableHeight = footerY - headerBottom
+        val totalBlockHeight = textLayout.height
+
+        // Vertically center the lyrics in the poster so there is never an awkward dead space below
+        val lyricsTop = (headerBottom + (availableHeight - totalBlockHeight) / 2f)
+            .coerceAtLeast(headerBottom + 40f)
+
+        // Opening decorative quotation mark placed elegantly above the text
+        val quotePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            this.typeface = typeface
+            textSize = (fontSize * 1.5f).coerceAtMost(105f)
+            color = Color.argb(140, 255, 255, 255)
+        }
+        canvas.drawText("“", MARGIN, lyricsTop - 24f, quotePaint)
+
         canvas.save()
-        canvas.translate(MARGIN, 320f)
+        canvas.translate(MARGIN, lyricsTop)
         textLayout.draw(canvas)
         canvas.restore()
 
         // Bottom Footer: Song details & artwork
-        val footerY = POSTER_HEIGHT - 220f
-        val artSize = 130f
+        val artSize = 136f
 
-        if (coverArt != null && config.showArtwork) {
-            drawSquircleArtwork(canvas, coverArt, MARGIN, footerY, artSize, cornerRadius = 24f)
+        if (config.showArtwork) {
+            if (coverArt != null) {
+                drawSquircleArtwork(canvas, coverArt, MARGIN, footerY, artSize, cornerRadius = 26f)
+            } else {
+                drawFallbackArtwork(canvas, config.song.title, MARGIN, footerY, artSize, cornerRadius = 26f)
+            }
         }
 
-        val metaX = if (coverArt != null && config.showArtwork) MARGIN + artSize + 32f else MARGIN
+        val metaX = if (config.showArtwork) MARGIN + artSize + 32f else MARGIN
         val metaWidth = POSTER_WIDTH - MARGIN - metaX
 
         val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             this.typeface = typeface
-            textSize = 46f
+            textSize = 48f
             color = Color.WHITE
         }
         val artistPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -182,8 +200,8 @@ object LyricPosterRenderer {
         val title = ellipsised(config.song.title, titlePaint, metaWidth)
         val artist = ellipsised(config.song.artist, artistPaint, metaWidth)
 
-        canvas.drawText(title, metaX, footerY + 54f, titlePaint)
-        canvas.drawText(artist, metaX, footerY + 104f, artistPaint)
+        canvas.drawText(title, metaX, footerY + 56f, titlePaint)
+        canvas.drawText(artist, metaX, footerY + 108f, artistPaint)
     }
 
     private fun drawSongCard(
@@ -208,6 +226,8 @@ object LyricPosterRenderer {
                 40f, 40f, shadowPaint
             )
             drawSquircleArtwork(canvas, coverArt, artX, artY, heroArtSize, cornerRadius = 40f)
+        } else {
+            drawFallbackArtwork(canvas, config.song.title, artX, artY, heroArtSize, cornerRadius = 40f)
         }
 
         // Song Title and Artist (Centered)
@@ -284,11 +304,13 @@ object LyricPosterRenderer {
     ) {
         val shader = BitmapShader(bitmap, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
         val matrix = Matrix()
-        val scale = size / bitmap.width.coerceAtMost(bitmap.height).toFloat()
+        val minDim = bitmap.width.coerceAtMost(bitmap.height).toFloat()
+        val scale = size / minDim
         matrix.setScale(scale, scale)
-        val dx = x - (bitmap.width * scale - size) / 2f
-        val dy = y - (bitmap.height * scale - size) / 2f
-        matrix.postTranslate(dx - x, dy - y)
+        // Correctly translate the shader to align with the drawn rectangle (x, y)
+        val transX = x - (bitmap.width * scale - size) / 2f
+        val transY = y - (bitmap.height * scale - size) / 2f
+        matrix.postTranslate(transX, transY)
         shader.setLocalMatrix(matrix)
 
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -304,6 +326,37 @@ object LyricPosterRenderer {
             color = Color.argb(40, 255, 255, 255)
         }
         canvas.drawRoundRect(rect, cornerRadius, cornerRadius, borderPaint)
+    }
+
+    private fun drawFallbackArtwork(
+        canvas: Canvas,
+        title: String,
+        x: Float,
+        y: Float,
+        size: Float,
+        cornerRadius: Float,
+    ) {
+        val rect = RectF(x, y, x + size, y + size)
+        val hue = (title.hashCode().toFloat() % 360f + 360f) % 360f
+        val color1 = ColorUtils.HSLToColor(floatArrayOf(hue, 0.6f, 0.35f))
+        val color2 = ColorUtils.HSLToColor(floatArrayOf((hue + 40f) % 360f, 0.6f, 0.20f))
+
+        val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            shader = LinearGradient(x, y, x + size, y + size, color1, color2, Shader.TileMode.CLAMP)
+        }
+        canvas.drawRoundRect(rect, cornerRadius, cornerRadius, bgPaint)
+
+        // Draw letter in center
+        val letter = title.firstOrNull()?.uppercaseChar()?.toString() ?: "♪"
+        val letterPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            textSize = size * 0.45f
+            textAlign = Paint.Align.CENTER
+            typeface = Typeface.DEFAULT_BOLD
+        }
+        val fontMetrics = letterPaint.fontMetrics
+        val baseline = y + (size - fontMetrics.bottom - fontMetrics.top) / 2f
+        canvas.drawText(letter, x + (size / 2f), baseline, letterPaint)
     }
 
     private fun resolveColors(palette: LyricCardPalette, art: Bitmap?): Pair<Int, Int> {
@@ -340,9 +393,10 @@ object LyricPosterRenderer {
         return text.take(end).trimEnd() + "…"
     }
 
-    private suspend fun loadBitmap(context: Context, url: String): Bitmap? = runCatching {
+    private suspend fun loadBitmap(context: Context, rawUrlOrUri: String): Bitmap? = runCatching {
+        val model = rawUrlOrUri.artworkAt(800) ?: rawUrlOrUri
         val request = ImageRequest.Builder(context)
-            .data(url.artworkAt(800))
+            .data(model)
             .allowHardware(false)
             .build()
         (SingletonImageLoader.get(context).execute(request) as? SuccessResult)?.image?.toBitmap()

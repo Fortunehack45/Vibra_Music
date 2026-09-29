@@ -199,13 +199,6 @@ fun LibraryScreen(
                             browseId = "local:downloads",
                         ),
                         ShelfItem(
-                            title = stringResource(R.string.cached_music),
-                            subtitle = stringResource(R.string.cached_music_subtitle),
-                            thumbnailUrl = null,
-                            videoId = null,
-                            browseId = "local:cached",
-                        ),
-                        ShelfItem(
                             title = stringResource(R.string.local_music),
                             subtitle = stringResource(R.string.audio_files_on_device),
                             thumbnailUrl = null,

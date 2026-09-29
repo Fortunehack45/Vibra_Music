@@ -1,4 +1,4 @@
-﻿/*
+/*
  * The bar's structure and its inline/expanded behaviour are
  * EchoMusicApp/Echo-Music's AppFloatingNavBar + FloatingMiniPlayer (GPL-3.0),
  * over the FloatingTabBar vendored in [com.fortune.vibramusic.ui.components.floatingtabbar].
@@ -221,6 +221,7 @@ fun GlassNavBar(
                         )
                     },
                     onClick = onClick,
+                    indication = null,
                 )
             } else {
                 tab(
@@ -247,6 +248,7 @@ fun GlassNavBar(
                         )
                     },
                     onClick = onClick,
+                    indication = null,
                 )
             }
         }

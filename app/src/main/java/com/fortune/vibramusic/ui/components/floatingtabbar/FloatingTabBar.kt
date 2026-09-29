@@ -1,4 +1,4 @@
-﻿@file:OptIn(ExperimentalSharedTransitionApi::class)
+@file:OptIn(ExperimentalSharedTransitionApi::class)
 
 /*
  * FloatingTabBar v1.0.1 by Elyes Mansour
@@ -377,7 +377,7 @@ interface FloatingTabBarScope {
         title: @Composable () -> Unit,
         icon: @Composable () -> Unit,
         onClick: () -> Unit,
-        indication: (@Composable () -> Indication)? = { LocalIndication.current }
+        indication: (@Composable () -> Indication)? = null
     )
 
     /**
@@ -388,13 +388,13 @@ interface FloatingTabBarScope {
      * @param key Unique identifier for the standalone tab
      * @param icon Composable content for the tab icon
      * @param onClick Callback invoked when the tab is clicked
-     * @param indication Optional indication provider for touch feedback, defaults to LocalIndication.current
+     * @param indication Optional indication provider for touch feedback, defaults to null
      */
     fun standaloneTab(
         key: Any,
         icon: @Composable () -> Unit,
         onClick: () -> Unit,
-        indication: (@Composable () -> Indication)? = { LocalIndication.current }
+        indication: (@Composable () -> Indication)? = null
     )
 }
 

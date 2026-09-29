@@ -92,9 +92,7 @@ fun rememberIsNetworkConnected(): State<Boolean> {
 @Composable
 fun OfflinePromptBanner(
     isOnline: Boolean,
-    hasCachedMusic: Boolean,
     hasDownloads: Boolean,
-    onOpenCachedMusic: () -> Unit,
     onOpenDownloads: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -105,7 +103,7 @@ fun OfflinePromptBanner(
         dismissedForSession = false
     }
 
-    val visible = !isOnline && !dismissedForSession && (hasCachedMusic || hasDownloads)
+    val visible = !isOnline && !dismissedForSession && hasDownloads
 
     AnimatedVisibility(
         visible = visible,
@@ -118,8 +116,12 @@ fun OfflinePromptBanner(
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 6.dp)
                 .clip(RoundedCornerShape(18.dp))
-                .background(Color(0xFF1E2024).copy(alpha = 0.95f))
-                .border(1.dp, Color(0xFFE50914).copy(alpha = 0.4f), RoundedCornerShape(18.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f))
+                .border(
+                    1.dp,
+                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
+                    RoundedCornerShape(18.dp),
+                )
                 .padding(horizontal = 14.dp, vertical = 10.dp),
         ) {
             Row(
@@ -135,13 +137,13 @@ fun OfflinePromptBanner(
                         modifier = Modifier
                             .size(32.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFFE50914).copy(alpha = 0.2f)),
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.WifiOff,
                             contentDescription = null,
-                            tint = Color(0xFFE50914),
+                            tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(18.dp),
                         )
                     }
@@ -153,13 +155,13 @@ fun OfflinePromptBanner(
                             text = "You're offline",
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White,
+                            color = MaterialTheme.colorScheme.onSurface,
                         )
                         Text(
-                            text = if (hasCachedMusic) "Listen to your cached music or downloads" else "Play your downloaded tracks",
+                            text = "Play your downloaded tracks",
                             style = MaterialTheme.typography.bodySmall,
                             fontSize = 11.5.sp,
-                            color = Color.White.copy(alpha = 0.7f),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
                         )
                     }
@@ -169,36 +171,19 @@ fun OfflinePromptBanner(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    if (hasCachedMusic) {
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(Color(0xFFE50914))
-                                .clickable(onClick = onOpenCachedMusic)
-                                .padding(horizontal = 10.dp, vertical = 6.dp),
-                        ) {
-                            Text(
-                                text = "Play Cache",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White,
-                            )
-                        }
-                    } else if (hasDownloads) {
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(Color(0xFFE50914))
-                                .clickable(onClick = onOpenDownloads)
-                                .padding(horizontal = 10.dp, vertical = 6.dp),
-                        ) {
-                            Text(
-                                text = "Downloads",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White,
-                            )
-                        }
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(MaterialTheme.colorScheme.primary)
+                            .clickable(onClick = onOpenDownloads)
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                    ) {
+                        Text(
+                            text = "Downloads",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimary,
+                        )
                     }
 
                     IconButton(
@@ -208,7 +193,7 @@ fun OfflinePromptBanner(
                         Icon(
                             imageVector = Icons.Rounded.Close,
                             contentDescription = stringResource(R.string.cancel),
-                            tint = Color.White.copy(alpha = 0.6f),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(16.dp),
                         )
                     }

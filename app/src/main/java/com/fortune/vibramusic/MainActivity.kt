@@ -147,7 +147,7 @@ import com.fortune.vibramusic.ui.screens.EqualizerScreen
 import com.fortune.vibramusic.ui.screens.HistoryScreen
 import com.fortune.vibramusic.ui.screens.ListenTogetherScreen
 import com.fortune.vibramusic.ui.screens.PartyServerEditor
-import com.fortune.vibramusic.ui.screens.CachedMusicScreen
+import com.fortune.vibramusic.ui.player.ShareOptionsSheet
 import com.fortune.vibramusic.ui.screens.SettingsScreen
 import com.fortune.vibramusic.ui.screens.SourceEditorAlert
 import com.fortune.vibramusic.ui.screens.SourcesScreen
@@ -502,6 +502,7 @@ private fun VibraMusicApp(
     var showDiscordLogin by remember { mutableStateOf(false) }
     var discordDialog by remember { mutableStateOf<DiscordDialog?>(null) }
     var songActions by remember { mutableStateOf<Song?>(null) }
+    var shareOptionsTarget by remember { mutableStateOf<Song?>(null) }
     var showLyricsOffset by remember { mutableStateOf(false) }
     /**
      * Whether the track menu that is up was opened from the player.
@@ -2550,34 +2551,9 @@ private fun VibraMusicApp(
                         // A single downloaded playlist is not one of these: it has one
                         // running order and nothing to tab through, so it falls to the
                         // release page below.
-                        if (page.browseId == "local:cached") {
-                            CachedMusicScreen(
-                                songs = cachedSongsList,
-                                currentSong = player.song,
-                                isPlaying = player.isPlaying,
-                                onBack = { viewModel.closeDetail() },
-                                onSongClick = { songs, index ->
-                                    playFrom(
-                                        songs,
-                                        index,
-                                        QueueSource(page.title, PlaybackSourceType.BROWSE, page.browseId),
-                                    )
-                                },
-                                onSongLongPress = openSongMenu,
-                                onClearCache = {
-                                    OfflineCacheManager.clearCache()
-                                },
-                                onSaveAllToDownloads = {
-                                    cachedSongsList.forEach { song ->
-                                        Downloads.enqueue(context, song)
-                                    }
-                                },
-                                contentPadding = listPadding,
-                            )
-                        } else {
-                            val localState = page.songs
-                            val localSongs = (localState as? com.fortune.vibramusic.data.model.UiState.Success)
-                                ?.data.orEmpty()
+                        val localState = page.songs
+                        val localSongs = (localState as? com.fortune.vibramusic.data.model.UiState.Success)
+                            ?.data.orEmpty()
                             // Only the Downloads folder has releases behind it: Local
                             // Music is files this app never asked for, so there is
                             // nothing on record about how they were grouped. Keyed on
@@ -2651,7 +2627,6 @@ private fun VibraMusicApp(
                                 },
                                 contentPadding = listPadding,
                             )
-                        }
                     } else if (page != null) {
                         // An album page's rows carry no album name of their own — the
                         // release is billed once, in the header the rows hang under — so
@@ -3286,9 +3261,7 @@ private fun VibraMusicApp(
                 ) {
                     OfflinePromptBanner(
                         isOnline = isOnline,
-                        hasCachedMusic = cachedSongsList.isNotEmpty() && detail?.browseId != "local:cached",
                         hasDownloads = savedDownloads.isNotEmpty() && detail?.browseId != "local:downloads",
-                        onOpenCachedMusic = { viewModel.openDetail("local:cached", context.getString(R.string.cached_music)) },
                         onOpenDownloads = { viewModel.openDetail("local:downloads", context.getString(R.string.downloads)) },
                     )
                     QueueActionNoticeHost(queueNotice)
@@ -3329,9 +3302,7 @@ private fun VibraMusicApp(
                 ) {
                     OfflinePromptBanner(
                         isOnline = isOnline,
-                        hasCachedMusic = cachedSongsList.isNotEmpty() && detail?.browseId != "local:cached",
                         hasDownloads = savedDownloads.isNotEmpty() && detail?.browseId != "local:downloads",
-                        onOpenCachedMusic = { viewModel.openDetail("local:cached", context.getString(R.string.cached_music)) },
                         onOpenDownloads = { viewModel.openDetail("local:downloads", context.getString(R.string.downloads)) },
                     )
                     QueueActionNoticeHost(queueNotice)
@@ -3448,12 +3419,9 @@ private fun VibraMusicApp(
             // tablet the player is visible whatever the menu was opened from.
             val fromPlayer = menuFromPlayer
             val share: () -> Unit = {
-                val sendIntent = Intent(Intent.ACTION_SEND).apply {
-                    type = "text/plain"
-                    putExtra(Intent.EXTRA_TEXT, "https://music.youtube.com/watch?v=${song.videoId}")
-                }
-                context.startActivity(Intent.createChooser(sendIntent, song.title))
+                val targetSong = song
                 songActions = null
+                shareOptionsTarget = targetSong
             }
             // Navigating has to take the player down with the sheet, or the
             // page it opens lands behind a still-covering player.
@@ -3742,6 +3710,35 @@ private fun VibraMusicApp(
                     },
                 )
             }
+        }
+
+        shareOptionsTarget?.let { song ->
+            ShareOptionsSheet(
+                song = song,
+                hasLyrics = true,
+                onShareLink = {
+                    val target = shareOptionsTarget
+                    shareOptionsTarget = null
+                    if (target != null) {
+                        val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, "https://music.youtube.com/watch?v=${target.videoId}")
+                        }
+                        context.startActivity(Intent.createChooser(sendIntent, target.title))
+                    }
+                },
+                onShareLyrics = {
+                    val target = shareOptionsTarget
+                    shareOptionsTarget = null
+                    if (target != null) {
+                        showNowPlaying = true
+                        if (player.song?.videoId != target.videoId) {
+                            play(listOf(target), 0)
+                        }
+                    }
+                },
+                onDismiss = { shareOptionsTarget = null },
+            )
         }
 
         // ---- Download manager ----

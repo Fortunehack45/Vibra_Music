@@ -1458,15 +1458,16 @@ internal fun LyricsPanel(
      * can stand down its own swipe gestures for as long as it is. */
     onScrollingChange: (Boolean) -> Unit = {},
     currentSong: Song? = null,
+    isSelectingForShare: Boolean = false,
+    onSelectingForShareChange: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
-    var isSelectingForShare by remember { mutableStateOf(false) }
     val selectedIndices = remember { mutableStateListOf<Int>() }
     var showShareSheet by remember { mutableStateOf(false) }
 
     LaunchedEffect(trackKey) {
-        isSelectingForShare = false
+        onSelectingForShareChange(false)
         selectedIndices.clear()
         showShareSheet = false
     }
@@ -2087,7 +2088,7 @@ internal fun LyricsPanel(
                 ) {
                     IconButton(
                         onClick = {
-                            isSelectingForShare = false
+                            onSelectingForShareChange(false)
                             selectedIndices.clear()
                         },
                         modifier = Modifier.size(32.dp),
@@ -2132,27 +2133,6 @@ internal fun LyricsPanel(
                     }
                 }
             }
-        } else if (controlsOpen && currentSong != null && lines.isNotEmpty()) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(top = 16.dp, end = 20.dp)
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(Color.Black.copy(alpha = 0.65f))
-                    .border(1.dp, Color.White.copy(alpha = 0.2f), CircleShape)
-                    .clickable {
-                        isSelectingForShare = true
-                    },
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Share,
-                    contentDescription = stringResource(R.string.share_lyrics),
-                    tint = Color.White,
-                    modifier = Modifier.size(18.dp),
-                )
-            }
         }
 
         if (showShareSheet && currentSong != null) {
@@ -2167,7 +2147,7 @@ internal fun LyricsPanel(
                     selectedLines = selectedLines,
                     onDismiss = {
                         showShareSheet = false
-                        isSelectingForShare = false
+                        onSelectingForShareChange(false)
                         selectedIndices.clear()
                     },
                 )

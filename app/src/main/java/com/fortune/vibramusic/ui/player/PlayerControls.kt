@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.ui.player
+package com.fortune.vibramusic.ui.player
 
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.CompositingStrategy
@@ -61,6 +61,7 @@ import androidx.compose.material.icons.automirrored.rounded.VolumeDown
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.Headphones
 import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -661,7 +662,12 @@ internal fun CircleGlyph(
                 imageVector = glyph,
                 contentDescription = contentDescription,
                 tint = Color.White,
-                modifier = Modifier.size(19.dp),
+                modifier = Modifier
+                    .size(19.dp)
+                    .then(
+                        if (glyph == Icons.Rounded.Share) Modifier.offset(x = (-0.75).dp)
+                        else Modifier
+                    ),
             )
         }
     }

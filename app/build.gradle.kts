@@ -80,8 +80,8 @@ android {
         // in on API 31+, Haze falls back to a translucent scrim below that.
         minSdk = 24
         targetSdk = 36
-        versionCode = 33
-        versionName = "1.8.3"
+        versionCode = 34
+        versionName = "1.8.4"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         externalNativeBuild {

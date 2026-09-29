@@ -1463,6 +1463,7 @@ internal fun LyricsPanel(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    val haptics = rememberHaptics()
     val selectedIndices = remember { mutableStateListOf<Int>() }
     var showShareSheet by remember { mutableStateOf(false) }
 
@@ -1884,80 +1885,108 @@ internal fun LyricsPanel(
                 // its own bounds now that the playing line tops out at 1, so the
                 // text gets the full column and wraps where the panel does.
                 val isLineSelected = isSelectingForShare && selectedIndices.contains(index)
-                val shape = Modifier
-                    .fillMaxWidth()
-                    // The lane the other voice sings in, kept clear. Applied
-                    // before the layer below so the row scales about the edge
-                    // it is actually written from.
-                    .padding(
-                        start = if (duet && alignEnd) DUET_LANE else 0.dp,
-                        end = if (duet && !alignEnd) DUET_LANE else 0.dp,
-                    )
-                    .graphicsLayer {
-                        scaleX = scale
-                        scaleY = scale
-                        transformOrigin = TransformOrigin(if (alignEnd) 1f else 0f, 0.5f)
-                        alpha = lineAlpha
-                        // Held back against the list's own movement: the list
-                        // has already taken this row part of the way, so giving
-                        // back what it has not earned yet is what leaves it
-                        // trailing. One curve for both, so a row with no delay
-                        // sits exactly still against the list and the rows that
-                        // do have one are the only thing that moves.
-                        //
-                        // Rows with nothing to catch up on never read the clock
-                        // at all, so a handover only invalidates the handful of
-                        // layers that are actually fanning out.
-                        translationY = if (staggerDelay <= 0f) {
-                            0f
-                        } else {
-                            val elapsed = since.floatValue
-                            run.delta * (
-                                LYRIC_EASING.transform(
-                                    (elapsed / run.durationMs).coerceIn(0f, 1f),
-                                ) - LYRIC_EASING.transform(
-                                    ((elapsed - staggerDelay) / run.durationMs)
-                                        .coerceIn(0f, 1f),
-                                )
-                                )
-                        }
-                    }
-                    .blur(if (isSelectingForShare) 0.dp else blur, BlurredEdgeTreatment.Unbounded)
-                    .clip(RoundedCornerShape(12.dp))
-                    .then(
-                        if (isLineSelected) {
-                            Modifier
-                                .background(Color(0xFFE50914).copy(alpha = 0.22f), RoundedCornerShape(12.dp))
-                                .border(1.5.dp, Color(0xFFE50914), RoundedCornerShape(12.dp))
-                                .padding(horizontal = 8.dp, vertical = 2.dp)
-                        } else if (isSelectingForShare) {
-                            Modifier
-                                .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(12.dp))
-                                .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(12.dp))
-                                .padding(horizontal = 8.dp, vertical = 2.dp)
-                        } else {
-                            Modifier
-                        }
-                    )
-                    .clickable(
-                        enabled = isSelectingForShare || isSynced,
-                        interactionSource = interaction,
-                        indication = LocalIndication.current,
-                    ) {
-                        if (isSelectingForShare) {
-                            if (selectedIndices.contains(index)) {
-                                selectedIndices.remove(index)
+                val lineShape = RoundedCornerShape(12.dp)
+                    val shape = Modifier
+                        .fillMaxWidth()
+                        // The lane the other voice sings in, kept clear. Applied
+                        // before the layer below so the row scales about the edge
+                        // it is actually written from.
+                        .padding(
+                            start = if (duet && alignEnd) DUET_LANE else 0.dp,
+                            end = if (duet && !alignEnd) DUET_LANE else 0.dp,
+                        )
+                        .graphicsLayer {
+                            scaleX = scale
+                            scaleY = scale
+                            transformOrigin = TransformOrigin(if (alignEnd) 1f else 0f, 0.5f)
+                            alpha = lineAlpha
+                            // Held back against the list's own movement: the list
+                            // has already taken this row part of the way, so giving
+                            // back what it has not earned yet is what leaves it
+                            // trailing. One curve for both, so a row with no delay
+                            // sits exactly still against the list and the rows that
+                            // do have one are the only thing that moves.
+                            //
+                            // Rows with nothing to catch up on never read the clock
+                            // at all, so a handover only invalidates the handful of
+                            // layers that are actually fanning out.
+                            translationY = if (staggerDelay <= 0f) {
+                                0f
                             } else {
-                                if (selectedIndices.size >= 5) {
-                                    Toast.makeText(context, R.string.max_lyrics_reached, Toast.LENGTH_SHORT).show()
-                                } else {
-                                    selectedIndices.add(index)
-                                }
+                                val elapsed = since.floatValue
+                                run.delta * (
+                                    LYRIC_EASING.transform(
+                                        (elapsed / run.durationMs).coerceIn(0f, 1f),
+                                    ) - LYRIC_EASING.transform(
+                                        ((elapsed - staggerDelay) / run.durationMs)
+                                            .coerceIn(0f, 1f),
+                                    )
+                                    )
                             }
-                        } else {
-                            onSeekToLine(line.timeMs)
                         }
-                    }
+                        .blur(if (isSelectingForShare) 0.dp else blur, BlurredEdgeTreatment.Unbounded)
+                        .clip(lineShape)
+                        .then(
+                            if (isLineSelected) {
+                                Modifier
+                                    .background(Color.White.copy(alpha = 0.20f), lineShape)
+                                    .border(1.dp, Color.White.copy(alpha = 0.55f), lineShape)
+                                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                            } else if (isSelectingForShare) {
+                                Modifier
+                                    .background(Color.White.copy(alpha = 0.04f), lineShape)
+                                    .border(GLASS_EDGE_WIDTH, Color.White.copy(alpha = 0.08f), lineShape)
+                                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                            } else {
+                                Modifier
+                            }
+                        )
+                        .clickable(
+                            enabled = isSelectingForShare || isSynced,
+                            interactionSource = interaction,
+                            indication = LocalIndication.current,
+                        ) {
+                            if (isSelectingForShare) {
+                                haptics.play(Haptic.Tap)
+                                if (selectedIndices.isEmpty()) {
+                                    selectedIndices.add(index)
+                                } else {
+                                    val min = selectedIndices.minOrNull() ?: index
+                                    val max = selectedIndices.maxOrNull() ?: index
+                                    if (index == min && selectedIndices.size > 1) {
+                                        selectedIndices.remove(min)
+                                    } else if (index == max && selectedIndices.size > 1) {
+                                        selectedIndices.remove(max)
+                                    } else if (index in min..max) {
+                                        if (selectedIndices.size == 1) {
+                                            selectedIndices.clear()
+                                        } else {
+                                            selectedIndices.clear()
+                                            selectedIndices.add(index)
+                                        }
+                                    } else {
+                                        val newMin = minOf(min, index)
+                                        val newMax = maxOf(max, index)
+                                        val span = newMax - newMin + 1
+                                        if (span <= 5) {
+                                            selectedIndices.clear()
+                                            for (i in newMin..newMax) {
+                                                selectedIndices.add(i)
+                                            }
+                                        } else {
+                                            if (index == min - 1 || index == max + 1) {
+                                                Toast.makeText(context, R.string.max_lyrics_reached, Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                selectedIndices.clear()
+                                                selectedIndices.add(index)
+                                            }
+                                        }
+                                    }
+                                }
+                            } else {
+                                onSeekToLine(line.timeMs)
+                            }
+                        }
                 // Lead and answering vocal are one row: they are one line of
                 // the song, they scale and dim together, and tapping either
                 // seeks to the same place.
@@ -2071,15 +2100,27 @@ internal fun LyricsPanel(
 
         // Floating Selection Bar
         if (isSelectingForShare) {
+            val useGlass = LocalLiquidGlassEnabled.current && isGlassSupported()
+            val barShape = RoundedCornerShape(22.dp)
             Box(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .padding(top = 16.dp, start = 16.dp, end = 16.dp)
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(Color.Black.copy(alpha = 0.85f))
-                    .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(20.dp))
-                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                    .clip(barShape)
+                    .then(
+                        if (useGlass) {
+                            Modifier
+                                .liquidGlass(barShape)
+                                .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, barShape)
+                                .background(Color.White.copy(alpha = 0.08f), barShape)
+                        } else {
+                            Modifier
+                                .background(Color.White.copy(alpha = 0.18f), barShape)
+                                .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, barShape)
+                        }
+                    )
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -2088,16 +2129,17 @@ internal fun LyricsPanel(
                 ) {
                     IconButton(
                         onClick = {
+                            haptics.play(Haptic.Tap)
                             onSelectingForShareChange(false)
                             selectedIndices.clear()
                         },
-                        modifier = Modifier.size(32.dp),
+                        modifier = Modifier.size(34.dp),
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.Close,
                             contentDescription = stringResource(R.string.cancel),
                             tint = Color.White,
-                            modifier = Modifier.size(18.dp),
+                            modifier = Modifier.size(19.dp),
                         )
                     }
 
@@ -2107,28 +2149,47 @@ internal fun LyricsPanel(
                         } else {
                             stringResource(R.string.lyrics_selected, selectedIndices.size, 5)
                         },
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.labelLarge.copy(
+                            platformStyle = androidx.compose.ui.text.PlatformTextStyle(
+                                includeFontPadding = false,
+                            ),
+                        ),
+                        fontWeight = FontWeight.SemiBold,
                         color = Color.White,
+                        textAlign = TextAlign.Center,
                     )
 
+                    val canShare = selectedIndices.isNotEmpty()
                     Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
+                            .height(34.dp)
+                            .clip(RoundedCornerShape(17.dp))
                             .background(
-                                if (selectedIndices.isNotEmpty()) Color(0xFFE50914)
-                                else Color.White.copy(alpha = 0.15f)
+                                if (canShare) Color.White
+                                else Color.White.copy(alpha = 0.20f)
                             )
-                            .clickable(enabled = selectedIndices.isNotEmpty()) {
+                            .clickable(
+                                enabled = canShare,
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                            ) {
+                                haptics.play(Haptic.Tap)
                                 showShareSheet = true
                             }
-                            .padding(horizontal = 14.dp, vertical = 7.dp),
+                            .padding(horizontal = 16.dp),
+                        contentAlignment = Alignment.Center,
                     ) {
                         Text(
                             text = stringResource(R.string.share),
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = if (selectedIndices.isNotEmpty()) Color.White else Color.White.copy(alpha = 0.4f),
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                platformStyle = androidx.compose.ui.text.PlatformTextStyle(
+                                    includeFontPadding = false,
+                                ),
+                            ),
+                            color = if (canShare) Color.Black else Color.White.copy(alpha = 0.45f),
+                            textAlign = TextAlign.Center,
                         )
                     }
                 }

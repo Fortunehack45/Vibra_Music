@@ -1614,8 +1614,8 @@ internal fun LyricsPanel(
     // browse on their own terms.
     // A newer line replaces an unfinished automatic scroll. Only a user's
     // browsing gesture should suspend following, not our own animation.
-    LaunchedEffect(focusLine, browsing, controlsOpen, active) {
-        if (active && isSynced && !browsing &&
+    LaunchedEffect(focusLine, browsing, controlsOpen, active, isSelectingForShare) {
+        if (active && isSynced && !browsing && !isSelectingForShare &&
             focusLine >= 0 && focusLine in lines.indices
         ) {
             snapshotFlow { listState.layoutInfo.viewportSize.height }.first { it > 0 }
@@ -1896,10 +1896,10 @@ internal fun LyricsPanel(
                             end = if (duet && !alignEnd) DUET_LANE else 0.dp,
                         )
                         .graphicsLayer {
-                            scaleX = scale
-                            scaleY = scale
+                            scaleX = if (isSelectingForShare) 1f else scale
+                            scaleY = if (isSelectingForShare) 1f else scale
                             transformOrigin = TransformOrigin(if (alignEnd) 1f else 0f, 0.5f)
-                            alpha = lineAlpha
+                            alpha = if (isSelectingForShare) 1f else lineAlpha
                             // Held back against the list's own movement: the list
                             // has already taken this row part of the way, so giving
                             // back what it has not earned yet is what leaves it
@@ -1910,7 +1910,7 @@ internal fun LyricsPanel(
                             // Rows with nothing to catch up on never read the clock
                             // at all, so a handover only invalidates the handful of
                             // layers that are actually fanning out.
-                            translationY = if (staggerDelay <= 0f) {
+                            translationY = if (isSelectingForShare || staggerDelay <= 0f) {
                                 0f
                             } else {
                                 val elapsed = since.floatValue
@@ -1928,15 +1928,24 @@ internal fun LyricsPanel(
                         .clip(lineShape)
                         .then(
                             if (isLineSelected) {
-                                Modifier
-                                    .background(Color.White.copy(alpha = 0.20f), lineShape)
-                                    .border(1.dp, Color.White.copy(alpha = 0.55f), lineShape)
-                                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                                val useGlass = LocalLiquidGlassEnabled.current && isGlassSupported()
+                                if (useGlass) {
+                                    Modifier
+                                        .liquidGlass(lineShape)
+                                        .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, lineShape)
+                                        .background(Color.White.copy(alpha = 0.15f), lineShape)
+                                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                                } else {
+                                    Modifier
+                                        .background(Color.White.copy(alpha = 0.22f), lineShape)
+                                        .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, lineShape)
+                                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                                }
                             } else if (isSelectingForShare) {
                                 Modifier
                                     .background(Color.White.copy(alpha = 0.04f), lineShape)
                                     .border(GLASS_EDGE_WIDTH, Color.White.copy(alpha = 0.08f), lineShape)
-                                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                                    .padding(horizontal = 8.dp, vertical = 3.dp)
                             } else {
                                 Modifier
                             }

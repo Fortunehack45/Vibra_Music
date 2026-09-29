@@ -662,12 +662,7 @@ internal fun CircleGlyph(
                 imageVector = glyph,
                 contentDescription = contentDescription,
                 tint = Color.White,
-                modifier = Modifier
-                    .size(19.dp)
-                    .then(
-                        if (glyph == Icons.Rounded.Share) Modifier.offset(x = (-0.75).dp)
-                        else Modifier
-                    ),
+                modifier = Modifier.size(19.dp),
             )
         }
     }

@@ -158,8 +158,10 @@ jobs:
 
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: vibra-music-release-artifacts
+          retention-days: 3
           path: |
             app/build/outputs/apk/prod/release/*.apk
             app/build/outputs/apk/prod/release/checksums.txt

@@ -96,7 +96,7 @@ func IsAllowedHost(host string) bool {
 }
 
 var (
-	MaxMembers           = getIntBounded("JAM_MAX_MEMBERS", 5, 2, 50)
+	MaxMembers           = getIntBounded("JAM_MAX_MEMBERS", 10, 2, 50)
 	StateHeartbeatMs     = getIntBounded("JAM_STATE_HEARTBEAT_MS", 5000, 1000, 60000)
 	PlayLeadMs           = getIntBounded("JAM_PLAY_LEAD_MS", 350, 50, 5000)
 	DisconnectGraceMs    = int64(getIntBounded("JAM_DISCONNECT_GRACE_MS", 15*60*1000, 10000, 24*60*60*1000))
@@ -105,9 +105,9 @@ var (
 	ControlRatePerSecond = float64(getIntBounded("JAM_CONTROL_RATE_PER_SECOND", 25, 1, 500))
 	MaxUpcomingQueue     = getIntBounded("JAM_MAX_UPCOMING_QUEUE", 25, 1, 200)
 	MaxQueueLength       = getIntBounded("JAM_MAX_QUEUE_LENGTH", 1+MaxUpcomingQueue, 2, 500)
-	MaxParties           = getIntBounded("JAM_MAX_PARTIES", 50, 1, 1000)
-	CreateRatePerMinute  = getIntBounded("JAM_CREATE_RATE_PER_MINUTE", 10, 1, 60)
-	RateLimitMaxEntries  = getIntBounded("JAM_RATE_LIMIT_MAX_ENTRIES", 10000, 100, 1000000)
+	MaxParties           = getIntBounded("JAM_MAX_PARTIES", 5000, 1, 50000)
+	CreateRatePerMinute  = getIntBounded("JAM_CREATE_RATE_PER_MINUTE", 30, 1, 300)
+	RateLimitMaxEntries  = getIntBounded("JAM_RATE_LIMIT_MAX_ENTRIES", 50000, 100, 1000000)
 	RequestMaxBytes      = int64(getIntBounded("JAM_REQUEST_MAX_BYTES", 16*1024, 1024, 10*1024*1024))
 	WebSocketMaxBytes    = int64(getIntBounded("JAM_WEBSOCKET_MAX_BYTES", 16*1024, 1024, 10*1024*1024))
 	ConnectionIdleMs     = int64(getIntBounded("JAM_CONNECTION_IDLE_MS", 15*60*1000, 10000, 24*60*60*1000))

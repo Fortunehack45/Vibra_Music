@@ -97,6 +97,9 @@ func main() {
 	// Digital Asset Links for Android App Links autoVerify
 	mux.HandleFunc("GET /.well-known/assetlinks.json", handleAssetLinks)
 
+	// Favicon for browser tabs and invite pages
+	mux.HandleFunc("GET /favicon.ico", handleFavicon)
+
 	// WebSocket endpoint
 	mux.HandleFunc("GET /ws/parties/{code}", handleWebSocket)
 
@@ -185,8 +188,20 @@ func (l *ipRateLimiter) Allow(ip string) bool {
 
 func clientIP(r *http.Request) string {
 	if config.TrustProxy {
-		if forwarded := strings.TrimSpace(strings.Split(r.Header.Get("X-Forwarded-For"), ",")[0]); forwarded != "" {
-			return forwarded
+		if realIP := strings.TrimSpace(r.Header.Get("X-Real-IP")); realIP != "" {
+			return realIP
+		}
+		if cfIP := strings.TrimSpace(r.Header.Get("CF-Connecting-IP")); cfIP != "" {
+			return cfIP
+		}
+		if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+			parts := strings.Split(forwarded, ",")
+			if len(parts) > 0 {
+				client := strings.TrimSpace(parts[0])
+				if client != "" {
+					return client
+				}
+			}
 		}
 	}
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
@@ -266,9 +281,20 @@ func handleTime(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func handleFavicon(w http.ResponseWriter, r *http.Request) {
+	icon := preview.AppIconBytes()
+	if len(icon) == 0 {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	w.Header().Set("Content-Type", "image/png")
+	w.Header().Set("Cache-Control", "public, max-age=86400, immutable")
+	w.Write(icon)
+}
+
 func handleCreateParty(w http.ResponseWriter, r *http.Request) {
 	if !createLimiter.Allow(clientIP(r)) {
-		jsonError(w, http.StatusTooManyRequests, "create_rate_limited", "You can create up to two parties per minute. Please try again shortly.")
+		jsonError(w, http.StatusTooManyRequests, "create_rate_limited", "The party server is rate-limited. Please try again shortly.")
 		return
 	}
 	var req protocol.JoinRequest

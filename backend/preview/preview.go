@@ -36,6 +36,11 @@ var fontBoldBytes []byte
 //go:embed font_medium.otf
 var fontMediumBytes []byte
 
+// AppIconBytes returns the raw PNG bytes for the app icon.
+func AppIconBytes() []byte {
+	return appIconBytes
+}
+
 const (
 	Width  = 834
 	Height = 1024

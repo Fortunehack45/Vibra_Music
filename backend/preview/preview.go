@@ -37,8 +37,8 @@ var fontBoldBytes []byte
 var fontMediumBytes []byte
 
 const (
-	Width  = 1200
-	Height = 630
+	Width  = 834
+	Height = 1024
 )
 
 func isPrivateOrRestrictedIP(ip net.IP) bool {
@@ -69,7 +69,6 @@ func isPrivateOrRestrictedIP(ip net.IP) bool {
 }
 
 var safeTransport = &http.Transport{
-	Proxy: http.ProxyFromEnvironment,
 	DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 		host, _, err := net.SplitHostPort(addr)
 		if err != nil {
@@ -134,13 +133,11 @@ var (
 	fontBold   *opentype.Font
 	fontMedium *opentype.Font
 
-	faceHeaderTitle font.Face
-	faceTitle       font.Face
-	faceSubtitle    font.Face
-	faceBody        font.Face
-	faceCode        font.Face
-	faceBadge       font.Face
-	faceSmall       font.Face
+	faceSongTitle  font.Face
+	faceSongArtist font.Face
+	faceBrand      font.Face
+	faceSender     font.Face
+	faceInitial    font.Face
 )
 
 func init() {
@@ -159,166 +156,303 @@ func init() {
 	}
 
 	if fontBold != nil {
-		faceHeaderTitle, _ = opentype.NewFace(fontBold, &opentype.FaceOptions{Size: 26, DPI: 72, Hinting: font.HintingFull})
-		faceTitle, _ = opentype.NewFace(fontBold, &opentype.FaceOptions{Size: 32, DPI: 72, Hinting: font.HintingFull})
-		faceCode, _ = opentype.NewFace(fontBold, &opentype.FaceOptions{Size: 32, DPI: 72, Hinting: font.HintingFull})
-		faceBadge, _ = opentype.NewFace(fontBold, &opentype.FaceOptions{Size: 14, DPI: 72, Hinting: font.HintingFull})
+		faceSongTitle, _ = opentype.NewFace(fontBold, &opentype.FaceOptions{Size: 46, DPI: 72, Hinting: font.HintingFull})
+		faceBrand, _ = opentype.NewFace(fontBold, &opentype.FaceOptions{Size: 26, DPI: 72, Hinting: font.HintingFull})
+		faceSender, _ = opentype.NewFace(fontBold, &opentype.FaceOptions{Size: 26, DPI: 72, Hinting: font.HintingFull})
+		faceInitial, _ = opentype.NewFace(fontBold, &opentype.FaceOptions{Size: 40, DPI: 72, Hinting: font.HintingFull})
 	}
 	if fontMedium != nil {
-		faceSubtitle, _ = opentype.NewFace(fontMedium, &opentype.FaceOptions{Size: 20, DPI: 72, Hinting: font.HintingFull})
-		faceBody, _ = opentype.NewFace(fontMedium, &opentype.FaceOptions{Size: 18, DPI: 72, Hinting: font.HintingFull})
-		faceSmall, _ = opentype.NewFace(fontMedium, &opentype.FaceOptions{Size: 14, DPI: 72, Hinting: font.HintingFull})
+		faceSongArtist, _ = opentype.NewFace(fontMedium, &opentype.FaceOptions{Size: 32, DPI: 72, Hinting: font.HintingFull})
 	}
 }
 
-// GenerateCard produces a 1200x630 branded social preview PNG for Vibra Music Listen Together,
-// featuring the authentic official app logo and Liquid Glass player UI matching the Android app.
-func GenerateCard(code, hostName, avatarURL, songTitle, songArtist string) ([]byte, error) {
+// GenerateCard produces an 834x1024 branded social preview card for Vibra Music Listen Together,
+// featuring the prominent album cover, dynamic artwork color palette, bottom gradient, and host metadata.
+func GenerateCard(code, hostName, avatarURL, songTitle, songArtist, coverURL string) ([]byte, error) {
 	img := image.NewRGBA(image.Rect(0, 0, Width, Height))
 
-	// 1. Deep OLED Dark Background (#050508 to #0D0E16)
+	var coverImg image.Image
+	if coverURL != "" {
+		if fetched, err := fetchImage(coverURL); err == nil && fetched != nil {
+			coverImg = fetched
+		}
+	}
+
+	// 1. Extract dominant color from cover image and determine luminance
+	bgR, bgG, bgB, isDark := extractDominantColor(coverImg)
+
+	// 2. Compute bottom gradient target color based on background darkness
+	var botR, botG, botB uint8
+	if isDark {
+		// When picked color is dark, bottom gradient fades to white
+		botR, botG, botB = 255, 255, 255
+	} else {
+		// When picked color is light/medium, bottom gradient fades to dark black tint
+		botR = uint8(float64(bgR) * 0.18)
+		botG = uint8(float64(bgG) * 0.20)
+		botB = uint8(float64(bgB) * 0.22)
+	}
+
+	// 3. Render smooth background gradient
 	for y := 0; y < Height; y++ {
 		t := float64(y) / float64(Height)
-		r := uint8(5 + t*8)
-		g := uint8(5 + t*9)
-		b := uint8(8 + t*14)
+		factor := t * 0.95
+		r := uint8(float64(bgR)*(1.0-factor) + float64(botR)*factor)
+		g := uint8(float64(bgG)*(1.0-factor) + float64(botG)*factor)
+		b := uint8(float64(bgB)*(1.0-factor) + float64(botB)*factor)
 		for x := 0; x < Width; x++ {
 			img.SetRGBA(x, y, color.RGBA{R: r, G: g, B: b, A: 255})
 		}
 	}
 
-	// 2. Dynamic Liquid Glass ambient glow / mesh gradient
-	// Vibra Music signature red accent glow on top-left (#FA2D48)
-	drawRadialGlow(img, 180, 100, 320, color.RGBA{R: 250, G: 45, B: 72, A: 50})
-	// Aurora Purple Glow centered around player card (#7C4DFF)
-	drawRadialGlow(img, 620, 290, 440, color.RGBA{R: 124, G: 77, B: 255, A: 58})
-	// Deep indigo/violet sheen on bottom-right (#3D5AFE)
-	drawRadialGlow(img, 1050, 480, 340, color.RGBA{R: 61, G: 90, B: 254, A: 40})
+	// 4. Music Cover Artwork
+	// Center horizontally: (834 - 690) / 2 = 72
+	// Bounds: Rect(72, 63, 762, 753), Radius: 42
+	coverRect := image.Rect(72, 63, 762, 753)
+	drawCoverShadow(img, 72, 63, 690, 690, 42)
 
-	// 3. Header Bar: Official App Logo + Vibra Music Brand + Live Badge
-	// Official App Launcher Icon (52x52 with 13px rounded corners)
-	iconRect := image.Rect(100, 40, 154, 94)
-	if cachedAppIcon != nil {
-		drawImageScaled(img, cachedAppIcon, iconRect, 13)
+	if coverImg != nil {
+		drawImageScaledCover(img, coverImg, coverRect, 42)
 	} else {
-		drawFallbackAppIcon(img, 100, 40, 54)
+		drawFallbackCover(img, coverRect, 42, bgR, bgG, bgB)
 	}
 
-	// Brand title and subtitle using real SF Pro Display typography
-	drawText(img, "Vibra Music", 168, 64, faceHeaderTitle, color.RGBA{R: 255, G: 255, B: 255, A: 255})
-	drawText(img, "LISTEN TOGETHER", 170, 85, faceBadge, color.RGBA{R: 179, G: 136, B: 255, A: 240})
+	// 5. Text & Foreground Colors
+	var textColor, subTextColor, borderCol color.RGBA
+	if isDark {
+		textColor = color.RGBA{R: 15, G: 23, B: 42, A: 255}       // #0f172a
+		subTextColor = color.RGBA{R: 71, G: 85, B: 105, A: 245}    // #475569
+		borderCol = color.RGBA{R: 15, G: 23, B: 42, A: 255}
+	} else {
+		textColor = color.RGBA{R: 255, G: 255, B: 255, A: 255}   // #ffffff
+		subTextColor = color.RGBA{R: 226, G: 232, B: 240, A: 245} // #e2e8f0
+		borderCol = color.RGBA{R: 255, G: 255, B: 255, A: 255}
+	}
 
-	// Right header: "LIVE ROOM" glass pill badge
-	livePill := image.Rect(910, 46, 1100, 88)
-	drawGlassCard(img, livePill, 16, color.RGBA{R: 18, G: 26, B: 22, A: 220}, color.RGBA{R: 0, G: 230, B: 118, A: 130})
-	drawCircleFilled(img, 936, 67, 5, color.RGBA{R: 0, G: 230, B: 118, A: 255})
-	drawText(img, "LIVE ROOM", 952, 72, faceBadge, color.RGBA{R: 0, G: 230, B: 118, A: 255})
+	// 6. Song Title & Artist (Bottom Left)
+	title := strings.TrimSpace(songTitle)
+	if title == "" {
+		if strings.TrimSpace(code) != "" {
+			title = "Vibra Party " + strings.ToUpper(code)
+		} else {
+			title = "Listen Together"
+		}
+	}
+	title = truncateToWidth(title, 530, faceSongTitle)
+	drawText(img, title, 75, 816, faceSongTitle, textColor)
 
-	// 4. Central Liquid Glass Player Card Container
-	cardBounds := image.Rect(100, 112, 1100, 580)
-	drawGlassCard(img, cardBounds, 28, color.RGBA{R: 13, G: 14, B: 22, A: 228}, color.RGBA{R: 255, G: 255, B: 255, A: 36})
+	artist := strings.TrimSpace(songArtist)
+	if artist == "" {
+		artist = "Vibra Music"
+	}
+	artist = truncateToWidth(artist, 530, faceSongArtist)
+	drawText(img, artist, 75, 878, faceSongArtist, subTextColor)
 
-	// 5. Host Info Section (Avatar with glowing ring + invitation)
-	avatarRadius := 38
-	avatarCenterX := 165
-	avatarCenterY := 168
+	// 7. Vibra Music Brand (Bottom Left)
+	// Logo icon: 50x50 at x=75, y=926
+	if cachedAppIcon != nil {
+		drawIconWithTint(img, cachedAppIcon, 75, 926, 50, isDark)
+	} else {
+		drawFallbackAppIcon(img, 75, 926, 50)
+	}
+	drawText(img, "Vibra Music", 138, 964, faceBrand, textColor)
 
-	drawRing(img, avatarCenterX, avatarCenterY, avatarRadius+5, 3, color.RGBA{R: 124, G: 77, B: 255, A: 230})
+	// 8. Circular Profile Picture / Avatar (Bottom Right)
+	// Center: (714, 862), Radius: 56 -> right edge at 770
+	avatarCenterX := 714
+	avatarCenterY := 862
+	avatarRadius := 56
 
+	// Outer border (4px)
+	drawCircleFilled(img, avatarCenterX, avatarCenterY, avatarRadius, borderCol)
+
+	// Inner image (radius 52)
+	innerRadius := avatarRadius - 4
 	avatarDrawn := false
 	if avatarURL != "" {
-		if fetched, err := fetchImage(avatarURL); err == nil && fetched != nil {
-			drawCircularAvatar(img, fetched, avatarCenterX, avatarCenterY, avatarRadius)
+		if fetchedAvatar, err := fetchImage(avatarURL); err == nil && fetchedAvatar != nil {
+			drawCircularAvatar(img, fetchedAvatar, avatarCenterX, avatarCenterY, innerRadius)
 			avatarDrawn = true
 		}
 	}
 	if !avatarDrawn {
-		drawFallbackAvatar(img, avatarCenterX, avatarCenterY, avatarRadius, hostName)
+		drawFallbackAvatar(img, avatarCenterX, avatarCenterY, innerRadius, hostName)
 	}
 
-	displayHost := strings.TrimSpace(hostName)
-	if displayHost == "" {
-		displayHost = "Music Lover"
+	// 9. Sender Name (Bottom Right)
+	sender := strings.TrimSpace(hostName)
+	if sender == "" {
+		sender = "Party Host"
 	}
-	hostHeader := displayHost + " started a listening party"
-	drawText(img, hostHeader, 222, 162, faceBody, color.RGBA{R: 245, G: 245, B: 252, A: 255})
-	drawText(img, "Synced music playback · Real-time listen together", 224, 184, faceSmall, color.RGBA{R: 160, G: 162, B: 185, A: 220})
-
-	// Divider line
-	drawLine(img, 130, 214, 1070, 214, 1, color.RGBA{R: 255, G: 255, B: 255, A: 22})
-
-	// 6. Now Playing Section (Album Art + Title + Artist + Hi-Res Badge)
-	artRect := image.Rect(135, 230, 207, 302)
-	drawAlbumArtPlaceholder(img, artRect)
-
-	trackTitle := songTitle
-	if strings.TrimSpace(trackTitle) == "" {
-		trackTitle = "Synchronized Listening Room"
-	}
-	trackTitle = truncateRunes(trackTitle, 34)
-	drawText(img, trackTitle, 225, 262, faceTitle, color.RGBA{R: 255, G: 255, B: 255, A: 255})
-
-	trackArtist := songArtist
-	if strings.TrimSpace(trackArtist) == "" {
-		trackArtist = "Vibra Music Party · YouTube Music Library"
-	}
-	trackArtist = truncateRunes(trackArtist, 46)
-	drawText(img, trackArtist, 227, 292, faceSubtitle, color.RGBA{R: 168, G: 172, B: 195, A: 230})
-
-	// Audio Format Badge: HI-RES LOSSLESS pill (like in the app)
-	qualityPill := image.Rect(870, 248, 1060, 286)
-	drawGlassCard(img, qualityPill, 12, color.RGBA{R: 28, G: 22, B: 48, A: 235}, color.RGBA{R: 179, G: 136, B: 255, A: 160})
-	drawCenteredText(img, "HI-RES LOSSLESS", 965, 272, faceBadge, color.RGBA{R: 225, G: 215, B: 255, A: 255})
-
-	// 7. Scrubber / Progress Bar (matching the app's player slider)
-	scrubberStartX := 135
-	scrubberEndX := 1060
-	scrubberY := 332
-	scrubberWidth := scrubberEndX - scrubberStartX
-	scrubberProgress := int(float64(scrubberWidth) * 0.44)
-
-	// Inactive track
-	drawLine(img, scrubberStartX, scrubberY, scrubberEndX, scrubberY, 4, color.RGBA{R: 255, G: 255, B: 255, A: 38})
-	// Active track (white)
-	drawLine(img, scrubberStartX, scrubberY, scrubberStartX+scrubberProgress, scrubberY, 4, color.RGBA{R: 255, G: 255, B: 255, A: 245})
-	// Scrubber thumb
-	drawCircleFilled(img, scrubberStartX+scrubberProgress, scrubberY, 7, color.RGBA{R: 255, G: 255, B: 255, A: 255})
-
-	// Timestamps
-	drawText(img, "1:24", scrubberStartX, scrubberY+20, faceSmall, color.RGBA{R: 145, G: 145, B: 170, A: 210})
-	drawText(img, "-2:16", scrubberEndX-42, scrubberY+20, faceSmall, color.RGBA{R: 145, G: 145, B: 170, A: 210})
-
-	// 8. Player Transport Controls (Previous, Play Circle, Next)
-	controlsCenterY := 390
-	controlsCenterX := 600
-
-	// Previous Button (|◀◀)
-	drawPreviousIcon(img, controlsCenterX-95, controlsCenterY)
-
-	// Large Primary Play Button (Glass/White Circle with dark play triangle)
-	playRadius := 28
-	drawCircleFilled(img, controlsCenterX, controlsCenterY, playRadius, color.RGBA{R: 255, G: 255, B: 255, A: 255})
-	drawPlayTriangle(img, controlsCenterX+3, controlsCenterY, 11, color.RGBA{R: 15, G: 15, B: 22, A: 255})
-
-	// Next Button (▶▶|)
-	drawNextIcon(img, controlsCenterX+95, controlsCenterY)
-
-	// 9. Party Code Box & Join Prompt (matching app party sheet)
-	codeBox := image.Rect(370, 442, 830, 520)
-	drawGlassCard(img, codeBox, 18, color.RGBA{R: 25, G: 20, B: 46, A: 238}, color.RGBA{R: 124, G: 77, B: 255, A: 175})
-
-	drawCenteredText(img, "PARTY CODE", 600, 460, faceSmall, color.RGBA{R: 179, G: 136, B: 255, A: 240})
-	spacedCode := strings.ToUpper(strings.Join(strings.Split(code, ""), "   "))
-	drawCenteredText(img, spacedCode, 600, 498, faceCode, color.RGBA{R: 255, G: 255, B: 255, A: 255})
-
-	// Footer call to action
-	drawCenteredText(img, "Tap invite link to launch Vibra Music & listen in real time", 600, 544, faceSmall, color.RGBA{R: 145, G: 148, B: 178, A: 220})
+	sender = truncateToWidth(sender, 280, faceSender)
+	senderWidth := measureTextWidth(faceSender, sender)
+	senderX := 770 - senderWidth
+	drawText(img, sender, senderX, 964, faceSender, textColor)
 
 	var buf bytes.Buffer
 	if err := png.Encode(&buf, img); err != nil {
 		return nil, err
 	}
 	return buf.Bytes(), nil
+}
+
+func extractDominantColor(cover image.Image) (r, g, b uint8, isDark bool) {
+	if cover == nil {
+		return 51, 122, 154, false // Default teal
+	}
+	bounds := cover.Bounds()
+	w := bounds.Dx()
+	h := bounds.Dy()
+	if w <= 0 || h <= 0 {
+		return 51, 122, 154, false
+	}
+	var bestScore float64 = -1
+	var bestR, bestG, bestB uint8 = 51, 122, 154
+	var foundVibrant bool
+	var sumR, sumG, sumB, totalCount uint64
+
+	stepX := max(1, w/50)
+	stepY := max(1, h/50)
+	for y := bounds.Min.Y; y < bounds.Max.Y; y += stepY {
+		for x := bounds.Min.X; x < bounds.Max.X; x += stepX {
+			pr, pg, pb, pa := cover.At(x, y).RGBA()
+			if pa < 128*257 {
+				continue
+			}
+			cr := uint8(pr >> 8)
+			cg := uint8(pg >> 8)
+			cb := uint8(pb >> 8)
+
+			sumR += uint64(cr)
+			sumG += uint64(cg)
+			sumB += uint64(cb)
+			totalCount++
+
+			maxC := max(cr, max(cg, cb))
+			minC := min(cr, min(cg, cb))
+			delta := maxC - minC
+			lum := 0.299*float64(cr) + 0.587*float64(cg) + 0.114*float64(cb)
+			if lum < 20 || lum > 235 {
+				continue
+			}
+			sat := float64(delta) / float64(int(maxC)+1)
+			score := sat * (1.0 - math.Abs(lum-128.0)/160.0)
+			if score > bestScore {
+				bestScore = score
+				bestR, bestG, bestB = cr, cg, cb
+				foundVibrant = true
+			}
+		}
+	}
+
+	if !foundVibrant && totalCount > 0 {
+		bestR = uint8(sumR / totalCount)
+		bestG = uint8(sumG / totalCount)
+		bestB = uint8(sumB / totalCount)
+	}
+
+	lum := 0.299*float64(bestR) + 0.587*float64(bestG) + 0.114*float64(bestB)
+	isDark = lum < 65.0
+	return bestR, bestG, bestB, isDark
+}
+
+func drawCoverShadow(img *image.RGBA, x, y, w, h, radius int) {
+	shadowRect := image.Rect(x-2, y+8, x+w+2, y+h+12)
+	for py := shadowRect.Min.Y; py < shadowRect.Max.Y; py++ {
+		for px := shadowRect.Min.X; px < shadowRect.Max.X; px++ {
+			if insideRoundedRect(px, py, shadowRect, radius+4) {
+				blendPixel(img, px, py, 0, 0, 0, 75)
+			}
+		}
+	}
+}
+
+func drawImageScaledCover(dst *image.RGBA, src image.Image, r image.Rectangle, radius int) {
+	bounds := src.Bounds()
+	sw := bounds.Dx()
+	sh := bounds.Dy()
+	if sw <= 0 || sh <= 0 {
+		return
+	}
+	side := min(sw, sh)
+	cropMinX := bounds.Min.X + (sw-side)/2
+	cropMinY := bounds.Min.Y + (sh-side)/2
+	cropRect := image.Rect(cropMinX, cropMinY, cropMinX+side, cropMinY+side)
+
+	w := r.Dx()
+	h := r.Dy()
+	scaled := image.NewRGBA(image.Rect(0, 0, w, h))
+	xdraw.BiLinear.Scale(scaled, scaled.Bounds(), src, cropRect, xdraw.Over, nil)
+
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			if radius <= 0 || insideRoundedRectLocal(x, y, w, h, radius) {
+				c := scaled.RGBAAt(x, y)
+				dst.SetRGBA(r.Min.X+x, r.Min.Y+y, c)
+			}
+		}
+	}
+}
+
+func drawFallbackCover(img *image.RGBA, r image.Rectangle, radius int, bgR, bgG, bgB uint8) {
+	for y := r.Min.Y; y < r.Max.Y; y++ {
+		t := float64(y-r.Min.Y) / float64(r.Dy())
+		cr := uint8(float64(bgR) * (0.8 + 0.3*t))
+		cg := uint8(float64(bgG) * (0.8 + 0.3*t))
+		cb := uint8(float64(bgB) * (0.8 + 0.3*t))
+		for x := r.Min.X; x < r.Max.X; x++ {
+			if insideRoundedRect(x, y, r, radius) {
+				img.SetRGBA(x, y, color.RGBA{R: cr, G: cg, B: cb, A: 255})
+			}
+		}
+	}
+	cx := (r.Min.X + r.Max.X) / 2
+	cy := (r.Min.Y + r.Max.Y) / 2
+	drawRing(img, cx, cy, 140, 4, color.RGBA{R: 255, G: 255, B: 255, A: 40})
+	drawRing(img, cx, cy, 90, 4, color.RGBA{R: 255, G: 255, B: 255, A: 60})
+	drawCircleFilled(img, cx, cy, 45, color.RGBA{R: 255, G: 255, B: 255, A: 200})
+	drawCircleFilled(img, cx, cy, 15, color.RGBA{R: bgR, G: bgG, B: bgB, A: 255})
+}
+
+func drawIconWithTint(dst *image.RGBA, src image.Image, x, y, size int, isDark bool) {
+	scaled := image.NewRGBA(image.Rect(0, 0, size, size))
+	xdraw.BiLinear.Scale(scaled, scaled.Bounds(), src, src.Bounds(), xdraw.Over, nil)
+	for py := 0; py < size; py++ {
+		for px := 0; px < size; px++ {
+			c := scaled.RGBAAt(px, py)
+			if c.A > 0 {
+				if isDark {
+					blendPixel(dst, x+px, y+py, 15, 23, 42, c.A)
+				} else {
+					blendPixel(dst, x+px, y+py, 255, 255, 255, c.A)
+				}
+			}
+		}
+	}
+}
+
+func truncateToWidth(s string, maxWidth int, face font.Face) string {
+	if face == nil || measureTextWidth(face, s) <= maxWidth {
+		return s
+	}
+	runes := []rune(s)
+	for len(runes) > 1 {
+		runes = runes[:len(runes)-1]
+		cand := string(runes) + "..."
+		if measureTextWidth(face, cand) <= maxWidth {
+			return cand
+		}
+	}
+	return s
+}
+
+func measureTextWidth(face font.Face, text string) int {
+	if face == nil {
+		return len(text) * 10
+	}
+	var d font.Drawer
+	d.Face = face
+	return d.MeasureString(text).Round()
 }
 
 func truncateRunes(s string, maxRunes int) string {
@@ -345,7 +479,7 @@ func fetchImage(rawURL string) (image.Image, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", "VibraMusic-Bot/1.8.8")
+	req.Header.Set("User-Agent", "VibraMusic-Bot/1.8.10")
 	req.Header.Set("Accept", "image/png,image/jpeg,image/*;q=0.8")
 
 	resp, err := httpClient.Do(req)
@@ -357,7 +491,6 @@ func fetchImage(rawURL string) (image.Image, error) {
 		return nil, http.ErrMissingFile
 	}
 
-	// 1. Limit body size to 2 MB to prevent memory exhaustion / OOM
 	limitedReader := io.LimitReader(resp.Body, maxImageBytes+1)
 	data, err := io.ReadAll(limitedReader)
 	if err != nil {
@@ -367,7 +500,6 @@ func fetchImage(rawURL string) (image.Image, error) {
 		return nil, fmt.Errorf("image exceeds maximum allowed size (2MB)")
 	}
 
-	// 2. Decode config first to check dimensions before allocating full bitmap (decompression bomb defense)
 	cfg, _, err := image.DecodeConfig(bytes.NewReader(data))
 	if err != nil {
 		return nil, err
@@ -376,25 +508,8 @@ func fetchImage(rawURL string) (image.Image, error) {
 		return nil, fmt.Errorf("image dimensions out of bounds: %dx%d", cfg.Width, cfg.Height)
 	}
 
-	// 3. Decode verified image
 	img, _, err := image.Decode(bytes.NewReader(data))
 	return img, err
-}
-
-func drawImageScaled(dst *image.RGBA, src image.Image, r image.Rectangle, radius int) {
-	w := r.Dx()
-	h := r.Dy()
-	scaled := image.NewRGBA(image.Rect(0, 0, w, h))
-	xdraw.BiLinear.Scale(scaled, scaled.Bounds(), src, src.Bounds(), xdraw.Over, nil)
-
-	for y := 0; y < h; y++ {
-		for x := 0; x < w; x++ {
-			if radius <= 0 || insideRoundedRectLocal(x, y, w, h, radius) {
-				c := scaled.RGBAAt(x, y)
-				blendPixel(dst, r.Min.X+x, r.Min.Y+y, c.R, c.G, c.B, c.A)
-			}
-		}
-	}
 }
 
 func insideRoundedRectLocal(x, y, w, h, radius int) bool {
@@ -420,55 +535,24 @@ func insideRoundedRectLocal(x, y, w, h, radius int) bool {
 	return dx*dx+dy*dy <= radius*radius
 }
 
-func drawRadialGlow(img *image.RGBA, cx, cy, radius int, col color.RGBA) {
-	r2 := float64(radius * radius)
-	minX := max(0, cx-radius)
-	maxX := min(Width-1, cx+radius)
-	minY := max(0, cy-radius)
-	maxY := min(Height-1, cy+radius)
-
-	for y := minY; y <= maxY; y++ {
-		dy := float64(y - cy)
-		for x := minX; x <= maxX; x++ {
-			dx := float64(x - cx)
-			dist2 := dx*dx + dy*dy
-			if dist2 < r2 {
-				factor := 1.0 - math.Sqrt(dist2)/float64(radius)
-				alpha := float64(col.A) * factor * factor
-				blendPixel(img, x, y, col.R, col.G, col.B, uint8(alpha))
-			}
-		}
-	}
-}
-
-func drawGlassCard(img *image.RGBA, r image.Rectangle, radius int, fill, border color.RGBA) {
-	drawRoundedRect(img, r, radius, fill)
-	drawRoundedRectBorder(img, r, radius, border)
-}
-
-func drawAlbumArtPlaceholder(img *image.RGBA, r image.Rectangle) {
-	drawRoundedRect(img, r, 16, color.RGBA{R: 35, G: 25, B: 60, A: 245})
-	drawRoundedRectBorder(img, r, 16, color.RGBA{R: 124, G: 77, B: 255, A: 140})
-
-	// Inner Vinyl Sheen Circles
-	cx := (r.Min.X + r.Max.X) / 2
-	cy := (r.Min.Y + r.Max.Y) / 2
-	drawRing(img, cx, cy, 26, 2, color.RGBA{R: 255, G: 255, B: 255, A: 40})
-	drawRing(img, cx, cy, 18, 2, color.RGBA{R: 255, G: 255, B: 255, A: 60})
-	drawCircleFilled(img, cx, cy, 9, color.RGBA{R: 250, G: 45, B: 72, A: 240})
-	drawCircleFilled(img, cx, cy, 3, color.RGBA{R: 255, G: 255, B: 255, A: 255})
-}
-
 func drawFallbackAppIcon(img *image.RGBA, x, y, size int) {
 	r := image.Rect(x, y, x+size, y+size)
-	drawRoundedRect(img, r, 13, color.RGBA{R: 250, G: 45, B: 72, A: 255})
-	drawCenteredText(img, "V", x+size/2, y+size/2+8, faceTitle, color.RGBA{R: 255, G: 255, B: 255, A: 255})
+	drawRoundedRect(img, r, 12, color.RGBA{R: 250, G: 45, B: 72, A: 255})
+	drawCenteredText(img, "V", x+size/2, y+size/2+8, faceBrand, color.RGBA{R: 255, G: 255, B: 255, A: 255})
 }
 
 func drawCircularAvatar(dst *image.RGBA, src image.Image, cx, cy, radius int) {
 	size := radius * 2
+	bounds := src.Bounds()
+	sw := bounds.Dx()
+	sh := bounds.Dy()
+	side := min(sw, sh)
+	cropMinX := bounds.Min.X + (sw-side)/2
+	cropMinY := bounds.Min.Y + (sh-side)/2
+	cropRect := image.Rect(cropMinX, cropMinY, cropMinX+side, cropMinY+side)
+
 	scaled := image.NewRGBA(image.Rect(0, 0, size, size))
-	xdraw.BiLinear.Scale(scaled, scaled.Bounds(), src, src.Bounds(), xdraw.Over, nil)
+	xdraw.BiLinear.Scale(scaled, scaled.Bounds(), src, cropRect, xdraw.Over, nil)
 
 	r2 := radius * radius
 	for dy := -radius; dy < radius; dy++ {
@@ -506,7 +590,7 @@ func drawFallbackAvatar(img *image.RGBA, cx, cy, radius int, name string) {
 	if len(strings.TrimSpace(name)) > 0 {
 		initial = strings.ToUpper(string([]rune(strings.TrimSpace(name))[0]))
 	}
-	drawCenteredText(img, initial, cx, cy+9, faceHeaderTitle, color.RGBA{R: 255, G: 255, B: 255, A: 255})
+	drawCenteredText(img, initial, cx, cy+14, faceInitial, color.RGBA{R: 255, G: 255, B: 255, A: 255})
 }
 
 func drawRing(img *image.RGBA, cx, cy, radius, thickness int, col color.RGBA) {
@@ -537,58 +621,10 @@ func drawCircleFilled(img *image.RGBA, cx, cy, radius int, col color.RGBA) {
 	}
 }
 
-func drawLine(img *image.RGBA, x1, y, x2, _ int, thickness int, col color.RGBA) {
-	half := thickness / 2
-	for py := y - half; py <= y+half; py++ {
-		for px := x1; px <= x2; px++ {
-			blendPixel(img, px, py, col.R, col.G, col.B, col.A)
-		}
-	}
-}
-
-func drawPlayTriangle(img *image.RGBA, cx, cy, size int, col color.RGBA) {
-	for dy := -size; dy <= size; dy++ {
-		maxX := int(float64(size-int(math.Abs(float64(dy)))) * 1.3)
-		for dx := -size / 2; dx <= maxX; dx++ {
-			blendPixel(img, cx+dx, cy+dy, col.R, col.G, col.B, col.A)
-		}
-	}
-}
-
-func drawNextIcon(img *image.RGBA, cx, cy int) {
-	white := color.RGBA{R: 220, G: 220, B: 240, A: 230}
-	drawPlayTriangle(img, cx-6, cy, 9, white)
-	drawPlayTriangle(img, cx+4, cy, 9, white)
-	drawLine(img, cx+13, cy-9, cx+13, cy+9, 2, white)
-}
-
-func drawPreviousIcon(img *image.RGBA, cx, cy int) {
-	white := color.RGBA{R: 220, G: 220, B: 240, A: 230}
-	drawLine(img, cx-13, cy-9, cx-13, cy+9, 2, white)
-	// Left pointing triangles
-	for dy := -9; dy <= 9; dy++ {
-		minX := -int(float64(9-int(math.Abs(float64(dy)))) * 1.3)
-		for dx := minX; dx <= 9/2; dx++ {
-			blendPixel(img, cx-4+dx, cy+dy, white.R, white.G, white.B, white.A)
-			blendPixel(img, cx+6+dx, cy+dy, white.R, white.G, white.B, white.A)
-		}
-	}
-}
-
 func drawRoundedRect(img *image.RGBA, r image.Rectangle, radius int, col color.RGBA) {
 	for y := r.Min.Y; y < r.Max.Y; y++ {
 		for x := r.Min.X; x < r.Max.X; x++ {
 			if insideRoundedRect(x, y, r, radius) {
-				blendPixel(img, x, y, col.R, col.G, col.B, col.A)
-			}
-		}
-	}
-}
-
-func drawRoundedRectBorder(img *image.RGBA, r image.Rectangle, radius int, col color.RGBA) {
-	for y := r.Min.Y; y < r.Max.Y; y++ {
-		for x := r.Min.X; x < r.Max.X; x++ {
-			if insideRoundedRect(x, y, r, radius) && !insideRoundedRect(x, y, image.Rect(r.Min.X+1, r.Min.Y+1, r.Max.X-1, r.Max.Y-1), radius-1) {
 				blendPixel(img, x, y, col.R, col.G, col.B, col.A)
 			}
 		}

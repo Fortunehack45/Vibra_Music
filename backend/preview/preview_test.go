@@ -2,13 +2,15 @@ package preview
 
 import (
 	"bytes"
+	"image"
+	"image/color"
 	"image/png"
 	"strings"
 	"testing"
 )
 
 func TestGenerateCard(t *testing.T) {
-	pngBytes, err := GenerateCard("VIBRA1", "Fortune", "", "Starboy", "The Weeknd")
+	pngBytes, err := GenerateCard("VIBRA1", "Fortune", "", "Starboy", "The Weeknd", "")
 	if err != nil {
 		t.Fatalf("GenerateCard failed: %v", err)
 	}
@@ -86,5 +88,31 @@ func TestRuneTruncation(t *testing.T) {
 		if !strings.Contains(out, "...") && len([]rune(out)) > c.max {
 			t.Errorf("Result exceeds max runes: %d > %d", len([]rune(out)), c.max)
 		}
+	}
+}
+
+func TestColorExtractionAndCardDimensions(t *testing.T) {
+	// 1. Dark image
+	darkImg := image.NewRGBA(image.Rect(0, 0, 100, 100))
+	for y := 0; y < 100; y++ {
+		for x := 0; x < 100; x++ {
+			darkImg.Set(x, y, color.RGBA{R: 15, G: 15, B: 20, A: 255})
+		}
+	}
+	_, _, _, isDark := extractDominantColor(darkImg)
+	if !isDark {
+		t.Errorf("Expected dark image to yield isDark=true")
+	}
+
+	// 2. Light / vibrant image
+	lightImg := image.NewRGBA(image.Rect(0, 0, 100, 100))
+	for y := 0; y < 100; y++ {
+		for x := 0; x < 100; x++ {
+			lightImg.Set(x, y, color.RGBA{R: 50, G: 180, B: 220, A: 255})
+		}
+	}
+	_, _, _, isLightDark := extractDominantColor(lightImg)
+	if isLightDark {
+		t.Errorf("Expected vibrant teal image to yield isDark=false")
 	}
 }

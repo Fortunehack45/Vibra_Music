@@ -65,7 +65,7 @@ jobs:
         run: |
           echo "LASTFM_API_KEY=${{ secrets.LASTFM_API_KEY || '4ea1e882eb80524d4ed3a250f47cefe5' }}" > local.properties
           echo "LASTFM_SECRET=${{ secrets.LASTFM_SECRET || '00f3857fc1d79480e51242b3720a140a' }}" >> local.properties
-          echo "LISTEN_TOGETHER_SERVER=https://vibra-music.onrender.com" >> local.properties
+          echo "LISTEN_TOGETHER_SERVER=https://party.vibramusic.store" >> local.properties
 
       - name: Grant Execute Permissions
         run: chmod +x gradlew

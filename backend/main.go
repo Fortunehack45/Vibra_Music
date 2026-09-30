@@ -547,8 +547,8 @@ var inviteTemplate = template.Must(template.New("invite").Parse(`<!DOCTYPE html>
     <meta property="og:description" content="Party {{.Code}} • {{if .CurrentSongTitle}}Now Playing: {{.CurrentSongTitle}} by {{.CurrentSongArtist}} • {{end}}{{.MemberCount}} listening in real time">
     <meta property="og:image" content="{{.ServerOrigin}}/invite/{{.Code}}/preview.png">
     <meta property="og:image:type" content="image/png">
-    <meta property="og:image:width" content="1200">
-    <meta property="og:image:height" content="630">
+    <meta property="og:image:width" content="834">
+    <meta property="og:image:height" content="1024">
     
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image">
@@ -973,6 +973,10 @@ func handleInvitePreviewImage(w http.ResponseWriter, r *http.Request) {
 	hostAvatarUrl := ""
 	currentSongTitle := ""
 	currentSongArtist := ""
+	currentSongThumb := strings.TrimSpace(r.URL.Query().Get("thumb"))
+	if currentSongThumb == "" {
+		currentSongThumb = strings.TrimSpace(r.URL.Query().Get("cover"))
+	}
 
 	if p != nil {
 		p.Lock()
@@ -997,11 +1001,14 @@ func handleInvitePreviewImage(w http.ResponseWriter, r *http.Request) {
 		if p.Playback != nil && p.Playback.Track != nil {
 			currentSongTitle = p.Playback.Track.Title
 			currentSongArtist = p.Playback.Track.Artist
+			if p.Playback.Track.ThumbnailUrl != nil && currentSongThumb == "" {
+				currentSongThumb = *p.Playback.Track.ThumbnailUrl
+			}
 		}
 		p.Unlock()
 	}
 
-	cacheKey := fmt.Sprintf("%s:%s:%s:%s", code, hostName, currentSongTitle, currentSongArtist)
+	cacheKey := fmt.Sprintf("%s:%s:%s:%s:%s:%s", code, hostName, hostAvatarUrl, currentSongTitle, currentSongArtist, currentSongThumb)
 	if cached := getCachedPreviewCard(cacheKey); cached != nil {
 		w.Header().Set("Content-Type", "image/png")
 		w.Header().Set("Cache-Control", "public, max-age=60")
@@ -1010,7 +1017,7 @@ func handleInvitePreviewImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cardBytes, err := preview.GenerateCard(code, hostName, hostAvatarUrl, currentSongTitle, currentSongArtist)
+	cardBytes, err := preview.GenerateCard(code, hostName, hostAvatarUrl, currentSongTitle, currentSongArtist, currentSongThumb)
 	if err != nil {
 		http.Error(w, "Failed to render card", http.StatusInternalServerError)
 		return

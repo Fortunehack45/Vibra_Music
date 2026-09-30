@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.data.listentogether
+package com.fortune.vibramusic.data.listentogether
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -179,6 +179,7 @@ internal data class JoinRequest(
     val avatarUrl: String? = null,
     val maxMembers: Int? = null,
     val autoplayEnabled: Boolean? = null,
+    val initialTrack: PartyTrack? = null,
 )
 
 @Serializable

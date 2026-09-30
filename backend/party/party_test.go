@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/Fortunehack45/Vibra_Music/backend/clock"
 	"github.com/Fortunehack45/Vibra_Music/backend/codes"
 	"github.com/Fortunehack45/Vibra_Music/backend/config"
 )
@@ -420,5 +421,50 @@ func TestHostOnlyControlTravelsOnTheSnapshot(t *testing.T) {
 	}
 	if wire := p.ToWire(); wire["hostOnlyControl"] != true {
 		t.Errorf("a joining device must learn the party is locked, got %v", wire["hostOnlyControl"])
+	}
+}
+
+func TestPartyNeverExpiresUnlessEmpty(t *testing.T) {
+	p := NewParty("TEST99")
+
+	// Before any member joins, it is empty
+	if len(p.Members) != 0 {
+		t.Fatalf("new party should have 0 members")
+	}
+
+	// Host joins
+	host, err := p.Join("u1", "d1", "Host", nil)
+	if err != nil {
+		t.Fatalf("Join failed: %v", err)
+	}
+
+	// Even if disconnected and past DisconnectGraceMs, solo host must NOT be expired
+	p.MarkConnected(host, false)
+	now := clock.NowMs()
+	futureDisconnect := now + config.DisconnectGraceMs + 100000
+	expired := p.ExpiredMembers(futureDisconnect)
+	if len(expired) != 0 {
+		t.Errorf("Solo host must not be expired by ExpiredMembers while waiting in room alone")
+	}
+
+	// 1 hour later (well past old 30-min empty TTL), party must not be expired because it has 1 member
+	oneHourLater := now + 1*60*60*1000
+	if p.IsExpired(oneHourLater) {
+		t.Errorf("Party with members must never expire as empty")
+	}
+
+	// Remove host -> room becomes truly empty
+	p.Remove(host.MemberId)
+	if len(p.Members) != 0 {
+		t.Fatalf("Party should have 0 members after remove")
+	}
+	if p.EmptySinceMs == nil {
+		t.Fatalf("EmptySinceMs must be set when last member leaves")
+	}
+
+	// Now after EmptyPartyTTLMs, empty room expires
+	afterEmptyTTL := *p.EmptySinceMs + config.EmptyPartyTTLMs + 10000
+	if !p.IsExpired(afterEmptyTTL) {
+		t.Errorf("Party with 0 members must expire after EmptyPartyTTLMs")
 	}
 }

@@ -333,3 +333,64 @@ func TestAssetLinksEndpoint(t *testing.T) {
 		t.Errorf("Expected assetlinks to contain release keystore SHA256 fingerprint, got %s", body)
 	}
 }
+
+func TestCreatePartyWithInitialTrackAndInviteMetadata(t *testing.T) {
+	ts := setupTestServer()
+	defer ts.Close()
+
+	thumb := "https://example.com/cover.png"
+	dur := int64(210000)
+	createReq := protocol.JoinRequest{
+		UserId:      "u_host",
+		DeviceId:    "d_host",
+		DisplayName: "Fortune",
+		InitialTrack: &protocol.InitialTrack{
+			VideoId:      "abc123vid",
+			Title:        "Starboy",
+			Artist:       "The Weeknd",
+			ThumbnailUrl: &thumb,
+			DurationMs:   &dur,
+		},
+	}
+	b, _ := json.Marshal(createReq)
+	res, err := http.Post(ts.URL+"/api/parties", "application/json", bytes.NewReader(b))
+	if err != nil || res.StatusCode != http.StatusCreated {
+		t.Fatalf("POST /api/parties with initial track failed: status %v, err %v", res.StatusCode, err)
+	}
+	var created map[string]interface{}
+	_ = json.NewDecoder(res.Body).Decode(&created)
+	partyMap := created["party"].(map[string]interface{})
+	playback := partyMap["playback"].(map[string]interface{})
+	track := playback["track"].(map[string]interface{})
+	if track["title"] != "Starboy" || track["artist"] != "The Weeknd" {
+		t.Errorf("Expected initial track to be set, got %+v", track)
+	}
+
+	code := created["code"].(string)
+
+	// Test invite landing with query params
+	inviteURL := fmt.Sprintf("%s/invite/%s?title=Blinding+Lights&artist=The+Weeknd&host=Fortune", ts.URL, code)
+	resLanding, err := http.Get(inviteURL)
+	if err != nil || resLanding.StatusCode != http.StatusOK {
+		t.Fatalf("GET invite with metadata failed: %v", err)
+	}
+	buf := new(bytes.Buffer)
+	_, _ = buf.ReadFrom(resLanding.Body)
+	html := buf.String()
+	if !strings.Contains(html, "The Weeknd") {
+		t.Errorf("Expected HTML to contain 'The Weeknd', got %s", html)
+	}
+	if !strings.Contains(html, "preview.png?artist=The+Weeknd") && !strings.Contains(html, "preview.png?") {
+		t.Errorf("Expected preview.png URL to contain encoded query params, got %s", html)
+	}
+
+	// Test preview image with query params
+	previewURL := fmt.Sprintf("%s/invite/%s/preview.png?title=Starboy&artist=The+Weeknd&host=Fortune", ts.URL, code)
+	resImg, err := http.Get(previewURL)
+	if err != nil || resImg.StatusCode != http.StatusOK {
+		t.Fatalf("GET preview.png with query params failed: %v", err)
+	}
+	if resImg.Header.Get("Content-Type") != "image/png" {
+		t.Errorf("Expected Content-Type image/png, got %s", resImg.Header.Get("Content-Type"))
+	}
+}

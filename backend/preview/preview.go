@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	_ "image/gif"
 	_ "image/jpeg"
 	"image/png"
 	"io"
@@ -22,6 +23,7 @@ import (
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/opentype"
 	"golang.org/x/image/math/fixed"
+	_ "golang.org/x/image/webp"
 )
 
 //go:embed app_logo.png
@@ -109,7 +111,7 @@ var safeTransport = &http.Transport{
 
 var httpClient = &http.Client{
 	Transport: safeTransport,
-	Timeout:   4 * time.Second,
+	Timeout:   7 * time.Second,
 	CheckRedirect: func(req *http.Request, via []*http.Request) error {
 		if len(via) >= 2 {
 			return fmt.Errorf("too many redirects")
@@ -192,24 +194,28 @@ func GenerateCard(code, hostName, avatarURL, songTitle, songArtist, coverURL str
 	}
 
 	// 1. Extract dominant color from cover image and determine luminance
-	bgR, bgG, bgB, isDark := extractDominantColor(coverImg)
+	bgR, bgG, bgB, _ := extractDominantColor(coverImg)
 
 	// 2. Compute bottom gradient target color based on background darkness
+	// The background colour is directly derived from the music album cover artwork
+	lum := 0.299*float64(bgR) + 0.587*float64(bgG) + 0.114*float64(bgB)
 	var botR, botG, botB uint8
-	if isDark {
-		// When picked color is dark, bottom gradient fades to white
-		botR, botG, botB = 255, 255, 255
+	if lum > 140.0 {
+		// When picked color is light, bottom gradient creates a slightly deeper shade of the album color
+		botR = uint8(float64(bgR) * 0.82)
+		botG = uint8(float64(bgG) * 0.82)
+		botB = uint8(float64(bgB) * 0.82)
 	} else {
-		// When picked color is light/medium, bottom gradient fades to dark black tint
-		botR = uint8(float64(bgR) * 0.18)
-		botG = uint8(float64(bgG) * 0.20)
-		botB = uint8(float64(bgB) * 0.22)
+		// When picked color is dark/medium, bottom gradient creates rich depth of the album color
+		botR = uint8(float64(bgR) * 0.60)
+		botG = uint8(float64(bgG) * 0.60)
+		botB = uint8(float64(bgB) * 0.60)
 	}
 
 	// 3. Render smooth background gradient
 	for y := 0; y < Height; y++ {
 		t := float64(y) / float64(Height)
-		factor := t * 0.95
+		factor := t * 0.85
 		r := uint8(float64(bgR)*(1.0-factor) + float64(botR)*factor)
 		g := uint8(float64(bgG)*(1.0-factor) + float64(botG)*factor)
 		b := uint8(float64(bgB)*(1.0-factor) + float64(botB)*factor)
@@ -555,8 +561,14 @@ const maxDimension = 2048
 
 func fetchImage(rawURL string) (image.Image, error) {
 	parsed, err := url.Parse(rawURL)
-	if err != nil || parsed.Scheme != "https" || parsed.Host == "" {
-		return nil, fmt.Errorf("invalid image url or unsupported non-https scheme")
+	if err != nil || parsed.Host == "" {
+		return nil, fmt.Errorf("invalid image url")
+	}
+	if parsed.Scheme == "http" {
+		parsed.Scheme = "https"
+	}
+	if parsed.Scheme != "https" {
+		return nil, fmt.Errorf("unsupported non-https scheme")
 	}
 
 	req, err := http.NewRequest("GET", parsed.String(), nil)

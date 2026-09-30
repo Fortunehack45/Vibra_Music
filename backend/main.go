@@ -336,11 +336,28 @@ func handleCreateParty(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, http.StatusInternalServerError, "server_error", err.Error())
 		return
 	}
+	if req.InitialTrack != nil && req.InitialTrack.Title != "" {
+		p.Playback.SetTrack(
+			&m.MemberId,
+			&party.Track{
+				VideoId:      req.InitialTrack.VideoId,
+				Title:        req.InitialTrack.Title,
+				Artist:       req.InitialTrack.Artist,
+				ThumbnailUrl: req.InitialTrack.ThumbnailUrl,
+				DurationMs:   req.InitialTrack.DurationMs,
+			},
+			0,
+			true,
+			nil,
+			&m.DisplayName,
+		)
+	}
 	partyWire := p.ToWire()
 	youWire := m.ToWire()
 	token := m.Token
 	code := p.Code
 	p.Unlock()
+	store.Save()
 
 	jsonResponse(w, http.StatusCreated, map[string]interface{}{
 		"code":  code,
@@ -391,6 +408,7 @@ func handleJoinParty(w http.ResponseWriter, r *http.Request) {
 	token := m.Token
 	pCode := p.Code
 	p.Unlock()
+	store.Save()
 
 	jsonResponse(w, http.StatusOK, map[string]interface{}{
 		"code":  pCode,
@@ -555,6 +573,7 @@ type invitePageData struct {
 	CurrentSongTitle  string
 	CurrentSongArtist string
 	CurrentSongThumb  string
+	PreviewImgURL     string
 	MemberCount       int
 	MaxMembers        int
 	IsActive          bool
@@ -573,19 +592,19 @@ var inviteTemplate = template.Must(template.New("invite").Parse(`<!DOCTYPE html>
     <meta property="og:title" content="Join {{if .HostName}}{{.HostName}}'s{{else}}a{{end}} Party on Vibra Music">
     <meta property="og:description" content="Party {{.Code}} • {{if .CurrentSongTitle}}Now Playing: {{.CurrentSongTitle}} by {{.CurrentSongArtist}} • {{end}}{{if .IsActive}}{{.MemberCount}} listening in real time{{else}}Listen together in real time{{end}}">
     <meta property="og:url" content="{{.ServerOrigin}}/invite/{{.Code}}">
-    <meta property="og:image" content="{{.ServerOrigin}}/invite/{{.Code}}/preview.png">
-    <meta property="og:image:secure_url" content="{{.ServerOrigin}}/invite/{{.Code}}/preview.png">
+    <meta property="og:image" content="{{.PreviewImgURL}}">
+    <meta property="og:image:secure_url" content="{{.PreviewImgURL}}">
     <meta property="og:image:type" content="image/png">
     <meta property="og:image:width" content="834">
     <meta property="og:image:height" content="1024">
-    <link rel="image_src" href="{{.ServerOrigin}}/invite/{{.Code}}/preview.png">
+    <link rel="image_src" href="{{.PreviewImgURL}}">
     
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Join {{if .HostName}}{{.HostName}}'s{{else}}a{{end}} Party on Vibra Music">
-    <meta name="twitter:description" content="Party {{.Code}} • Real-time synchronized playback on Vibra Music">
-    <meta name="twitter:image" content="{{.ServerOrigin}}/invite/{{.Code}}/preview.png">
-    <meta name="twitter:image:src" content="{{.ServerOrigin}}/invite/{{.Code}}/preview.png">
+    <meta name="twitter:description" content="Party {{.Code}} • {{if .CurrentSongTitle}}Now Playing: {{.CurrentSongTitle}} by {{.CurrentSongArtist}} • {{end}}Real-time synchronized playback on Vibra Music">
+    <meta name="twitter:image" content="{{.PreviewImgURL}}">
+    <meta name="twitter:image:src" content="{{.PreviewImgURL}}">
 
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -920,9 +939,10 @@ func handleInviteLanding(w http.ResponseWriter, r *http.Request) {
 	if len(code) != codes.CodeLength {
 		w.WriteHeader(http.StatusOK)
 		_ = inviteTemplate.Execute(w, invitePageData{
-			Code:         html.EscapeString(r.PathValue("code")),
-			ServerOrigin: origin,
-			IsActive:     false,
+			Code:          html.EscapeString(r.PathValue("code")),
+			ServerOrigin:  origin,
+			PreviewImgURL: fmt.Sprintf("%s/invite/%s/preview.png", origin, url.PathEscape(r.PathValue("code"))),
+			IsActive:      false,
 		})
 		return
 	}
@@ -931,53 +951,89 @@ func handleInviteLanding(w http.ResponseWriter, r *http.Request) {
 	intentURI := fmt.Sprintf("intent://party/%s?server=%s#Intent;scheme=vibra;package=com.fortune.vibramusic;end", url.PathEscape(code), url.QueryEscape(origin))
 
 	p := store.Find(code)
-	if p == nil {
-		w.WriteHeader(http.StatusOK)
-		_ = inviteTemplate.Execute(w, invitePageData{
-			Code:         code,
-			DeepLink:     deepLink,
-			IntentURI:    template.URL(intentURI),
-			SafeDeepLink: template.URL(deepLink),
-			ServerOrigin: origin,
-			IsActive:     false,
-		})
-		return
+
+	hostName := strings.TrimSpace(r.URL.Query().Get("host"))
+	hostAvatarUrl := strings.TrimSpace(r.URL.Query().Get("avatar"))
+	currentSongTitle := strings.TrimSpace(r.URL.Query().Get("title"))
+	currentSongArtist := strings.TrimSpace(r.URL.Query().Get("artist"))
+	currentSongThumb := strings.TrimSpace(r.URL.Query().Get("thumb"))
+	if currentSongThumb == "" {
+		currentSongThumb = strings.TrimSpace(r.URL.Query().Get("cover"))
 	}
 
-	hostName := ""
-	hostAvatarUrl := ""
-	currentSongTitle := ""
-	currentSongArtist := ""
-	currentSongThumb := ""
-	p.Lock()
-	for _, m := range p.Members {
-		if m.IsHost {
-			hostName = m.DisplayName
-			if m.AvatarUrl != nil {
-				hostAvatarUrl = *m.AvatarUrl
+	memberCount := 1
+	maxMembers := 5
+	isActive := p != nil || currentSongTitle != "" || hostName != ""
+
+	if p != nil {
+		p.Lock()
+		if hostName == "" {
+			for _, m := range p.Members {
+				if m.IsHost {
+					hostName = m.DisplayName
+					if m.AvatarUrl != nil && hostAvatarUrl == "" {
+						hostAvatarUrl = *m.AvatarUrl
+					}
+					break
+				}
 			}
-			break
 		}
-	}
-	if hostName == "" && len(p.Members) > 0 {
-		for _, m := range p.Members {
-			hostName = m.DisplayName
-			if m.AvatarUrl != nil {
-				hostAvatarUrl = *m.AvatarUrl
+		if hostName == "" && len(p.Members) > 0 {
+			for _, m := range p.Members {
+				hostName = m.DisplayName
+				if m.AvatarUrl != nil && hostAvatarUrl == "" {
+					hostAvatarUrl = *m.AvatarUrl
+				}
+				break
 			}
-			break
 		}
-	}
-	if p.Playback != nil && p.Playback.Track != nil {
-		currentSongTitle = p.Playback.Track.Title
-		currentSongArtist = p.Playback.Track.Artist
-		if p.Playback.Track.ThumbnailUrl != nil {
-			currentSongThumb = *p.Playback.Track.ThumbnailUrl
+		if p.Playback != nil && p.Playback.Track != nil {
+			if currentSongTitle == "" {
+				currentSongTitle = p.Playback.Track.Title
+			}
+			if currentSongArtist == "" {
+				currentSongArtist = p.Playback.Track.Artist
+			}
+			if currentSongThumb == "" && p.Playback.Track.ThumbnailUrl != nil {
+				currentSongThumb = *p.Playback.Track.ThumbnailUrl
+			}
+		} else if currentSongTitle != "" {
+			var thumbPtr *string
+			if currentSongThumb != "" {
+				thumbPtr = &currentSongThumb
+			}
+			p.Playback.Track = &party.Track{
+				VideoId:      "shared",
+				Title:        currentSongTitle,
+				Artist:       currentSongArtist,
+				ThumbnailUrl: thumbPtr,
+			}
 		}
+		memberCount = len(p.Members)
+		maxMembers = p.MaxMembers
+		p.Unlock()
 	}
-	memberCount := len(p.Members)
-	maxMembers := p.MaxMembers
-	p.Unlock()
+
+	v := url.Values{}
+	if currentSongTitle != "" {
+		v.Set("title", currentSongTitle)
+	}
+	if currentSongArtist != "" {
+		v.Set("artist", currentSongArtist)
+	}
+	if currentSongThumb != "" {
+		v.Set("thumb", currentSongThumb)
+	}
+	if hostName != "" {
+		v.Set("host", hostName)
+	}
+	if hostAvatarUrl != "" {
+		v.Set("avatar", hostAvatarUrl)
+	}
+	previewImgURL := fmt.Sprintf("%s/invite/%s/preview.png", origin, code)
+	if len(v) > 0 {
+		previewImgURL += "?" + v.Encode()
+	}
 
 	w.WriteHeader(http.StatusOK)
 	_ = inviteTemplate.Execute(w, invitePageData{
@@ -991,9 +1047,10 @@ func handleInviteLanding(w http.ResponseWriter, r *http.Request) {
 		CurrentSongTitle:  currentSongTitle,
 		CurrentSongArtist: currentSongArtist,
 		CurrentSongThumb:  currentSongThumb,
+		PreviewImgURL:     previewImgURL,
 		MemberCount:       memberCount,
 		MaxMembers:        maxMembers,
-		IsActive:          true,
+		IsActive:          isActive,
 	})
 }
 
@@ -1005,10 +1062,10 @@ func handleInvitePreviewImage(w http.ResponseWriter, r *http.Request) {
 	code := codes.Normalise(r.PathValue("code"))
 	p := store.Find(code)
 
-	hostName := ""
-	hostAvatarUrl := ""
-	currentSongTitle := ""
-	currentSongArtist := ""
+	hostName := strings.TrimSpace(r.URL.Query().Get("host"))
+	hostAvatarUrl := strings.TrimSpace(r.URL.Query().Get("avatar"))
+	currentSongTitle := strings.TrimSpace(r.URL.Query().Get("title"))
+	currentSongArtist := strings.TrimSpace(r.URL.Query().Get("artist"))
 	currentSongThumb := strings.TrimSpace(r.URL.Query().Get("thumb"))
 	if currentSongThumb == "" {
 		currentSongThumb = strings.TrimSpace(r.URL.Query().Get("cover"))
@@ -1016,29 +1073,46 @@ func handleInvitePreviewImage(w http.ResponseWriter, r *http.Request) {
 
 	if p != nil {
 		p.Lock()
-		for _, m := range p.Members {
-			if m.IsHost {
-				hostName = m.DisplayName
-				if m.AvatarUrl != nil {
-					hostAvatarUrl = *m.AvatarUrl
+		if hostName == "" {
+			for _, m := range p.Members {
+				if m.IsHost {
+					hostName = m.DisplayName
+					if m.AvatarUrl != nil && hostAvatarUrl == "" {
+						hostAvatarUrl = *m.AvatarUrl
+					}
+					break
 				}
-				break
 			}
 		}
 		if hostName == "" && len(p.Members) > 0 {
 			for _, m := range p.Members {
 				hostName = m.DisplayName
-				if m.AvatarUrl != nil {
+				if m.AvatarUrl != nil && hostAvatarUrl == "" {
 					hostAvatarUrl = *m.AvatarUrl
 				}
 				break
 			}
 		}
 		if p.Playback != nil && p.Playback.Track != nil {
-			currentSongTitle = p.Playback.Track.Title
-			currentSongArtist = p.Playback.Track.Artist
-			if p.Playback.Track.ThumbnailUrl != nil && currentSongThumb == "" {
+			if currentSongTitle == "" {
+				currentSongTitle = p.Playback.Track.Title
+			}
+			if currentSongArtist == "" {
+				currentSongArtist = p.Playback.Track.Artist
+			}
+			if currentSongThumb == "" && p.Playback.Track.ThumbnailUrl != nil {
 				currentSongThumb = *p.Playback.Track.ThumbnailUrl
+			}
+		} else if currentSongTitle != "" {
+			var thumbPtr *string
+			if currentSongThumb != "" {
+				thumbPtr = &currentSongThumb
+			}
+			p.Playback.Track = &party.Track{
+				VideoId:      "shared",
+				Title:        currentSongTitle,
+				Artist:       currentSongArtist,
+				ThumbnailUrl: thumbPtr,
 			}
 		}
 		p.Unlock()

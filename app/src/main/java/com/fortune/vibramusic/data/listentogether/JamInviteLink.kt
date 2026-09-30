@@ -92,13 +92,49 @@ object JamInviteLink {
             host.equals(LEGACY_HOST_IN, ignoreCase = true)
     }
 
-    fun url(code: String, customServer: String? = null): String {
+    fun url(
+        code: String,
+        customServer: String? = null,
+        title: String? = null,
+        artist: String? = null,
+        thumbUrl: String? = null,
+        hostName: String? = null,
+        avatarUrl: String? = null,
+    ): String {
         val base = customServer?.trim()?.trimEnd('/')
         val defaultBase = runCatching { ListenTogether.defaultServer }.getOrDefault(ORIGIN)
-        return if (!base.isNullOrBlank() && !base.equals(defaultBase, ignoreCase = true) && !base.equals(ORIGIN, ignoreCase = true)) {
+        val prefix = if (!base.isNullOrBlank() && !base.equals(defaultBase, ignoreCase = true) && !base.equals(ORIGIN, ignoreCase = true)) {
             "$base/invite/${code.uppercase()}"
         } else {
             "$defaultBase/invite/${code.uppercase()}"
+        }
+
+        val queryParams = mutableListOf<String>()
+        title?.trim()?.takeIf { it.isNotBlank() }?.let {
+            val enc = runCatching { URLEncoder.encode(it, "UTF-8") }.getOrDefault(it)
+            queryParams.add("title=$enc")
+        }
+        artist?.trim()?.takeIf { it.isNotBlank() }?.let {
+            val enc = runCatching { URLEncoder.encode(it, "UTF-8") }.getOrDefault(it)
+            queryParams.add("artist=$enc")
+        }
+        thumbUrl?.trim()?.takeIf { it.isNotBlank() }?.let {
+            val enc = runCatching { URLEncoder.encode(it, "UTF-8") }.getOrDefault(it)
+            queryParams.add("thumb=$enc")
+        }
+        hostName?.trim()?.takeIf { it.isNotBlank() }?.let {
+            val enc = runCatching { URLEncoder.encode(it, "UTF-8") }.getOrDefault(it)
+            queryParams.add("host=$enc")
+        }
+        avatarUrl?.trim()?.takeIf { it.isNotBlank() }?.let {
+            val enc = runCatching { URLEncoder.encode(it, "UTF-8") }.getOrDefault(it)
+            queryParams.add("avatar=$enc")
+        }
+
+        return if (queryParams.isEmpty()) {
+            prefix
+        } else {
+            "$prefix?${queryParams.joinToString("&")}"
         }
     }
 

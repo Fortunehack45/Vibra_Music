@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.ui.screens
+package com.fortune.vibramusic.ui.screens
 
 import android.content.Intent
 import android.text.format.DateFormat
@@ -191,11 +191,19 @@ fun ListenTogetherScreen(
     /** The invite URL for a code, pointing at whichever server holds the party. */
     val inviteLinkFor: (String) -> String = { partyCode ->
         val host = ListenTogether.activePartyServerBase()
-        if (host == null || host == ListenTogether.defaultServer) {
-            JamInviteLink.url(partyCode, null)
-        } else {
-            JamInviteLink.url(partyCode, host)
-        }
+        val currentTrack = state.playback.track ?: ListenTogether.currentTrackProvider?.invoke()
+        val userProfile = ListenTogether.currentUserProfile()
+        val hostName = state.you?.displayName ?: userProfile?.first
+        val avatarUrl = state.you?.avatarUrl ?: userProfile?.second
+        JamInviteLink.url(
+            code = partyCode,
+            customServer = if (host == null || host == ListenTogether.defaultServer) null else host,
+            title = currentTrack?.title,
+            artist = currentTrack?.artist,
+            thumbUrl = currentTrack?.thumbnailUrl,
+            hostName = hostName,
+            avatarUrl = avatarUrl,
+        )
     }
 
     /** The system chooser, with the link and the spoken-aloud code together. */

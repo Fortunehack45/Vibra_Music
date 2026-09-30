@@ -4,8 +4,11 @@ import (
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"math"
+	"os"
+	"path/filepath"
 	"sort"
 	"sync"
 
@@ -572,6 +575,7 @@ func (p *Party) Join(userId, deviceId, displayName string, avatarUrl *string) (*
 		FrameBudgetAtMs:   now,
 	}
 	p.Members[m.MemberId] = m
+	p.EmptySinceMs = nil
 	p.Touch()
 	return m, nil
 }
@@ -688,24 +692,24 @@ func (p *Party) MarkConnected(member *Member, connected bool) {
 }
 
 func (p *Party) refreshEmptiness() {
-	anyConn := false
-	for _, m := range p.Members {
-		if m.Connected {
-			anyConn = true
-			break
+	if len(p.Members) == 0 {
+		if p.EmptySinceMs == nil {
+			now := clock.NowMs()
+			p.EmptySinceMs = &now
 		}
-	}
-	if anyConn {
+	} else {
 		p.EmptySinceMs = nil
-	} else if p.EmptySinceMs == nil {
-		now := clock.NowMs()
-		p.EmptySinceMs = &now
 	}
 }
 
 func (p *Party) ExpiredMembers(now int64) []*Member {
 	var expired []*Member
 	for _, m := range p.Members {
+		// A solo host who created the party must never be expired by inactivity
+		// while waiting for friends to join or when switching between apps.
+		if m.IsHost && len(p.Members) == 1 {
+			continue
+		}
 		if !m.Connected && now-m.LastSeenMs > config.DisconnectGraceMs {
 			expired = append(expired, m)
 		}
@@ -717,8 +721,12 @@ func (p *Party) IsExpired(now int64) bool {
 	if now-p.CreatedAtMs > config.PartyMaxAgeMs {
 		return true
 	}
-	if p.EmptySinceMs != nil {
-		return now-*p.EmptySinceMs > config.EmptyPartyTTLMs
+	// A party expires as empty ONLY if it has zero members!
+	if len(p.Members) == 0 {
+		if p.EmptySinceMs != nil {
+			return now-*p.EmptySinceMs > config.EmptyPartyTTLMs
+		}
+		return true
 	}
 	return false
 }
@@ -756,10 +764,56 @@ type PartyStore struct {
 	parties map[string]*Party
 }
 
+func persistencePath() string {
+	if custom := os.Getenv("JAM_STORAGE_PATH"); custom != "" {
+		return custom
+	}
+	tmp := os.TempDir()
+	return filepath.Join(tmp, "vibra_parties_store.json")
+}
+
+func (s *PartyStore) saveToDiskLocked() {
+	filePath := persistencePath()
+	data, err := json.Marshal(s.parties)
+	if err != nil {
+		return
+	}
+	tmpFile := filePath + ".tmp"
+	if err := os.WriteFile(tmpFile, data, 0600); err == nil {
+		_ = os.Rename(tmpFile, filePath)
+	}
+}
+
+func (s *PartyStore) loadFromDiskLocked() {
+	filePath := persistencePath()
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return
+	}
+	var loaded map[string]*Party
+	if err := json.Unmarshal(data, &loaded); err == nil && loaded != nil {
+		for k, v := range loaded {
+			if _, exists := s.parties[k]; !exists && v != nil {
+				s.parties[k] = v
+			}
+		}
+	}
+}
+
+func (s *PartyStore) Save() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.saveToDiskLocked()
+}
+
 func NewPartyStore() *PartyStore {
-	return &PartyStore{
+	store := &PartyStore{
 		parties: make(map[string]*Party),
 	}
+	store.mu.Lock()
+	store.loadFromDiskLocked()
+	store.mu.Unlock()
+	return store
 }
 
 func (s *PartyStore) Len() int {
@@ -788,8 +842,9 @@ func (s *PartyStore) CreateWithLimits(maxParties, maxMembers int) (*Party, error
 	for i := 0; i < 12; i++ {
 		code := codes.NewCode()
 		if _, exists := s.parties[code]; !exists {
-		p := NewPartyWithMaxMembers(code, maxMembers)
+			p := NewPartyWithMaxMembers(code, maxMembers)
 			s.parties[code] = p
+			s.saveToDiskLocked()
 			return p, nil
 		}
 	}
@@ -802,6 +857,12 @@ func (s *PartyStore) Get(code string) (*Party, error) {
 	p, ok := s.parties[norm]
 	s.mu.RUnlock()
 	if !ok {
+		s.mu.Lock()
+		s.loadFromDiskLocked()
+		p, ok = s.parties[norm]
+		s.mu.Unlock()
+	}
+	if !ok {
 		return nil, NewPartyError(404, "no_such_party", "No party with that code.")
 	}
 	return p, nil
@@ -810,14 +871,22 @@ func (s *PartyStore) Get(code string) (*Party, error) {
 func (s *PartyStore) Find(code string) *Party {
 	norm := codes.Normalise(code)
 	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.parties[norm]
+	p, ok := s.parties[norm]
+	s.mu.RUnlock()
+	if !ok {
+		s.mu.Lock()
+		s.loadFromDiskLocked()
+		p = s.parties[norm]
+		s.mu.Unlock()
+	}
+	return p
 }
 
 func (s *PartyStore) Drop(code string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.parties, code)
+	s.saveToDiskLocked()
 }
 
 func (s *PartyStore) All() []*Party {
@@ -835,6 +904,7 @@ func (s *PartyStore) Sweep(now int64) []*Party {
 	defer s.mu.Unlock()
 
 	var changed []*Party
+	hadDeletions := false
 	for code, party := range s.parties {
 		party.Lock()
 		gone := party.ExpiredMembers(now)
@@ -846,11 +916,15 @@ func (s *PartyStore) Sweep(now int64) []*Party {
 
 		if expired {
 			delete(s.parties, code)
+			hadDeletions = true
 			continue
 		}
 		if len(gone) > 0 {
 			changed = append(changed, party)
 		}
+	}
+	if hadDeletions || len(changed) > 0 {
+		s.saveToDiskLocked()
 	}
 	return changed
 }

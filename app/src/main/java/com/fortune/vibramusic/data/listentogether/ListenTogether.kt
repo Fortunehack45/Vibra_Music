@@ -625,6 +625,19 @@ object ListenTogether {
         }
     }
 
+    /**
+     * Provider returning the currently playing track on this device, if any.
+     * Bound by PartySync in the playback service so ListenTogether can seed initialTrack
+     * during party creation before the WebSocket is connected.
+     */
+    var currentTrackProvider: (() -> PartyTrack?)? = null
+
+    /** Returns display name and sanitized avatar URL for current signed-in user, if available. */
+    fun currentUserProfile(): Pair<String, String?>? {
+        val id = identity() ?: return null
+        return id.name to id.avatar
+    }
+
     private lateinit var prefs: SharedPreferences
     private var token: String? = null
 
@@ -794,11 +807,13 @@ object ListenTogether {
     private suspend fun doCreateOnServer(serverBase: String, nickname: String, maxMembers: Int): String {
         val who = identity(nickname) ?: throw PartyException("not_signed_in", "Sign in to listen together.")
         if (serverBase.isBlank()) throw PartyException("no_server", "Set the party server address first.")
+        val initialTrack = currentTrackProvider?.invoke()
         val membership = post(
             "$serverBase/api/parties",
             JoinRequest(
                 who.userId, who.deviceId, who.name, who.avatar, maxMembers,
                 autoplayEnabled = AppSettings.autoplay.value,
+                initialTrack = initialTrack,
             ),
         )
 
@@ -1451,11 +1466,18 @@ object ListenTogether {
             ?: account.name.takeIf { it.isNotBlank() }
             ?: account.email.substringBefore('@').takeIf { it.isNotBlank() }
             ?: return null
+        val rawAvatar = profile?.avatar?.trim()
+        val avatar = when {
+            rawAvatar.isNullOrBlank() -> null
+            rawAvatar.startsWith("//") -> "https:$rawAvatar"
+            rawAvatar.startsWith("http://") || rawAvatar.startsWith("https://") -> rawAvatar
+            else -> null
+        }
         return Identity(
             userId = sha256("${account.accountId}:${profile?.profileId.orEmpty()}").take(32),
             deviceId = deviceId(),
             name = name,
-            avatar = profile?.avatar?.takeIf { it.startsWith("http") },
+            avatar = avatar,
         )
     }
 

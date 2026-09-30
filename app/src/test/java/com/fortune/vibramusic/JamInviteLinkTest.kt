@@ -88,6 +88,25 @@ class JamInviteLinkTest {
     }
 
     @Test
+    fun `builds share URL with track and host metadata`() {
+        val url = JamInviteLink.url(
+            code = "ABC123",
+            customServer = null,
+            title = "Starboy",
+            artist = "The Weeknd & Daft Punk",
+            thumbUrl = "https://lh3.googleusercontent.com/starboy.jpg",
+            hostName = "John Doe",
+            avatarUrl = "https://lh3.googleusercontent.com/avatar.jpg",
+        )
+        assertTrue(url.startsWith("https://party.vibramusic.store/invite/ABC123?"))
+        assertTrue(url.contains("title=Starboy"))
+        assertTrue(url.contains("artist=The+Weeknd+%26+Daft+Punk"))
+        assertTrue(url.contains("thumb=https%3A%2F%2Flh3.googleusercontent.com%2Fstarboy.jpg"))
+        assertTrue(url.contains("host=John+Doe"))
+        assertTrue(url.contains("avatar=https%3A%2F%2Flh3.googleusercontent.com%2Favatar.jpg"))
+    }
+
+    @Test
     fun `builds custom scheme URL`() {
         assertEquals(
             "vibra://party/ABC123?server=https%3A%2F%2Fmy-party.onrender.com",

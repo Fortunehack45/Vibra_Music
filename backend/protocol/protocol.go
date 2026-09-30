@@ -64,14 +64,24 @@ var ControlActions = map[string]bool{
 	ActionSetAutoplay: true,
 }
 
+// InitialTrack is optional track metadata provided upon party creation.
+type InitialTrack struct {
+	VideoId      string  `json:"videoId"`
+	Title        string  `json:"title"`
+	Artist       string  `json:"artist"`
+	ThumbnailUrl *string `json:"thumbnailUrl,omitempty"`
+	DurationMs   *int64  `json:"durationMs,omitempty"`
+}
+
 // JoinRequest is the identity submitted when creating or joining a party.
 type JoinRequest struct {
-	UserId      string  `json:"userId"`
-	DeviceId    string  `json:"deviceId"`
-	DisplayName string  `json:"displayName"`
-	AvatarUrl   *string `json:"avatarUrl,omitempty"`
-	MaxMembers  *int    `json:"maxMembers,omitempty"`
-	AutoplayEnabled *bool `json:"autoplayEnabled,omitempty"`
+	UserId          string        `json:"userId"`
+	DeviceId        string        `json:"deviceId"`
+	DisplayName     string        `json:"displayName"`
+	AvatarUrl       *string       `json:"avatarUrl,omitempty"`
+	MaxMembers      *int          `json:"maxMembers,omitempty"`
+	AutoplayEnabled *bool         `json:"autoplayEnabled,omitempty"`
+	InitialTrack    *InitialTrack `json:"initialTrack,omitempty"`
 }
 
 // Validate ensures all required identity fields are present and safe.
@@ -105,6 +115,18 @@ func (r *JoinRequest) Validate() error {
 	}
 	if r.MaxMembers != nil && (*r.MaxMembers < 2 || *r.MaxMembers > 10) {
 		return errors.New("maxMembers must be between 2 and 10")
+	}
+	if r.InitialTrack != nil {
+		r.InitialTrack.Title = strings.TrimSpace(r.InitialTrack.Title)
+		r.InitialTrack.Artist = strings.TrimSpace(r.InitialTrack.Artist)
+		if r.InitialTrack.ThumbnailUrl != nil {
+			t := strings.TrimSpace(*r.InitialTrack.ThumbnailUrl)
+			if t == "" {
+				r.InitialTrack.ThumbnailUrl = nil
+			} else {
+				r.InitialTrack.ThumbnailUrl = &t
+			}
+		}
 	}
 	return nil
 }

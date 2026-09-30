@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.playback
+package com.fortune.vibramusic.playback
 
 import android.os.SystemClock
 import androidx.media3.common.Player
@@ -88,6 +88,14 @@ class PartySync(
     /** Read fresh every time: the service swaps players at a crossfade. */
     private val player: () -> Player?,
 ) {
+
+    init {
+        ListenTogether.currentTrackProvider = {
+            val exo = player()
+            val s = exo?.currentMediaItem?.toSong()
+            s?.takeUnless { it.isDeviceFile() }?.toPartyTrack(exo?.duration?.coerceAtLeast(0L) ?: 0L)
+        }
+    }
 
     private val jobs = mutableListOf<Job>()
     private var publishJob: Job? = null
@@ -238,6 +246,7 @@ class PartySync(
         jobs.clear()
         publishJob?.cancel()
         startJob?.cancel()
+        ListenTogether.currentTrackProvider = null
     }
 
     /**

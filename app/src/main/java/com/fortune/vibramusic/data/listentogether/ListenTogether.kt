@@ -366,9 +366,17 @@ object ListenTogether {
      * The default party server this build ships pointed at, from `LISTEN_TOGETHER_SERVER`
      * in `local.properties` or build environment.
      */
-    val defaultServer: String = when (val res = parseAndNormalizeServerUrl(BuildConfig.LISTEN_TOGETHER_SERVER)) {
-        is ServerUrlValidationResult.Valid -> res.normalizedUrl
-        is ServerUrlValidationResult.Invalid -> error("Invalid BuildConfig.LISTEN_TOGETHER_SERVER: ${BuildConfig.LISTEN_TOGETHER_SERVER}")
+    val defaultServer: String = run {
+        val raw = BuildConfig.LISTEN_TOGETHER_SERVER.trim()
+        val parsed = when (val res = parseAndNormalizeServerUrl(raw)) {
+            is ServerUrlValidationResult.Valid -> res.normalizedUrl
+            is ServerUrlValidationResult.Invalid -> "https://party.vibramusic.store"
+        }
+        if (parsed.contains("onrender.com", ignoreCase = true) || parsed.contains("musicplayer.in", ignoreCase = true)) {
+            "https://party.vibramusic.store"
+        } else {
+            parsed
+        }
     }
 
     /**
@@ -376,7 +384,14 @@ object ListenTogether {
      * Probes custom server first if configured; falls back to [defaultServer] if custom is down.
      */
     private val _effectiveIdleServer = MutableStateFlow(defaultServer)
-    fun effectiveIdleServerBase(): String = _effectiveIdleServer.value
+    fun effectiveIdleServerBase(): String {
+        val current = _effectiveIdleServer.value
+        return if (current.contains("onrender.com", ignoreCase = true) || current.contains("musicplayer.in", ignoreCase = true) || current.isBlank()) {
+            defaultServer
+        } else {
+            current
+        }
+    }
 
     /**
      * The server a party switch should target when the invite itself does not
@@ -629,7 +644,12 @@ object ListenTogether {
             "https://siren-music.onrender.com",
             "https://siren.musicplayer.in",
         )
-        if (normalizedSaved.lowercase() in legacyDefaultServers || normalizedSaved.equals(defaultServer, ignoreCase = true)) {
+        if (
+            normalizedSaved.lowercase() in legacyDefaultServers ||
+            normalizedSaved.contains("onrender.com", ignoreCase = true) ||
+            normalizedSaved.contains("musicplayer.in", ignoreCase = true) ||
+            normalizedSaved.equals(defaultServer, ignoreCase = true)
+        ) {
             prefs.edit().remove(KEY_SERVER).apply()
             normalizedSaved = ""
         }

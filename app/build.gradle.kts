@@ -47,11 +47,20 @@ val lastfmSecret: String = (
  * builds and runs, and simply asks for an address the first time somebody opens
  * the screen. See ListenTogether.DEFAULT_SERVER.
  */
-val listenTogetherServer: String = (
+val rawListenTogetherServer: String = (
     localProps.getProperty("LISTEN_TOGETHER_SERVER")
         ?: System.getenv("LISTEN_TOGETHER_SERVER")
         ?: "https://party.vibramusic.store"
     ).trim().trimEnd('/')
+val listenTogetherServer: String = if (
+    rawListenTogetherServer.isBlank() ||
+    rawListenTogetherServer.contains("onrender.com", ignoreCase = true) ||
+    rawListenTogetherServer.contains("musicplayer.in", ignoreCase = true)
+) {
+    "https://party.vibramusic.store"
+} else {
+    rawListenTogetherServer
+}
 
 /*
  * Bump this by hand before cutting each sideloaded test build ("beta2",
@@ -99,8 +108,8 @@ android {
         // in on API 31+, Haze falls back to a translucent scrim below that.
         minSdk = 24
         targetSdk = 36
-        versionCode = 44
-        versionName = "1.8.14"
+        versionCode = 45
+        versionName = "1.8.15"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         externalNativeBuild {

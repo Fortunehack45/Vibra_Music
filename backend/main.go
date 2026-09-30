@@ -92,6 +92,7 @@ func main() {
 
 	// Web invite endpoint & social preview card
 	mux.HandleFunc("GET /invite/{code}", handleInviteLanding)
+	mux.HandleFunc("GET /invite/{code}/preview", handleInvitePreviewImage)
 	mux.HandleFunc("GET /invite/{code}/preview.png", handleInvitePreviewImage)
 
 	// Digital Asset Links for Android App Links autoVerify
@@ -570,17 +571,21 @@ var inviteTemplate = template.Must(template.New("invite").Parse(`<!DOCTYPE html>
     <meta property="og:type" content="music.song">
     <meta property="og:site_name" content="Vibra Music">
     <meta property="og:title" content="Join {{if .HostName}}{{.HostName}}'s{{else}}a{{end}} Party on Vibra Music">
-    <meta property="og:description" content="Party {{.Code}} • {{if .CurrentSongTitle}}Now Playing: {{.CurrentSongTitle}} by {{.CurrentSongArtist}} • {{end}}{{.MemberCount}} listening in real time">
+    <meta property="og:description" content="Party {{.Code}} • {{if .CurrentSongTitle}}Now Playing: {{.CurrentSongTitle}} by {{.CurrentSongArtist}} • {{end}}{{if .IsActive}}{{.MemberCount}} listening in real time{{else}}Listen together in real time{{end}}">
+    <meta property="og:url" content="{{.ServerOrigin}}/invite/{{.Code}}">
     <meta property="og:image" content="{{.ServerOrigin}}/invite/{{.Code}}/preview.png">
+    <meta property="og:image:secure_url" content="{{.ServerOrigin}}/invite/{{.Code}}/preview.png">
     <meta property="og:image:type" content="image/png">
     <meta property="og:image:width" content="834">
     <meta property="og:image:height" content="1024">
+    <link rel="image_src" href="{{.ServerOrigin}}/invite/{{.Code}}/preview.png">
     
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Join {{if .HostName}}{{.HostName}}'s{{else}}a{{end}} Party on Vibra Music">
     <meta name="twitter:description" content="Party {{.Code}} • Real-time synchronized playback on Vibra Music">
     <meta name="twitter:image" content="{{.ServerOrigin}}/invite/{{.Code}}/preview.png">
+    <meta name="twitter:image:src" content="{{.ServerOrigin}}/invite/{{.Code}}/preview.png">
 
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -902,7 +907,7 @@ func requestOrigin(r *http.Request) string {
 	}
 	host := r.Host
 	if host == "" || !config.IsAllowedHost(host) {
-		host = "vibra-music.onrender.com"
+		host = "party.vibramusic.store"
 	}
 	return fmt.Sprintf("%s://%s", proto, host)
 }
@@ -913,26 +918,31 @@ func handleInviteLanding(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
 	if len(code) != codes.CodeLength {
-		w.WriteHeader(http.StatusBadRequest)
+		w.WriteHeader(http.StatusOK)
 		_ = inviteTemplate.Execute(w, invitePageData{
-			Code:     html.EscapeString(r.PathValue("code")),
-			IsActive: false,
-		})
-		return
-	}
-
-	p := store.Find(code)
-	if p == nil {
-		w.WriteHeader(http.StatusNotFound)
-		_ = inviteTemplate.Execute(w, invitePageData{
-			Code:     code,
-			IsActive: false,
+			Code:         html.EscapeString(r.PathValue("code")),
+			ServerOrigin: origin,
+			IsActive:     false,
 		})
 		return
 	}
 
 	deepLink := fmt.Sprintf("vibra://party/%s?server=%s", url.PathEscape(code), url.QueryEscape(origin))
 	intentURI := fmt.Sprintf("intent://party/%s?server=%s#Intent;scheme=vibra;package=com.fortune.vibramusic;end", url.PathEscape(code), url.QueryEscape(origin))
+
+	p := store.Find(code)
+	if p == nil {
+		w.WriteHeader(http.StatusOK)
+		_ = inviteTemplate.Execute(w, invitePageData{
+			Code:         code,
+			DeepLink:     deepLink,
+			IntentURI:    template.URL(intentURI),
+			SafeDeepLink: template.URL(deepLink),
+			ServerOrigin: origin,
+			IsActive:     false,
+		})
+		return
+	}
 
 	hostName := ""
 	hostAvatarUrl := ""

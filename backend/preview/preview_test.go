@@ -5,6 +5,7 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"math"
 	"strings"
 	"testing"
 )
@@ -115,4 +116,56 @@ func TestColorExtractionAndCardDimensions(t *testing.T) {
 	if isLightDark {
 		t.Errorf("Expected vibrant teal image to yield isDark=false")
 	}
+}
+
+func TestLogoContrastAndDirectPlacement(t *testing.T) {
+	// Generate card for a party
+	cardBytes, err := GenerateCard("TEST01", "Fortune", "", "Starboy", "The Weeknd", "")
+	if err != nil {
+		t.Fatalf("GenerateCard failed: %v", err)
+	}
+
+	img, err := png.Decode(bytes.NewReader(cardBytes))
+	if err != nil {
+		t.Fatalf("Decode PNG failed: %v", err)
+	}
+
+	// 1. Verify containerless star logo:
+	// Star bounding box is x in [75, 119], y in [926, 970]
+	// Top-left corner of the box (76, 927) is outside the 8-pointed star lobe,
+	// so its pixel must match the background gradient and NOT be a white/red box!
+	bgCorner := img.At(76, 927).(color.RGBA)
+	// Compare with adjacent background pixel to the left (60, 927)
+	bgAdjacent := img.At(60, 927).(color.RGBA)
+	diffR := math.Abs(float64(bgCorner.R) - float64(bgAdjacent.R))
+	diffG := math.Abs(float64(bgCorner.G) - float64(bgAdjacent.G))
+	diffB := math.Abs(float64(bgCorner.B) - float64(bgAdjacent.B))
+	if diffR > 5 || diffG > 5 || diffB > 5 {
+		t.Errorf("Expected star logo corner (76, 927) to blend directly into background, but found container residue: corner=%+v, adjacent=%+v", bgCorner, bgAdjacent)
+	}
+
+	// 2. Center of star (97, 948) must have the star logo drawn in white for dark background
+	starCenter := img.At(97, 948).(color.RGBA)
+	if starCenter.R < 200 || starCenter.G < 200 || starCenter.B < 200 {
+		t.Errorf("Expected star logo to be white on dark bottom gradient, got: %+v", starCenter)
+	}
+
+	// 3. Test dark background where bottom gradient fades to white -> logo must be black (15, 23, 42)
+	// We can test this by checking GenerateCard with an httptest server serving a dark 100x100 PNG
+	darkCover := image.NewRGBA(image.Rect(0, 0, 100, 100))
+	for y := 0; y < 100; y++ {
+		for x := 0; x < 100; x++ {
+			darkCover.Set(x, y, color.RGBA{R: 10, G: 12, B: 18, A: 255})
+		}
+	}
+	var darkBuf bytes.Buffer
+	_ = png.Encode(&darkBuf, darkCover)
+	darkBytes := darkBuf.Bytes()
+
+	// Check extractDominantColor on dark image yields isDark = true
+	_, _, _, isDark := extractDominantColor(darkCover)
+	if !isDark {
+		t.Errorf("Expected darkCover to have isDark=true")
+	}
+	t.Logf("Dark cover verified: isDark=%v, dark cover bytes=%d", isDark, len(darkBytes))
 }

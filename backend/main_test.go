@@ -26,6 +26,7 @@ func setupTestServer() *httptest.Server {
 	mux.HandleFunc("GET /api/parties/{code}", handleGetParty)
 	mux.HandleFunc("POST /api/parties/{code}/leave", handleLeaveParty)
 	mux.HandleFunc("GET /invite/{code}", handleInviteLanding)
+	mux.HandleFunc("GET /invite/{code}/preview", handleInvitePreviewImage)
 	mux.HandleFunc("GET /invite/{code}/preview.png", handleInvitePreviewImage)
 	mux.HandleFunc("GET /.well-known/assetlinks.json", handleAssetLinks)
 	mux.HandleFunc("GET /ws/parties/{code}", handleWebSocket)
@@ -242,13 +243,18 @@ func TestInviteLanding(t *testing.T) {
 	ts := setupTestServer()
 	defer ts.Close()
 
-	// 1. Non-existent party
+	// 1. Non-existent party returns 200 OK so crawlers (WhatsApp/Telegram) can unfurl fallback card
 	res, err := http.Get(ts.URL + "/invite/ZZZZZZ")
 	if err != nil {
 		t.Fatalf("GET /invite/ZZZZZZ failed: %v", err)
 	}
-	if res.StatusCode != http.StatusNotFound {
-		t.Errorf("Expected 404 for non-existent party, got %d", res.StatusCode)
+	if res.StatusCode != http.StatusOK {
+		t.Errorf("Expected 200 for non-existent party so link unfurls, got %d", res.StatusCode)
+	}
+	bufNonExistent := new(bytes.Buffer)
+	_, _ = bufNonExistent.ReadFrom(res.Body)
+	if !strings.Contains(bufNonExistent.String(), "preview.png") {
+		t.Errorf("Expected fallback HTML to contain preview.png")
 	}
 
 	// 2. Create an active party directly in store
@@ -281,17 +287,19 @@ func TestInviteLanding(t *testing.T) {
 		t.Errorf("Expected HTML content to contain preview.png Open Graph image")
 	}
 
-	// 4. Test social preview image endpoint
-	resImg, err := http.Get(ts.URL + "/invite/" + code + "/preview.png")
-	if err != nil {
-		t.Fatalf("GET /invite/%s/preview.png failed: %v", code, err)
-	}
-	defer resImg.Body.Close()
-	if resImg.StatusCode != http.StatusOK {
-		t.Errorf("Expected 200 for preview image, got %d", resImg.StatusCode)
-	}
-	if cType := resImg.Header.Get("Content-Type"); cType != "image/png" {
-		t.Errorf("Expected Content-Type image/png, got %s", cType)
+	// 4. Test social preview image endpoint (.png and alias without .png)
+	for _, ext := range []string{"/preview.png", "/preview"} {
+		resImg, err := http.Get(ts.URL + "/invite/" + code + ext)
+		if err != nil {
+			t.Fatalf("GET /invite/%s%s failed: %v", code, ext, err)
+		}
+		defer resImg.Body.Close()
+		if resImg.StatusCode != http.StatusOK {
+			t.Errorf("Expected 200 for %s, got %d", ext, resImg.StatusCode)
+		}
+		if cType := resImg.Header.Get("Content-Type"); cType != "image/png" {
+			t.Errorf("Expected Content-Type image/png for %s, got %s", ext, cType)
+		}
 	}
 }
 

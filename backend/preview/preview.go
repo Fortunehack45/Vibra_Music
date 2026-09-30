@@ -132,8 +132,9 @@ var httpClient = &http.Client{
 }
 
 var (
-	cachedAppIcon image.Image
-	cachedAppLogo image.Image
+	cachedAppIcon   image.Image
+	cachedAppLogo   image.Image
+	cachedStarGlyph image.Image
 
 	fontBold   *opentype.Font
 	fontMedium *opentype.Font
@@ -151,6 +152,13 @@ func init() {
 	}
 	if len(appLogoBytes) > 0 {
 		cachedAppLogo, _ = png.Decode(bytes.NewReader(appLogoBytes))
+		if cachedAppLogo != nil {
+			// Star bounds in app_logo.png are [80, 56] to [480, 456]
+			starRect := image.Rect(80, 56, 480, 456)
+			starRGBA := image.NewRGBA(image.Rect(0, 0, starRect.Dx(), starRect.Dy()))
+			xdraw.Draw(starRGBA, starRGBA.Bounds(), cachedAppLogo, starRect.Min, xdraw.Src)
+			cachedStarGlyph = starRGBA
+		}
 	}
 
 	if len(fontBoldBytes) > 0 {
@@ -222,15 +230,28 @@ func GenerateCard(code, hostName, avatarURL, songTitle, songArtist, coverURL str
 		drawFallbackCover(img, coverRect, 42, bgR, bgG, bgB)
 	}
 
-	// 5. Text & Foreground Colors
+	// 5. Adaptive Foreground Colors
+	// Check background luminance at brand location (y=948)
+	brandBg := img.RGBAAt(75, 948)
+	brandLum := 0.299*float64(brandBg.R) + 0.587*float64(brandBg.G) + 0.114*float64(brandBg.B)
+	var brandColor color.RGBA
+	if brandLum > 135.0 {
+		brandColor = color.RGBA{R: 15, G: 23, B: 42, A: 255} // Light bg -> Black logo/brand
+	} else {
+		brandColor = color.RGBA{R: 255, G: 255, B: 255, A: 255} // Dark bg -> White logo/brand
+	}
+
+	// Check background luminance at title location (y=816)
+	titleBg := img.RGBAAt(75, 816)
+	titleLum := 0.299*float64(titleBg.R) + 0.587*float64(titleBg.G) + 0.114*float64(titleBg.B)
 	var textColor, subTextColor, borderCol color.RGBA
-	if isDark {
-		textColor = color.RGBA{R: 15, G: 23, B: 42, A: 255}       // #0f172a
-		subTextColor = color.RGBA{R: 71, G: 85, B: 105, A: 245}    // #475569
+	if titleLum > 135.0 {
+		textColor = color.RGBA{R: 15, G: 23, B: 42, A: 255}
+		subTextColor = color.RGBA{R: 71, G: 85, B: 105, A: 245}
 		borderCol = color.RGBA{R: 15, G: 23, B: 42, A: 255}
 	} else {
-		textColor = color.RGBA{R: 255, G: 255, B: 255, A: 255}   // #ffffff
-		subTextColor = color.RGBA{R: 226, G: 232, B: 240, A: 245} // #e2e8f0
+		textColor = color.RGBA{R: 255, G: 255, B: 255, A: 255}
+		subTextColor = color.RGBA{R: 226, G: 232, B: 240, A: 245}
 		borderCol = color.RGBA{R: 255, G: 255, B: 255, A: 255}
 	}
 
@@ -254,13 +275,13 @@ func GenerateCard(code, hostName, avatarURL, songTitle, songArtist, coverURL str
 	drawText(img, artist, 75, 878, faceSongArtist, subTextColor)
 
 	// 7. Vibra Music Brand (Bottom Left)
-	// Logo icon: 50x50 at x=75, y=926
-	if cachedAppIcon != nil {
-		drawIconWithTint(img, cachedAppIcon, 75, 926, 50, isDark)
-	} else {
-		drawFallbackAppIcon(img, 75, 926, 50)
-	}
-	drawText(img, "Vibra Music", 138, 964, faceBrand, textColor)
+	// Logo is drawn DIRECTLY on the background without any container box/border.
+	// Automatically switches to black on light background and white on dark background.
+	starSize := 44
+	starX := 75
+	starY := 926
+	drawStarLogoDirect(img, cachedStarGlyph, starX, starY, starSize, brandColor)
+	drawText(img, "Vibra Music", starX+starSize+14, 962, faceBrand, brandColor)
 
 	// 8. Circular Profile Picture / Avatar (Bottom Right)
 	// Center: (714, 862), Radius: 56 -> right edge at 770
@@ -292,7 +313,13 @@ func GenerateCard(code, hostName, avatarURL, songTitle, songArtist, coverURL str
 	sender = truncateToWidth(sender, 280, faceSender)
 	senderWidth := measureTextWidth(faceSender, sender)
 	senderX := 770 - senderWidth
-	drawText(img, sender, senderX, 964, faceSender, textColor)
+	senderBg := img.RGBAAt(senderX, 964)
+	senderLum := 0.299*float64(senderBg.R) + 0.587*float64(senderBg.G) + 0.114*float64(senderBg.B)
+	var senderColor color.RGBA = color.RGBA{R: 255, G: 255, B: 255, A: 255}
+	if senderLum > 135.0 {
+		senderColor = color.RGBA{R: 15, G: 23, B: 42, A: 255}
+	}
+	drawText(img, sender, senderX, 964, faceSender, senderColor)
 
 	var buf bytes.Buffer
 	if err := png.Encode(&buf, img); err != nil {
@@ -311,13 +338,19 @@ func extractDominantColor(cover image.Image) (r, g, b uint8, isDark bool) {
 	if w <= 0 || h <= 0 {
 		return 51, 122, 154, false
 	}
-	var bestScore float64 = -1
-	var bestR, bestG, bestB uint8 = 51, 122, 154
-	var foundVibrant bool
-	var sumR, sumG, sumB, totalCount uint64
 
-	stepX := max(1, w/50)
-	stepY := max(1, h/50)
+	type bucket struct {
+		count uint32
+		sumR  uint64
+		sumG  uint64
+		sumB  uint64
+	}
+	buckets := make(map[uint16]*bucket)
+
+	stepX := max(1, w/60)
+	stepY := max(1, h/60)
+	var totalSampled uint32
+
 	for y := bounds.Min.Y; y < bounds.Max.Y; y += stepY {
 		for x := bounds.Min.X; x < bounds.Max.X; x += stepX {
 			pr, pg, pb, pa := cover.At(x, y).RGBA()
@@ -328,36 +361,64 @@ func extractDominantColor(cover image.Image) (r, g, b uint8, isDark bool) {
 			cg := uint8(pg >> 8)
 			cb := uint8(pb >> 8)
 
-			sumR += uint64(cr)
-			sumG += uint64(cg)
-			sumB += uint64(cb)
-			totalCount++
-
-			maxC := max(cr, max(cg, cb))
-			minC := min(cr, min(cg, cb))
-			delta := maxC - minC
-			lum := 0.299*float64(cr) + 0.587*float64(cg) + 0.114*float64(cb)
-			if lum < 20 || lum > 235 {
-				continue
+			totalSampled++
+			key := (uint16(cr>>4) << 8) | (uint16(cg>>4) << 4) | uint16(cb>>4)
+			bkt := buckets[key]
+			if bkt == nil {
+				bkt = &bucket{}
+				buckets[key] = bkt
 			}
-			sat := float64(delta) / float64(int(maxC)+1)
-			score := sat * (1.0 - math.Abs(lum-128.0)/160.0)
-			if score > bestScore {
-				bestScore = score
-				bestR, bestG, bestB = cr, cg, cb
-				foundVibrant = true
+			bkt.count++
+			bkt.sumR += uint64(cr)
+			bkt.sumG += uint64(cg)
+			bkt.sumB += uint64(cb)
+		}
+	}
+
+	if totalSampled == 0 || len(buckets) == 0 {
+		return 51, 122, 154, false
+	}
+
+	var bestScore float64 = -1
+	bestR, bestG, bestB := uint8(51), uint8(122), uint8(154)
+
+	for _, bkt := range buckets {
+		avgR := uint8(bkt.sumR / uint64(bkt.count))
+		avgG := uint8(bkt.sumG / uint64(bkt.count))
+		avgB := uint8(bkt.sumB / uint64(bkt.count))
+
+		maxC := max(avgR, max(avgG, avgB))
+		minC := min(avgR, min(avgG, avgB))
+		delta := maxC - minC
+		lum := 0.299*float64(avgR) + 0.587*float64(avgG) + 0.114*float64(avgB)
+
+		if lum < 15 || lum > 245 {
+			continue
+		}
+
+		sat := float64(delta) / float64(int(maxC)+1)
+		popRatio := float64(bkt.count) / float64(totalSampled)
+		score := popRatio * (0.35 + 0.65*sat) * (1.0 - math.Abs(lum-120.0)/220.0)
+		if score > bestScore {
+			bestScore = score
+			bestR, bestG, bestB = avgR, avgG, avgB
+		}
+	}
+
+	if bestScore <= 0 {
+		var maxPop uint32
+		for _, bkt := range buckets {
+			if bkt.count > maxPop {
+				maxPop = bkt.count
+				bestR = uint8(bkt.sumR / uint64(bkt.count))
+				bestG = uint8(bkt.sumG / uint64(bkt.count))
+				bestB = uint8(bkt.sumB / uint64(bkt.count))
 			}
 		}
 	}
 
-	if !foundVibrant && totalCount > 0 {
-		bestR = uint8(sumR / totalCount)
-		bestG = uint8(sumG / totalCount)
-		bestB = uint8(sumB / totalCount)
-	}
-
 	lum := 0.299*float64(bestR) + 0.587*float64(bestG) + 0.114*float64(bestB)
-	isDark = lum < 65.0
+	isDark = lum < 115.0
 	return bestR, bestG, bestB, isDark
 }
 
@@ -419,18 +480,36 @@ func drawFallbackCover(img *image.RGBA, r image.Rectangle, radius int, bgR, bgG,
 	drawCircleFilled(img, cx, cy, 15, color.RGBA{R: bgR, G: bgG, B: bgB, A: 255})
 }
 
-func drawIconWithTint(dst *image.RGBA, src image.Image, x, y, size int, isDark bool) {
+func drawStarLogoDirect(dst *image.RGBA, src image.Image, x, y, size int, logoColor color.RGBA) {
+	if src == nil {
+		drawFallbackStar(dst, x+size/2, y+size/2, size/2, logoColor)
+		return
+	}
 	scaled := image.NewRGBA(image.Rect(0, 0, size, size))
 	xdraw.BiLinear.Scale(scaled, scaled.Bounds(), src, src.Bounds(), xdraw.Over, nil)
 	for py := 0; py < size; py++ {
 		for px := 0; px < size; px++ {
 			c := scaled.RGBAAt(px, py)
 			if c.A > 0 {
-				if isDark {
-					blendPixel(dst, x+px, y+py, 15, 23, 42, c.A)
-				} else {
-					blendPixel(dst, x+px, y+py, 255, 255, 255, c.A)
-				}
+				alpha := uint8((float64(logoColor.A) / 255.0) * (float64(c.A) / 255.0) * 255.0)
+				blendPixel(dst, x+px, y+py, logoColor.R, logoColor.G, logoColor.B, alpha)
+			}
+		}
+	}
+}
+
+func drawFallbackStar(img *image.RGBA, cx, cy, radius int, col color.RGBA) {
+	for dy := -radius; dy <= radius; dy++ {
+		for dx := -radius; dx <= radius; dx++ {
+			dist := math.Hypot(float64(dx), float64(dy))
+			if dist > float64(radius) {
+				continue
+			}
+			angle := math.Atan2(float64(dy), float64(dx))
+			cosVal := math.Cos(4.0 * angle)
+			rBound := float64(radius) * (0.55 + 0.45*math.Max(0, cosVal))
+			if dist <= rBound {
+				blendPixel(img, cx+dx, cy+dy, col.R, col.G, col.B, col.A)
 			}
 		}
 	}
@@ -540,11 +619,7 @@ func insideRoundedRectLocal(x, y, w, h, radius int) bool {
 	return dx*dx+dy*dy <= radius*radius
 }
 
-func drawFallbackAppIcon(img *image.RGBA, x, y, size int) {
-	r := image.Rect(x, y, x+size, y+size)
-	drawRoundedRect(img, r, 12, color.RGBA{R: 250, G: 45, B: 72, A: 255})
-	drawCenteredText(img, "V", x+size/2, y+size/2+8, faceBrand, color.RGBA{R: 255, G: 255, B: 255, A: 255})
-}
+
 
 func drawCircularAvatar(dst *image.RGBA, src image.Image, cx, cy, radius int) {
 	size := radius * 2

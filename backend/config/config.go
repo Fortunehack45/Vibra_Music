@@ -121,7 +121,7 @@ var (
 	PublicOrigin = strings.TrimRight(getString("JAM_PUBLIC_ORIGIN", "https://party.vibramusic.store"), "/")
 
 	// AllowedHosts defines hosts accepted in Host headers for invite pages.
-	AllowedHosts = getCSV("JAM_ALLOWED_HOSTS", "party.vibramusic.store,vibra-music.onrender.com,localhost,127.0.0.1,0.0.0.0")
+	AllowedHosts = getCSV("JAM_ALLOWED_HOSTS", "party.vibramusic.store,localhost,127.0.0.1,0.0.0.0")
 )
 
 func init() {

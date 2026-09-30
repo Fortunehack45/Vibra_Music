@@ -436,9 +436,9 @@ object ListenTogether {
         is java.net.PortUnreachableException,
         is java.net.SocketTimeoutException,
         is io.ktor.client.plugins.HttpRequestTimeoutException,
-        is io.ktor.client.network.sockets.SocketTimeoutException,
         is io.ktor.client.network.sockets.ConnectTimeoutException -> true
-        is PartyException -> (error.statusCode ?: 0) in 500..599
+        is PartyException -> (error.statusCode ?: 0) in 500..599 ||
+            error.message?.contains("suspended", ignoreCase = true) == true
         else -> {
             val cause = error.cause
             if (cause != null && cause !== error && isEligibleForFallback(cause)) true
@@ -620,9 +620,18 @@ object ListenTogether {
     fun init(context: Context) {
         prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val rawSaved = prefs.getString(KEY_SERVER, null)?.trim().orEmpty()
-        val normalizedSaved = when (val res = parseAndNormalizeServerUrl(rawSaved)) {
+        var normalizedSaved = when (val res = parseAndNormalizeServerUrl(rawSaved)) {
             is ServerUrlValidationResult.Valid -> res.normalizedUrl
             is ServerUrlValidationResult.Invalid -> ""
+        }
+        val legacyDefaultServers = setOf(
+            "https://vibra-music.onrender.com",
+            "https://siren-music.onrender.com",
+            "https://siren.musicplayer.in",
+        )
+        if (normalizedSaved.lowercase() in legacyDefaultServers || normalizedSaved.equals(defaultServer, ignoreCase = true)) {
+            prefs.edit().remove(KEY_SERVER).apply()
+            normalizedSaved = ""
         }
         _customServer.value = normalizedSaved
         _effectiveIdleServer.value = if (normalizedSaved.isNotBlank()) {

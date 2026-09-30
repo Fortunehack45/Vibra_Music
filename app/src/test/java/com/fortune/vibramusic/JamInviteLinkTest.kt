@@ -241,6 +241,8 @@ class JamInviteLinkTest {
         assertTrue(ListenTogether.isEligibleForFallback(ListenTogether.PartyException("server_err", "500", 500)))
         assertTrue(ListenTogether.isEligibleForFallback(ListenTogether.PartyException("bad_gw", "502", 502)))
         assertTrue(ListenTogether.isEligibleForFallback(ListenTogether.PartyException("gw_timeout", "504", 504)))
+        assertTrue(ListenTogether.isEligibleForFallback(ListenTogether.PartyException("suspended", "The party server is suspended or unavailable.", 503)))
+        assertTrue(ListenTogether.isEligibleForFallback(ListenTogether.PartyException("suspended", "This service has been suspended.", 403)))
         assertTrue(ListenTogether.isEligibleForFallback(java.io.IOException("wrapped", java.net.ConnectException())))
 
         // Ineligible for fallback (client / protocol / 4xx errors)

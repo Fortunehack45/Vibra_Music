@@ -205,6 +205,17 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data
                     android:scheme="https"
+                    android:host="party.vibramusic.store"
+                    android:pathPattern="/invite/.*" />
+            </intent-filter>
+
+            <!-- Render domain support for earlier party links. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="https"
                     android:host="vibra-music.onrender.com"
                     android:pathPattern="/invite/.*" />
             </intent-filter>

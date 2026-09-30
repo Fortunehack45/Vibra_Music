@@ -16,11 +16,13 @@ data class ParsedJamInvite(
 /** Relays a Siren Music web or scheme invite from [com.fortune.vibramusic.MainActivity] to Compose. */
 object JamInviteLink {
 
-    const val ORIGIN = "https://vibra-music.onrender.com"
+    const val ORIGIN = "https://party.vibramusic.store"
 
     private const val EXTRA_CONSUMED = "vibra.jamInviteConsumed"
-    private const val HOST = "vibra-music.onrender.com"
+    private const val HOST = "party.vibramusic.store"
+    private const val LEGACY_HOST_RENDER = "vibra-music.onrender.com"
     private const val LEGACY_HOST = "siren-music.onrender.com"
+    private const val LEGACY_HOST_IN = "siren.musicplayer.in"
     private const val CUSTOM_SCHEME = "vibra"
     private const val LEGACY_SCHEME = "siren"
     private const val CUSTOM_HOST = "party"
@@ -85,8 +87,9 @@ object JamInviteLink {
         val defaultHost = runCatching { URI(ListenTogether.defaultServer).host?.lowercase() }.getOrNull() ?: HOST
         return host.equals(HOST, ignoreCase = true) ||
             host.equals(defaultHost, ignoreCase = true) ||
+            host.equals(LEGACY_HOST_RENDER, ignoreCase = true) ||
             host.equals(LEGACY_HOST, ignoreCase = true) ||
-            host.equals("siren.musicplayer.in", ignoreCase = true)
+            host.equals(LEGACY_HOST_IN, ignoreCase = true)
     }
 
     fun url(code: String, customServer: String? = null): String {

@@ -23,6 +23,10 @@ class JamInviteLinkTest {
     fun `parses and normalizes a public invite`() {
         assertEquals(
             "A1B2C3",
+            JamInviteLink.parse("https://party.vibramusic.store/invite/a1b2c3"),
+        )
+        assertEquals(
+            "A1B2C3",
             JamInviteLink.parse("https://vibra-music.onrender.com/invite/a1b2c3"),
         )
         // Also supports legacy domains
@@ -58,7 +62,7 @@ class JamInviteLinkTest {
     @Test
     fun `builds the canonical share URL`() {
         assertEquals(
-            "https://vibra-music.onrender.com/invite/ABC123",
+            "https://party.vibramusic.store/invite/ABC123",
             JamInviteLink.url("abc123"),
         )
     }
@@ -74,11 +78,11 @@ class JamInviteLinkTest {
             JamInviteLink.url("abc123", "https://my-party.onrender.com/"),
         )
         assertEquals(
-            "https://vibra-music.onrender.com/invite/ABC123",
+            "https://party.vibramusic.store/invite/ABC123",
             JamInviteLink.url("abc123", ""),
         )
         assertEquals(
-            "https://vibra-music.onrender.com/invite/ABC123",
+            "https://party.vibramusic.store/invite/ABC123",
             JamInviteLink.url("abc123", null),
         )
     }
@@ -159,7 +163,7 @@ class JamInviteLinkTest {
         } else {
             JamInviteLink.url(code, activePartyHost)
         }
-        assertEquals("https://vibra-music.onrender.com/invite/JAM001", link)
+        assertEquals("https://party.vibramusic.store/invite/JAM001", link)
     }
 
     @Test
@@ -172,7 +176,7 @@ class JamInviteLinkTest {
             JamInviteLink.url(code, customHost)
         }
         assertEquals("https://custom.jam.example.com/invite/JAM002", link)
-        assertNotEquals("https://vibra-music.onrender.com/invite/JAM002", link)
+        assertNotEquals("https://party.vibramusic.store/invite/JAM002", link)
     }
 
     @Test

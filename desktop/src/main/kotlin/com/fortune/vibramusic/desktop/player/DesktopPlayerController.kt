@@ -27,6 +27,8 @@ data class DesktopUiState(
     val isSearching: Boolean = false,
     val partyCode: String = "",
     val partyStatus: String = "Offline",
+    val likedSongIds: Set<String> = emptySet(),
+    val history: List<DesktopSong> = emptyList(),
 )
 
 object DesktopPlayerController {
@@ -74,9 +76,22 @@ object DesktopPlayerController {
         }
     }
 
+    fun toggleLike(song: DesktopSong) {
+        val currentLikes = _uiState.value.likedSongIds.toMutableSet()
+        if (currentLikes.contains(song.id)) {
+            currentLikes.remove(song.id)
+        } else {
+            currentLikes.add(song.id)
+        }
+        _uiState.value = _uiState.value.copy(likedSongIds = currentLikes)
+    }
+
     fun playSong(song: DesktopSong, newQueue: List<DesktopSong> = emptyList()) {
         val queue = if (newQueue.isNotEmpty()) newQueue else listOf(song)
         val idx = queue.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
+
+        // Add to history (deduplicated at top)
+        val newHistory = (listOf(song) + _uiState.value.history.filterNot { it.id == song.id }).take(30)
 
         _uiState.value = _uiState.value.copy(
             currentSong = song,
@@ -85,6 +100,7 @@ object DesktopPlayerController {
             isBuffering = true,
             currentPositionMs = 0L,
             durationMs = (song.durationSeconds * 1000L),
+            history = newHistory,
         )
 
         scope.launch(Dispatchers.IO) {

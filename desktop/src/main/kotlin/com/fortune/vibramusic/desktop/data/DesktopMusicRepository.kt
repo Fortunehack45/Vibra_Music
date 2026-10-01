@@ -1,6 +1,9 @@
 package com.fortune.vibramusic.desktop.data
 
+import androidx.compose.ui.graphics.Color
 import com.fortune.vibramusic.desktop.model.DesktopLyricLine
+import com.fortune.vibramusic.desktop.model.DesktopMoodGenre
+import com.fortune.vibramusic.desktop.model.DesktopShelf
 import com.fortune.vibramusic.desktop.model.DesktopSong
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
@@ -88,6 +91,14 @@ object DesktopMusicRepository {
     fun getFeaturedSongs(): List<DesktopSong> {
         return listOf(
             DesktopSong(
+                id = "4NRXx6U8ABQ",
+                title = "Blinding Lights",
+                artist = "The Weeknd",
+                album = "After Hours",
+                thumbnailUrl = "https://i.ytimg.com/vi/4NRXx6U8ABQ/hqdefault.jpg",
+                durationSeconds = 200,
+            ),
+            DesktopSong(
                 id = "kJQP7kiw5Fk",
                 title = "Despacito",
                 artist = "Luis Fonsi ft. Daddy Yankee",
@@ -102,14 +113,6 @@ object DesktopMusicRepository {
                 album = "÷ (Divide)",
                 thumbnailUrl = "https://i.ytimg.com/vi/JGwWNGJdvx8/hqdefault.jpg",
                 durationSeconds = 233,
-            ),
-            DesktopSong(
-                id = "4NRXx6U8ABQ",
-                title = "Blinding Lights",
-                artist = "The Weeknd",
-                album = "After Hours",
-                thumbnailUrl = "https://i.ytimg.com/vi/4NRXx6U8ABQ/hqdefault.jpg",
-                durationSeconds = 200,
             ),
             DesktopSong(
                 id = "fJ9rUzIMcZQ",
@@ -135,6 +138,100 @@ object DesktopMusicRepository {
                 thumbnailUrl = "https://i.ytimg.com/vi/hT_nvWreIhg/hqdefault.jpg",
                 durationSeconds = 257,
             ),
+            DesktopSong(
+                id = "0VwhorQPtHA",
+                title = "Starboy",
+                artist = "The Weeknd ft. Daft Punk",
+                album = "Starboy",
+                thumbnailUrl = "https://i.ytimg.com/vi/0VwhorQPtHA/hqdefault.jpg",
+                durationSeconds = 230,
+            ),
+            DesktopSong(
+                id = "fKopy74weus",
+                title = "Stay",
+                artist = "The Kid LAROI & Justin Bieber",
+                album = "F*CK LOVE 3: OVER YOU",
+                thumbnailUrl = "https://i.ytimg.com/vi/fKopy74weus/hqdefault.jpg",
+                durationSeconds = 141,
+            ),
+            DesktopSong(
+                id = "y83x7WgCGWB",
+                title = "Levitating",
+                artist = "Dua Lipa",
+                album = "Future Nostalgia",
+                thumbnailUrl = "https://i.ytimg.com/vi/y83x7WgCGWB/hqdefault.jpg",
+                durationSeconds = 203,
+            ),
+            DesktopSong(
+                id = "IXXxciRUMzE",
+                title = "As It Was",
+                artist = "Harry Styles",
+                album = "Harry's House",
+                thumbnailUrl = "https://i.ytimg.com/vi/IXXxciRUMzE/hqdefault.jpg",
+                durationSeconds = 167,
+            ),
+            DesktopSong(
+                id = "2Vv-BfVoq4g",
+                title = "Perfect",
+                artist = "Ed Sheeran",
+                album = "÷ (Divide)",
+                thumbnailUrl = "https://i.ytimg.com/vi/2Vv-BfVoq4g/hqdefault.jpg",
+                durationSeconds = 263,
+            ),
+            DesktopSong(
+                id = "JFcgOboErZ0",
+                title = "Flowers",
+                artist = "Miley Cyrus",
+                album = "Endless Summer Vacation",
+                thumbnailUrl = "https://i.ytimg.com/vi/JFcgOboErZ0/hqdefault.jpg",
+                durationSeconds = 200,
+            ),
+        )
+    }
+
+    /**
+     * Home shelves matching YouTube Music / Vibra Music Home feed.
+     */
+    fun getHomeShelves(): List<DesktopShelf> {
+        val all = getFeaturedSongs()
+        return listOf(
+            DesktopShelf(
+                title = "Trending Now",
+                subtitle = "What listeners are playing right now",
+                items = all.take(6),
+            ),
+            DesktopShelf(
+                title = "New Releases & Hits",
+                subtitle = "Fresh sounds picked for you",
+                items = all.drop(6).take(6) + all.take(2),
+            ),
+            DesktopShelf(
+                title = "Forgotten Favorites",
+                subtitle = "Songs you might want to revisit",
+                items = all.reversed(),
+            ),
+        )
+    }
+
+    /**
+     * Explore Moods & Genres matching mobile Vibra Music.
+     */
+    fun getMoodGenres(): List<DesktopMoodGenre> {
+        return listOf(
+            DesktopMoodGenre("Chill", listOf(Color(0xFF2C3E50), Color(0xFF3498DB))),
+            DesktopMoodGenre("Workout", listOf(Color(0xFFE65C00), Color(0xFFF9D423))),
+            DesktopMoodGenre("Party", listOf(Color(0xFF8E2DE2), Color(0xFF4A00E0))),
+            DesktopMoodGenre("Focus", listOf(Color(0xFF134E5E), Color(0xFF71B280))),
+            DesktopMoodGenre("Romance", listOf(Color(0xFFEB3349), Color(0xFFF45C43))),
+            DesktopMoodGenre("Sleep", listOf(Color(0xFF1F1C2C), Color(0xFF928DAB))),
+            DesktopMoodGenre("Energize", listOf(Color(0xFFFF8008), Color(0xFFFFC837))),
+            DesktopMoodGenre("Hip-Hop", listOf(Color(0xFF232526), Color(0xFF414345))),
+            DesktopMoodGenre("Pop", listOf(Color(0xFFFF416C), Color(0xFFFF4B2B))),
+            DesktopMoodGenre("Rock", listOf(Color(0xFF780206), Color(0xFF061161))),
+            DesktopMoodGenre("R&B", listOf(Color(0xFF654EA3), Color(0xFFEAAFC8))),
+            DesktopMoodGenre("Electronic", listOf(Color(0xFF00B4DB), Color(0xFF0083B0))),
+            DesktopMoodGenre("Indie", listOf(Color(0xFF56AB2F), Color(0xFFA8E063))),
+            DesktopMoodGenre("Jazz", listOf(Color(0xFFDAA520), Color(0xFF8B4513))),
         )
     }
 

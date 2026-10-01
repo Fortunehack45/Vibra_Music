@@ -104,12 +104,12 @@ android {
 
     defaultConfig {
         applicationId = "com.fortune.vibramusic"
-        // 24 supports Android 7.0+ (Nougat and Android Go). Real-time blur kicks
-        // in on API 31+, Haze falls back to a translucent scrim below that.
-        minSdk = 24
+        // 21 supports Android 5.0+ (Lollipop through Android 16, covering 99.9% of active devices).
+        // Real-time blur kicks in on API 31+, Haze falls back to a translucent scrim below that.
+        minSdk = 21
         targetSdk = 36
-        versionCode = 46
-        versionName = "1.8.16"
+        versionCode = 47
+        versionName = "1.8.17"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         externalNativeBuild {

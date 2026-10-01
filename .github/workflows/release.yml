@@ -151,10 +151,30 @@ jobs:
       - name: Build Signed Release APKs & Bundle
         run: ./gradlew assembleProdRelease bundleProdRelease --stacktrace
 
-      - name: Compute SHA-256 Checksums
+      - name: Prepare and Rename Release Artifacts
         run: |
+          TAG="${{ github.ref_name }}"
+          if [ -z "$TAG" ] || [ "$TAG" = "main" ]; then
+            TAG="v1.8.17"
+          fi
           cd app/build/outputs/apk/prod/release
-          sha256sum *.apk > checksums.txt
+          
+          # Copy to prominent, descriptive filenames
+          cp app-prod-universal-release.apk "VibraMusic-${TAG}-Universal-AllDevices.apk"
+          cp app-prod-arm64-v8a-release.apk "VibraMusic-${TAG}-arm64-v8a.apk"
+          cp app-prod-armeabi-v7a-release.apk "VibraMusic-${TAG}-armeabi-v7a.apk"
+          cp app-prod-x86_64-release.apk "VibraMusic-${TAG}-x86_64.apk"
+          
+          # Remove raw Gradle output names so releases display only clean, well-named files
+          rm -f app-prod-*.apk
+          
+          # Generate checksums for the renamed artifacts
+          sha256sum VibraMusic-${TAG}-*.apk > checksums.txt
+          
+          # Rename AAB as well
+          cd "$GITHUB_WORKSPACE/app/build/outputs/bundle/prodRelease"
+          cp app-prod-release.aab "VibraMusic-${TAG}.aab"
+          rm -f app-prod-release.aab
 
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
@@ -163,7 +183,7 @@ jobs:
           name: vibra-music-release-artifacts
           retention-days: 3
           path: |
-            app/build/outputs/apk/prod/release/*.apk
+            app/build/outputs/apk/prod/release/VibraMusic-*.apk
             app/build/outputs/apk/prod/release/checksums.txt
             app/build/outputs/bundle/prodRelease/*.aab
 
@@ -172,9 +192,15 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            app/build/outputs/apk/prod/release/*.apk
+            app/build/outputs/apk/prod/release/VibraMusic-*.apk
             app/build/outputs/apk/prod/release/checksums.txt
             app/build/outputs/bundle/prodRelease/*.aab
+          body: |
+            ### 📱 Which APK should I download?
+            - **Universal (Recommended)**: [`VibraMusic-${{ github.ref_name }}-Universal-AllDevices.apk`](https://github.com/Fortunehack45/Vibra_Music_Releases/releases/download/${{ github.ref_name }}/VibraMusic-${{ github.ref_name }}-Universal-AllDevices.apk) — **Works on ALL Android phones** (Android 5.0+, 32-bit & 64-bit).
+            - **64-bit ARM Phones**: [`VibraMusic-${{ github.ref_name }}-arm64-v8a.apk`](https://github.com/Fortunehack45/Vibra_Music_Releases/releases/download/${{ github.ref_name }}/VibraMusic-${{ github.ref_name }}-arm64-v8a.apk) — Optimized for modern 64-bit devices.
+            - **32-bit / Older / Budget Phones**: [`VibraMusic-${{ github.ref_name }}-armeabi-v7a.apk`](https://github.com/Fortunehack45/Vibra_Music_Releases/releases/download/${{ github.ref_name }}/VibraMusic-${{ github.ref_name }}-armeabi-v7a.apk) — For budget / older phones (Samsung Galaxy A01-A12, Redmi 9A/9C, Tecno, Infinix, etc.).
+            - **PC Emulators / Chromebooks**: [`VibraMusic-${{ github.ref_name }}-x86_64.apk`](https://github.com/Fortunehack45/Vibra_Music_Releases/releases/download/${{ github.ref_name }}/VibraMusic-${{ github.ref_name }}-x86_64.apk) — For x86_64 emulators and Chromebooks.
           generate_release_notes: true
           draft: false
           prerelease: false
@@ -188,9 +214,15 @@ jobs:
           tag_name: ${{ github.ref_name }}
           name: Vibra Music ${{ github.ref_name }}
           files: |
-            app/build/outputs/apk/prod/release/*.apk
+            app/build/outputs/apk/prod/release/VibraMusic-*.apk
             app/build/outputs/apk/prod/release/checksums.txt
             app/build/outputs/bundle/prodRelease/*.aab
+          body: |
+            ### 📱 Which APK should I download?
+            - **Universal (Recommended)**: [`VibraMusic-${{ github.ref_name }}-Universal-AllDevices.apk`](https://github.com/Fortunehack45/Vibra_Music_Releases/releases/download/${{ github.ref_name }}/VibraMusic-${{ github.ref_name }}-Universal-AllDevices.apk) — **Works on ALL Android phones** (Android 5.0+, 32-bit & 64-bit).
+            - **64-bit ARM Phones**: [`VibraMusic-${{ github.ref_name }}-arm64-v8a.apk`](https://github.com/Fortunehack45/Vibra_Music_Releases/releases/download/${{ github.ref_name }}/VibraMusic-${{ github.ref_name }}-arm64-v8a.apk) — Optimized for modern 64-bit devices.
+            - **32-bit / Older / Budget Phones**: [`VibraMusic-${{ github.ref_name }}-armeabi-v7a.apk`](https://github.com/Fortunehack45/Vibra_Music_Releases/releases/download/${{ github.ref_name }}/VibraMusic-${{ github.ref_name }}-armeabi-v7a.apk) — For budget / older phones (Samsung Galaxy A01-A12, Redmi 9A/9C, Tecno, Infinix, etc.).
+            - **PC Emulators / Chromebooks**: [`VibraMusic-${{ github.ref_name }}-x86_64.apk`](https://github.com/Fortunehack45/Vibra_Music_Releases/releases/download/${{ github.ref_name }}/VibraMusic-${{ github.ref_name }}-x86_64.apk) — For x86_64 emulators and Chromebooks.
           generate_release_notes: true
           draft: false
           prerelease: false

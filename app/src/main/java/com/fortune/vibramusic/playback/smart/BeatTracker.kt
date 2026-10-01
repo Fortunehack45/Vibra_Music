@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Ported from Orchard (https://github.com/SFG5453/Orchard).
  *
  * Copyright (C) 2026 SFG545 (original Orchard implementation)
@@ -67,6 +67,9 @@ class BeatTracker(private val context: Context) {
 
     /** Parsing the graph is far too expensive to repeat per track, so one session is kept. */
     private fun session(): OrtSession? {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.N) {
+            return null
+        }
         val threads = AppSettings.automixPerformanceMode.value.inferenceThreads
         session?.takeIf { sessionThreads == threads }?.let { return it }
         synchronized(lock) {

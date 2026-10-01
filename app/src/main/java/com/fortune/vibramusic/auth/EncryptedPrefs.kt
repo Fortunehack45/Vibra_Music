@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.auth
+package com.fortune.vibramusic.auth
 
 import android.content.Context
 import android.content.SharedPreferences
@@ -37,6 +37,9 @@ internal object EncryptedPrefs {
         opened.getOrPut(name) { resolve(context.applicationContext, name, plainName) }
 
     private fun resolve(context: Context, name: String, plainName: String): SharedPreferences {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.M) {
+            return context.getSharedPreferences(plainName, Context.MODE_PRIVATE)
+        }
         val encrypted = try {
             create(context, name)
         } catch (e: Throwable) {

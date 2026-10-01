@@ -23,10 +23,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -39,12 +41,24 @@ import com.fortune.vibramusic.desktop.data.DesktopMusicRepository
 import com.fortune.vibramusic.desktop.glass.liquidGlass
 import com.fortune.vibramusic.desktop.model.DesktopTab
 import com.fortune.vibramusic.desktop.player.DesktopPlayerController
+import com.fortune.vibramusic.desktop.update.DesktopAppUpdateChecker
+import kotlinx.coroutines.launch
 
 @Composable
 fun DesktopApp() {
     val uiState by DesktopPlayerController.uiState.collectAsState()
+    val availableUpdate by DesktopAppUpdateChecker.available.collectAsState()
+    val downloadState by DesktopAppUpdateChecker.downloadState.collectAsState()
+    val scope = rememberCoroutineScope()
+
     var searchQuery by remember { mutableStateOf("") }
     val featuredSongs = remember { DesktopMusicRepository.getFeaturedSongs() }
+    var updateCheckStatus by remember { mutableStateOf("") }
+
+    // Automatic in-app update check on startup
+    LaunchedEffect(Unit) {
+        DesktopAppUpdateChecker.check()
+    }
 
     MaterialTheme(
         colorScheme = darkColorScheme(
@@ -244,12 +258,47 @@ fun DesktopApp() {
                                         .padding(24.dp),
                                     contentAlignment = Alignment.Center,
                                 ) {
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text("Vibra Music Settings", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                                        Spacer(modifier = Modifier.height(16.dp))
-                                        Text("Liquid Glass: Hardware GPU (SkSL / DirectX 12) Enabled", color = Color.White.copy(alpha = 0.8f))
-                                        Text("Audio Backend: VLCJ LibVLC Native Engine Active", color = Color.White.copy(alpha = 0.8f))
-                                        Text("App Version: v1.8.17 (Windows Desktop Edition)", color = Color.White.copy(alpha = 0.6f))
+                                    val cardShape = remember { RoundedCornerShape(24.dp) }
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth(0.9f)
+                                            .liquidGlass(shape = cardShape, elevation = 12.dp)
+                                            .padding(24.dp),
+                                    ) {
+                                        Column(horizontalAlignment = Alignment.Start) {
+                                            Text("Settings", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                                            Spacer(modifier = Modifier.height(16.dp))
+                                            Text("• Liquid Glass: Hardware SkSL (DirectX 12 / Vulkan) Enabled", color = Color.White.copy(alpha = 0.85f), fontSize = 14.sp)
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Text("• Audio Engine: VLCJ LibVLC Native Player", color = Color.White.copy(alpha = 0.85f), fontSize = 14.sp)
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Text("• Current Version: v${DesktopAppUpdateChecker.CURRENT_VERSION} (Windows Desktop)", color = Color.White.copy(alpha = 0.85f), fontSize = 14.sp)
+                                            Spacer(modifier = Modifier.height(20.dp))
+
+                                            // In-App Updates Button
+                                            Button(
+                                                onClick = {
+                                                    updateCheckStatus = "Checking for updates..."
+                                                    scope.launch {
+                                                        val result = DesktopAppUpdateChecker.check()
+                                                        updateCheckStatus = if (result != null) {
+                                                            "Update available: v${result.version}"
+                                                        } else {
+                                                            "You are running the latest version (v${DesktopAppUpdateChecker.CURRENT_VERSION})"
+                                                        }
+                                                    }
+                                                },
+                                                colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.15f)),
+                                                shape = RoundedCornerShape(50),
+                                            ) {
+                                                Text("Check for Updates", color = Color.White)
+                                            }
+
+                                            if (updateCheckStatus.isNotEmpty()) {
+                                                Spacer(modifier = Modifier.height(8.dp))
+                                                Text(updateCheckStatus, color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -295,6 +344,15 @@ fun DesktopApp() {
                         onVolumeChange = { vol -> DesktopPlayerController.setVolume(vol) },
                     )
                 }
+            }
+
+            // In-App Update Dialog Overlay
+            availableUpdate?.let { info ->
+                DesktopUpdateDialog(
+                    updateInfo = info,
+                    downloadState = downloadState,
+                    onDismiss = { DesktopAppUpdateChecker.dismiss() },
+                )
             }
         }
     }

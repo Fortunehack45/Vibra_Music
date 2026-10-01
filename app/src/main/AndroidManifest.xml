@@ -3,7 +3,7 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Allow onnxruntime (minSdk 24) while gating its execution at runtime on API >= 24 -->
-    <uses-sdk tools:overrideLibrary="com.microsoft.onnxruntime" />
+    <uses-sdk tools:overrideLibrary="ai.onnxruntime" />
 
     <!-- Hardware features: mark all as optional so older devices, budget phones,
          tablets, and Android boxes without specific sensors/radios are never blocked -->

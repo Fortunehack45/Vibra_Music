@@ -41,3 +41,7 @@ keystore.properties
 
 # AI agent configuration
 AGENTS.md
+
+# Release outputs
+releases/
+

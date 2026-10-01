@@ -1295,4 +1295,11 @@
     <string name="card_songs_format">%1$s songs</string>
 
 
+
+    <string name="after_queue_or_playlist">สิ้นสุดคิว / เพลย์ลิสต์</string>
+    <string name="pause_when_muted">หยุดชั่วคราวเมื่อปิดเสียง</string>
+    <string name="pause_when_muted_detail">หยุดเล่นชั่วคราวโดยอัตโนมัติเมื่อระดับเสียงของอุปกรณ์เป็นศูนย์ และเล่นต่อเมื่อเปิดเสียง</string>
+    <string name="snap_to_active_line">ซิงค์ไปยังบรรทัดที่กำลังเล่น</string>
+    <string name="minimize_on_panel_back">ย่อขนาดเครื่องเล่นเมื่อย้อนกลับ</string>
+    <string name="minimize_on_panel_back_detail">ปุ่มย้อนกลับบนหน้าจอเนื้อเพลงหรือคิวจะย่อเครื่องเล่นลงไปยังหน้าต่างเลือกดูโดยตรง</string>
 </resources>

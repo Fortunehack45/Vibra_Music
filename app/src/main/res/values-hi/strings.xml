@@ -1309,4 +1309,11 @@
 
 
 
+
+    <string name="after_queue_or_playlist">कतार / प्लेलिस्ट का अंत</string>
+    <string name="pause_when_muted">म्यूट होने पर रोकें</string>
+    <string name="pause_when_muted_detail">डिवाइस का वॉल्यूम शून्य होने पर प्लेबैक को अपने आप रोकें और अनम्यूट होने पर फिर से शुरू करें</string>
+    <string name="snap_to_active_line">सक्रिय पंक्ति पर जाएं</string>
+    <string name="minimize_on_panel_back">वापस जाने पर प्लेयर को छोटा करें</string>
+    <string name="minimize_on_panel_back_detail">गीत के बोल या कतार स्क्रीन पर बैक बटन दबाने पर प्लेयर सीधे ब्राउज़ स्क्रीन पर छोटा हो जाता है</string>
 </resources>

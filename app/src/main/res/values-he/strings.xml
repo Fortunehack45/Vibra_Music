@@ -1314,4 +1314,11 @@
 
 
 
+
+    <string name="after_queue_or_playlist">סוף התור / רשימת ההשמעה</string>
+    <string name="pause_when_muted">השהה בהשתקה</string>
+    <string name="pause_when_muted_detail">השהה את ההשמעה באופן אוטומטי כאשר עוצמת השמע היא אפס, והמשך כאשר ההשתקה מבוטלת</string>
+    <string name="snap_to_active_line">סנכרן לשורה הפעילה</string>
+    <string name="minimize_on_panel_back">מזער נגן בחזרה</string>
+    <string name="minimize_on_panel_back_detail">לחיצה על כפתור חזרה במילים או בתור תמזער את הנגן ישירות למסך הגלישה</string>
 </resources>

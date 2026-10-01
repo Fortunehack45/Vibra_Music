@@ -1314,4 +1314,11 @@
 
 
 
+
+    <string name="after_queue_or_playlist">Fim da fila / playlist</string>
+    <string name="pause_when_muted">Pausar ao silenciar</string>
+    <string name="pause_when_muted_detail">Pausa a reprodução automaticamente quando o volume estiver em zero e retoma ao ativar o som</string>
+    <string name="snap_to_active_line">Sincronizar com linha ativa</string>
+    <string name="minimize_on_panel_back">Minimizar player ao voltar</string>
+    <string name="minimize_on_panel_back_detail">O botão Voltar na letra ou fila minimiza o reprodutor diretamente para a tela de navegação</string>
 </resources>

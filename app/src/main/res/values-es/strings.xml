@@ -1281,4 +1281,11 @@
 
 
 
+
+    <string name="after_queue_or_playlist">Fin de la cola / lista</string>
+    <string name="pause_when_muted">Pausar al silenciar</string>
+    <string name="pause_when_muted_detail">Pausa la reproducción automáticamente cuando el volumen del dispositivo es cero y la reanuda al reactivarlo</string>
+    <string name="snap_to_active_line">Sincronizar con línea activa</string>
+    <string name="minimize_on_panel_back">Minimizar reproductor al volver</string>
+    <string name="minimize_on_panel_back_detail">El botón Atrás en la letra o cola minimiza el reproductor directamente a la pantalla de exploración</string>
 </resources>

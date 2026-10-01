@@ -1290,4 +1290,11 @@
 
 
 
+
+    <string name="after_queue_or_playlist">キュー／プレイリストの終了時</string>
+    <string name="pause_when_muted">ミュート時に一時停止</string>
+    <string name="pause_when_muted_detail">端末の音量がゼロのときに自動的に再生を一時停止し、ミュート解除時に再開します</string>
+    <string name="snap_to_active_line">再生中の行に同期</string>
+    <string name="minimize_on_panel_back">戻る時にプレイヤーを最小化</string>
+    <string name="minimize_on_panel_back_detail">歌詞またはキュー画面で戻るボタンを押すと、プレイヤーが直接ブラウズ画面へ最小化されます</string>
 </resources>

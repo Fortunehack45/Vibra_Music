@@ -1229,4 +1229,11 @@
     <string name="prioritize_spotify_canvas">Ưu tiên Spotify Canvas</string>
     <string name="prioritize_spotify_canvas_subtitle">Thử Spotify trước Apple Music và các nhà cung cấp ảnh bìa động khác</string>
 
+
+    <string name="after_queue_or_playlist">Cuối hàng đợi / danh sách phát</string>
+    <string name="pause_when_muted">Tạm dừng khi tắt tiếng</string>
+    <string name="pause_when_muted_detail">Tự động tạm dừng phát khi âm lượng thiết bị bằng 0 và tiếp tục khi bật lại âm thanh</string>
+    <string name="snap_to_active_line">Đồng bộ về dòng đang phát</string>
+    <string name="minimize_on_panel_back">Thu nhỏ trình phát khi quay lại</string>
+    <string name="minimize_on_panel_back_detail">Nút quay lại trên màn hình lời bài hát hoặc hàng đợi sẽ thu nhỏ trình phát trực tiếp về màn hình duyệt</string>
 </resources>

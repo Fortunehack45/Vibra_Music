@@ -1264,4 +1264,11 @@
 
 
 
+
+    <string name="after_queue_or_playlist">Kuyruğun / çalma listesinin sonu</string>
+    <string name="pause_when_muted">Sessize alındığında duraklat</string>
+    <string name="pause_when_muted_detail">Cihaz sesi sıfır olduğunda oynatmayı otomatik olarak duraklatır ve ses açıldığında devam ettirir</string>
+    <string name="snap_to_active_line">Aktif satıra senkronize et</string>
+    <string name="minimize_on_panel_back">Geri tuşunda oynatıcıyı küçült</string>
+    <string name="minimize_on_panel_back_detail">Şarkı sözleri veya kuyruk ekranında geri tuşuna basıldığında oynatıcıyı doğrudan göz atma ekranına küçültür</string>
 </resources>

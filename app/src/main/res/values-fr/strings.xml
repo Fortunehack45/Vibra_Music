@@ -1310,4 +1310,11 @@
 
 
 
+
+    <string name="after_queue_or_playlist">Fin de la file / liste de lecture</string>
+    <string name="pause_when_muted">Mettre en pause en sourdine</string>
+    <string name="pause_when_muted_detail">Met en pause automatiquement la lecture quand le volume est à zéro et reprend lors du rétablissement du son</string>
+    <string name="snap_to_active_line">Synchroniser avec la ligne active</string>
+    <string name="minimize_on_panel_back">Réduire le lecteur au retour</string>
+    <string name="minimize_on_panel_back_detail">Le bouton Retour sur les paroles ou la file d\'attente réduit directement le lecteur vers l\'écran de navigation</string>
 </resources>

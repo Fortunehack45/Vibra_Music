@@ -1289,4 +1289,11 @@
 
 
 
+
+    <string name="after_queue_or_playlist">队列 / 播放列表结束</string>
+    <string name="pause_when_muted">静音时暂停</string>
+    <string name="pause_when_muted_detail">设备音量为零时自动暂停播放，恢复音量后继续播放</string>
+    <string name="snap_to_active_line">同步到当前行</string>
+    <string name="minimize_on_panel_back">返回时最小化播放器</string>
+    <string name="minimize_on_panel_back_detail">在歌词或队列页面按返回键直接将播放器最小化并返回浏览页面</string>
 </resources>

@@ -1335,4 +1335,11 @@
 
 
 
+
+    <string name="after_queue_or_playlist">Конец очереди / плейлиста</string>
+    <string name="pause_when_muted">Пауза при отключении звука</string>
+    <string name="pause_when_muted_detail">Автоматически ставить воспроизведение на паузу при нулевой громкости и возобновлять при включении звука</string>
+    <string name="snap_to_active_line">Синхронизировать с активной строкой</string>
+    <string name="minimize_on_panel_back">Сворачивать плеер при возврате</string>
+    <string name="minimize_on_panel_back_detail">Кнопка «Назад» на экране текста или очереди сразу сворачивает плеер к экрану обзора</string>
 </resources>

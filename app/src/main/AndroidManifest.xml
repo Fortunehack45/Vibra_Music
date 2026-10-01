@@ -2,8 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Allow libraries with higher minSdk (onnxruntime, security-crypto) while gating their execution at runtime -->
-    <uses-sdk tools:overrideLibrary="com.microsoft.onnxruntime, androidx.security.crypto" />
+    <!-- Allow onnxruntime (minSdk 24) while gating its execution at runtime on API >= 24 -->
+    <uses-sdk tools:overrideLibrary="com.microsoft.onnxruntime" />
 
     <!-- Hardware features: mark all as optional so older devices, budget phones,
          tablets, and Android boxes without specific sensors/radios are never blocked -->

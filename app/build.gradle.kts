@@ -104,9 +104,10 @@ android {
 
     defaultConfig {
         applicationId = "com.fortune.vibramusic"
-        // 21 supports Android 5.0+ (Lollipop through Android 16, covering 99.9% of active devices).
+        // 23 supports Android 6.0+ (Marshmallow through Android 16), which aligns with
+        // Jetpack Compose 1.10.0 and covers 99.4%+ of active Android devices worldwide.
         // Real-time blur kicks in on API 31+, Haze falls back to a translucent scrim below that.
-        minSdk = 21
+        minSdk = 23
         targetSdk = 36
         versionCode = 47
         versionName = "1.8.17"

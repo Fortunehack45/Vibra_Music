@@ -197,7 +197,7 @@ jobs:
             app/build/outputs/bundle/prodRelease/*.aab
           body: |
             ### 📱 Which APK should I download?
-            - **Universal (Recommended)**: [`VibraMusic-${{ github.ref_name }}-Universal-AllDevices.apk`](https://github.com/Fortunehack45/Vibra_Music_Releases/releases/download/${{ github.ref_name }}/VibraMusic-${{ github.ref_name }}-Universal-AllDevices.apk) — **Works on ALL Android phones** (Android 5.0+, 32-bit & 64-bit).
+            - **Universal (Recommended)**: [`VibraMusic-${{ github.ref_name }}-Universal-AllDevices.apk`](https://github.com/Fortunehack45/Vibra_Music_Releases/releases/download/${{ github.ref_name }}/VibraMusic-${{ github.ref_name }}-Universal-AllDevices.apk) — **Works on ALL Android phones** (Android 6.0+, 32-bit & 64-bit).
             - **64-bit ARM Phones**: [`VibraMusic-${{ github.ref_name }}-arm64-v8a.apk`](https://github.com/Fortunehack45/Vibra_Music_Releases/releases/download/${{ github.ref_name }}/VibraMusic-${{ github.ref_name }}-arm64-v8a.apk) — Optimized for modern 64-bit devices.
             - **32-bit / Older / Budget Phones**: [`VibraMusic-${{ github.ref_name }}-armeabi-v7a.apk`](https://github.com/Fortunehack45/Vibra_Music_Releases/releases/download/${{ github.ref_name }}/VibraMusic-${{ github.ref_name }}-armeabi-v7a.apk) — For budget / older phones (Samsung Galaxy A01-A12, Redmi 9A/9C, Tecno, Infinix, etc.).
             - **PC Emulators / Chromebooks**: [`VibraMusic-${{ github.ref_name }}-x86_64.apk`](https://github.com/Fortunehack45/Vibra_Music_Releases/releases/download/${{ github.ref_name }}/VibraMusic-${{ github.ref_name }}-x86_64.apk) — For x86_64 emulators and Chromebooks.
@@ -219,7 +219,7 @@ jobs:
             app/build/outputs/bundle/prodRelease/*.aab
           body: |
             ### 📱 Which APK should I download?
-            - **Universal (Recommended)**: [`VibraMusic-${{ github.ref_name }}-Universal-AllDevices.apk`](https://github.com/Fortunehack45/Vibra_Music_Releases/releases/download/${{ github.ref_name }}/VibraMusic-${{ github.ref_name }}-Universal-AllDevices.apk) — **Works on ALL Android phones** (Android 5.0+, 32-bit & 64-bit).
+            - **Universal (Recommended)**: [`VibraMusic-${{ github.ref_name }}-Universal-AllDevices.apk`](https://github.com/Fortunehack45/Vibra_Music_Releases/releases/download/${{ github.ref_name }}/VibraMusic-${{ github.ref_name }}-Universal-AllDevices.apk) — **Works on ALL Android phones** (Android 6.0+, 32-bit & 64-bit).
             - **64-bit ARM Phones**: [`VibraMusic-${{ github.ref_name }}-arm64-v8a.apk`](https://github.com/Fortunehack45/Vibra_Music_Releases/releases/download/${{ github.ref_name }}/VibraMusic-${{ github.ref_name }}-arm64-v8a.apk) — Optimized for modern 64-bit devices.
             - **32-bit / Older / Budget Phones**: [`VibraMusic-${{ github.ref_name }}-armeabi-v7a.apk`](https://github.com/Fortunehack45/Vibra_Music_Releases/releases/download/${{ github.ref_name }}/VibraMusic-${{ github.ref_name }}-armeabi-v7a.apk) — For budget / older phones (Samsung Galaxy A01-A12, Redmi 9A/9C, Tecno, Infinix, etc.).
             - **PC Emulators / Chromebooks**: [`VibraMusic-${{ github.ref_name }}-x86_64.apk`](https://github.com/Fortunehack45/Vibra_Music_Releases/releases/download/${{ github.ref_name }}/VibraMusic-${{ github.ref_name }}-x86_64.apk) — For x86_64 emulators and Chromebooks.

@@ -5,6 +5,7 @@ import android.os.SystemClock
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
@@ -56,6 +57,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Translate
@@ -1523,6 +1525,7 @@ internal fun LyricsPanel(
     }
     val keepScroll = remember(listState) { keepScrollInList(listState) }
     var browsing by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
     val onBottomHalfTap: () -> Unit = {
         if (!listState.isScrollInProgress) {
             onRevealControls()
@@ -2202,6 +2205,59 @@ internal fun LyricsPanel(
                         )
                     }
                 }
+            }
+        }
+
+        val showSnapButton = isSynced && browsing && !activeOnScreen && focusLine >= 0 && focusLine in lines.indices && !isSelectingForShare
+        AnimatedVisibility(
+            visible = showSnapButton,
+            enter = fadeIn(tween(250)) + slideInVertically(tween(250)) { it / 2 },
+            exit = fadeOut(tween(200)) + slideOutVertically(tween(200)) { it / 2 },
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = if (controlsOpen) 140.dp else 36.dp),
+        ) {
+            val useGlass = LocalLiquidGlassEnabled.current && isGlassSupported()
+            val pillShape = RoundedCornerShape(22.dp)
+            Row(
+                modifier = Modifier
+                    .clip(pillShape)
+                    .then(
+                        if (useGlass) {
+                            Modifier
+                                .liquidGlass(pillShape)
+                                .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, pillShape)
+                                .background(Color.White.copy(alpha = 0.14f), pillShape)
+                        } else {
+                            Modifier
+                                .background(Color.White.copy(alpha = 0.22f), pillShape)
+                                .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, pillShape)
+                        }
+                    )
+                    .clickable {
+                        haptics.play(Haptic.Select)
+                        browsing = false
+                        scope.launch {
+                            listState.animateScrollToItem(focusLine, scrollOffset = 0)
+                        }
+                    }
+                    .padding(horizontal = 16.dp, vertical = 9.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.GraphicEq,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(18.dp),
+                )
+                Text(
+                    text = stringResource(R.string.snap_to_active_line),
+                    style = MaterialTheme.typography.labelMedium.copy(
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White,
+                    ),
+                )
             }
         }
 

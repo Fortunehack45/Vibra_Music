@@ -12,6 +12,7 @@ package com.fortune.vibramusic.ui.components
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -295,6 +296,7 @@ private fun GlassNowPlaying(
     val artSize = if (isInline) 32.dp else 40.dp
     val glyphSlot = if (isInline) 32.dp else 40.dp
     val glyphSize = if (isInline) 24.dp else 32.dp
+    val swipeOffset = remember { Animatable(0f) }
 
     Box(
         // Inline, the accessory is stretched to the row's height by the tab bar
@@ -316,12 +318,14 @@ private fun GlassNowPlaying(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
+                .graphicsLayer { translationX = swipeOffset.value }
                 .clickable(
                     interactionSource = pressSource,
                     indication = null,
                     onClick = onExpand,
                 )
                 .miniPlayerTrackSwipe(
+                    swipeOffset = swipeOffset,
                     onNext = {
                         haptics.play(Haptic.SkipNext)
                         onNext()

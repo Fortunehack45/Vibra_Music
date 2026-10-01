@@ -1,7 +1,13 @@
-﻿package com.fortune.vibramusic.ui.components
+package com.fortune.vibramusic.ui.components
 
 import com.fortune.vibramusic.R
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationVector1D
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -26,17 +32,21 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
+import kotlinx.coroutines.launch
 import com.fortune.vibramusic.data.model.ROW_ART_PX
 import com.fortune.vibramusic.data.model.Song
 import com.fortune.vibramusic.data.model.artworkAt
@@ -121,12 +131,14 @@ private val TRACK_SWIPE_THRESHOLD = 72.dp
  */
 @Composable
 internal fun Modifier.miniPlayerTrackSwipe(
+    swipeOffset: Animatable<Float, AnimationVector1D> = remember { Animatable(0f) },
     onNext: () -> Unit,
     onPrevious: () -> Unit,
     /** Listening in a party whose host holds the controls. Swipes say so instead of skipping. */
     locked: Boolean = false,
     onBlocked: () -> Unit = {},
 ): Modifier {
+    val coroutineScope = rememberCoroutineScope()
     // Playback state updates can recompose the bar while a finger is down.
     // Keep the gesture coroutine alive through those updates while still
     // dispatching to the latest controller callbacks when the drag finishes.
@@ -139,19 +151,34 @@ internal fun Modifier.miniPlayerTrackSwipe(
         var totalDrag = 0f
         detectHorizontalDragGestures(
             onDragStart = { totalDrag = 0f },
-            onDragCancel = { totalDrag = 0f },
+            onDragCancel = {
+                totalDrag = 0f
+                coroutineScope.launch {
+                    swipeOffset.animateTo(0f, spring(stiffness = Spring.StiffnessMediumLow))
+                }
+            },
             onDragEnd = {
                 val crossed = totalDrag <= -threshold || totalDrag >= threshold
-                when {
-                    currentLocked -> if (crossed) currentOnBlocked()
-                    totalDrag <= -threshold -> currentOnNext()
-                    totalDrag >= threshold -> currentOnPrevious()
+                coroutineScope.launch {
+                    if (crossed && !currentLocked) {
+                        val exitTarget = if (totalDrag < 0f) -threshold * 1.4f else threshold * 1.4f
+                        swipeOffset.animateTo(exitTarget, tween(110, easing = FastOutSlowInEasing))
+                        if (totalDrag <= -threshold) currentOnNext() else currentOnPrevious()
+                        swipeOffset.snapTo(if (totalDrag < 0f) threshold else -threshold)
+                        swipeOffset.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow))
+                    } else {
+                        if (currentLocked && crossed) currentOnBlocked()
+                        swipeOffset.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow))
+                    }
                 }
                 totalDrag = 0f
             },
             onHorizontalDrag = { change, amount ->
                 change.consume()
                 totalDrag += amount
+                coroutineScope.launch {
+                    swipeOffset.snapTo(totalDrag * 0.45f)
+                }
             },
         )
     }
@@ -176,6 +203,7 @@ fun MiniPlayer(
 ) {
     val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
     val haptics = rememberHaptics()
+    val swipeOffset = remember { Animatable(0f) }
     // percent rather than a dp figure, so the corner stays exactly half the
     // height if the row's contents ever change it — which is what keeps a pill
     // a pill instead of a rounded rectangle. Same idiom as [FloatingBottomBar]
@@ -201,6 +229,7 @@ fun MiniPlayer(
             // its own confirmation. The glyphs on it still buzz.
             .clickable(onClick = onExpand)
             .miniPlayerTrackSwipe(
+                swipeOffset = swipeOffset,
                 onNext = {
                     haptics.play(Haptic.SkipNext)
                     onNext()
@@ -216,6 +245,7 @@ fun MiniPlayer(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .graphicsLayer { translationX = swipeOffset.value }
                 .padding(
                     horizontal = ROW_PADDING_HORIZONTAL,
                     vertical = ROW_PADDING_VERTICAL,

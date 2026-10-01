@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.playback
+package com.fortune.vibramusic.playback
 
 import android.os.SystemClock
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,14 +29,20 @@ object SleepTimer {
      */
     val afterTrack = MutableStateFlow(false)
 
+    /**
+     * Pause when the current playlist / queue finishes.
+     */
+    val afterQueue = MutableStateFlow(false)
+
     /** Durations offered in the picker. */
     val PRESETS = listOf(15, 30, 45, 60)
 
     /** Whether any kind of timer is currently armed. */
-    val isRunning: Boolean get() = deadline.value != null || afterTrack.value
+    val isRunning: Boolean get() = deadline.value != null || afterTrack.value || afterQueue.value
 
     fun start(minutes: Int) {
         afterTrack.value = false
+        afterQueue.value = false
         this.minutes.value = minutes
         deadline.value = SystemClock.elapsedRealtime() + minutes * 60_000L
     }
@@ -45,13 +51,23 @@ object SleepTimer {
     fun startAfterTrack() {
         minutes.value = null
         deadline.value = null
+        afterQueue.value = false
         afterTrack.value = true
+    }
+
+    /** Pause once the playlist or queue reaches the end. */
+    fun startAfterQueue() {
+        minutes.value = null
+        deadline.value = null
+        afterTrack.value = false
+        afterQueue.value = true
     }
 
     fun cancel() {
         minutes.value = null
         deadline.value = null
         afterTrack.value = false
+        afterQueue.value = false
     }
 
     /** How long is left, or null when no timer is running. */

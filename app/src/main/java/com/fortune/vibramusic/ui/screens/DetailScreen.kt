@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.ui.screens
+package com.fortune.vibramusic.ui.screens
 
 import com.fortune.vibramusic.R
 
@@ -203,6 +203,7 @@ fun DetailScreen(
     onSongClick: (List<Song>, Int) -> Unit,
     onSongLongPress: (Song) -> Unit,
     onSongSwipe: (Song) -> Unit,
+    onSongPlayNext: ((Song) -> Unit)? = null,
     onShuffle: (List<Song>) -> Unit,
     onSectionItemClick: (ShelfItem) -> Unit,
     onArtistClick: (String, String) -> Unit,
@@ -523,6 +524,7 @@ fun DetailScreen(
                             },
                             onLongPress = { onSongLongPress(song) },
                             onSwipeToQueue = { onSongSwipe(song) },
+                            onSwipePlayNext = onSongPlayNext?.let { playNext -> { playNext(song) } },
                             rowBackground = Color.Transparent,
                             // The track's place on the release, not its place in
                             // what the filter — or a sort — left standing.

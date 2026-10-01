@@ -373,6 +373,12 @@
     <string name="add_addon_detail">Point Vibra Music at an addon server you host or were given a link to</string>
     <string name="add_to_queue">Add to queue</string>
     <string name="after_this_song">After this song</string>
+    <string name="after_queue_or_playlist">End of queue / playlist</string>
+    <string name="pause_when_muted">Pause when muted</string>
+    <string name="pause_when_muted_detail">Automatically pause playback when device volume is zero, and resume when unmuted</string>
+    <string name="snap_to_active_line">Sync to active line</string>
+    <string name="minimize_on_panel_back">Minimize player on back</string>
+    <string name="minimize_on_panel_back_detail">Back button on lyrics or queue minimizes player directly to browse screen</string>
     <string name="always_on">Always on</string>
     <string name="api_token">API token</string>
     <string name="audio_quality_connection">While on %1$s</string>

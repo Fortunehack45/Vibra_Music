@@ -20,7 +20,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -30,6 +30,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -123,7 +124,88 @@ fun LibraryScreen(
     downloadedPlaylists: List<SavedCollection> = emptyList(),
 ) {
     val pinnedPlaylists by AppSettings.pinnedPlaylists.collectAsStateWithLifecycle()
+    val webdavConfigured by AppSettings.webdavUrl.collectAsStateWithLifecycle()
+    val smbHost by AppSettings.smbHost.collectAsStateWithLifecycle()
+    val smbShare by AppSettings.smbShare.collectAsStateWithLifecycle()
     val onDevice = stringResource(R.string.on_device)
+    val downloadsTitle = stringResource(R.string.downloads)
+    val downloadedSongsSub = stringResource(R.string.downloaded_songs)
+    val localMusicTitle = stringResource(R.string.local_music)
+    val audioFilesSub = stringResource(R.string.audio_files_on_device)
+    val webdavTitle = stringResource(R.string.webdav)
+    val webdavNotConfigured = stringResource(R.string.webdav_not_configured)
+    val webdavSub = stringResource(R.string.webdav_subtitle)
+    val smbTitle = stringResource(R.string.smb)
+    val smbNotConfigured = stringResource(R.string.smb_not_configured)
+    val smbSub = stringResource(R.string.smb_subtitle)
+    val downloadedPlaylistDefaultSub = stringResource(R.string.downloaded_playlist)
+
+    val onDeviceShelf = remember(
+        onDevice,
+        webdavConfigured,
+        smbHost,
+        smbShare,
+        downloadedPlaylists,
+        downloadsTitle,
+        downloadedSongsSub,
+        localMusicTitle,
+        audioFilesSub,
+        webdavTitle,
+        webdavNotConfigured,
+        webdavSub,
+        smbTitle,
+        smbNotConfigured,
+        smbSub,
+        downloadedPlaylistDefaultSub,
+    ) {
+        val remotes = listOf(
+            Triple(
+                webdavTitle,
+                if (webdavConfigured.isBlank()) webdavNotConfigured else webdavSub,
+                com.fortune.vibramusic.data.webdav.WebDavConfig.BROWSE_ID,
+            ),
+            Triple(
+                smbTitle,
+                if (smbHost.isBlank() || smbShare.isBlank()) smbNotConfigured else smbSub,
+                com.fortune.vibramusic.data.smb.SmbConfig.BROWSE_ID,
+            ),
+        )
+        HomeShelf(
+            title = onDevice,
+            items = listOf(
+                ShelfItem(
+                    title = downloadsTitle,
+                    subtitle = downloadedSongsSub,
+                    thumbnailUrl = null,
+                    videoId = null,
+                    browseId = "local:downloads",
+                ),
+                ShelfItem(
+                    title = localMusicTitle,
+                    subtitle = audioFilesSub,
+                    thumbnailUrl = null,
+                    videoId = null,
+                    browseId = "local:all",
+                ),
+            ) + remotes.map { (title, subtitle, browseId) ->
+                ShelfItem(
+                    title = title,
+                    subtitle = subtitle,
+                    thumbnailUrl = null,
+                    videoId = null,
+                    browseId = browseId,
+                )
+            } + downloadedPlaylists.map { playlist ->
+                ShelfItem(
+                    title = playlist.title,
+                    subtitle = playlist.subtitle.ifBlank { downloadedPlaylistDefaultSub },
+                    thumbnailUrl = playlist.thumbnailUrl,
+                    videoId = null,
+                    browseId = Downloads.pageIdFor(playlist.id),
+                )
+            },
+        )
+    }
     PullToRefresh(
         refreshing = refreshing,
         onRefresh = onRefresh,
@@ -163,76 +245,6 @@ fun LibraryScreen(
                 }
             }
             item(key = "shelf:$onDevice") {
-                val webdavConfigured by AppSettings.webdavUrl.collectAsStateWithLifecycle()
-                val smbHost by AppSettings.smbHost.collectAsStateWithLifecycle()
-                val smbShare by AppSettings.smbShare.collectAsStateWithLifecycle()
-                // The remote libraries share one card shape; each entry is
-                // title, subtitle and the page it opens.
-                val remotes = listOf(
-                    Triple(
-                        stringResource(R.string.webdav),
-                        if (webdavConfigured.isBlank()) {
-                            stringResource(R.string.webdav_not_configured)
-                        } else {
-                            stringResource(R.string.webdav_subtitle)
-                        },
-                        com.fortune.vibramusic.data.webdav.WebDavConfig.BROWSE_ID,
-                    ),
-                    Triple(
-                        stringResource(R.string.smb),
-                        if (smbHost.isBlank() || smbShare.isBlank()) {
-                            stringResource(R.string.smb_not_configured)
-                        } else {
-                            stringResource(R.string.smb_subtitle)
-                        },
-                        com.fortune.vibramusic.data.smb.SmbConfig.BROWSE_ID,
-                    ),
-                )
-                val onDeviceShelf = HomeShelf(
-                    title = onDevice,
-                    items = listOf(
-                        ShelfItem(
-                            title = stringResource(R.string.downloads),
-                            subtitle = stringResource(R.string.downloaded_songs),
-                            thumbnailUrl = null,
-                            videoId = null,
-                            browseId = "local:downloads",
-                        ),
-                        ShelfItem(
-                            title = stringResource(R.string.local_music),
-                            subtitle = stringResource(R.string.audio_files_on_device),
-                            thumbnailUrl = null,
-                            videoId = null,
-                            browseId = "local:all",
-                        ),
-                    ) + remotes.map { (title, subtitle, browseId) ->
-                        ShelfItem(
-                            title = title,
-                            subtitle = subtitle,
-                            thumbnailUrl = null,
-                            videoId = null,
-                            browseId = browseId,
-                        )
-                    } + downloadedPlaylists.map { playlist ->
-                        ShelfItem(
-                            title = playlist.title,
-                            // The credit the playlist was downloaded with,
-                            // because this is also what the page it opens
-                            // bills itself by — see `headerLines`, which
-                            // reads the kind and the owner back out of it.
-                            // Saying "Downloaded playlist" here instead would
-                            // make that header read "Downloaded playlist" over
-                            // "PLAYLIST • 12 SONGS", and the shelf this card
-                            // is on already says where it lives.
-                            subtitle = playlist.subtitle.ifBlank {
-                                stringResource(R.string.downloaded_playlist)
-                            },
-                            thumbnailUrl = playlist.thumbnailUrl,
-                            videoId = null,
-                            browseId = Downloads.pageIdFor(playlist.id),
-                        )
-                    },
-                )
                 LibraryGridShelf(
                     shelf = onDeviceShelf,
                     onItemClick = onShelfItemClick,
@@ -465,7 +477,7 @@ internal fun LibraryGridShelf(
             horizontalArrangement = Arrangement.spacedBy(LIBRARY_GRID_SPACING),
         ) {
             leadingCard?.let { card -> item(key = "leading") { card() } }
-            items(visibleItems) { item ->
+            items(visibleItems, key = { it.browseId ?: it.title }) { item ->
                 ShelfCard(
                     item = item,
                     onClick = { onItemClick(item) },
@@ -500,7 +512,9 @@ fun LibraryGridPage(
     // Pinning wins over the default order, but an explicit sort is a stronger,
     // more deliberate signal than a pin and is left to reorder the whole grid,
     // pinned cards included.
-    val sortedShelf = shelf.pinnedFirst(pinnedPlaylists).sortedForLibrary(librarySort)
+    val sortedShelf = remember(shelf, pinnedPlaylists, librarySort) {
+        shelf.pinnedFirst(pinnedPlaylists).sortedForLibrary(librarySort)
+    }
     BoxWithConstraints(modifier.fillMaxSize()) {
         val grid = libraryGrid(maxWidth - PAGE_GUTTER * 2)
         LazyVerticalGrid(
@@ -522,7 +536,7 @@ fun LibraryGridPage(
                     )
                 }
             }
-            items(sortedShelf.items, key = { it.browseId ?: it.title }) { item ->
+            gridItems(sortedShelf.items, key = { it.browseId ?: it.title }) { item ->
                 ShelfCard(
                     item = item,
                     onClick = { onItemClick(item) },

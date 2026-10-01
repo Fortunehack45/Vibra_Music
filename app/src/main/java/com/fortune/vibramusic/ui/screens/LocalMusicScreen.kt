@@ -142,6 +142,7 @@ fun LocalMusicScreen(
     onSongClick: (List<Song>, Int) -> Unit,
     onSongLongPress: (Song) -> Unit,
     onSongSwipe: (Song) -> Unit,
+    onSongPlayNext: ((Song) -> Unit)? = null,
     onShuffle: (List<Song>) -> Unit,
     contentPadding: PaddingValues,
     /**
@@ -405,6 +406,7 @@ fun LocalMusicScreen(
                         // carry the actions sheet itself or the page loses it.
                         onSongMore = onSongLongPress,
                         onSongSwipe = onSongSwipe,
+                        onSongPlayNext = onSongPlayNext,
                         onShuffle = onShuffle,
                         onMore = onCollectionLongPress?.let { more ->
                             { more(drillDownLabel ?: "", drillDownSongs) }
@@ -440,6 +442,7 @@ fun LocalMusicScreen(
                         // carry the actions sheet itself or the page loses it.
                         onSongMore = onSongLongPress,
                         onSongSwipe = onSongSwipe,
+                        onSongPlayNext = onSongPlayNext,
                         contentPadding = bodyContentPadding,
                     )
                 }
@@ -514,6 +517,7 @@ private fun SongsTab(
     /** The row's ?, where holding it does something else — see [SongRow]. */
     onSongMore: ((Song) -> Unit)? = null,
     onSongSwipe: (Song) -> Unit,
+    onSongPlayNext: ((Song) -> Unit)? = null,
     contentPadding: PaddingValues,
 ) {
     if (viewType == LibraryViewType.GRID) {
@@ -571,6 +575,7 @@ private fun SongsTab(
                     onLongPress = { onSongLongPress(song) },
                     onMore = onSongMore?.let { more -> { more(song) } },
                     onSwipeToQueue = { onSongSwipe(song) },
+                    onSwipePlayNext = onSongPlayNext?.let { playNext -> { playNext(song) } },
                 )
                 if (index < songs.lastIndex) {
                     HorizontalDivider(
@@ -1351,6 +1356,7 @@ private fun DrillDownSongList(
     /** The row's ?, where holding it does something else — see [SongRow]. */
     onSongMore: ((Song) -> Unit)? = null,
     onSongSwipe: (Song) -> Unit,
+    onSongPlayNext: ((Song) -> Unit)? = null,
     onShuffle: (List<Song>) -> Unit,
     /** The ? in the header, acting on the whole artist or album. */
     onMore: (() -> Unit)?,
@@ -1432,6 +1438,7 @@ private fun DrillDownSongList(
                     onLongPress = { onSongLongPress(song) },
                     onMore = onSongMore?.let { more -> { more(song) } },
                     onSwipeToQueue = { onSongSwipe(song) },
+                    onSwipePlayNext = onSongPlayNext?.let { playNext -> { playNext(song) } },
                 )
                 if (index < songs.lastIndex) {
                     HorizontalDivider(

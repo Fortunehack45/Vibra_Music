@@ -68,6 +68,7 @@ import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material.icons.rounded.SurroundSound
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.Upgrade
+import androidx.compose.material.icons.rounded.VerticalAlignBottom
 import androidx.compose.material.icons.rounded.VolumeOff
 import androidx.compose.material.icons.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.Waves
@@ -234,6 +235,8 @@ fun SettingsScreen(
     val localMusicFolderUri by AppSettings.localMusicFolderUri.collectAsStateWithLifecycle()
     val highPerformanceMode by AppSettings.highPerformanceMode.collectAsStateWithLifecycle()
     val performanceRefreshRate by AppSettings.performanceRefreshRate.collectAsStateWithLifecycle()
+    val pauseOnVolumeMute by AppSettings.pauseOnVolumeMute.collectAsStateWithLifecycle()
+    val minimizeOnPanelBack by AppSettings.minimizeOnPanelBack.collectAsStateWithLifecycle()
     val currentDisplay = LocalView.current.display
     val supportedRefreshRates = remember(currentDisplay) {
         currentDisplay.supportedPerformanceRefreshRates()
@@ -602,6 +605,44 @@ fun SettingsScreen(
                         )
                     },
                     onClick = { AppSettings.setLoudnessNormalization(!loudnessNormalization) },
+                )
+            }
+            val pauseOnMuteTitle = stringResource(R.string.pause_when_muted)
+            row(pauseOnMuteTitle, "pause", "mute", "volume", "resume") {
+                SettingsRow(
+                    icon = Icons.AutoMirrored.Rounded.VolumeOff,
+                    title = pauseOnMuteTitle,
+                    subtitle = stringResource(R.string.pause_when_muted_detail),
+                    trailing = {
+                        Switch(
+                            checked = pauseOnVolumeMute,
+                            onCheckedChange = AppSettings::setPauseOnVolumeMute,
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                checkedBorderColor = MaterialTheme.colorScheme.primary,
+                            ),
+                        )
+                    },
+                    onClick = { AppSettings.setPauseOnVolumeMute(!pauseOnVolumeMute) },
+                )
+            }
+            val minimizeOnPanelBackTitle = stringResource(R.string.minimize_on_panel_back)
+            row(minimizeOnPanelBackTitle, "minimize", "back", "lyrics", "queue", "player") {
+                SettingsRow(
+                    icon = Icons.Rounded.VerticalAlignBottom,
+                    title = minimizeOnPanelBackTitle,
+                    subtitle = stringResource(R.string.minimize_on_panel_back_detail),
+                    trailing = {
+                        Switch(
+                            checked = minimizeOnPanelBack,
+                            onCheckedChange = AppSettings::setMinimizeOnPanelBack,
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                checkedBorderColor = MaterialTheme.colorScheme.primary,
+                            ),
+                        )
+                    },
+                    onClick = { AppSettings.setMinimizeOnPanelBack(!minimizeOnPanelBack) },
                 )
             }
             // Automix decides its own length from each pair of tracks —

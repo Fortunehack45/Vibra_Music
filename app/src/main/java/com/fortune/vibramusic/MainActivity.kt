@@ -1411,6 +1411,9 @@ private fun VibraMusicApp(
     val onSongSwipe: (Song) -> Unit = { song ->
         if (AppSettings.swipeToPlayNext.value) playNext(song) else addToQueue(song)
     }
+    val onSongPlayNext: (Song) -> Unit = { song ->
+        playNext(song)
+    }
 
     /**
      * Opens an artist or release page given its browse id — or, failing that,
@@ -2209,6 +2212,7 @@ private fun VibraMusicApp(
             lyricsUnavailable = lyricsChecked && lyrics.isNullOrEmpty(),
             lyricsOffsetOpen = showLyricsOffset,
             onDismissLyricsOffset = { showLyricsOffset = false },
+            onMinimize = { showNowPlaying = false },
             onListenTogether = {
                 // The player is a sheet over the page, so it has to come down
                 // for the page to be read at all.
@@ -2408,6 +2412,7 @@ private fun VibraMusicApp(
                             },
                             onSongLongPress = { songActions = it },
                             onSongSwipe = onSongSwipe,
+                            onSongPlayNext = onSongPlayNext,
                             onRetry = viewModel::loadHistory,
                             contentPadding = listPadding,
                         )
@@ -2600,6 +2605,7 @@ private fun VibraMusicApp(
                                 },
                                 onSongLongPress = openSongMenu,
                                 onSongSwipe = onSongSwipe,
+                                onSongPlayNext = onSongPlayNext,
                                 onShuffle = { songs ->
                                     QueueShuffle.enableForNextQueue()
                                     playFrom(
@@ -2664,6 +2670,7 @@ private fun VibraMusicApp(
                             },
                             onSongLongPress = { openSongMenu(withAlbum(it)) },
                             onSongSwipe = onSongSwipe,
+                            onSongPlayNext = onSongPlayNext,
                             onShuffle = { songs ->
                                 // Shuffle goes on first so the queue is built shuffled
                                 // as it is set — the random pick here only decides
@@ -2830,6 +2837,7 @@ private fun VibraMusicApp(
                             },
                             onSongLongPress = openSongMenu,
                             onSongSwipe = onSongSwipe,
+                            onSongPlayNext = onSongPlayNext,
                             onTopResultPlay = { song ->
                                 viewModel.recordEntity(SearchHistoryEntity(
                                     id = song.videoId,

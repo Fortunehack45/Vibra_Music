@@ -291,6 +291,7 @@ fun SongRow(
      */
     onMore: (() -> Unit)? = null,
     onSwipeToQueue: (() -> Unit)? = null,
+    onSwipePlayNext: (() -> Unit)? = null,
     /**
      * What the row paints over the swipe reveal as it slides back.
      *
@@ -337,12 +338,17 @@ fun SongRow(
     var boxWidth by remember { mutableFloatStateOf(0f) }
 
     val currentOnSwipeToQueue by rememberUpdatedState(onSwipeToQueue)
+    val currentOnSwipePlayNext by rememberUpdatedState(onSwipePlayNext)
 
     val swipeState = rememberSwipeToDismissBoxState(
         confirmValueChange = { value ->
-            if (value != SwipeToDismissBoxValue.Settled && currentOnSwipeToQueue != null) {
+            if (value != SwipeToDismissBoxValue.Settled) {
                 haptics.play(Haptic.Select)
-                currentOnSwipeToQueue?.invoke()
+                if (value == SwipeToDismissBoxValue.StartToEnd) {
+                    (currentOnSwipePlayNext ?: currentOnSwipeToQueue)?.invoke()
+                } else if (value == SwipeToDismissBoxValue.EndToStart) {
+                    (currentOnSwipeToQueue ?: currentOnSwipePlayNext)?.invoke()
+                }
             }
             false // never actually dismiss; snap back
         },
@@ -350,7 +356,7 @@ fun SongRow(
     )
     swipeStateHolder.value = swipeState
 
-    if (onSwipeToQueue == null) {
+    if (onSwipeToQueue == null && onSwipePlayNext == null) {
         SongRowContent(
             song = song,
             onClick = onClick,
@@ -438,8 +444,8 @@ private fun QueueSwipeBackground(swipeState: SwipeToDismissBoxState) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        QueueSwipeLabel(playNext)
-        QueueSwipeLabel(playNext)
+        QueueSwipeLabel(playNext = true)
+        QueueSwipeLabel(playNext = false)
     }
 }
 

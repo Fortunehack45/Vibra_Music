@@ -1,8 +1,10 @@
 package com.fortune.vibramusic.playback
 
 import android.app.PendingIntent
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.media.AudioDeviceCallback
 import android.media.AudioDeviceInfo
 import android.media.AudioFormat
@@ -501,6 +503,27 @@ class PlaybackService : MediaLibraryService() {
     }
 
     private val audioManager by lazy { getSystemService(AudioManager::class.java) }
+    private var pausedByVolumeMute = false
+    private val volumeMuteReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action != "android.media.VOLUME_CHANGED_ACTION") return
+            if (!com.fortune.vibramusic.data.settings.AppSettings.pauseOnVolumeMute.value) return
+            val streamType = intent.getIntExtra("android.media.EXTRA_VOLUME_STREAM_TYPE", -1)
+            if (streamType != AudioManager.STREAM_MUSIC && streamType != -1) return
+            val currentVol = audioManager?.getStreamVolume(AudioManager.STREAM_MUSIC) ?: return
+            val isMuted = currentVol == 0 || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && audioManager?.isStreamMute(AudioManager.STREAM_MUSIC) == true)
+            val p = player ?: return
+            if (isMuted) {
+                if (p.isPlaying) {
+                    pausedByVolumeMute = true
+                    p.pause()
+                }
+            } else if (pausedByVolumeMute) {
+                pausedByVolumeMute = false
+                p.play()
+            }
+        }
+    }
     private val bluetoothTracker by lazy { BluetoothAudioTracker(this) }
     private var currentAudioInputFormat: Format? = null
     private val outputDeviceCallback = object : AudioDeviceCallback() {
@@ -844,6 +867,9 @@ class PlaybackService : MediaLibraryService() {
          */
         override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
             publishWidgetState(playing = playWhenReady)
+            if (!playWhenReady && reason == Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST) {
+                pausedByVolumeMute = false
+            }
             // The only place the *reason* can be read. A party has to tell a
             // pause the listener asked for from one another app imposed, and
             // [Player] does not keep the answer around to be asked later.
@@ -1527,6 +1553,16 @@ class PlaybackService : MediaLibraryService() {
         sparePlayer.audioSessionId = exoPlayer.audioSessionId
         audioManager?.registerAudioDeviceCallback(outputDeviceCallback, null)
         applyOutputRoute()
+        try {
+            val volumeFilter = IntentFilter("android.media.VOLUME_CHANGED_ACTION")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(volumeMuteReceiver, volumeFilter, Context.RECEIVER_EXPORTED)
+            } else {
+                registerReceiver(volumeMuteReceiver, volumeFilter)
+            }
+        } catch (e: Exception) {
+            Log.w("PlaybackService", "Failed to register volumeMuteReceiver", e)
+        }
 
         AppSettings.audioSessionId.value = exoPlayer.audioSessionId
         applySettings(exoPlayer)
@@ -2837,6 +2873,10 @@ class PlaybackService : MediaLibraryService() {
         // moment the track the user meant has finished. REPEAT counts
         // too, or the timer would never fire with repeat-one on.
         if (ended && SleepTimer.afterTrack.value) {
+            exoPlayer.pause()
+            SleepTimer.cancel()
+        }
+        if (ended && SleepTimer.afterQueue.value && (!exoPlayer.hasNextMediaItem() || exoPlayer.currentMediaItemIndex >= exoPlayer.mediaItemCount - 1 || exoPlayer.playbackState == Player.STATE_ENDED)) {
             exoPlayer.pause()
             SleepTimer.cancel()
         }
@@ -6145,6 +6185,9 @@ class PlaybackService : MediaLibraryService() {
         closeAudioEffectSession()
         bluetoothTracker.stop()
         audioManager?.unregisterAudioDeviceCallback(outputDeviceCallback)
+        try {
+            unregisterReceiver(volumeMuteReceiver)
+        } catch (_: Exception) {}
         partySync?.stop()
         partySync = null
         player?.let(::savePlaybackState)

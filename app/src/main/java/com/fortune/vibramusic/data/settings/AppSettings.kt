@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.data.settings
+package com.fortune.vibramusic.data.settings
 
 import android.content.Context
 import android.content.SharedPreferences
@@ -426,6 +426,12 @@ object AppSettings {
 
     /** Swiping a song row plays it next instead of adding it to the end of the queue. */
     val swipeToPlayNext = MutableStateFlow(false)
+
+    /** Automatically pause playback when device volume is zero, and resume when volume is raised. */
+    val pauseOnVolumeMute = MutableStateFlow(true)
+
+    /** When pressing the back button on lyrics or queue, minimize the player directly to the browse screen. */
+    val minimizeOnPanelBack = MutableStateFlow(true)
 
     /** Once a song has been suggested or played this session, AutoPlay won't offer it again. */
     val dontRepeatSuggestions = MutableStateFlow(false)
@@ -862,6 +868,8 @@ object AppSettings {
         hideVolumeBar.value = prefs.getBoolean(KEY_HIDE_VOLUME_BAR, false)
         hideSongStatus.value = prefs.getBoolean(KEY_HIDE_SONG_STATUS, false)
         swipeToPlayNext.value = prefs.getBoolean(KEY_SWIPE_TO_PLAY_NEXT, false)
+        pauseOnVolumeMute.value = prefs.getBoolean(KEY_PAUSE_ON_VOLUME_MUTE, true)
+        minimizeOnPanelBack.value = prefs.getBoolean(KEY_MINIMIZE_ON_PANEL_BACK, true)
         dontRepeatSuggestions.value = prefs.getBoolean(KEY_DONT_REPEAT_SUGGESTIONS, false)
         preferMusicOnly.value = prefs.getBoolean(KEY_PREFER_MUSIC_ONLY, false)
         smartVersionAlignment.value = prefs.getBoolean(KEY_SMART_VERSION_ALIGNMENT, true)
@@ -1245,6 +1253,16 @@ object AppSettings {
     fun setSwipeToPlayNext(value: Boolean) {
         swipeToPlayNext.value = value
         prefs.edit().putBoolean(KEY_SWIPE_TO_PLAY_NEXT, value).apply()
+    }
+
+    fun setPauseOnVolumeMute(value: Boolean) {
+        pauseOnVolumeMute.value = value
+        prefs.edit().putBoolean(KEY_PAUSE_ON_VOLUME_MUTE, value).apply()
+    }
+
+    fun setMinimizeOnPanelBack(value: Boolean) {
+        minimizeOnPanelBack.value = value
+        prefs.edit().putBoolean(KEY_MINIMIZE_ON_PANEL_BACK, value).apply()
     }
 
     fun setDontRepeatSuggestions(value: Boolean) {
@@ -1974,6 +1992,8 @@ object AppSettings {
     private const val KEY_HIDE_VOLUME_BAR = "hide_volume_bar"
     private const val KEY_HIDE_SONG_STATUS = "hide_song_status"
     private const val KEY_SWIPE_TO_PLAY_NEXT = "swipe_to_play_next"
+    private const val KEY_PAUSE_ON_VOLUME_MUTE = "pause_on_volume_mute"
+    private const val KEY_MINIMIZE_ON_PANEL_BACK = "minimize_on_panel_back"
     private const val KEY_DONT_REPEAT_SUGGESTIONS = "dont_repeat_suggestions"
     private const val KEY_PREFER_MUSIC_ONLY = "prefer_music_only"
     private const val KEY_SMART_VERSION_ALIGNMENT = "smart_version_alignment"

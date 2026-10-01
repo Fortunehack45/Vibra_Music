@@ -10,6 +10,8 @@ import com.fortune.vibramusic.R
 
 import android.graphics.Bitmap
 import android.os.Build
+import android.os.SystemClock
+import kotlin.math.abs
 import android.view.View
 import android.window.OnBackInvokedCallback
 import android.window.OnBackInvokedDispatcher
@@ -604,6 +606,7 @@ fun NowPlayingScreen(
     lyricsUnavailable: Boolean,
     lyricsOffsetOpen: Boolean,
     onDismissLyricsOffset: () -> Unit,
+    onMinimize: () -> Unit = {},
     /** The width of the window the player is in — see [fullBleedArtworkAvailable]. */
     windowWidth: Dp,
     /**
@@ -883,10 +886,17 @@ fun NowPlayingScreen(
     // Controls being visible must not insert an extra navigation level. Back
     // always leaves lyrics in one step, whether it starts over the lyrics list
     // or over the half-player at the bottom.
-    PlayerBackHandler(enabled = lyricsOpen, onBack = closeLyrics)
+    val minimizeOnBack by AppSettings.minimizeOnPanelBack.collectAsStateWithLifecycle()
+    PlayerBackHandler(enabled = lyricsOpen) {
+        closeLyrics()
+        if (minimizeOnBack) onMinimize()
+    }
 
-    // Back out of the queue to the player.
-    PlayerBackHandler(enabled = queueOpen) { queueOpen = false }
+    // Back out of the queue to the player (or directly minimize to browse if minimizeOnBack is true).
+    PlayerBackHandler(enabled = queueOpen) {
+        queueOpen = false
+        if (minimizeOnBack) onMinimize()
+    }
 
     // Registered ahead of the pipeline dialog's own handler below: the
     // pipeline is now only ever opened from the row at the bottom of this
@@ -1276,43 +1286,116 @@ fun NowPlayingScreen(
         }
     }
 
-    // Horizontal fling skips tracks. The portrait player hangs it on the whole
-    // screen, the landscape one on the sleeve alone — the right column there is
-    // full of horizontal sliders and a lyric list that should not be one stray
-    // sideways drag away from changing the song.
-    val skipSwipeGesture = Modifier.pointerInput(showAudioPipeline, panelScrolling, controlsLocked) {
-        if (showAudioPipeline || panelScrolling) return@pointerInput
-        var total = 0f
-        detectHorizontalDragGestures(
-            onDragStart = { total = 0f },
-            onDragCancel = { setSwipeOffset(0f) },
-            onDragEnd = {
-                // The same two buzzes the transport glyphs give, so swiping the
-                // sleeve and tapping skip feel like one gesture with two
-                // spellings.
-                val crossed = total <= -swipeThreshold || total >= swipeThreshold
-                when {
-                    // Still tracks the finger and still springs back, so the
-                    // sleeve does not feel dead — it just says why it did not
-                    // move on.
-                    controlsLocked -> if (crossed) onBlockedControl()
-                    total <= -swipeThreshold -> {
-                        haptics.play(Haptic.SkipNext)
-                        onNext()
+    // Horizontal fling skips tracks, and double-tap left/right seeks -5s/+5s.
+    // The portrait player hangs it on the whole screen, the landscape one on the sleeve.
+    val skipSwipeGesture = Modifier.pointerInput(
+        showAudioPipeline,
+        panelScrolling,
+        controlsLocked,
+        lyricsOpen,
+        queueOpen,
+        durationMs,
+    ) {
+        if (showAudioPipeline || panelScrolling || lyricsOpen || queueOpen) return@pointerInput
+        val touchSlop = viewConfiguration.touchSlop
+        val doubleTapTimeout = 320L
+        var lastTapTime = 0L
+        var lastTapX = 0f
+        var lastTapY = 0f
+
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false)
+            val downTime = SystemClock.uptimeMillis()
+            val downPos = down.position
+
+            val timeSinceLastTap = downTime - lastTapTime
+            val isDoubleTapCandidate = timeSinceLastTap in 40L..doubleTapTimeout &&
+                abs(downPos.x - lastTapX) < touchSlop * 4 &&
+                abs(downPos.y - lastTapY) < touchSlop * 4
+
+            var isDrag = false
+            var totalDragX = 0f
+            val pointerId = down.id
+
+            while (true) {
+                val event = awaitPointerEvent()
+                val change = event.changes.firstOrNull { it.id == pointerId } ?: break
+
+                if (change.isConsumed) {
+                    setSwipeOffset(0f)
+                    break
+                }
+
+                if (!change.pressed) {
+                    // Finger lifted
+                    if (isDrag) {
+                        change.consume()
+                        val crossed = totalDragX <= -swipeThreshold || totalDragX >= swipeThreshold
+                        when {
+                            controlsLocked -> if (crossed) onBlockedControl()
+                            totalDragX <= -swipeThreshold -> {
+                                haptics.play(Haptic.SkipNext)
+                                onNext()
+                            }
+                            totalDragX >= swipeThreshold -> {
+                                haptics.play(Haptic.SkipPrevious)
+                                onPrevious()
+                            }
+                        }
+                        setSwipeOffset(0f)
+                        lastTapTime = 0L
+                    } else {
+                        // Tap release
+                        if (isDoubleTapCandidate) {
+                            change.consume()
+                            val width = size.width.toFloat()
+                            val currentPos = position.positionMs
+                            if (downPos.x < width * 0.42f) {
+                                val target = (currentPos - 5000L).coerceAtLeast(0L)
+                                onSeek(target)
+                                haptics.play(Haptic.Tick)
+                            } else if (downPos.x > width * 0.58f) {
+                                val target = if (durationMs > 0) {
+                                    (currentPos + 5000L).coerceAtMost(durationMs)
+                                } else {
+                                    currentPos + 5000L
+                                }
+                                onSeek(target)
+                                haptics.play(Haptic.Tick)
+                            }
+                            lastTapTime = SystemClock.uptimeMillis()
+                            lastTapX = downPos.x
+                            lastTapY = downPos.y
+                        } else {
+                            lastTapTime = downTime
+                            lastTapX = downPos.x
+                            lastTapY = downPos.y
+                        }
                     }
-                    total >= swipeThreshold -> {
-                        haptics.play(Haptic.SkipPrevious)
-                        onPrevious()
+                    break
+                }
+
+                val dx = change.position.x - downPos.x
+                val dy = change.position.y - downPos.y
+
+                if (!isDrag) {
+                    if (abs(dx) > touchSlop && abs(dx) > abs(dy) * 1.1f) {
+                        isDrag = true
+                        lastTapTime = 0L
+                    } else if (abs(dy) > touchSlop) {
+                        // Vertical movement - sheet dismiss or vertical scroll
+                        break
                     }
                 }
-                setSwipeOffset(0f)
-            },
-            onHorizontalDrag = { _, delta ->
-                total += delta
-                // Damped: it's a hint, not a drag-to-position.
-                setSwipeOffset(total * 0.35f)
-            },
-        )
+
+                if (isDrag) {
+                    val delta = change.positionChange().x
+                    totalDragX += delta
+                    change.consume()
+                    setSwipeOffset(totalDragX * 0.35f)
+                }
+            }
+        }
     }
 
     // The scrubber's two halves, shared by both layouts so a drop point is held
@@ -2195,7 +2278,8 @@ fun NowPlayingScreen(
                     .weight(1f)
                     .widthIn(max = PLAYER_MAX_WIDTH)
                     .fillMaxWidth()
-                    .padding(top = ART_BOX_TOP_PAD, bottom = 18.dp),
+                    .padding(top = ART_BOX_TOP_PAD, bottom = 18.dp)
+                    .then(skipSwipeGesture),
             ) {
                 if (spotifyCanvasPresentation && playerDeckSettledOpen &&
                     maxHeight != spotifyCanvasExpandedTopHeight
@@ -2400,7 +2484,6 @@ fun NowPlayingScreen(
                             scaleY = idle
                             translationX = swipeSettle.value * (1f - collapse)
                         }
-                        .then(skipSwipeGesture)
                         // Collapsed, the sleeve is the way back: tapping the
                         // thumbnail puts the queue or the lyrics away again.
                         .then(

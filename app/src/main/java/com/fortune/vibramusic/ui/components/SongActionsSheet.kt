@@ -578,6 +578,7 @@ private fun WebDavUploadRow(
 private fun SleepTimerPicker(palette: ArtworkPalette, onBack: () -> Unit) {
     val chosen by SleepTimer.minutes.collectAsStateWithLifecycle()
     val afterTrack by SleepTimer.afterTrack.collectAsStateWithLifecycle()
+    val afterQueue by SleepTimer.afterQueue.collectAsStateWithLifecycle()
     val countdown = sleepTimerCountdown()
 
     Column(Modifier.fillMaxWidth()) {
@@ -604,6 +605,7 @@ private fun SleepTimerPicker(palette: ArtworkPalette, onBack: () -> Unit) {
                     text = when {
                         countdown != null -> stringResource(R.string.pause_countdown, countdown)
                         afterTrack -> stringResource(R.string.pause_after_song)
+                        afterQueue -> stringResource(R.string.after_queue_or_playlist)
                         else -> stringResource(R.string.pause_after_a_while)
                     },
                     style = MaterialTheme.typography.bodyMedium,
@@ -623,6 +625,14 @@ private fun SleepTimerPicker(palette: ArtworkPalette, onBack: () -> Unit) {
             SleepTimer.startAfterTrack()
             onBack()
         }
+        SleepOption(
+            label = stringResource(R.string.after_queue_or_playlist),
+            selected = afterQueue,
+            accent = palette.accent,
+        ) {
+            SleepTimer.startAfterQueue()
+            onBack()
+        }
         SleepTimer.PRESETS.forEach { minutes ->
             SleepOption(
                 label = if (minutes == 60) {
@@ -637,7 +647,7 @@ private fun SleepTimerPicker(palette: ArtworkPalette, onBack: () -> Unit) {
                 onBack()
             }
         }
-        if (chosen != null || afterTrack) {
+        if (chosen != null || afterTrack || afterQueue) {
             ActionRow(Icons.Rounded.Close, stringResource(R.string.turn_off_timer), accent = palette.accent) {
                 SleepTimer.cancel()
                 onBack()

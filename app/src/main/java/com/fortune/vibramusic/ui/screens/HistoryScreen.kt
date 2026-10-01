@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.ui.screens
+package com.fortune.vibramusic.ui.screens
 
 import com.fortune.vibramusic.R
 
@@ -38,6 +38,7 @@ fun HistoryScreen(
     onSongClick: (List<Song>, Int) -> Unit,
     onSongLongPress: (Song) -> Unit,
     onSongSwipe: (Song) -> Unit,
+    onSongPlayNext: ((Song) -> Unit)? = null,
     onRetry: () -> Unit,
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier,
@@ -69,6 +70,7 @@ fun HistoryScreen(
                         onClick = { onSongClick(songs, index) },
                         onLongPress = { onSongLongPress(song) },
                         onSwipeToQueue = { onSongSwipe(song) },
+                        onSwipePlayNext = onSongPlayNext?.let { playNext -> { playNext(song) } },
                     )
                     if (index < songs.lastIndex) {
                         HorizontalDivider(

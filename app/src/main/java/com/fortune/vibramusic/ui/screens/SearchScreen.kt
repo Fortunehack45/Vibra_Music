@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.ui.screens
+package com.fortune.vibramusic.ui.screens
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -92,6 +92,7 @@ fun SearchScreen(
     onSongClick: (List<Song>, Int) -> Unit,
     onSongLongPress: (Song) -> Unit,
     onSongSwipe: (Song) -> Unit,
+    onSongPlayNext: ((Song) -> Unit)? = null,
     onTopResultPlay: (Song) -> Unit,
     onTopResultPlaylist: (Song) -> Unit,
     onBrowseClick: (BrowseItem) -> Unit,
@@ -263,6 +264,7 @@ fun SearchScreen(
                                     },
                                     onLongPress = { onSongLongPress(row.song) },
                                     onSwipeToQueue = { onSongSwipe(row.song) },
+                                    onSwipePlayNext = onSongPlayNext?.let { playNext -> { playNext(row.song) } },
                                 )
                                 is SearchResult.Browse -> BrowseRow(
                                     item = row.item,

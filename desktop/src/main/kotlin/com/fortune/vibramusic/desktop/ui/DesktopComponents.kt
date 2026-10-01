@@ -10,6 +10,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -95,15 +96,13 @@ fun DesktopTopBar(
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
+            Image(
+                painter = androidx.compose.ui.res.painterResource("icon.png"),
+                contentDescription = "Vibra Music Logo",
                 modifier = Modifier
                     .size(36.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFFFA2D48)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text("V", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp)
-            }
+                    .clip(RoundedCornerShape(8.dp)),
+            )
             Spacer(modifier = Modifier.width(12.dp))
             Text(
                 text = "Vibra Music",
@@ -169,7 +168,7 @@ fun DesktopFloatingNavBar(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 24.dp, vertical = 16.dp),
-        horizontalAlignment = Alignment.CenterCenter,
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         // Mini player inline accessory (appears when song is playing)
         if (currentSong != null) {

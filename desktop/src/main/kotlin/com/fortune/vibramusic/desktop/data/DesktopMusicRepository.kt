@@ -27,11 +27,11 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
 import org.schabi.newpipe.extractor.NewPipe
+import org.schabi.newpipe.extractor.ServiceList
 import org.schabi.newpipe.extractor.downloader.Downloader
 import org.schabi.newpipe.extractor.downloader.Request
 import org.schabi.newpipe.extractor.downloader.Response
-import org.schabi.newpipe.extractor.services.youtube.YoutubeService
-import org.schabi.newpipe.extractor.services.youtube.extractors.YoutubeStreamExtractor
+import org.schabi.newpipe.extractor.stream.DeliveryMethod
 import java.io.IOException
 
 object DesktopMusicRepository {
@@ -246,13 +246,15 @@ object DesktopMusicRepository {
     suspend fun resolveStreamUrl(videoId: String): String? = withContext(Dispatchers.IO) {
         try {
             val url = "https://www.youtube.com/watch?v=$videoId"
-            val extractor = YoutubeStreamExtractor(YoutubeService(0), url)
+            val extractor = ServiceList.YouTube.getStreamExtractor(url)
             extractor.fetchPage()
 
             val audioStreams = extractor.audioStreams
             if (!audioStreams.isNullOrEmpty()) {
+                val progressive = audioStreams.filter { !it.content.isNullOrBlank() && it.deliveryMethod == DeliveryMethod.PROGRESSIVE_HTTP }
+                val candidates = if (progressive.isNotEmpty()) progressive else audioStreams.filter { !it.content.isNullOrBlank() }
                 // Prefer Opus / WebM or M4A high bitrate
-                val best = audioStreams.maxByOrNull { it.averageBitrate }
+                val best = candidates.maxByOrNull { it.averageBitrate }
                 return@withContext best?.content
             }
             null

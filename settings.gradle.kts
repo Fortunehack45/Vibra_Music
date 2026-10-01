@@ -17,4 +17,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "Vibra Music"
 include(":app")
+include(":desktop")
  

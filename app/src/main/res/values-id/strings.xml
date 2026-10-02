@@ -1300,4 +1300,13 @@
     <string name="snap_to_active_line">Sinkronkan ke baris aktif</string>
     <string name="minimize_on_panel_back">Minimalkan pemutar saat kembali</string>
     <string name="minimize_on_panel_back_detail">Tombol kembali pada lirik atau antrean langsung meminimalkan pemutar ke layar jelajah</string>
+
+    <string name="edit_or_import_lyrics">Edit atau impor lirik</string>
+    <string name="edit_or_import_lyrics_subtitle">Edit teks atau impor file LRC</string>
+    <string name="import_lrc_file">Impor file</string>
+    <string name="paste_lyrics">Tempel</string>
+    <string name="save_lyrics">Simpan lirik</string>
+    <string name="reset_lyrics">Atur ulang ke daring</string>
+    <string name="lyrics_editor_hint">Masukkan baris tersinkronisasi [mm:ss.xx] atau teks biasa...</string>
+    <string name="custom_lyrics_source">Lirik kustom</string>
 </resources>

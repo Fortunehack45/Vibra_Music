@@ -1346,4 +1346,13 @@
     <string name="snap_to_active_line">Синхронизировать с активной строкой</string>
     <string name="minimize_on_panel_back">Сворачивать плеер при возврате</string>
     <string name="minimize_on_panel_back_detail">Кнопка «Назад» на экране текста или очереди сразу сворачивает плеер к экрану обзора</string>
+
+    <string name="edit_or_import_lyrics">Редактировать или импортировать текст</string>
+    <string name="edit_or_import_lyrics_subtitle">Редактировать текст или импортировать файл LRC</string>
+    <string name="import_lrc_file">Импортировать файл</string>
+    <string name="paste_lyrics">Вставить</string>
+    <string name="save_lyrics">Сохранить текст</string>
+    <string name="reset_lyrics">Сбросить на онлайн</string>
+    <string name="lyrics_editor_hint">Введите синхронизированные строки [mm:ss.xx] или простой текст...</string>
+    <string name="custom_lyrics_source">Свой текст</string>
 </resources>

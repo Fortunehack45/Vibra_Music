@@ -1206,4 +1206,13 @@
     <string name="no_cached_music" translatable="false">No cached music</string>
     <string name="no_cached_music_desc" translatable="false">Songs you stream are automatically cached here so you can listen without an internet connection.</string>
 
+
+    <string name="edit_or_import_lyrics">Edit or import lyrics</string>
+    <string name="edit_or_import_lyrics_subtitle">Edit text or import an LRC file</string>
+    <string name="import_lrc_file">Import file</string>
+    <string name="paste_lyrics">Paste</string>
+    <string name="save_lyrics">Save lyrics</string>
+    <string name="reset_lyrics">Reset to online</string>
+    <string name="lyrics_editor_hint">Enter [mm:ss.xx] synced lines or plain text lyrics...</string>
+    <string name="custom_lyrics_source">Custom lyrics</string>
 </resources>

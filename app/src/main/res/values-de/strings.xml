@@ -1320,4 +1320,13 @@
     <string name="snap_to_active_line">Zur aktiven Zeile springen</string>
     <string name="minimize_on_panel_back">Player beim Zurückgehen minimieren</string>
     <string name="minimize_on_panel_back_detail">Zurück-Taste in Songtexten oder Warteschlange minimiert den Player direkt zur Übersicht</string>
+
+    <string name="edit_or_import_lyrics">Songtexte bearbeiten oder importieren</string>
+    <string name="edit_or_import_lyrics_subtitle">Text bearbeiten oder LRC-Datei importieren</string>
+    <string name="import_lrc_file">Datei importieren</string>
+    <string name="paste_lyrics">Einfügen</string>
+    <string name="save_lyrics">Songtexte speichern</string>
+    <string name="reset_lyrics">Auf Online zurücksetzen</string>
+    <string name="lyrics_editor_hint">Geben Sie synchronisierte Zeilen [mm:ss.xx] oder einfachen Text ein...</string>
+    <string name="custom_lyrics_source">Eigene Songtexte</string>
 </resources>

@@ -603,6 +603,8 @@ fun NowPlayingScreen(
     lyricsSource: LyricsSource?,
     lyricsProviderStates: Map<LyricsSource, LyricsProviderState>,
     onSelectLyricsProvider: (LyricsSource) -> Unit,
+    onSaveCustomLyrics: ((String, String) -> Unit)? = null,
+    onResetCustomLyrics: ((String) -> Unit)? = null,
     lyricsUnavailable: Boolean,
     lyricsOffsetOpen: Boolean,
     onDismissLyricsOffset: () -> Unit,
@@ -651,6 +653,7 @@ fun NowPlayingScreen(
     var showAudioPipeline by remember { mutableStateOf(false) }
     var showAudioOutput by remember { mutableStateOf(false) }
     var showLyricsProviders by remember { mutableStateOf(false) }
+    var showEditLyrics by remember { mutableStateOf(false) }
     // Gated on the Bluetooth permission the first time — see [rememberOutputPicker].
     val openAudioOutput = rememberOutputPicker { showAudioOutput = true }
     // Listening in a party whose host has taken the controls: the transport
@@ -906,6 +909,8 @@ fun NowPlayingScreen(
     PlayerBackHandler(enabled = showAudioOutput) { showAudioOutput = false }
 
     PlayerBackHandler(enabled = showLyricsProviders) { showLyricsProviders = false }
+
+    PlayerBackHandler(enabled = showEditLyrics) { showEditLyrics = false }
 
     PlayerBackHandler(enabled = showListenTogetherMembers) { showListenTogetherMembers = false }
 
@@ -1463,6 +1468,25 @@ fun NowPlayingScreen(
                 states = lyricsProviderStates,
                 onSelect = onSelectLyricsProvider,
                 onDismiss = { showLyricsProviders = false },
+                onEditLyrics = {
+                    showLyricsProviders = false
+                    showEditLyrics = true
+                },
+            )
+        }
+        if (showEditLyrics) {
+            EditLyricsSheet(
+                hazeState = playerHaze,
+                initialLyrics = lyrics,
+                initialRawText = com.fortune.vibramusic.data.lyrics.CustomLyricsStore.getRaw(song.videoId),
+                isCustom = com.fortune.vibramusic.data.lyrics.CustomLyricsStore.has(song.videoId),
+                onSave = { text ->
+                    onSaveCustomLyrics?.invoke(song.videoId, text)
+                },
+                onReset = {
+                    onResetCustomLyrics?.invoke(song.videoId)
+                },
+                onDismiss = { showEditLyrics = false },
             )
         }
         if (showAudioPipeline) {
@@ -1962,7 +1986,7 @@ fun NowPlayingScreen(
         // A subview replaces that hero with an artwork-derived mesh, so it gets
         // only a modest floor rather than an opaque status-bar surface.
         val playerSubviewOpen = lyricsOpen || queueOpen || lyricsOffsetOpen ||
-            showAudioPipeline || showAudioOutput || showLyricsProviders
+            showAudioPipeline || showAudioOutput || showLyricsProviders || showEditLyrics
         val topGradientAlpha = if (playerSubviewOpen) {
             maxOf(artworkStatusScrimAlpha, SUBVIEW_STATUS_SCRIM_MIN_ALPHA)
         } else {

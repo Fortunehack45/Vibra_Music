@@ -11,9 +11,12 @@ import com.fortune.vibramusic.auth.profileId
 import com.fortune.vibramusic.auth.sessionId
 import com.fortune.vibramusic.auth.adjacentProfile
 import com.fortune.vibramusic.data.AppUpdateChecker
+import com.fortune.vibramusic.data.LocalLikesStore
 import com.fortune.vibramusic.data.LocalMediaRepository
+import com.fortune.vibramusic.data.LocalPlaylistsStore
 import com.fortune.vibramusic.data.LikeState
 import com.fortune.vibramusic.data.YtMusicRepository
+import com.fortune.vibramusic.data.lyrics.CustomLyricsStore
 import com.fortune.vibramusic.data.lyrics.EmbeddedLyrics
 import com.fortune.vibramusic.data.lyrics.LyricLine
 import com.fortune.vibramusic.data.lyrics.LyricsRepository
@@ -343,6 +346,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
         _lyricsChecked.value = false
         lyricsJob = viewModelScope.launch {
+            // User-saved or edited custom lyrics take absolute priority.
+            val custom = CustomLyricsStore.get(videoId)
+            if (custom != null) {
+                _lyrics.value = custom
+                _lyricsSource.value = null
+                _lyricsChecked.value = true
+                return@launch
+            }
             // The file first, and without the duration gate below: a length is
             // only needed to *match* a track against a stranger's database, and
             // nothing is being matched here — these lyrics were written into
@@ -469,6 +480,25 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _lyricsChecked.value = true
     }
 
+    fun saveCustomLyrics(videoId: String, rawText: String) {
+        val lines = CustomLyricsStore.save(videoId, rawText)
+        if (currentLyricsRequest?.videoId == videoId) {
+            _lyrics.value = lines
+            _lyricsSource.value = null
+            _lyricsChecked.value = true
+        }
+    }
+
+    fun resetCustomLyrics(videoId: String) {
+        CustomLyricsStore.clear(videoId)
+        currentLyricsRequest?.let { req ->
+            if (req.videoId == videoId) {
+                lyricsFor = null
+                loadLyrics(req.videoId, req.title, req.artist, req.durationMs, req.album)
+            }
+        }
+    }
+
     private val _account = MutableStateFlow<Account?>(
         authStore.sessions
             .firstOrNull { it.accountId == authStore.activeAccountId }
@@ -570,8 +600,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * on a round trip before the heart fills reads as the tap not having
      * registered, and people tap again.
      */
-    fun setLike(videoId: String, status: LikeStatus) {
-        if (!requireSignIn()) return
+    fun setLike(videoId: String, status: LikeStatus, song: Song? = null) {
+        if (!_signedIn.value) {
+            val previous = likeStatusOf(videoId)
+            if (previous == status) return
+            LocalLikesStore.set(videoId, status, song)
+            LikeState.set(videoId, status)
+            if (status != LikeStatus.LIKE) dropFromLikedLists(videoId)
+            return
+        }
         val previous = likeStatusOf(videoId)
         if (previous == status) return
         LikeState.set(videoId, status)
@@ -651,14 +688,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** The heart: liked becomes neutral, anything else becomes liked. */
-    fun toggleLike(videoId: String) = setLike(
+    fun toggleLike(videoId: String, song: Song? = null) = setLike(
         videoId,
         if (likeStatusOf(videoId) == LikeStatus.LIKE) LikeStatus.INDIFFERENT else LikeStatus.LIKE,
+        song,
     )
 
     /** As [toggleLike], for the thumb-down. */
     fun toggleDislike(videoId: String): LikeStatus? {
-        if (!requireSignIn()) return null
         val previous = likeStatusOf(videoId)
         setLike(
             videoId,
@@ -795,11 +832,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Re-fetched rather than cached for the session: playlists are edited here. */
     fun loadPlaylists() {
-        if (!_signedIn.value || _playlistsLoading.value) return
+        val local = LocalPlaylistsStore.getPlaylists()
+        if (!_signedIn.value) {
+            _playlists.value = local
+            return
+        }
+        if (_playlistsLoading.value) return
         val identity = listenerKey()
         _playlistsLoading.value = true
         viewModelScope.launch {
-            YtMusicRepository.userPlaylists().onSuccess { if (identity == listenerKey()) _playlists.value = it }
+            YtMusicRepository.userPlaylists().onSuccess {
+                if (identity == listenerKey()) _playlists.value = local + it
+            }
             if (identity == listenerKey()) _playlistsLoading.value = false
         }
     }
@@ -880,6 +924,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * and a real duplicate is never sent, rather than added and only reported.
      */
     fun addToPlaylist(playlist: UserPlaylist, song: Song, onResult: (alreadyInPlaylist: Boolean) -> Unit = {}) {
+        if (playlist.playlistId.startsWith("local_")) {
+            val added = LocalPlaylistsStore.addSong(playlist.playlistId, song)
+            if (!added) {
+                onResult(true)
+            } else {
+                appendToOpenPlaylist(playlist.browseId, song, null)
+                loadPlaylists()
+                onResult(false)
+            }
+            return
+        }
         if (!requireSignIn()) return
         viewModelScope.launch {
             val openSongs = (_detailStack.value.firstOrNull { it.browseId == playlist.browseId }
@@ -910,8 +965,26 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * playlist the user has to add to again.
      */
     fun createPlaylist(title: String, privacy: PlaylistPrivacy, song: Song? = null) {
-        if (!requireSignIn()) return
         val name = title.trim().ifBlank { text(R.string.new_playlist) }
+        if (!_signedIn.value) {
+            val created = LocalPlaylistsStore.createPlaylist(name, song)
+            setPlaylistOwned(created.browseId, true)
+            libraryStale = true
+            _playlists.value = listOf(created) +
+                _playlists.value.filterNot { it.playlistId == created.playlistId }
+            editPlaylistShelf { items ->
+                listOf(
+                    ShelfItem(
+                        title = created.title,
+                        subtitle = created.subtitle,
+                        thumbnailUrl = created.thumbnailUrl,
+                        videoId = null,
+                        browseId = created.browseId,
+                    ),
+                ) + items.filterNot { it.browseId == created.browseId }
+            }
+            return
+        }
         viewModelScope.launch {
             YtMusicRepository.createPlaylist(
                 title = name,
@@ -964,6 +1037,24 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * row out from under the reader rather than waiting for a re-fetch.
      */
     fun removeFromPlaylist(browseId: String, song: Song) {
+        if (browseId.startsWith("VLlocal_") || browseId.startsWith("local_")) {
+            LocalPlaylistsStore.removeSong(browseId, song.videoId)
+            libraryStale = true
+            _detailStack.value = _detailStack.value.map { page ->
+                val songs = (page.songs as? UiState.Success)?.data
+                if (page.browseId != browseId || songs == null) {
+                    page
+                } else {
+                    page.copy(
+                        songs = UiState.Success(
+                            songs.filterNot { it.videoId == song.videoId },
+                        ),
+                    )
+                }
+            }
+            loadPlaylists()
+            return
+        }
         val setVideoId = song.setVideoId ?: return
         if (!requireSignIn()) return
         val playlistId = browseId.removePrefix("VL")
@@ -1076,9 +1167,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * showing the old name.
      */
     fun renamePlaylist(playlist: UserPlaylist, title: String) {
-        if (!requireSignIn()) return
         val name = title.trim()
         if (name.isBlank() || name == playlist.title) return
+        if (playlist.playlistId.startsWith("local_")) {
+            LocalPlaylistsStore.renamePlaylist(playlist.playlistId, name)
+            setPlaylistTitle(playlist, name)
+            libraryStale = true
+            return
+        }
+        if (!requireSignIn()) return
         viewModelScope.launch {
             YtMusicRepository.renamePlaylist(playlist.playlistId, name).fold(
                 onSuccess = {
@@ -1091,6 +1188,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun deletePlaylist(playlist: UserPlaylist) {
+        if (playlist.playlistId.startsWith("local_")) {
+            LocalPlaylistsStore.deletePlaylist(playlist.playlistId)
+            _playlists.value = _playlists.value
+                .filterNot { it.playlistId == playlist.playlistId }
+            editPlaylistShelf { items ->
+                items.filterNot { it.browseId == playlist.browseId }
+            }
+            _detailStack.value = _detailStack.value
+                .filterNot { it.browseId == playlist.browseId }
+            libraryStale = true
+            return
+        }
         if (!requireSignIn()) return
         viewModelScope.launch {
             YtMusicRepository.deletePlaylist(playlist.playlistId).fold(
@@ -1133,7 +1242,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * changes its mind about what a playlist is depending on where it is held.
      */
     fun editablePlaylist(browseId: String?): UserPlaylist? {
-        if (browseId == null || _playlistOwned.value[browseId] != true) return null
+        if (browseId == null) return null
+        if (browseId.startsWith("VLlocal_") || browseId.startsWith("local_")) {
+            return _playlists.value.firstOrNull { it.browseId == browseId }
+        }
+        if (_playlistOwned.value[browseId] != true) return null
         return _playlists.value.firstOrNull { it.browseId == browseId }
     }
 
@@ -1165,6 +1278,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * would be a request spent to rule out what was never on offer.
      */
     fun resolvePlaylistOwnership(browseId: String?) {
+        if (browseId != null && (browseId.startsWith("VLlocal_") || browseId.startsWith("local_"))) {
+            setPlaylistOwned(browseId, true)
+            return
+        }
         if (!_signedIn.value || browseId == null) return
         if (browseId in _playlistOwned.value || browseId in ownershipInFlight) return
         if (_playlists.value.none { it.browseId == browseId }) return
@@ -1212,10 +1329,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     init {
+        LikeState.seedLiked(LocalLikesStore.getLikedIds())
         startSearchPipeline()
         startSuggestPipeline()
         startTypeaheadMediaPipeline()
         loadHome()
+        loadPlaylists()
         viewModelScope.launch {
             // Prioritize bandwidth and CPU for home screen during initial startup
             delay(1200)
@@ -1549,7 +1668,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun loadLibrary() {
         if (!_signedIn.value) return
         val identity = listenerKey()
-        _library.value = UiState.Loading
+        if (_library.value !is UiState.Success) {
+            _library.value = UiState.Loading
+        }
         viewModelScope.launch { fetchLibrary(identity) }
     }
 
@@ -2140,6 +2261,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
         fun browseTypeOf(browseId: String, fallback: BrowseType = BrowseType.OTHER): BrowseType = when {
             browseId.startsWith(Downloads.PLAYLIST_PREFIX) -> BrowseType.PLAYLIST
+            browseId.startsWith("local_") || browseId.startsWith("VLlocal_") -> BrowseType.PLAYLIST
             browseId.startsWith("UC") -> BrowseType.ARTIST
             browseId.startsWith("MPREb") || browseId.startsWith("VLOLAK") || browseId.startsWith("OLAK") -> BrowseType.ALBUM
             browseId.startsWith("VL") || browseId.startsWith("PL") -> BrowseType.PLAYLIST
@@ -2241,6 +2363,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             var subscription: SubscriptionState? = null
             val remote = remoteLibrary(browseId)
             val state = when {
+                browseId.startsWith("VLlocal_") || browseId.startsWith("local_") -> {
+                    val stored = LocalPlaylistsStore.getPlaylist(browseId)
+                    val songs = stored?.songs.orEmpty()
+                    setPlaylistOwned(browseId, true)
+                    if (songs.isEmpty()) UiState.Error(text(R.string.no_tracks_here))
+                    else UiState.Success(songs)
+                }
+                browseId == YtMusicRepository.LIKED_MUSIC && !_signedIn.value -> {
+                    val songs = LocalLikesStore.getLikedSongs()
+                    if (songs.isEmpty()) UiState.Error(text(R.string.no_tracks_here))
+                    else UiState.Success(songs)
+                }
                 remote != null -> remoteSongsState(remote)
                 Downloads.recordIdOf(browseId) != null -> {
                     val songs = downloadedPlaylist(browseId)
@@ -2351,6 +2485,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val context = getApplication<Application>()
             val remote = remoteLibrary(browseId)
             val state: UiState<List<Song>> = when {
+                browseId.startsWith("VLlocal_") || browseId.startsWith("local_") -> {
+                    val stored = LocalPlaylistsStore.getPlaylist(browseId)
+                    val songs = stored?.songs.orEmpty()
+                    if (songs.isEmpty()) UiState.Error(text(R.string.no_tracks_here))
+                    else UiState.Success(songs)
+                }
+                browseId == YtMusicRepository.LIKED_MUSIC && !_signedIn.value -> {
+                    val songs = LocalLikesStore.getLikedSongs()
+                    if (songs.isEmpty()) UiState.Error(text(R.string.no_tracks_here))
+                    else UiState.Success(songs)
+                }
                 remote != null -> remoteSongsState(remote)
                 Downloads.recordIdOf(browseId) != null -> {
                     val songs = downloadedPlaylist(browseId)

@@ -1325,4 +1325,13 @@
     <string name="snap_to_active_line">Sincronizar com linha ativa</string>
     <string name="minimize_on_panel_back">Minimizar player ao voltar</string>
     <string name="minimize_on_panel_back_detail">O botão Voltar na letra ou fila minimiza o reprodutor diretamente para a tela de navegação</string>
+
+    <string name="edit_or_import_lyrics">Editar ou importar letras</string>
+    <string name="edit_or_import_lyrics_subtitle">Editar texto ou importar um arquivo LRC</string>
+    <string name="import_lrc_file">Importar arquivo</string>
+    <string name="paste_lyrics">Colar</string>
+    <string name="save_lyrics">Salvar letras</string>
+    <string name="reset_lyrics">Redefinir para online</string>
+    <string name="lyrics_editor_hint">Insira linhas sincronizadas [mm:ss.xx] ou texto simples...</string>
+    <string name="custom_lyrics_source">Letras personalizadas</string>
 </resources>

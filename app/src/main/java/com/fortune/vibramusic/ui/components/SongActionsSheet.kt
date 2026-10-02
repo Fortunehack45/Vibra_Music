@@ -692,7 +692,10 @@ private fun SleepOption(
 @Composable
 private fun sleepTimerStatus(): String? {
     val afterTrack by SleepTimer.afterTrack.collectAsStateWithLifecycle()
-    return sleepTimerCountdown() ?: stringResource(R.string.after_this_song).takeIf { afterTrack }
+    val afterQueue by SleepTimer.afterQueue.collectAsStateWithLifecycle()
+    return sleepTimerCountdown()
+        ?: stringResource(R.string.after_this_song).takeIf { afterTrack }
+        ?: stringResource(R.string.after_queue_or_playlist).takeIf { afterQueue }
 }
 
 /** Live "m:ss" until the sleep timer fires, or null when none is running. */

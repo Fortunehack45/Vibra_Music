@@ -1358,4 +1358,13 @@
     <string name="snap_to_active_line">Synchronizuj do aktywnego wersu</string>
     <string name="minimize_on_panel_back">Minimalizuj odtwarzacz po cofnięciu</string>
     <string name="minimize_on_panel_back_detail">Przycisk Wstecz na ekranie tekstu lub kolejki minimalizuje odtwarzacz bezpośrednio do przeglądania</string>
+
+    <string name="edit_or_import_lyrics">Edytuj lub importuj tekst</string>
+    <string name="edit_or_import_lyrics_subtitle">Edytuj tekst lub importuj plik LRC</string>
+    <string name="import_lrc_file">Importuj plik</string>
+    <string name="paste_lyrics">Wklej</string>
+    <string name="save_lyrics">Zapisz tekst</string>
+    <string name="reset_lyrics">Zresetuj do online</string>
+    <string name="lyrics_editor_hint">Wpisz zsynchronizowane linie [mm:ss.xx] lub zwykły tekst...</string>
+    <string name="custom_lyrics_source">Własny tekst</string>
 </resources>

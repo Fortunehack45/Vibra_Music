@@ -1321,4 +1321,13 @@
     <string name="snap_to_active_line">Synchroniser avec la ligne active</string>
     <string name="minimize_on_panel_back">Réduire le lecteur au retour</string>
     <string name="minimize_on_panel_back_detail">Le bouton Retour sur les paroles ou la file d\'attente réduit directement le lecteur vers l\'écran de navigation</string>
+
+    <string name="edit_or_import_lyrics">Modifier ou importer les paroles</string>
+    <string name="edit_or_import_lyrics_subtitle">Modifier le texte ou importer un fichier LRC</string>
+    <string name="import_lrc_file">Importer un fichier</string>
+    <string name="paste_lyrics">Coller</string>
+    <string name="save_lyrics">Enregistrer les paroles</string>
+    <string name="reset_lyrics">Réinitialiser en ligne</string>
+    <string name="lyrics_editor_hint">Entrez des lignes synchronisées [mm:ss.xx] ou du texte brut...</string>
+    <string name="custom_lyrics_source">Paroles personnalisées</string>
 </resources>

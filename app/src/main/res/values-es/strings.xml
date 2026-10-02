@@ -1292,4 +1292,13 @@
     <string name="snap_to_active_line">Sincronizar con línea activa</string>
     <string name="minimize_on_panel_back">Minimizar reproductor al volver</string>
     <string name="minimize_on_panel_back_detail">El botón Atrás en la letra o cola minimiza el reproductor directamente a la pantalla de exploración</string>
+
+    <string name="edit_or_import_lyrics">Editar o importar letras</string>
+    <string name="edit_or_import_lyrics_subtitle">Editar texto o importar un archivo LRC</string>
+    <string name="import_lrc_file">Importar archivo</string>
+    <string name="paste_lyrics">Pegar</string>
+    <string name="save_lyrics">Guardar letras</string>
+    <string name="reset_lyrics">Restablecer a online</string>
+    <string name="lyrics_editor_hint">Introduce líneas sincronizadas [mm:ss.xx] o texto simple...</string>
+    <string name="custom_lyrics_source">Letras personalizadas</string>
 </resources>

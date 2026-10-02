@@ -504,23 +504,44 @@ class PlaybackService : MediaLibraryService() {
 
     private val audioManager by lazy { getSystemService(AudioManager::class.java) }
     private var pausedByVolumeMute = false
+    private var isInternalVolumePause = false
+
+    private fun handleVolumeChange() {
+        if (!com.fortune.vibramusic.data.settings.AppSettings.pauseOnVolumeMute.value) return
+        val am = audioManager ?: return
+        val currentVol = am.getStreamVolume(AudioManager.STREAM_MUSIC)
+        val isMuted = currentVol == 0 || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && am.isStreamMute(AudioManager.STREAM_MUSIC))
+        val p = player ?: return
+        if (isMuted) {
+            if (p.isPlaying) {
+                pausedByVolumeMute = true
+                isInternalVolumePause = true
+                try {
+                    p.pause()
+                } finally {
+                    isInternalVolumePause = false
+                }
+            }
+        } else if (pausedByVolumeMute && currentVol > 0) {
+            pausedByVolumeMute = false
+            p.play()
+        }
+    }
+
     private val volumeMuteReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action != "android.media.VOLUME_CHANGED_ACTION") return
-            if (!com.fortune.vibramusic.data.settings.AppSettings.pauseOnVolumeMute.value) return
             val streamType = intent.getIntExtra("android.media.EXTRA_VOLUME_STREAM_TYPE", -1)
             if (streamType != AudioManager.STREAM_MUSIC && streamType != -1) return
-            val currentVol = audioManager?.getStreamVolume(AudioManager.STREAM_MUSIC) ?: return
-            val isMuted = currentVol == 0 || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && audioManager?.isStreamMute(AudioManager.STREAM_MUSIC) == true)
-            val p = player ?: return
-            if (isMuted) {
-                if (p.isPlaying) {
-                    pausedByVolumeMute = true
-                    p.pause()
-                }
-            } else if (pausedByVolumeMute) {
-                pausedByVolumeMute = false
-                p.play()
+            handleVolumeChange()
+        }
+    }
+
+    private val volumeObserver by lazy {
+        object : android.database.ContentObserver(android.os.Handler(android.os.Looper.getMainLooper())) {
+            override fun onChange(selfChange: Boolean) {
+                super.onChange(selfChange)
+                handleVolumeChange()
             }
         }
     }
@@ -868,7 +889,9 @@ class PlaybackService : MediaLibraryService() {
         override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
             publishWidgetState(playing = playWhenReady)
             if (!playWhenReady && reason == Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST) {
-                pausedByVolumeMute = false
+                if (!isInternalVolumePause) {
+                    pausedByVolumeMute = false
+                }
             }
             // The only place the *reason* can be read. A party has to tell a
             // pause the listener asked for from one another app imposed, and
@@ -1562,6 +1585,15 @@ class PlaybackService : MediaLibraryService() {
             }
         } catch (e: Exception) {
             Log.w("PlaybackService", "Failed to register volumeMuteReceiver", e)
+        }
+        try {
+            contentResolver.registerContentObserver(
+                android.provider.Settings.System.CONTENT_URI,
+                true,
+                volumeObserver,
+            )
+        } catch (e: Exception) {
+            Log.w("PlaybackService", "Failed to register volumeObserver", e)
         }
 
         AppSettings.audioSessionId.value = exoPlayer.audioSessionId
@@ -2681,14 +2713,10 @@ class PlaybackService : MediaLibraryService() {
      */
     private fun sessionActivity(): PendingIntent = PendingIntent.getActivity(
         this,
-        0,
+        1001,
         Intent(this, MainActivity::class.java)
-            .setAction(Intent.ACTION_MAIN)
-            .addCategory(Intent.CATEGORY_LAUNCHER)
-            .putExtra(PlayerDeepLink.EXTRA_OPEN_PLAYER, true)
-            // MainActivity is singleTask, so this resumes the existing task
-            // rather than stacking a second copy of the UI.
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            .putExtra(PlayerDeepLink.EXTRA_OPEN_PLAYER, true),
         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
 
@@ -6188,6 +6216,9 @@ class PlaybackService : MediaLibraryService() {
         audioManager?.unregisterAudioDeviceCallback(outputDeviceCallback)
         try {
             unregisterReceiver(volumeMuteReceiver)
+        } catch (_: Exception) {}
+        try {
+            contentResolver.unregisterContentObserver(volumeObserver)
         } catch (_: Exception) {}
         partySync?.stop()
         partySync = null

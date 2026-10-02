@@ -487,7 +487,7 @@ object AppSettings {
     val spotifyCanvasAutoHide = MutableStateFlow(true)
 
     /** Tries Spotify before Apple Music and the other animated-art providers. */
-    val prioritizeSpotifyCanvas = MutableStateFlow(false)
+    val prioritizeSpotifyCanvas = MutableStateFlow(true)
 
     /**
      * Blows the player's cover art out to a full-bleed banner running off the
@@ -884,7 +884,7 @@ object AppSettings {
         animatedCanvas.value = prefs.getBoolean(KEY_ANIMATED_CANVAS, true)
         canvasOverCellular.value = prefs.getBoolean(KEY_CANVAS_OVER_CELLULAR, false)
         spotifyCanvasAutoHide.value = prefs.getBoolean(KEY_SPOTIFY_CANVAS_AUTO_HIDE, true)
-        prioritizeSpotifyCanvas.value = prefs.getBoolean(KEY_PRIORITIZE_SPOTIFY_CANVAS, false)
+        prioritizeSpotifyCanvas.value = prefs.getBoolean(KEY_PRIORITIZE_SPOTIFY_CANVAS, true)
         fullBleedArtwork.value = prefs.getBoolean(KEY_FULL_BLEED_ARTWORK, true)
         legacyMeshGradient.value = prefs.getBoolean(KEY_LEGACY_MESH_GRADIENT, false)
         lastPlayerScreen.value = runCatching {

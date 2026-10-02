@@ -2917,6 +2917,8 @@ internal fun rememberLyricsTranslation(
         romanizationState is LyricsTranslationUiState.SameLanguage ->
             stringResource(R.string.lyrics_already_romanized)
         lyricsSource != null -> stringResource(R.string.lyrics_by, lyricsSource.label)
+        com.fortune.vibramusic.data.lyrics.CustomLyricsStore.has(trackId) ->
+            stringResource(R.string.custom_lyrics_source)
         lyricsUnavailable -> stringResource(R.string.no_lyrics_found)
         lyrics.isNullOrEmpty() -> loadingText
         else -> stringResource(R.string.lyrics_saved_with_download)

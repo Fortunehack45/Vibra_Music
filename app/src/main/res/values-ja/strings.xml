@@ -1301,4 +1301,13 @@
     <string name="snap_to_active_line">再生中の行に同期</string>
     <string name="minimize_on_panel_back">戻る時にプレイヤーを最小化</string>
     <string name="minimize_on_panel_back_detail">歌詞またはキュー画面で戻るボタンを押すと、プレイヤーが直接ブラウズ画面へ最小化されます</string>
+
+    <string name="edit_or_import_lyrics">歌詞を編集またはインポート</string>
+    <string name="edit_or_import_lyrics_subtitle">テキストを編集するかLRCファイルをインポート</string>
+    <string name="import_lrc_file">ファイルをインポート</string>
+    <string name="paste_lyrics">貼り付け</string>
+    <string name="save_lyrics">歌詞を保存</string>
+    <string name="reset_lyrics">オンラインにリセット</string>
+    <string name="lyrics_editor_hint">[mm:ss.xx] 同期された行またはプレーンテキストを入力...</string>
+    <string name="custom_lyrics_source">カスタム歌詞</string>
 </resources>

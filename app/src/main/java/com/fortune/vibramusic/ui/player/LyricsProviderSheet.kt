@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.ui.player
+package com.fortune.vibramusic.ui.player
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -59,6 +60,7 @@ internal fun LyricsProviderSheet(
     states: Map<LyricsSource, LyricsProviderState>,
     onSelect: (LyricsSource) -> Unit,
     onDismiss: () -> Unit,
+    onEditLyrics: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val savedOrder by AppSettings.lyricsSourceOrder.collectAsStateWithLifecycle()
@@ -80,6 +82,60 @@ internal fun LyricsProviderSheet(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
+            if (onEditLyrics != null) {
+                val haptics = rememberHaptics()
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(ROW_SHAPE)
+                        .background(Color.White.copy(alpha = 0.08f))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                        ) {
+                            haptics.play(Haptic.Select)
+                            onDismiss()
+                            onEditLyrics()
+                        }
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.12f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Edit,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                    Spacer(Modifier.width(13.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            text = stringResource(R.string.edit_or_import_lyrics),
+                            style = MaterialTheme.typography.bodyLarge.copy(
+                                fontWeight = FontWeight.SemiBold,
+                            ),
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            text = stringResource(R.string.edit_or_import_lyrics_subtitle),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = Color.White.copy(alpha = 0.6f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+
             sources.forEach { source ->
                 LyricsProviderRow(
                     source = source,

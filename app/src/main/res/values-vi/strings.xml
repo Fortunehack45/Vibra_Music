@@ -1238,4 +1238,13 @@
     <string name="snap_to_active_line">Đồng bộ về dòng đang phát</string>
     <string name="minimize_on_panel_back">Thu nhỏ trình phát khi quay lại</string>
     <string name="minimize_on_panel_back_detail">Nút quay lại trên màn hình lời bài hát hoặc hàng đợi sẽ thu nhỏ trình phát trực tiếp về màn hình duyệt</string>
+
+    <string name="edit_or_import_lyrics">Chỉnh sửa hoặc nhập lời bài hát</string>
+    <string name="edit_or_import_lyrics_subtitle">Chỉnh sửa văn bản hoặc nhập tệp LRC</string>
+    <string name="import_lrc_file">Nhập tệp</string>
+    <string name="paste_lyrics">Dán</string>
+    <string name="save_lyrics">Lưu lời bài hát</string>
+    <string name="reset_lyrics">Đặt lại về trực tuyến</string>
+    <string name="lyrics_editor_hint">Nhập các dòng được đồng bộ hóa [mm:ss.xx] hoặc văn bản thuần túy...</string>
+    <string name="custom_lyrics_source">Lời bài hát tùy chỉnh</string>
 </resources>

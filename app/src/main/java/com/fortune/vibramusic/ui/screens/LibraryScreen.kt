@@ -122,6 +122,7 @@ fun LibraryScreen(
      * without going through that folder.
      */
     downloadedPlaylists: List<SavedCollection> = emptyList(),
+    playlists: List<UserPlaylist> = emptyList(),
 ) {
     val pinnedPlaylists by AppSettings.pinnedPlaylists.collectAsStateWithLifecycle()
     val webdavConfigured by AppSettings.webdavUrl.collectAsStateWithLifecycle()
@@ -253,6 +254,37 @@ fun LibraryScreen(
                 )
             }
             if (!signedIn) {
+                val localList = playlists.filter { it.playlistId.startsWith("local_") }
+                    .ifEmpty { com.fortune.vibramusic.data.LocalPlaylistsStore.getPlaylists() }
+                val likedSongs = com.fortune.vibramusic.data.LocalLikesStore.getLikedSongs()
+                val likedItem = ShelfItem(
+                    title = stringResource(R.string.auto_liked),
+                    subtitle = "${likedSongs.size} " + if (likedSongs.size == 1) "song" else "songs",
+                    thumbnailUrl = likedSongs.firstOrNull()?.thumbnailUrl,
+                    videoId = null,
+                    browseId = com.fortune.vibramusic.data.YtMusicRepository.LIKED_MUSIC,
+                )
+                val playlistItems = listOf(likedItem) + localList.map { p ->
+                    ShelfItem(
+                        title = p.title,
+                        subtitle = p.subtitle,
+                        thumbnailUrl = p.thumbnailUrl,
+                        videoId = null,
+                        browseId = p.browseId,
+                    )
+                }
+                val localShelf = HomeShelf(PLAYLISTS, playlistItems)
+                val pinnedFirst = localShelf.pinnedFirst(pinnedPlaylists)
+                item(key = "shelf:$PLAYLISTS") {
+                    PlaylistShelf(
+                        shelf = pinnedFirst,
+                        onItemClick = onShelfItemClick,
+                        onItemLongPress = onShelfItemLongPress,
+                        onNewPlaylist = onNewPlaylist,
+                        onShowAll = { onShowAll(pinnedFirst) },
+                        pinnedPlaylists = pinnedPlaylists,
+                    )
+                }
                 item {
                     MessageState(
                         message = stringResource(R.string.library_sign_in_description),
@@ -465,7 +497,9 @@ internal fun LibraryGridShelf(
     pinnedPlaylists: List<String> = emptyList(),
 ) {
     val leadingCount = if (leadingCard != null) 1 else 0
-    val visibleItems = shelf.items.take((LIBRARY_ROW_MAX_ITEMS - leadingCount).coerceAtLeast(0))
+    val visibleItems = remember(shelf.items, leadingCount) {
+        shelf.items.take((LIBRARY_ROW_MAX_ITEMS - leadingCount).coerceAtLeast(0))
+    }
     Column(Modifier.padding(bottom = 26.dp)) {
         SectionHeader(
             title = shelf.title,

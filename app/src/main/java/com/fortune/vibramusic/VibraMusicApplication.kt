@@ -135,7 +135,9 @@ class VibraMusicApplication : Application(), SingletonImageLoader.Factory {
             // seconds of video from the network on every loop.
 
             CanvasCache.init(this)
-
+            com.fortune.vibramusic.data.lyrics.CustomLyricsStore.init(this)
+            com.fortune.vibramusic.data.LocalLikesStore.init(this)
+            com.fortune.vibramusic.data.LocalPlaylistsStore.init(this)
         }
 
         // Migration-safe: an old single cookie becomes the first encrypted

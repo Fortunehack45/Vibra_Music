@@ -1325,4 +1325,13 @@
     <string name="snap_to_active_line">סנכרן לשורה הפעילה</string>
     <string name="minimize_on_panel_back">מזער נגן בחזרה</string>
     <string name="minimize_on_panel_back_detail">לחיצה על כפתור חזרה במילים או בתור תמזער את הנגן ישירות למסך הגלישה</string>
+
+    <string name="edit_or_import_lyrics">ערוך או ייבא מילים</string>
+    <string name="edit_or_import_lyrics_subtitle">ערוך טקסט או ייבא קובץ LRC</string>
+    <string name="import_lrc_file">ייבוא קובץ</string>
+    <string name="paste_lyrics">הדבק</string>
+    <string name="save_lyrics">שמור מילים</string>
+    <string name="reset_lyrics">אפס למקוון</string>
+    <string name="lyrics_editor_hint">הזן שורות מסונכרנות [mm:ss.xx] או טקסט פשוט...</string>
+    <string name="custom_lyrics_source">מילים מותאמות אישית</string>
 </resources>

@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.data.lyrics
+package com.fortune.vibramusic.data.lyrics
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Deferred
@@ -213,7 +213,7 @@ object LyricsRepository {
      * one's own split alone.
      */
     private fun result(source: LyricsSource, lines: List<LyricLine>) =
-        Result(source, lines.withBackgroundVocals())
+        Result(source, lines.withEstimatedLineEnds().withBackgroundVocals())
 
     /**
      * Longest the lookup will wait to find out which recording this is.

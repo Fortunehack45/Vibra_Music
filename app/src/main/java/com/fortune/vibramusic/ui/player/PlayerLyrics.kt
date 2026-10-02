@@ -2215,7 +2215,7 @@ internal fun LyricsPanel(
             exit = fadeOut(tween(200)) + slideOutVertically(tween(200)) { it / 2 },
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = if (controlsOpen) 140.dp else 36.dp),
+                .padding(bottom = if (controlsOpen) 2.dp else 36.dp),
         ) {
             val useGlass = LocalLiquidGlassEnabled.current && isGlassSupported()
             val pillShape = RoundedCornerShape(22.dp)
@@ -2309,8 +2309,9 @@ private fun PanelVoice(
     translationProgress: State<Float>? = null,
     modifier: Modifier = Modifier,
 ) {
-    if (line.isWordSynced && !browsing) {
-        // Every word-synced line goes through the sweep, not just the playing
+    val canSweep = (line.isWordSynced || (synced && line.timeMs >= 0L && line.text.isNotEmpty())) && !line.isGap
+    if (canSweep && !browsing) {
+        // Every synced line goes through the sweep, not just the playing
         // one — a line that has already been sung is fully revealed and one
         // still to come is not, which falls out of the same arithmetic.
         //
@@ -2335,7 +2336,7 @@ private fun PanelVoice(
             alignEnd = alignEnd,
             translationProgress = translationProgress,
         )
-    } else if (line.isWordSynced) {
+    } else if (canSweep) {
         // Browsing: keep the sweep so sung lines stay fully lit and unsung
         // ones stay dim, but skip the bloom — it is a playback flourish, not
         // a browsing aid.  Non-active lines get the same dim tail as when we
@@ -2590,7 +2591,7 @@ private fun CurrentLyricLine(
             modifier = Modifier.weight(1f, fill = false),
         ) { (_, lineItem, lineText) ->
             val itemInstrumental = lineItem == null || lineItem.isGap
-            val swept = lineItem?.takeIf { !itemInstrumental && it.isWordSynced }
+            val swept = lineItem?.takeIf { !itemInstrumental && (it.isWordSynced || (it.timeMs >= 0L && it.text.isNotEmpty())) }
             if (swept != null) {
                 SweptLyricLine(
                     line = swept,

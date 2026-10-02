@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.data.lyrics
+package com.fortune.vibramusic.data.lyrics
 
 /**
  * One word of a line, with the stretch of the song it is sung over.
@@ -131,7 +131,13 @@ data class LyricLine(
      */
     val endMs: Long
         get() {
-            val lead = words.lastOrNull()?.endMs ?: sungUntilMs ?: timeMs
+            val lead = words.lastOrNull()?.endMs ?: sungUntilMs ?: run {
+                if (text.isNotBlank() && timeMs >= 0L) {
+                    timeMs + (text.length * 180L).coerceIn(2_500L, 7_000L)
+                } else {
+                    timeMs
+                }
+            }
             return maxOf(lead, background?.endMs ?: lead)
         }
 
@@ -150,7 +156,14 @@ data class LyricLine(
             return (source.revealedChars(positionMs) / source.text.length)
                 .coerceIn(0f, 1f) * text.length
         }
-        if (words.isEmpty()) return if (positionMs >= timeMs) text.length.toFloat() else 0f
+        if (words.isEmpty()) {
+            val end = endMs
+            if (end <= timeMs) return if (positionMs >= timeMs) text.length.toFloat() else 0f
+            if (positionMs <= timeMs) return 0f
+            if (positionMs >= end) return text.length.toFloat()
+            val progress = (positionMs - timeMs).toFloat() / (end - timeMs)
+            return (progress * text.length).coerceIn(0f, text.length.toFloat())
+        }
         var offset = 0
         words.forEachIndexed { index, word ->
             // Where this word sits in [text]. Built by walking rather than

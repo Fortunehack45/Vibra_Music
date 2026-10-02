@@ -266,11 +266,7 @@ class VibraMusicApplication : Application(), SingletonImageLoader.Factory {
         }
 
         // Initialize LastFM with saved settings if available
-
         initLastfm()
-
-        backgroundInit.join()
-
     }
 
 

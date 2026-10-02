@@ -2685,6 +2685,7 @@ class PlaybackService : MediaLibraryService() {
         Intent(this, MainActivity::class.java)
             .setAction(Intent.ACTION_MAIN)
             .addCategory(Intent.CATEGORY_LAUNCHER)
+            .putExtra(PlayerDeepLink.EXTRA_OPEN_PLAYER, true)
             // MainActivity is singleTask, so this resumes the existing task
             // rather than stacking a second copy of the UI.
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
@@ -7584,7 +7585,7 @@ class PlaybackService : MediaLibraryService() {
         const val BACK_BUFFER_MS = 30 * 1000
 
         /** Enough to cover the decoder's own latency, not seconds of dead air. */
-        const val START_PLAYBACK_MS = 500
+        const val START_PLAYBACK_MS = 250
 
         /** More room after a stall than at the start — see the load control. */
         const val RESUME_PLAYBACK_MS = 2_000

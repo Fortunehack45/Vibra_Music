@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.data.lyrics
+package com.fortune.vibramusic.data.lyrics
 
 /** Shorter instrumental breaks aren't worth interrupting the line for. */
 internal const val MIN_GAP_MS = 4_000L
@@ -32,3 +32,30 @@ internal fun List<LyricLine>.withInstrumentalGaps(): List<LyricLine> {
     }
     return out
 }
+
+/**
+ * For line-synced lyrics where words are not individually timed, estimates
+ * the line duration from the next line's timestamp so the sweep wipe and
+ * reveal fade-in can animate progressively across the line.
+ */
+internal fun List<LyricLine>.withEstimatedLineEnds(): List<LyricLine> {
+    if (isEmpty()) return this
+    val hasTiming = any { it.timeMs > 0L }
+    if (!hasTiming) return this
+    return mapIndexed { index, line ->
+        if (line.words.isNotEmpty() || line.sungUntilMs != null || line.isGap || line.text.isBlank()) {
+            line
+        } else {
+            val next = getOrNull(index + 1)?.takeIf { it.timeMs > line.timeMs }
+            val estimatedDuration = (line.text.length * 180L).coerceIn(2_500L, 7_000L)
+            val sungUntil = if (next != null) {
+                val gap = next.timeMs - line.timeMs
+                if (gap <= estimatedDuration + 1_200L) next.timeMs else line.timeMs + estimatedDuration
+            } else {
+                line.timeMs + estimatedDuration
+            }
+            line.copy(sungUntilMs = sungUntil)
+        }
+    }
+}
+

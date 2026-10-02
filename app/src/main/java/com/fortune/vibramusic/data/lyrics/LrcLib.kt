@@ -123,11 +123,11 @@ object LrcLib {
         // Nothing stands for the intro — LRC files start at the first sung
         // word — so give the run-up its own break when it's long enough.
         val first = kept.firstOrNull() ?: return kept
-        return if (!first.isGap && first.timeMs >= MIN_GAP_MS) {
+        return (if (!first.isGap && first.timeMs >= MIN_GAP_MS) {
             listOf(LyricLine(0L, "")) + kept
         } else {
             kept
-        }
+        }).withEstimatedLineEnds()
     }
 
     /**

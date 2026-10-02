@@ -1216,11 +1216,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         startSuggestPipeline()
         startTypeaheadMediaPipeline()
         loadHome()
-        loadExplore()
-        if (_signedIn.value) {
-            loadLibrary()
-            loadAccount()
-            loadPlaylists()
+        viewModelScope.launch {
+            // Prioritize bandwidth and CPU for home screen during initial startup
+            delay(1200)
+            loadExplore()
+            if (_signedIn.value) {
+                loadLibrary()
+                loadAccount()
+                loadPlaylists()
+            }
         }
         viewModelScope.launch {
             // drop(1): the current value is just the count so far, not a play.

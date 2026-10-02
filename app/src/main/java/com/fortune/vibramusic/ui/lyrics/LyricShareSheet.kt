@@ -38,6 +38,7 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.IosShare
+import kotlinx.coroutines.delay
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -382,6 +383,8 @@ fun LyricShareSheet(
                             isSaved = saved
                             if (saved) {
                                 Toast.makeText(context, R.string.image_saved, Toast.LENGTH_SHORT).show()
+                                delay(2000L)
+                                isSaved = false
                             }
                         }
                     }

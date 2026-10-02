@@ -856,6 +856,10 @@
 
     <string name="blur_unfocused_lyrics_subtitle">Menjaga fokus pada baris saat ini</string>
 
+    <string name="lyrics_fade_animation">Animasi fade-in lirik</string>
+
+    <string name="lyrics_fade_animation_subtitle">Menampilkan dan mengungkapkan lirik secara halus saat dinyanyikan</string>
+
     <string name="brand_account">Akun merek</string>
 
     <string name="card_plays_format">%1$s diputar</string>

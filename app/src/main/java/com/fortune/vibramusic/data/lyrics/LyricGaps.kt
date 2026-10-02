@@ -36,7 +36,8 @@ internal fun List<LyricLine>.withInstrumentalGaps(): List<LyricLine> {
 /**
  * For line-synced lyrics where words are not individually timed, estimates
  * the line duration from the next line's timestamp so the sweep wipe and
- * reveal fade-in can animate progressively across the line.
+ * reveal fade-in can animate progressively across the line with natural,
+ * clean pacing and an intentional rest window before the next line starts.
  */
 internal fun List<LyricLine>.withEstimatedLineEnds(): List<LyricLine> {
     if (isEmpty()) return this
@@ -47,12 +48,18 @@ internal fun List<LyricLine>.withEstimatedLineEnds(): List<LyricLine> {
             line
         } else {
             val next = getOrNull(index + 1)?.takeIf { it.timeMs > line.timeMs }
-            val estimatedDuration = (line.text.length * 180L).coerceIn(2_500L, 7_000L)
+            val charCount = line.text.trim().length.coerceAtLeast(1)
+            // Natural singing pace: ~140ms per character, clamped between 1.8s and 6.5s
+            val naturalDuration = (charCount * 140L).coerceIn(1_800L, 6_500L)
             val sungUntil = if (next != null) {
                 val gap = next.timeMs - line.timeMs
-                if (gap <= estimatedDuration + 1_200L) next.timeMs else line.timeMs + estimatedDuration
+                // Leave a rest window of ~350ms (or proportional for quick lines) so the revealed line
+                // settles cleanly and completely before transitioning to the next line.
+                val restMs = if (gap > 2_000L) 350L else (gap * 0.15f).toLong().coerceIn(100L, 250L)
+                val targetDuration = maxOf(800L, gap - restMs)
+                line.timeMs + minOf(naturalDuration, targetDuration)
             } else {
-                line.timeMs + estimatedDuration
+                line.timeMs + naturalDuration
             }
             line.copy(sungUntilMs = sungUntil)
         }

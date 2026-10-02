@@ -881,6 +881,10 @@
 
     <string name="blur_unfocused_lyrics_subtitle">שומר על המיקוד בשורה הנוכחית</string>
 
+    <string name="lyrics_fade_animation">הנפשת הופעת מילים</string>
+
+    <string name="lyrics_fade_animation_subtitle">חשיפה הדרגתית של המילים בעת שירתן</string>
+
     <string name="brand_account">חשבון מותג</string>
 
     <string name="card_plays_format">%1$s השמעות</string>

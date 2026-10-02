@@ -877,6 +877,10 @@
 
     <string name="blur_unfocused_lyrics_subtitle">Garde l\'attention sur la ligne actuelle</string>
 
+    <string name="lyrics_fade_animation">Animation de fondu des paroles</string>
+
+    <string name="lyrics_fade_animation_subtitle">Révéler les paroles en fondu progressif au fil de la chanson</string>
+
     <string name="brand_account">Compte de marque</string>
 
     <string name="card_plays_format">%1$s écoutes</string>

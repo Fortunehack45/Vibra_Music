@@ -894,6 +894,10 @@
 
     <string name="blur_unfocused_lyrics_subtitle">Geçerli satırı vurgular</string>
 
+    <string name="lyrics_fade_animation">Şarkı sözü belirme animasyonu</string>
+
+    <string name="lyrics_fade_animation_subtitle">Söylendikçe sözleri yumuşak bir geçişle açığa çıkar</string>
+
     <string name="card_plays_format">%1$s oynatma</string>
 
     <string name="card_songs_format">%1$s şarkı</string>

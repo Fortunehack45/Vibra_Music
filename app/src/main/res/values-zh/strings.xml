@@ -856,6 +856,10 @@
 
     <string name="blur_unfocused_lyrics_subtitle">突出显示当前歌词行</string>
 
+    <string name="lyrics_fade_animation">歌词淡入显示动画</string>
+
+    <string name="lyrics_fade_animation_subtitle">随着演唱进度平滑淡入并显现歌词</string>
+
     <string name="brand_account">品牌账号</string>
 
     <string name="card_plays_format">%1$s 次播放</string>

@@ -133,7 +133,8 @@ data class LyricLine(
         get() {
             val lead = words.lastOrNull()?.endMs ?: sungUntilMs ?: run {
                 if (text.isNotBlank() && timeMs >= 0L) {
-                    timeMs + (text.length * 180L).coerceIn(2_500L, 7_000L)
+                    val charCount = text.trim().length.coerceAtLeast(1)
+                    timeMs + (charCount * 140L).coerceIn(1_800L, 6_500L)
                 } else {
                     timeMs
                 }

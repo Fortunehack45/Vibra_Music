@@ -2309,7 +2309,8 @@ private fun PanelVoice(
     translationProgress: State<Float>? = null,
     modifier: Modifier = Modifier,
 ) {
-    val canSweep = (line.isWordSynced || (synced && line.timeMs >= 0L && line.text.isNotEmpty())) && !line.isGap
+    val lyricsFadeAnimation by AppSettings.lyricsFadeAnimation.collectAsStateWithLifecycle()
+    val canSweep = lyricsFadeAnimation && (line.isWordSynced || (synced && line.timeMs >= 0L && line.text.isNotEmpty())) && !line.isGap
     if (canSweep && !browsing) {
         // Every synced line goes through the sweep, not just the playing
         // one — a line that has already been sung is fully revealed and one
@@ -2590,8 +2591,9 @@ private fun CurrentLyricLine(
             label = "currentLyricTransition",
             modifier = Modifier.weight(1f, fill = false),
         ) { (_, lineItem, lineText) ->
+            val lyricsFadeAnimation by AppSettings.lyricsFadeAnimation.collectAsStateWithLifecycle()
             val itemInstrumental = lineItem == null || lineItem.isGap
-            val swept = lineItem?.takeIf { !itemInstrumental && (it.isWordSynced || (it.timeMs >= 0L && it.text.isNotEmpty())) }
+            val swept = lineItem?.takeIf { !itemInstrumental && lyricsFadeAnimation && (it.isWordSynced || (it.timeMs >= 0L && it.text.isNotEmpty())) }
             if (swept != null) {
                 SweptLyricLine(
                     line = swept,

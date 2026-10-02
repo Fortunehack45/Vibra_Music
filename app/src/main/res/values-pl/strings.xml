@@ -912,6 +912,10 @@
 
     <string name="blur_unfocused_lyrics_subtitle">Utrzymuje skupienie na bieżącej linii</string>
 
+    <string name="lyrics_fade_animation">Animacja pojawiania się tekstu</string>
+
+    <string name="lyrics_fade_animation_subtitle">Płynne wyłanianie i odkrywanie tekstu w miarę śpiewania</string>
+
     <string name="brand_account">Konto marki</string>
 
     <string name="card_plays_format">%1$s odtworzeń</string>

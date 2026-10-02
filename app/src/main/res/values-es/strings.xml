@@ -879,6 +879,10 @@
 
     <string name="blur_unfocused_lyrics_subtitle">Mantiene el foco en la línea actual</string>
 
+    <string name="lyrics_fade_animation">Animación de aparición de letras</string>
+
+    <string name="lyrics_fade_animation_subtitle">Aparecer y revelar las letras suavemente al cantarse</string>
+
     <string name="card_plays_format">%1$s reproducciones</string>
 
     <string name="card_songs_format">%1$s canciones</string>

@@ -439,6 +439,9 @@ object AppSettings {
     /** Blurs unfocused lyric lines, keeping the active line sharp. */
     val lyricsBlur = MutableStateFlow(true)
 
+    /** Smooth fade-in reveal wipe animation across sung lyrics lines. On by default. */
+    val lyricsFadeAnimation = MutableStateFlow(true)
+
     /** Positive values delay synced lyrics; negative values bring them forward. */
     val lyricsOffsetMs = MutableStateFlow(0)
 
@@ -870,6 +873,7 @@ object AppSettings {
             liquidGlass.value = prefs.getBoolean(KEY_LIQUID_GLASS, true)
         }
         lyricsBlur.value = prefs.getBoolean(KEY_LYRICS_BLUR, true)
+        lyricsFadeAnimation.value = prefs.getBoolean(KEY_LYRICS_FADE_ANIMATION, true)
         lyricsOffsetMs.value = prefs.getInt(KEY_LYRICS_OFFSET_MS, 0)
             .coerceIn(MIN_LYRICS_OFFSET_MS, MAX_LYRICS_OFFSET_MS)
         translationLanguage.value = prefs.getString(KEY_TRANSLATION_LANGUAGE, "").orEmpty()
@@ -1299,6 +1303,11 @@ object AppSettings {
     fun setLyricsBlur(value: Boolean) {
         lyricsBlur.value = value
         prefs.edit().putBoolean(KEY_LYRICS_BLUR, value).apply()
+    }
+
+    fun setLyricsFadeAnimation(value: Boolean) {
+        lyricsFadeAnimation.value = value
+        prefs.edit().putBoolean(KEY_LYRICS_FADE_ANIMATION, value).apply()
     }
 
     fun setLyricsOffsetMs(value: Int) {
@@ -1985,6 +1994,7 @@ object AppSettings {
     private const val KEY_LIQUID_GLASS = "liquid_glass"
     private const val KEY_LIQUID_GLASS_DEFAULT_V1_7_5 = "liquid_glass_forced_on_v175"
     private const val KEY_LYRICS_BLUR = "lyrics_blur"
+    private const val KEY_LYRICS_FADE_ANIMATION = "lyrics_fade_animation"
     private const val KEY_LYRICS_OFFSET_MS = "lyrics_offset_ms"
     private const val KEY_TRANSLATION_LANGUAGE = "translation_language"
     private const val KEY_ANIMATED_CANVAS = "animated_canvas"

@@ -876,6 +876,10 @@
 
     <string name="blur_unfocused_lyrics_subtitle">Hält den Fokus auf der aktuellen Zeile</string>
 
+    <string name="lyrics_fade_animation">Songtext-Einblendanimation</string>
+
+    <string name="lyrics_fade_animation_subtitle">Songtexte beim Singen sanft einblenden und enthüllen</string>
+
     <string name="brand_account">Markenkonto</string>
 
     <string name="card_plays_format">%1$s Wiedergaben</string>

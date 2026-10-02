@@ -902,6 +902,10 @@
 
     <string name="blur_unfocused_lyrics_subtitle">Акцентирует внимание на текущей строке</string>
 
+    <string name="lyrics_fade_animation">Анимация появления текста</string>
+
+    <string name="lyrics_fade_animation_subtitle">Плавное появление и раскрытие строк текста во время пения</string>
+
     <string name="brand_account">Брендовый аккаунт</string>
 
     <string name="card_plays_format">%1$s прослушиваний</string>

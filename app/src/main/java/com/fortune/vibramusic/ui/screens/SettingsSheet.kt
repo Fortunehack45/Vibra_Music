@@ -205,6 +205,7 @@ fun SettingsScreen(
     val liquidGlass by AppSettings.liquidGlass.collectAsStateWithLifecycle()
     val liquidGlassSupported = isGlassSupported()
     val lyricsBlur by AppSettings.lyricsBlur.collectAsStateWithLifecycle()
+    val lyricsFadeAnimation by AppSettings.lyricsFadeAnimation.collectAsStateWithLifecycle()
     val animatedCanvas by AppSettings.animatedCanvas.collectAsStateWithLifecycle()
     val canvasOverCellular by AppSettings.canvasOverCellular.collectAsStateWithLifecycle()
     val fullBleedArtwork by AppSettings.fullBleedArtwork.collectAsStateWithLifecycle()
@@ -991,6 +992,25 @@ fun SettingsScreen(
                             )
                         },
                         onClick = { AppSettings.setLyricsBlur(!lyricsBlur) },
+                    )
+                }
+                val lyricsFadeAnimationTitle = stringResource(R.string.lyrics_fade_animation)
+                row(lyricsFadeAnimationTitle, "lyrics", "animation", "reveal", "fade") {
+                    SettingsRow(
+                        icon = Icons.Rounded.AutoAwesome,
+                        title = lyricsFadeAnimationTitle,
+                        subtitle = stringResource(R.string.lyrics_fade_animation_subtitle),
+                        trailing = {
+                            Switch(
+                                checked = lyricsFadeAnimation,
+                                onCheckedChange = AppSettings::setLyricsFadeAnimation,
+                                colors = SwitchDefaults.colors(
+                                    checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                    checkedBorderColor = MaterialTheme.colorScheme.primary,
+                                ),
+                            )
+                        },
+                        onClick = { AppSettings.setLyricsFadeAnimation(!lyricsFadeAnimation) },
                     )
                 }
                 val lyricsSourcesTitle = stringResource(R.string.lyrics_sources)

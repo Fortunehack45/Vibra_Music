@@ -881,6 +881,10 @@
 
     <string name="blur_unfocused_lyrics_subtitle">Mantém o destaque na linha atual</string>
 
+    <string name="lyrics_fade_animation">Animação de revelação da letra</string>
+
+    <string name="lyrics_fade_animation_subtitle">Revelar e esmaecer a letra suavemente conforme é cantada</string>
+
     <string name="brand_account">Conta de marca</string>
 
     <string name="card_plays_format">%1$s reproduções</string>

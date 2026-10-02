@@ -1070,6 +1070,10 @@
 
     <string name="blur_unfocused_lyrics_subtitle">Keeps the spotlight on the current line</string>
 
+    <string name="lyrics_fade_animation">Lyrics reveal animation</string>
+
+    <string name="lyrics_fade_animation_subtitle">Smoothly fade in and reveal lyrics as they are sung</string>
+
     <string name="advanced_options">Advanced &amp; experimental options</string>
 
     <string name="lyrics_debug_logs">Lyrics debug logs</string>

@@ -869,6 +869,10 @@
 
     <string name="blur_unfocused_lyrics_subtitle">現在の行をハイライトします</string>
 
+    <string name="lyrics_fade_animation">歌詞フェードインアニメーション</string>
+
+    <string name="lyrics_fade_animation_subtitle">歌唱に合わせて歌詞を滑らかにフェードイン表示</string>
+
     <string name="advanced_options">詳細設定</string>
 
     <string name="lyrics_debug_logs">歌詞デバッグログ</string>

@@ -765,6 +765,8 @@
     <string name="loudness_lufs">%1$s LUFS</string>
     <string name="blur_unfocused_lyrics">Làm mờ lời không tập trung</string>
     <string name="blur_unfocused_lyrics_subtitle">Tập trung vào câu hát hiện tại</string>
+    <string name="lyrics_fade_animation">Hiệu ứng hiện dần lời bài hát</string>
+    <string name="lyrics_fade_animation_subtitle">Nhẹ nhàng hiện dần và làm nổi bật lời khi đang hát</string>
     <string name="advanced_options">Tùy chọn nâng cao</string>
     <string name="lyrics_debug_logs">Nhật ký gỡ lỗi lời bài hát</string>
     <string name="lyrics_debug_logs_subtitle">Hiển thị truy vấn API và hoạt động lấy dữ liệu trên bảng lời bài hát</string>

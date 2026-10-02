@@ -46,6 +46,7 @@ import com.fortune.vibramusic.R
 import com.fortune.vibramusic.data.model.LibraryPage
 import com.fortune.vibramusic.data.model.ShelfItem
 import com.fortune.vibramusic.data.model.UiState
+import com.fortune.vibramusic.data.model.UserPlaylist
 import com.fortune.vibramusic.data.settings.AppSettings
 import com.fortune.vibramusic.data.settings.LibrarySort
 import com.fortune.vibramusic.download.Downloads
@@ -140,6 +141,31 @@ fun LibraryScreen(
     val smbNotConfigured = stringResource(R.string.smb_not_configured)
     val smbSub = stringResource(R.string.smb_subtitle)
     val downloadedPlaylistDefaultSub = stringResource(R.string.downloaded_playlist)
+    val autoLikedTitle = stringResource(R.string.auto_liked)
+
+    val localShelf = remember(playlists, pinnedPlaylists, autoLikedTitle) {
+        val localList = playlists.filter { it.playlistId.startsWith("local_") }
+            .ifEmpty { com.fortune.vibramusic.data.LocalPlaylistsStore.getPlaylists() }
+        val likedSongs = com.fortune.vibramusic.data.LocalLikesStore.getLikedSongs()
+        val likedItem = ShelfItem(
+            title = autoLikedTitle,
+            subtitle = "${likedSongs.size} " + if (likedSongs.size == 1) "song" else "songs",
+            thumbnailUrl = likedSongs.firstOrNull()?.thumbnailUrl,
+            videoId = null,
+            browseId = com.fortune.vibramusic.data.YtMusicRepository.LIKED_MUSIC,
+        )
+        val playlistItems = listOf(likedItem) + localList.map { p ->
+            ShelfItem(
+                title = p.title,
+                subtitle = p.subtitle,
+                thumbnailUrl = p.thumbnailUrl,
+                videoId = null,
+                browseId = p.browseId,
+            )
+        }
+        val baseShelf = HomeShelf(PLAYLISTS, playlistItems)
+        baseShelf.pinnedFirst(pinnedPlaylists)
+    }
 
     val onDeviceShelf = remember(
         onDevice,
@@ -254,34 +280,13 @@ fun LibraryScreen(
                 )
             }
             if (!signedIn) {
-                val localList = playlists.filter { it.playlistId.startsWith("local_") }
-                    .ifEmpty { com.fortune.vibramusic.data.LocalPlaylistsStore.getPlaylists() }
-                val likedSongs = com.fortune.vibramusic.data.LocalLikesStore.getLikedSongs()
-                val likedItem = ShelfItem(
-                    title = stringResource(R.string.auto_liked),
-                    subtitle = "${likedSongs.size} " + if (likedSongs.size == 1) "song" else "songs",
-                    thumbnailUrl = likedSongs.firstOrNull()?.thumbnailUrl,
-                    videoId = null,
-                    browseId = com.fortune.vibramusic.data.YtMusicRepository.LIKED_MUSIC,
-                )
-                val playlistItems = listOf(likedItem) + localList.map { p ->
-                    ShelfItem(
-                        title = p.title,
-                        subtitle = p.subtitle,
-                        thumbnailUrl = p.thumbnailUrl,
-                        videoId = null,
-                        browseId = p.browseId,
-                    )
-                }
-                val localShelf = HomeShelf(PLAYLISTS, playlistItems)
-                val pinnedFirst = localShelf.pinnedFirst(pinnedPlaylists)
                 item(key = "shelf:$PLAYLISTS") {
                     PlaylistShelf(
-                        shelf = pinnedFirst,
+                        shelf = localShelf,
                         onItemClick = onShelfItemClick,
                         onItemLongPress = onShelfItemLongPress,
                         onNewPlaylist = onNewPlaylist,
-                        onShowAll = { onShowAll(pinnedFirst) },
+                        onShowAll = { onShowAll(localShelf) },
                         pinnedPlaylists = pinnedPlaylists,
                     )
                 }

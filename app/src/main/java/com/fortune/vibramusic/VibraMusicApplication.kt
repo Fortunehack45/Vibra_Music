@@ -242,6 +242,7 @@ class VibraMusicApplication : Application(), SingletonImageLoader.Factory {
         // one to hand — see SpotifyToken's doc for why.
 
         SpotifyToken.init(this)
+        SpotifyToken.warmUp()
 
         // A sideloaded update is just a new APK over the old one, so app data —
 

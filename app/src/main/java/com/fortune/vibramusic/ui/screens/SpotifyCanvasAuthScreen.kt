@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.ui.screens
+package com.fortune.vibramusic.ui.screens
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -39,6 +39,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.fortune.vibramusic.R
+import com.fortune.vibramusic.data.canvas.CanvasRepository
 import com.fortune.vibramusic.data.canvas.SpotifyToken
 import com.fortune.vibramusic.data.settings.AppSettings
 
@@ -50,6 +51,7 @@ fun SpotifyCanvasAuthScreen(
     val currentToken by AppSettings.spotifySpdcToken.collectAsStateWithLifecycle()
     val autoHidePlayer by AppSettings.spotifyCanvasAutoHide.collectAsStateWithLifecycle()
     val prioritizeSpotify by AppSettings.prioritizeSpotifyCanvas.collectAsStateWithLifecycle()
+    val canvasOverCellular by AppSettings.canvasOverCellular.collectAsStateWithLifecycle()
     var tokenInput by remember(currentToken) { mutableStateOf(currentToken) }
 
     Scaffold(
@@ -135,6 +137,13 @@ fun SpotifyCanvasAuthScreen(
                 onCheckedChange = AppSettings::setPrioritizeSpotifyCanvas,
             )
 
+            SpotifyCanvasSettingToggle(
+                title = stringResource(R.string.animated_cover_cellular),
+                subtitle = null,
+                checked = canvasOverCellular,
+                onCheckedChange = AppSettings::setCanvasOverCellular,
+            )
+
             Spacer(modifier = Modifier.height(16.dp))
 
             // Bring-your-own section & guide
@@ -200,6 +209,7 @@ fun SpotifyCanvasAuthScreen(
                     onClick = {
                         AppSettings.setSpotifySpdcToken("")
                         SpotifyToken.invalidate()
+                        CanvasRepository.clear()
                         tokenInput = ""
                     },
                     modifier = Modifier
@@ -214,6 +224,7 @@ fun SpotifyCanvasAuthScreen(
                 onClick = { 
                     AppSettings.setSpotifySpdcToken(tokenInput.trim())
                     SpotifyToken.invalidate()
+                    CanvasRepository.clear()
                     onNavigateUp()
                 },
                 modifier = Modifier.fillMaxWidth()
@@ -227,7 +238,7 @@ fun SpotifyCanvasAuthScreen(
 @Composable
 private fun SpotifyCanvasSettingToggle(
     title: String,
-    subtitle: String,
+    subtitle: String? = null,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
 ) {
@@ -247,11 +258,13 @@ private fun SpotifyCanvasSettingToggle(
                 text = title,
                 style = MaterialTheme.typography.bodyLarge,
             )
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            if (!subtitle.isNullOrBlank()) {
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
         Switch(
             checked = checked,

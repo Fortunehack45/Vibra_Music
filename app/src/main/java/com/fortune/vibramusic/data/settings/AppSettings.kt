@@ -481,7 +481,7 @@ object AppSettings {
      * That is the shape of the reported 8GB day: still art costs nothing
      * here and stays up regardless of this setting.
      */
-    val canvasOverCellular = MutableStateFlow(false)
+    val canvasOverCellular = MutableStateFlow(true)
 
     /** Automatically collapses the lower controls after Spotify Canvas settles. */
     val spotifyCanvasAutoHide = MutableStateFlow(true)
@@ -881,8 +881,19 @@ object AppSettings {
             reduceAnimation.value = false
             reduceDynamicBlur.value = false
         }
+        // Migrate Canvas defaults for v52+ so even users who had it disabled in previous builds have it ON by default:
+        if (!prefs.getBoolean(KEY_MIGRATED_CANVAS_V52, false)) {
+            prefs.edit()
+                .putBoolean(KEY_PRIORITIZE_SPOTIFY_CANVAS, true)
+                .putBoolean(KEY_SPOTIFY_CANVAS_AUTO_HIDE, true)
+                .putBoolean(KEY_CANVAS_OVER_CELLULAR, true)
+                .putBoolean(KEY_ANIMATED_CANVAS, true)
+                .putBoolean(KEY_MIGRATED_CANVAS_V52, true)
+                .apply()
+        }
+
         animatedCanvas.value = prefs.getBoolean(KEY_ANIMATED_CANVAS, true)
-        canvasOverCellular.value = prefs.getBoolean(KEY_CANVAS_OVER_CELLULAR, false)
+        canvasOverCellular.value = prefs.getBoolean(KEY_CANVAS_OVER_CELLULAR, true)
         spotifyCanvasAutoHide.value = prefs.getBoolean(KEY_SPOTIFY_CANVAS_AUTO_HIDE, true)
         prioritizeSpotifyCanvas.value = prefs.getBoolean(KEY_PRIORITIZE_SPOTIFY_CANVAS, true)
         fullBleedArtwork.value = prefs.getBoolean(KEY_FULL_BLEED_ARTWORK, true)
@@ -1443,6 +1454,7 @@ object AppSettings {
     fun setPrioritizeSpotifyCanvas(value: Boolean) {
         prioritizeSpotifyCanvas.value = value
         prefs.edit().putBoolean(KEY_PRIORITIZE_SPOTIFY_CANVAS, value).apply()
+        com.fortune.vibramusic.data.canvas.CanvasRepository.clear()
     }
 
     fun setFullBleedArtwork(value: Boolean) {
@@ -2001,6 +2013,7 @@ object AppSettings {
     private const val KEY_CANVAS_OVER_CELLULAR = "canvas_over_cellular"
     private const val KEY_SPOTIFY_CANVAS_AUTO_HIDE = "spotify_canvas_auto_hide"
     private const val KEY_PRIORITIZE_SPOTIFY_CANVAS = "prioritize_spotify_canvas"
+    private const val KEY_MIGRATED_CANVAS_V52 = "migrated_canvas_defaults_v52"
     private const val KEY_FULL_BLEED_ARTWORK = "full_bleed_artwork"
     private const val KEY_LEGACY_MESH_GRADIENT = "legacy_mesh_gradient"
     private const val KEY_LAST_PLAYER_SCREEN = "last_player_screen"

@@ -12,7 +12,9 @@ import com.fortune.vibramusic.data.DebugLog as Log
 import com.fortune.vibramusic.data.Http
 import com.fortune.vibramusic.data.settings.AppSettings
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -27,7 +29,7 @@ import kotlinx.serialization.json.putJsonObject
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import java.util.Base64
+import android.util.Base64
 
 /**
  * The bearer token behind Spotify's own web player, minted from the
@@ -64,6 +66,13 @@ internal object SpotifyToken {
 
     fun init(context: Context) {
         appContext = context.applicationContext
+    }
+
+    /** Pre-warms the token asynchronously in the background so it is instantly available when music plays. */
+    fun warmUp() {
+        CoroutineScope(Dispatchers.IO).launch {
+            runCatching { accessToken() }
+        }
     }
 
     @Volatile private var lastCookie: String? = null
@@ -385,7 +394,7 @@ internal object SpotifyToken {
             return null
         }
         val clientVersion = runCatching {
-            val configJson = String(Base64.getDecoder().decode(configB64), Charsets.UTF_8)
+            val configJson = String(Base64.decode(configB64, Base64.DEFAULT), Charsets.UTF_8)
             json.parseToJsonElement(configJson).jsonObject["clientVersion"]?.jsonPrimitive?.contentOrNull
         }.getOrNull()
         if (clientVersion == null) {

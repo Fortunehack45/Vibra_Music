@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.data.canvas
+package com.fortune.vibramusic.data.canvas
 
 import com.fortune.vibramusic.data.DebugLog as Log
 import com.fortune.vibramusic.data.model.Song
@@ -225,4 +225,8 @@ object CanvasRepository {
             """\b(?:official (?:video|audio|music video)|lyrical|full song|4k video)\b""",
         RegexOption.IGNORE_CASE,
     )
+
+    fun clear() {
+        synchronized(cache) { cache.clear() }
+    }
 }

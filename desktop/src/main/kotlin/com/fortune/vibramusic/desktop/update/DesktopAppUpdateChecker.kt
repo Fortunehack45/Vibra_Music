@@ -17,7 +17,7 @@ import java.io.File
 import java.io.FileOutputStream
 
 object DesktopAppUpdateChecker {
-    const val CURRENT_VERSION = "1.8.21"
+    const val CURRENT_VERSION = "1.8.22"
 
     private const val LATEST_RELEASE_URL =
         "https://api.github.com/repos/Fortunehack45/Vibra_Music_Releases/releases/latest"

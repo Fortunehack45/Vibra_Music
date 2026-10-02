@@ -62,7 +62,7 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Msi, TargetFormat.Exe)
             packageName = "VibraMusic"
-            packageVersion = "1.8.19"
+            packageVersion = "1.8.20"
             description = "Vibra Music for Windows"
             copyright = "© 2026 Vibra Music"
             vendor = "Vibra Music"

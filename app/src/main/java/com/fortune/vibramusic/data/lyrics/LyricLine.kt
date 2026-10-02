@@ -131,14 +131,7 @@ data class LyricLine(
      */
     val endMs: Long
         get() {
-            val lead = words.lastOrNull()?.endMs ?: sungUntilMs ?: run {
-                if (text.isNotBlank() && timeMs >= 0L) {
-                    val charCount = text.trim().length.coerceAtLeast(1)
-                    timeMs + (charCount * 140L).coerceIn(1_800L, 6_500L)
-                } else {
-                    timeMs
-                }
-            }
+            val lead = words.lastOrNull()?.endMs ?: sungUntilMs ?: timeMs
             return maxOf(lead, background?.endMs ?: lead)
         }
 
@@ -158,8 +151,10 @@ data class LyricLine(
                 .coerceIn(0f, 1f) * text.length
         }
         if (words.isEmpty()) {
-            val end = endMs
-            if (end <= timeMs) return if (positionMs >= timeMs) text.length.toFloat() else 0f
+            val end = sungUntilMs
+            if (end == null || end <= timeMs) {
+                return if (positionMs >= timeMs) text.length.toFloat() else 0f
+            }
             if (positionMs <= timeMs) return 0f
             if (positionMs >= end) return text.length.toFloat()
             val progress = (positionMs - timeMs).toFloat() / (end - timeMs)

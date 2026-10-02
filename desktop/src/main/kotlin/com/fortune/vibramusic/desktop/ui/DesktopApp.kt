@@ -739,7 +739,7 @@ fun DesktopApp() {
                             Spacer(modifier = Modifier.height(18.dp))
 
                             Text("Vibra Music for Windows", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-                            Text("Version 1.8.19 • Pure Compose Multiplatform Desktop", color = Color(0xFF8E8E93), fontSize = 13.sp)
+                            Text("Version 1.8.20 • Pure Compose Multiplatform Desktop", color = Color(0xFF8E8E93), fontSize = 13.sp)
 
                             Spacer(modifier = Modifier.height(16.dp))
                             Text("Audio Engine: VLCJ / LibVLC Native Streamer", color = Color(0xFF8E8E93), fontSize = 13.sp)

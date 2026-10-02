@@ -155,7 +155,7 @@ jobs:
         run: |
           TAG="${{ github.ref_name }}"
           if [ -z "$TAG" ] || [ "$TAG" = "main" ]; then
-            TAG="v1.8.17"
+            TAG="v1.8.20"
           fi
           cd app/build/outputs/apk/prod/release
           

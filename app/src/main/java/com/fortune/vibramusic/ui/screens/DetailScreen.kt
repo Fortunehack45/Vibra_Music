@@ -248,6 +248,7 @@ fun DetailScreen(
      * photo, not in this header.
      */
     songSort: SongSort = SongSort.DEFAULT,
+    hazeState: HazeState? = null,
 ) {
     val rawSongs = (page.songs as? UiState.Success)?.data.orEmpty()
     val songs = remember(rawSongs, songSort) { rawSongs.sortedForDetail(songSort) }
@@ -319,7 +320,7 @@ fun DetailScreen(
         canvas = CanvasRepository.canvasForAlbum(page.title, credit) ?: canvas
     }
 
-    val pageHaze = remember { HazeState() }
+    val pageHaze = hazeState ?: remember { HazeState() }
 
     // Opening the search carries the page up to it, so the field lands just
     // clear of the frosted bar with the tracks under it rather than at the foot

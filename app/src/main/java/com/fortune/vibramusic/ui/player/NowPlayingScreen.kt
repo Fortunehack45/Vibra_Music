@@ -628,8 +628,6 @@ fun NowPlayingScreen(
     val context = LocalContext.current
     val density = LocalDensity.current
     val haptics = rememberHaptics()
-
-    var isVideoModeSelected by remember(song.videoId) { mutableStateOf(song.isVideo && !song.isVideoOrigin) }
     var showShowNotesSheet by remember { mutableStateOf(false) }
     val isPodcast = song.playbackSourceType == PlaybackSourceType.PODCASTS || song.isVideoOrigin || song.isVideo
 
@@ -1628,26 +1626,6 @@ fun NowPlayingScreen(
                                 closeLyrics()
                             },
                     ) {
-                        if (isPodcast && isVideoModeSelected) {
-                            PodcastVideoView(
-                                videoId = song.videoId,
-                                isPlaying = isPlaying,
-                                positionMs = position.positionMs,
-                                modifier = Modifier.fillMaxSize(),
-                            )
-                        }
-                        if (isPodcast || hasAlternateVersion || song.isVideo) {
-                            AudioVideoToggleSwitch(
-                                isVideoMode = isVideoModeSelected,
-                                onToggle = { enabled ->
-                                    isVideoModeSelected = enabled
-                                    onToggleVersion?.invoke()
-                                },
-                                modifier = Modifier
-                                    .align(Alignment.TopCenter)
-                                    .padding(top = 10.dp),
-                            )
-                        }
                         // The stats belong to the player, not to the sleeve, so
                         // they leave it along with the rest of the player.
                         SleeveNerdStats(
@@ -2690,17 +2668,7 @@ fun NowPlayingScreen(
                                 .drawWithContent { if (art.loaded || !canvasRendered) drawContent() },
                         )
 
-                        // Where the clip plays when it can't have the banner:
-                        // inside the same clip as the still art, taking the
-                        // sleeve's corners, shadow and paused shrink for free.
-                        if (isVideoModeSelected) {
-                            PodcastVideoView(
-                                videoId = song.videoId,
-                                isPlaying = isPlaying,
-                                positionMs = position.positionMs,
-                                modifier = Modifier.fillMaxSize(),
-                            )
-                        } else if (!heroMode) {
+                        if (!heroMode) {
                             canvas?.takeIf { !collapsePastHalf }?.let { clip ->
                                 CanvasArtworkPlayer(
                                     canvas = clip,
@@ -2719,22 +2687,6 @@ fun NowPlayingScreen(
                                 )
                             }
                         }
-                    }
-
-                    if ((isPodcast || hasAlternateVersion || song.isVideo) && !collapsePastHalf) {
-                        AudioVideoToggleSwitch(
-                            isVideoMode = isVideoModeSelected,
-                            onToggle = { enabled ->
-                                isVideoModeSelected = enabled
-                                onToggleVersion?.invoke()
-                            },
-                            modifier = Modifier
-                                .align(Alignment.TopCenter)
-                                .padding(top = 10.dp)
-                                .graphicsLayer {
-                                    alpha = (1f - p() * 2f).coerceIn(0f, 1f) * spotifyChromeAlpha
-                                },
-                        )
                     }
 
                     // Measured stats stay on the sleeve's bottom centre. They

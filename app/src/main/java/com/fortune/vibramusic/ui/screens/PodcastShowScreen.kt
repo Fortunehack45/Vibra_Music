@@ -379,23 +379,5 @@ fun PodcastShowScreen(
                 }
             }
         }
-
-        // Floating Back Button on Top Left
-        IconButton(
-            onClick = onBack,
-            modifier = Modifier
-                .statusBarsPadding()
-                .padding(start = 12.dp, top = 8.dp)
-                .size(40.dp)
-                .clip(CircleShape)
-                .background(Color.Black.copy(alpha = 0.45f)),
-        ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                contentDescription = "Back",
-                tint = Color.White,
-                modifier = Modifier.size(20.dp),
-            )
-        }
     }
 }

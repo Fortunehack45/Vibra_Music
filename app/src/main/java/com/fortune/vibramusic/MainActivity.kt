@@ -2695,6 +2695,7 @@ private fun VibraMusicApp(
                             isPlaying = player.isPlaying,
                             listState = detailListState,
                             activeShelf = detailActiveShelf,
+                            hazeState = hazeState,
                             onActiveShelfChange = { detailActiveShelf = it },
                             onSongClick = { songs, index ->
                                 playFrom(
@@ -4159,12 +4160,7 @@ private fun VibraMusicApp(
                     // update icon reopens it onto whatever state it reached.
                     onDismiss = { showUpdateDialog = false },
                     onDownload = {
-                        if (update.apkUrl != null) {
-                            scope.launch { AppUpdateChecker.downloadApk(context) }
-                        } else {
-                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(update.releaseUrl)))
-                            showUpdateDialog = false
-                        }
+                        scope.launch { AppUpdateChecker.downloadApk(context) }
                     },
                     onCancelDownload = {
                         AppUpdateChecker.cancelDownload()

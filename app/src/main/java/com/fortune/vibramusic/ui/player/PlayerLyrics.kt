@@ -1132,7 +1132,7 @@ internal fun TranslationToggleButton(
     val shape = CircleShape
     Box(
         modifier = Modifier
-            .size(34.dp)
+            .size(38.dp)
             .clip(shape)
             .then(
                 if (useGlass) {
@@ -1140,11 +1140,13 @@ internal fun TranslationToggleButton(
                         .liquidGlass(shape)
                         .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
                         .then(
-                            if (active) Modifier.background(Color.White.copy(alpha = 0.12f))
+                            if (active) Modifier.background(Color.White.copy(alpha = 0.16f))
                             else Modifier
                         )
                 } else {
-                    Modifier.background(Color.White.copy(alpha = discAlpha))
+                    Modifier
+                        .background(Color.White.copy(alpha = discAlpha))
+                        .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
                 }
             )
             .clickable(

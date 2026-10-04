@@ -47,6 +47,8 @@ object AppUpdateChecker {
 
     private const val LATEST_RELEASE_URL =
         "https://api.github.com/repos/Fortunehack45/Vibra_Music_Releases/releases/latest"
+    private const val FALLBACK_RELEASE_URL =
+        "https://api.github.com/repos/Fortunehack45/Vibra_Music/releases/latest"
 
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -70,31 +72,42 @@ object AppUpdateChecker {
 
     suspend fun check(): UpdateInfo? = withContext(Dispatchers.IO) {
         runCatching {
-            val request = Request.Builder()
-                .url(LATEST_RELEASE_URL)
-                .header("User-Agent", "VibraMusic-App/${BuildConfig.VERSION_NAME}")
-                .header("Accept", "application/vnd.github+json")
-                .build()
-            val body = Http.client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) {
-                    android.util.Log.w("AppUpdateChecker", "Update check failed: HTTP ${response.code} ${response.message}")
-                    null
-                } else {
-                    response.body?.string()
+            var body: String? = null
+            for (apiUrl in listOf(LATEST_RELEASE_URL, FALLBACK_RELEASE_URL)) {
+                val request = Request.Builder()
+                    .url(apiUrl)
+                    .header("User-Agent", "VibraMusic-App/${BuildConfig.VERSION_NAME}")
+                    .header("Accept", "application/vnd.github+json")
+                    .build()
+                val responseBody = runCatching {
+                    Http.client.newCall(request).execute().use { response ->
+                        if (response.isSuccessful) response.body?.string() else null
+                    }
+                }.getOrNull()
+                if (!responseBody.isNullOrBlank()) {
+                    body = responseBody
+                    break
                 }
-            } ?: return@runCatching null
+            }
+            if (body == null) return@runCatching null
+
             val release = json.parseToJsonElement(body) as? JsonObject ?: return@runCatching null
             val tag = release["tag_name"]?.jsonPrimitive?.contentOrNull ?: return@runCatching null
-            val url = release["html_url"]?.jsonPrimitive?.contentOrNull ?: return@runCatching null
+            val url = release["html_url"]?.jsonPrimitive?.contentOrNull ?: "https://github.com/Fortunehack45/Vibra_Music_Releases/releases/tag/$tag"
+            val latest = tag.removePrefix("v")
+            val fallbackFileName = "VibraMusic-v$latest-Universal-AllDevices.apk"
+            val fallbackApkUrl = "https://github.com/Fortunehack45/Vibra_Music_Releases/releases/download/v$latest/$fallbackFileName"
+
             val apkAssetInfo = apkAsset(release)
-            val apkUrl = apkAssetInfo?.first
-            val apkFileName = apkAssetInfo?.second
+            val apkUrl = apkAssetInfo?.first ?: fallbackApkUrl
+            val apkFileName = apkAssetInfo?.second ?: fallbackFileName
+
             val checksumsUrl = release["assets"]?.jsonArray
                 ?.mapNotNull { it as? JsonObject }
                 ?.firstOrNull { it["name"]?.jsonPrimitive?.contentOrNull == "checksums.txt" }
                 ?.get("browser_download_url")?.jsonPrimitive?.contentOrNull
             val notes = release["body"]?.jsonPrimitive?.contentOrNull
-            val latest = tag.removePrefix("v")
+
             if (isNewer(latest, BuildConfig.VERSION_NAME)) {
                 val info = UpdateInfo(latest, url, apkUrl, apkFileName, checksumsUrl, notes)
                 _available.value = info
@@ -123,9 +136,8 @@ object AppUpdateChecker {
         val assets = release["assets"]?.jsonArray
             ?.mapNotNull { it as? JsonObject }
             ?.filter { asset ->
-                asset["name"]?.jsonPrimitive?.contentOrNull?.endsWith(".apk", ignoreCase = true) == true &&
-                    asset["state"]?.jsonPrimitive?.contentOrNull == "uploaded"
-            } ?: return null
+                asset["name"]?.jsonPrimitive?.contentOrNull?.endsWith(".apk", ignoreCase = true) == true
+            } ?: emptyList()
         if (assets.isEmpty()) return null
 
         val supportedAbis = Build.SUPPORTED_ABIS ?: emptyArray()
@@ -161,62 +173,86 @@ object AppUpdateChecker {
         _download.value = DownloadState.Downloading(0f)
 
         runCatching {
-            // Security check 1: Enforce HTTPS and trusted host domain
-            val parsedUri = Uri.parse(url)
-            val host = parsedUri.host?.lowercase() ?: ""
-            val isTrustedHost = host == "github.com" ||
-                host.endsWith(".github.com") ||
-                host == "objects.githubusercontent.com" ||
-                host.endsWith(".githubusercontent.com")
-            if (parsedUri.scheme != "https" || !isTrustedHost) {
-                error("Untrusted update download URL: $url")
-            }
-
             val dir = File(context.cacheDir, CACHE_SUBDIR).apply { mkdirs() }
             // Drop anything left over from an earlier attempt.
             dir.listFiles()?.forEach { it.delete() }
             val target = File(dir, "vibra-${info.version}.apk")
 
-            val request = Request.Builder()
-                .url(url)
-                .header("User-Agent", "VibraMusic-App/${BuildConfig.VERSION_NAME}")
-                .build()
-            Http.client.newCall(request).execute().use { response ->
-                check(response.isSuccessful) { "Download failed: HTTP ${response.code}" }
-                val body = response.body ?: error("Empty download body")
-                val total = body.contentLength().takeIf { it > 0 }
+            val candidateUrls = listOfNotNull(
+                url,
+                "https://github.com/Fortunehack45/Vibra_Music_Releases/releases/download/v${info.version}/${info.apkFileName ?: "VibraMusic-v${info.version}-Universal-AllDevices.apk"}",
+                "https://github.com/Fortunehack45/Vibra_Music/releases/download/v${info.version}/${info.apkFileName ?: "VibraMusic-v${info.version}-Universal-AllDevices.apk"}",
+            ).distinct()
 
-                body.byteStream().use { input ->
-                    target.outputStream().use { output ->
-                        val buffer = ByteArray(64 * 1024)
-                        var readTotal = 0L
-                        while (true) {
-                            if (downloadCancelled) {
-                                _download.value = DownloadState.Idle
-                                return@withContext
-                            }
-                            val read = input.read(buffer)
-                            if (read == -1) break
-                            output.write(buffer, 0, read)
-                            readTotal += read
-                            total?.let {
-                                _download.value =
-                                    DownloadState.Downloading((readTotal.toFloat() / it).coerceIn(0f, 1f))
+            var downloadSuccess = false
+            var downloadError: Exception? = null
+
+            for (attemptUrl in candidateUrls) {
+                val parsedUri = Uri.parse(attemptUrl)
+                val host = parsedUri.host?.lowercase() ?: ""
+                val isTrustedHost = host == "github.com" ||
+                    host.endsWith(".github.com") ||
+                    host == "objects.githubusercontent.com" ||
+                    host.endsWith(".githubusercontent.com") ||
+                    host == "release-assets.githubusercontent.com"
+                if (parsedUri.scheme != "https" || !isTrustedHost) continue
+
+                try {
+                    val request = Request.Builder()
+                        .url(attemptUrl)
+                        .header("User-Agent", "VibraMusic-App/${BuildConfig.VERSION_NAME}")
+                        .build()
+                    Http.client.newCall(request).execute().use { response ->
+                        if (!response.isSuccessful) {
+                            throw java.io.IOException("HTTP ${response.code} from $attemptUrl")
+                        }
+                        val body = response.body ?: error("Empty download body")
+                        val total = body.contentLength().takeIf { it > 0 }
+
+                        body.byteStream().use { input ->
+                            target.outputStream().use { output ->
+                                val buffer = ByteArray(64 * 1024)
+                                var readTotal = 0L
+                                while (true) {
+                                    if (downloadCancelled) {
+                                        _download.value = DownloadState.Idle
+                                        return@withContext
+                                    }
+                                    val read = input.read(buffer)
+                                    if (read == -1) break
+                                    output.write(buffer, 0, read)
+                                    readTotal += read
+                                    total?.let {
+                                        _download.value =
+                                            DownloadState.Downloading((readTotal.toFloat() / it).coerceIn(0f, 1f))
+                                    }
+                                }
                             }
                         }
                     }
+                    downloadSuccess = true
+                    break
+                } catch (e: Exception) {
+                    downloadError = e
                 }
             }
 
-            // Security check 2: Verify SHA-256 checksum against official release checksums.txt
+            if (!downloadSuccess) {
+                throw downloadError ?: java.io.IOException("Failed to download APK update")
+            }
+
+            // Security check 2: Verify SHA-256 checksum against official release checksums.txt when available
             if (!info.checksumsUrl.isNullOrBlank()) {
                 val checksumReq = Request.Builder()
                     .url(info.checksumsUrl)
                     .header("User-Agent", "VibraMusic-App/${BuildConfig.VERSION_NAME}")
                     .build()
-                val checksumBody = Http.client.newCall(checksumReq).execute().use { resp ->
-                    if (resp.isSuccessful) resp.body?.string() else null
-                }
+                val checksumBody = runCatching {
+                    Http.client.newCall(checksumReq).execute().use { resp ->
+                        if (resp.isSuccessful) resp.body?.string() else null
+                    }
+                }.getOrNull()
+
                 if (!checksumBody.isNullOrBlank()) {
                     val digest = MessageDigest.getInstance("SHA-256")
                     target.inputStream().use { fis ->
@@ -235,9 +271,9 @@ object AppUpdateChecker {
                     }
                     if (matchedLine != null) {
                         val expectedHash = matchedLine.trim().split(Regex("\\s+")).firstOrNull() ?: ""
-                        if (!computedHash.equals(expectedHash, ignoreCase = true)) {
+                        if (expectedHash.isNotBlank() && !computedHash.equals(expectedHash, ignoreCase = true)) {
                             target.delete()
-                            error("Integrity error: APK SHA-256 hash mismatch (expected $expectedHash, got $computedHash)")
+                            error("Integrity error: APK SHA-256 hash mismatch")
                         }
                     }
                 }

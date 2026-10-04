@@ -629,7 +629,7 @@ internal fun CircleGlyph(
     val shape = CircleShape
     Box(
         modifier = Modifier
-            .size(34.dp)
+            .size(38.dp)
             .clip(shape)
             .then(
                 if (useGlass) {
@@ -637,11 +637,13 @@ internal fun CircleGlyph(
                         .liquidGlass(shape)
                         .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
                         .then(
-                            if (active) Modifier.background(Color.White.copy(alpha = 0.12f))
+                            if (active) Modifier.background(Color.White.copy(alpha = 0.16f))
                             else Modifier
                         )
                 } else {
-                    Modifier.background(Color.White.copy(alpha = discAlpha))
+                    Modifier
+                        .background(Color.White.copy(alpha = discAlpha))
+                        .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
                 }
             )
             .clickable(
@@ -785,7 +787,9 @@ private fun Pill(
                         .liquidGlass(shape)
                         .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
                 } else {
-                    Modifier.background(Color.White.copy(alpha = 0.12f))
+                    Modifier
+                        .background(Color.White.copy(alpha = 0.14f))
+                        .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
                 }
             )
             .animateContentSize(
@@ -1118,17 +1122,18 @@ private fun BottomGlyph(
             .size(BOTTOM_ACTION_SIZE)
             .clip(shape)
             .then(
-                if (highlighted) {
-                    if (useGlass) {
-                        Modifier
-                            .liquidGlass(shape)
-                            .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
-                            .background(Color.White.copy(alpha = 0.10f))
-                    } else {
-                        Modifier.background(Color.White.copy(alpha = 0.20f))
-                    }
+                if (useGlass) {
+                    Modifier
+                        .liquidGlass(shape)
+                        .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
+                        .then(
+                            if (highlighted) Modifier.background(Color.White.copy(alpha = 0.16f))
+                            else Modifier
+                        )
                 } else {
-                    Modifier.background(Color.Transparent)
+                    Modifier
+                        .background(if (highlighted) Color.White.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.12f))
+                        .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
                 }
             )
             .clickable(

@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.ui.icons
+package com.fortune.vibramusic.ui.icons
 
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -677,4 +677,302 @@ object VibraMusicIcons {
             }
         }.build()
     }
+
+    /** Studio broadcast microphone and antenna waves for Podcasts tab. */
+    val Podcasts: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "bc_podcasts",
+            defaultWidth = 24.dp, defaultHeight = 24.dp,
+            viewportWidth = 24f, viewportHeight = 24f,
+        ).apply {
+            path(
+                stroke = stroke,
+                strokeLineWidth = STROKE,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round,
+            ) {
+                // Microphone capsule
+                moveTo(9f, 6f)
+                arcToRelative(3f, 3f, 0f, isMoreThanHalf = false, isPositiveArc = true, 6f, 0f)
+                lineTo(15f, 11f)
+                arcToRelative(3f, 3f, 0f, isMoreThanHalf = false, isPositiveArc = true, -6f, 0f)
+                close()
+
+                // Cradle around the capsule
+                moveTo(6.5f, 10.5f)
+                arcToRelative(5.5f, 5.5f, 0f, isMoreThanHalf = false, isPositiveArc = false, 11f, 0f)
+
+                // Stem down to the base
+                moveTo(12f, 16f)
+                lineTo(12f, 19.5f)
+
+                // Base foot
+                moveTo(8.5f, 19.5f)
+                lineTo(15.5f, 19.5f)
+
+                // Outer broadcast waves
+                moveTo(3.5f, 8.5f)
+                arcToRelative(7f, 7f, 0f, isMoreThanHalf = false, isPositiveArc = false, 0f, 5f)
+
+                moveTo(20.5f, 8.5f)
+                arcToRelative(7f, 7f, 0f, isMoreThanHalf = false, isPositiveArc = true, 0f, 5f)
+            }
+        }.build()
+    }
+
+    /** Video camera icon for switching between Audio and Video. */
+    val VideoCamera: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "bc_video_camera",
+            defaultWidth = 24.dp, defaultHeight = 24.dp,
+            viewportWidth = 24f, viewportHeight = 24f,
+        ).apply {
+            path(
+                stroke = stroke,
+                strokeLineWidth = STROKE,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round,
+            ) {
+                // Camera body
+                moveTo(5f, 7f)
+                lineTo(13f, 7f)
+                arcToRelative(2f, 2f, 0f, isMoreThanHalf = false, isPositiveArc = true, 2f, 2f)
+                lineTo(15f, 15f)
+                arcToRelative(2f, 2f, 0f, isMoreThanHalf = false, isPositiveArc = true, -2f, 2f)
+                lineTo(5f, 17f)
+                arcToRelative(2f, 2f, 0f, isMoreThanHalf = false, isPositiveArc = true, -2f, -2f)
+                lineTo(3f, 9f)
+                arcToRelative(2f, 2f, 0f, isMoreThanHalf = false, isPositiveArc = true, 2f, -2f)
+                close()
+
+                // Camera lens
+                moveTo(15f, 10.5f)
+                lineTo(19.5f, 7.5f)
+                arcToRelative(1f, 1f, 0f, isMoreThanHalf = false, isPositiveArc = true, 1.5f, 0.85f)
+                lineTo(21f, 15.65f)
+                arcToRelative(1f, 1f, 0f, isMoreThanHalf = false, isPositiveArc = true, -1.5f, 0.85f)
+                lineTo(15f, 13.5f)
+            }
+        }.build()
+    }
+
+    /** Headphones icon for switching to audio mode. */
+    val Headphones: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "bc_headphones",
+            defaultWidth = 24.dp, defaultHeight = 24.dp,
+            viewportWidth = 24f, viewportHeight = 24f,
+        ).apply {
+            path(
+                stroke = stroke,
+                strokeLineWidth = STROKE,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round,
+            ) {
+                // Headband arc
+                moveTo(4f, 13f)
+                lineTo(4f, 11f)
+                arcToRelative(8f, 8f, 0f, isMoreThanHalf = false, isPositiveArc = true, 16f, 0f)
+                lineTo(20f, 13f)
+
+                // Left ear cup
+                moveTo(3f, 13f)
+                lineTo(6f, 13f)
+                arcToRelative(1.5f, 1.5f, 0f, isMoreThanHalf = false, isPositiveArc = true, 1.5f, 1.5f)
+                lineTo(7.5f, 17.5f)
+                arcToRelative(1.5f, 1.5f, 0f, isMoreThanHalf = false, isPositiveArc = true, -1.5f, 1.5f)
+                lineTo(3f, 19f)
+                arcToRelative(1f, 1f, 0f, isMoreThanHalf = false, isPositiveArc = true, -1f, -1f)
+                lineTo(2f, 14f)
+                arcToRelative(1f, 1f, 0f, isMoreThanHalf = false, isPositiveArc = true, 1f, -1f)
+                close()
+
+                // Right ear cup
+                moveTo(18f, 13f)
+                lineTo(21f, 13f)
+                arcToRelative(1f, 1f, 0f, isMoreThanHalf = false, isPositiveArc = true, 1f, 1f)
+                lineTo(22f, 18f)
+                arcToRelative(1f, 1f, 0f, isMoreThanHalf = false, isPositiveArc = true, -1f, 1f)
+                lineTo(18f, 19f)
+                arcToRelative(1.5f, 1.5f, 0f, isMoreThanHalf = false, isPositiveArc = true, -1.5f, -1.5f)
+                lineTo(16.5f, 14.5f)
+                arcToRelative(1.5f, 1.5f, 0f, isMoreThanHalf = false, isPositiveArc = true, 1.5f, -1.5f)
+                close()
+            }
+        }.build()
+    }
+
+    /** Jump backward 15 seconds icon for podcast playback. */
+    val Replay15: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "bc_replay_15",
+            defaultWidth = 24.dp, defaultHeight = 24.dp,
+            viewportWidth = 24f, viewportHeight = 24f,
+        ).apply {
+            // Circular arrow rotating counter-clockwise
+            path(
+                stroke = stroke,
+                strokeLineWidth = 1.8f,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round,
+            ) {
+                moveTo(12f, 4f)
+                arcToRelative(8f, 8f, 0f, isMoreThanHalf = true, isPositiveArc = false, 7.8f, 6.2f)
+            }
+            // Arrowhead at top left pointing down/counter-clockwise
+            path(
+                fill = stroke,
+            ) {
+                moveTo(12f, 1.5f)
+                lineTo(12f, 6.5f)
+                lineTo(7.5f, 4f)
+                close()
+            }
+            // "1" digit
+            path(
+                stroke = stroke,
+                strokeLineWidth = 1.8f,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round,
+            ) {
+                moveTo(9f, 12f)
+                lineTo(10.5f, 11f)
+                lineTo(10.5f, 16.5f)
+            }
+            // "5" digit
+            path(
+                stroke = stroke,
+                strokeLineWidth = 1.8f,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round,
+            ) {
+                moveTo(15.5f, 11.2f)
+                lineTo(13.2f, 11.2f)
+                lineTo(13.2f, 13.5f)
+                lineTo(14.5f, 13.5f)
+                arcToRelative(1.5f, 1.5f, 0f, isMoreThanHalf = false, isPositiveArc = true, 1.5f, 1.5f)
+                lineTo(16f, 15f)
+                arcToRelative(1.5f, 1.5f, 0f, isMoreThanHalf = false, isPositiveArc = true, -1.5f, 1.5f)
+                lineTo(13f, 16.5f)
+            }
+        }.build()
+    }
+
+    /** Jump forward 30 seconds icon for podcast playback. */
+    val Forward30: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "bc_forward_30",
+            defaultWidth = 24.dp, defaultHeight = 24.dp,
+            viewportWidth = 24f, viewportHeight = 24f,
+        ).apply {
+            // Circular arrow rotating clockwise
+            path(
+                stroke = stroke,
+                strokeLineWidth = 1.8f,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round,
+            ) {
+                moveTo(12f, 4f)
+                arcToRelative(8f, 8f, 0f, isMoreThanHalf = true, isPositiveArc = true, -7.8f, 6.2f)
+            }
+            // Arrowhead at top right pointing down/clockwise
+            path(
+                fill = stroke,
+            ) {
+                moveTo(12f, 1.5f)
+                lineTo(12f, 6.5f)
+                lineTo(16.5f, 4f)
+                close()
+            }
+            // "3" digit
+            path(
+                stroke = stroke,
+                strokeLineWidth = 1.8f,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round,
+            ) {
+                moveTo(9f, 11.5f)
+                lineTo(11.5f, 11.5f)
+                lineTo(10.2f, 13.5f)
+                lineTo(11.5f, 13.5f)
+                arcToRelative(1.5f, 1.5f, 0f, isMoreThanHalf = false, isPositiveArc = true, 1.5f, 1.5f)
+                lineTo(13f, 15f)
+                arcToRelative(1.5f, 1.5f, 0f, isMoreThanHalf = false, isPositiveArc = true, -1.5f, 1.5f)
+                lineTo(9f, 16.5f)
+            }
+            // "0" digit
+            path(
+                stroke = stroke,
+                strokeLineWidth = 1.8f,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round,
+            ) {
+                moveTo(15f, 12f)
+                arcToRelative(1.2f, 1.2f, 0f, isMoreThanHalf = false, isPositiveArc = true, 1.2f, -1.2f)
+                lineTo(16f, 10.8f)
+                arcToRelative(1.2f, 1.2f, 0f, isMoreThanHalf = false, isPositiveArc = true, 1.2f, 1.2f)
+                lineTo(17.2f, 15.3f)
+                arcToRelative(1.2f, 1.2f, 0f, isMoreThanHalf = false, isPositiveArc = true, -1.2f, 1.2f)
+                lineTo(15f, 16.5f)
+                arcToRelative(1.2f, 1.2f, 0f, isMoreThanHalf = false, isPositiveArc = true, -1.2f, -1.2f)
+                close()
+            }
+        }.build()
+    }
+
+    /** Speedometer gauge icon for playback speed control. */
+    val Speed: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "bc_speed",
+            defaultWidth = 24.dp, defaultHeight = 24.dp,
+            viewportWidth = 24f, viewportHeight = 24f,
+        ).apply {
+            path(
+                stroke = stroke,
+                strokeLineWidth = STROKE,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round,
+            ) {
+                moveTo(4.5f, 17f)
+                arcToRelative(8.5f, 8.5f, 0f, isMoreThanHalf = true, isPositiveArc = true, 15f, 0f)
+                moveTo(12f, 14f)
+                lineTo(16f, 9.5f)
+            }
+            path(fill = stroke) {
+                moveTo(12f, 13f)
+                arcToRelative(1.5f, 1.5f, 0f, isMoreThanHalf = true, isPositiveArc = false, 0f, 3f)
+                arcToRelative(1.5f, 1.5f, 0f, isMoreThanHalf = true, isPositiveArc = false, 0f, -3f)
+            }
+        }.build()
+    }
+
+    /** Show Notes document icon for podcast episode details. */
+    val Notes: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "bc_notes",
+            defaultWidth = 24.dp, defaultHeight = 24.dp,
+            viewportWidth = 24f, viewportHeight = 24f,
+        ).apply {
+            path(
+                stroke = stroke,
+                strokeLineWidth = STROKE,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round,
+            ) {
+                moveTo(5f, 4.5f)
+                lineTo(15f, 4.5f)
+                lineTo(19f, 8.5f)
+                lineTo(19f, 19.5f)
+                lineTo(5f, 19.5f)
+                close()
+                moveTo(8.5f, 11f)
+                lineTo(15.5f, 11f)
+                moveTo(8.5f, 14.5f)
+                lineTo(15.5f, 14.5f)
+                moveTo(8.5f, 17.5f)
+                lineTo(13f, 17.5f)
+            }
+        }.build()
+    }
 }
+

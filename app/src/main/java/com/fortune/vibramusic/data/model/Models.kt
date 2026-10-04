@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.data.model
+package com.fortune.vibramusic.data.model
 
 /** Tier of an item in the playback queue. */
 enum class QueueTier {
@@ -95,6 +95,8 @@ data class Song(
     val playbackSourceType: PlaybackSourceType? = null,
     /** Browse id for an album, playlist, or other source page. */
     val playbackSourceId: String? = null,
+    /** Full episode description or show notes for podcasts. */
+    val description: String? = null,
 ) {
     /** Legacy derived property: true if and only if [queueTier] is [QueueTier.AUTOPLAY]. */
     val fromAutoplay: Boolean get() = queueTier == QueueTier.AUTOPLAY
@@ -124,6 +126,7 @@ data class Song(
         playbackSource: String? = null,
         playbackSourceType: PlaybackSourceType? = null,
         playbackSourceId: String? = null,
+        description: String? = null,
     ) : this(
         videoId = videoId,
         title = title,
@@ -149,6 +152,7 @@ data class Song(
         playbackSource = playbackSource,
         playbackSourceType = playbackSourceType,
         playbackSourceId = playbackSourceId,
+        description = description,
     )
 }
 
@@ -259,7 +263,7 @@ const val NOTIFICATION_ART_PX = 544
  */
 const val PLAYER_ART_PX = 1200
 
-enum class BrowseType { ALBUM, ARTIST, PLAYLIST, OTHER }
+enum class BrowseType { ALBUM, ARTIST, PLAYLIST, PODCAST_SHOW, OTHER }
 
 /** A queue-level origin shown above Now Playing, in the style of Spotify. */
 enum class PlaybackSourceType {
@@ -268,10 +272,65 @@ enum class PlaybackSourceType {
     HISTORY,
     REPLAY,
     EXPLORE,
+    PODCASTS,
     BROWSE,
     SHARED_LINK,
     QUEUE,
 }
+
+/** Represents a single podcast episode from YouTube. */
+data class PodcastEpisode(
+    val id: String,
+    val videoId: String,
+    val title: String,
+    val author: String,
+    val description: String = "",
+    val durationText: String? = null,
+    val publishedTimeText: String? = null,
+    val thumbnailUrl: String? = null,
+    val isLive: Boolean = false,
+    val hasVideo: Boolean = true,
+    val showBrowseId: String? = null,
+    val showTitle: String? = null,
+    val progressFraction: Float = 0f,
+) {
+    /** Converts a podcast episode into a playable [Song] for the app's player pipeline. */
+    fun toSong(): Song = Song(
+        videoId = videoId,
+        title = title,
+        artist = author,
+        albumName = showTitle ?: author,
+        thumbnailUrl = thumbnailUrl,
+        durationText = durationText,
+        isVideo = hasVideo,
+        isVideoOrigin = true,
+        playbackSource = showTitle ?: "Podcasts",
+        playbackSourceType = PlaybackSourceType.PODCASTS,
+        playbackSourceId = showBrowseId,
+        description = description,
+    )
+}
+
+/** Represents a podcast channel or show series. */
+data class PodcastShow(
+    val browseId: String,
+    val title: String,
+    val author: String,
+    val description: String = "",
+    val thumbnailUrl: String? = null,
+    val bannerUrl: String? = null,
+    val episodeCountText: String? = null,
+    val episodes: List<PodcastEpisode> = emptyList(),
+)
+
+/** The complete podcast feed including live broadcasts, in-progress items, and curated shelves. */
+data class PodcastFeed(
+    val liveBroadcasts: List<PodcastEpisode> = emptyList(),
+    val continueListening: List<PodcastEpisode> = emptyList(),
+    val topShows: List<PodcastShow> = emptyList(),
+    val latestEpisodes: List<PodcastEpisode> = emptyList(),
+    val topicShelves: List<HomeShelf> = emptyList(),
+)
 
 /** A non-track search result: album, artist or playlist. */
 data class BrowseItem(

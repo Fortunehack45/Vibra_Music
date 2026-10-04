@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.playback
+package com.fortune.vibramusic.playback
 
 import android.content.ComponentName
 import android.net.Uri
@@ -199,6 +199,7 @@ fun Song.toSongBundle(): Bundle = bundleOf(
     "playbackSourceType" to playbackSourceType?.name,
     "playbackSourceId" to playbackSourceId,
     "isExplicit" to (isExplicit ?: false),
+    "description" to description,
 )
 
 fun songFromBundle(b: Bundle): Song = Song(
@@ -223,6 +224,7 @@ fun songFromBundle(b: Bundle): Song = Song(
     playbackSourceType = b.getString("playbackSourceType")?.let { runCatching { com.fortune.vibramusic.data.model.PlaybackSourceType.valueOf(it) }.getOrNull() },
     playbackSourceId = b.getString("playbackSourceId"),
     isExplicit = if (b.containsKey("isExplicit")) b.getBoolean("isExplicit") else null,
+    description = b.getString("description"),
 )
 
 /** Flushes the current radio queue to disk before reporting that it started. */
@@ -383,6 +385,7 @@ fun MediaItem.toSong() = Song(
     playbackSourceId = mediaMetadata.extras?.getString(EXTRA_PLAYBACK_SOURCE_ID),
     localUri = mediaMetadata.extras?.getString(EXTRA_LOCAL_URI),
     localPath = mediaMetadata.extras?.getString(EXTRA_LOCAL_PATH),
+    description = mediaMetadata.extras?.getString(EXTRA_DESCRIPTION),
 )
 
 /** @see Song.fromAutoplay */
@@ -426,6 +429,7 @@ private const val EXTRA_RADIO_NAME = "siren.radioName"
 private const val EXTRA_PLAYBACK_SOURCE = "siren.playbackSource"
 private const val EXTRA_PLAYBACK_SOURCE_TYPE = "siren.playbackSourceType"
 private const val EXTRA_PLAYBACK_SOURCE_ID = "siren.playbackSourceId"
+private const val EXTRA_DESCRIPTION = "siren.description"
 
 /**
  * The artist and album pages this track hangs under, when they are known.
@@ -659,6 +663,7 @@ fun Song.toMediaItem(): MediaItem {
                             EXTRA_EXPLICIT to isExplicit,
                             EXTRA_IS_VIDEO to isVideo,
                             EXTRA_VIDEO_ORIGIN to isVideoOrigin,
+                            EXTRA_DESCRIPTION to description,
                         ),
                     )
                 }

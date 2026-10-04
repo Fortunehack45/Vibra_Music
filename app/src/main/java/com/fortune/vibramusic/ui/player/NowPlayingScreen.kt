@@ -42,6 +42,7 @@ import androidx.compose.foundation.gestures.awaitVerticalTouchSlopOrCancellation
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.verticalDrag
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -609,6 +610,10 @@ fun NowPlayingScreen(
     lyricsOffsetOpen: Boolean,
     onDismissLyricsOffset: () -> Unit,
     onMinimize: () -> Unit = {},
+    playbackSpeed: Float = 1.0f,
+    onPlaybackSpeedChange: (Float) -> Unit = {},
+    onToggleVersion: (() -> Unit)? = null,
+    hasAlternateVersion: Boolean = false,
     /** The width of the window the player is in — see [fullBleedArtworkAvailable]. */
     windowWidth: Dp,
     /**
@@ -623,6 +628,10 @@ fun NowPlayingScreen(
     val context = LocalContext.current
     val density = LocalDensity.current
     val haptics = rememberHaptics()
+
+    var isVideoModeSelected by remember(song.videoId) { mutableStateOf(song.isVideo && !song.isVideoOrigin) }
+    var showShowNotesSheet by remember { mutableStateOf(false) }
+    val isPodcast = song.playbackSourceType == PlaybackSourceType.PODCASTS || song.isVideoOrigin || song.isVideo
 
     // Remote tracks whose art lives inside the file resolve it here, once —
     // every surface below reads the same value rather than each triggering
@@ -1512,6 +1521,13 @@ fun NowPlayingScreen(
                 onDismiss = onDismissLyricsOffset,
             )
         }
+        if (showShowNotesSheet) {
+            PodcastShowNotesSheet(
+                song = song,
+                onDismiss = { showShowNotesSheet = false },
+                onSeek = onSeek,
+            )
+        }
     }
 
     // A landscape window — a tablet, or a phone on its side — takes an entirely
@@ -1612,6 +1628,26 @@ fun NowPlayingScreen(
                                 closeLyrics()
                             },
                     ) {
+                        if (isPodcast && isVideoModeSelected) {
+                            PodcastVideoView(
+                                videoId = song.videoId,
+                                isPlaying = isPlaying,
+                                positionMs = position.positionMs,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
+                        if (isPodcast || hasAlternateVersion || song.isVideo) {
+                            AudioVideoToggleSwitch(
+                                isVideoMode = isVideoModeSelected,
+                                onToggle = { enabled ->
+                                    isVideoModeSelected = enabled
+                                    onToggleVersion?.invoke()
+                                },
+                                modifier = Modifier
+                                    .align(Alignment.TopCenter)
+                                    .padding(top = 10.dp),
+                            )
+                        }
                         // The stats belong to the player, not to the sleeve, so
                         // they leave it along with the rest of the player.
                         SleeveNerdStats(
@@ -1678,17 +1714,53 @@ fun NowPlayingScreen(
                             }
                         },
                         transport = {
-                            TransportRow(
-                                isPlaying = isPlaying,
-                                isLoading = isLoading || audioVersionSwitching,
-                                previousEnabled = !controlsLocked &&
-                                    (hasPrevious || pastRestartPoint),
-                                nextEnabled = !controlsLocked && hasNext,
-                                onPrevious = onPrevious,
-                                onPlayPause = onPlayPause,
-                                onNext = onNext,
-                                compact = compact,
-                            )
+                            if (isPodcast) {
+                                Column(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                ) {
+                                    PodcastTransportRow(
+                                        isPlaying = isPlaying,
+                                        isLoading = isLoading || audioVersionSwitching,
+                                        previousEnabled = !controlsLocked &&
+                                            (hasPrevious || pastRestartPoint),
+                                        nextEnabled = !controlsLocked && hasNext,
+                                        onPrevious = onPrevious,
+                                        onPlayPause = onPlayPause,
+                                        onNext = onNext,
+                                        onReplay15 = { onSeek(maxOf(0L, position.positionMs - 15_000L)) },
+                                        onForward30 = { onSeek(minOf(durationMs, position.positionMs + 30_000L)) },
+                                        compact = compact,
+                                    )
+                                    Spacer(Modifier.height(if (compact) 4.dp else 8.dp))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.Center,
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        PlaybackSpeedPill(
+                                            speed = playbackSpeed,
+                                            onSpeedChange = onPlaybackSpeedChange,
+                                        )
+                                        Spacer(Modifier.width(16.dp))
+                                        ShowNotesPill(
+                                            onClick = { showShowNotesSheet = true },
+                                        )
+                                    }
+                                }
+                            } else {
+                                TransportRow(
+                                    isPlaying = isPlaying,
+                                    isLoading = isLoading || audioVersionSwitching,
+                                    previousEnabled = !controlsLocked &&
+                                        (hasPrevious || pastRestartPoint),
+                                    nextEnabled = !controlsLocked && hasNext,
+                                    onPrevious = onPrevious,
+                                    onPlayPause = onPlayPause,
+                                    onNext = onNext,
+                                    compact = compact,
+                                )
+                            }
                         },
                         volume = if (hideVolumeBar) {
                             null
@@ -2621,7 +2693,14 @@ fun NowPlayingScreen(
                         // Where the clip plays when it can't have the banner:
                         // inside the same clip as the still art, taking the
                         // sleeve's corners, shadow and paused shrink for free.
-                        if (!heroMode) {
+                        if (isVideoModeSelected) {
+                            PodcastVideoView(
+                                videoId = song.videoId,
+                                isPlaying = isPlaying,
+                                positionMs = position.positionMs,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        } else if (!heroMode) {
                             canvas?.takeIf { !collapsePastHalf }?.let { clip ->
                                 CanvasArtworkPlayer(
                                     canvas = clip,
@@ -2640,6 +2719,22 @@ fun NowPlayingScreen(
                                 )
                             }
                         }
+                    }
+
+                    if ((isPodcast || hasAlternateVersion || song.isVideo) && !collapsePastHalf) {
+                        AudioVideoToggleSwitch(
+                            isVideoMode = isVideoModeSelected,
+                            onToggle = { enabled ->
+                                isVideoModeSelected = enabled
+                                onToggleVersion?.invoke()
+                            },
+                            modifier = Modifier
+                                .align(Alignment.TopCenter)
+                                .padding(top = 10.dp)
+                                .graphicsLayer {
+                                    alpha = (1f - p() * 2f).coerceIn(0f, 1f) * spotifyChromeAlpha
+                                },
+                        )
                     }
 
                     // Measured stats stay on the sleeve's bottom centre. They
@@ -3091,16 +3186,46 @@ fun NowPlayingScreen(
             // centre rather than drifting up under the seek bar.
             Spacer(Modifier.height(8.dp + controlSpread / 2))
 
-            TransportRow(
-                isPlaying = isPlaying,
-                isLoading = isLoading || audioVersionSwitching,
-                previousEnabled = !controlsLocked &&
-                    (hasPrevious || pastRestartPoint),
-                nextEnabled = !controlsLocked && hasNext,
-                onPrevious = onPrevious,
-                onPlayPause = onPlayPause,
-                onNext = onNext,
-            )
+            if (isPodcast) {
+                PodcastTransportRow(
+                    isPlaying = isPlaying,
+                    isLoading = isLoading || audioVersionSwitching,
+                    previousEnabled = !controlsLocked &&
+                        (hasPrevious || pastRestartPoint),
+                    nextEnabled = !controlsLocked && hasNext,
+                    onPrevious = onPrevious,
+                    onPlayPause = onPlayPause,
+                    onNext = onNext,
+                    onReplay15 = { onSeek(maxOf(0L, position.positionMs - 15_000L)) },
+                    onForward30 = { onSeek(minOf(durationMs, position.positionMs + 30_000L)) },
+                )
+                Spacer(Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    PlaybackSpeedPill(
+                        speed = playbackSpeed,
+                        onSpeedChange = onPlaybackSpeedChange,
+                    )
+                    Spacer(Modifier.width(16.dp))
+                    ShowNotesPill(
+                        onClick = { showShowNotesSheet = true },
+                    )
+                }
+            } else {
+                TransportRow(
+                    isPlaying = isPlaying,
+                    isLoading = isLoading || audioVersionSwitching,
+                    previousEnabled = !controlsLocked &&
+                        (hasPrevious || pastRestartPoint),
+                    nextEnabled = !controlsLocked && hasNext,
+                    onPrevious = onPrevious,
+                    onPlayPause = onPlayPause,
+                    onNext = onNext,
+                )
+            }
 
             // Keep the volume slot's full footprint when its contents are
             // hidden. Removing the slot itself shortened the controls by 50dp

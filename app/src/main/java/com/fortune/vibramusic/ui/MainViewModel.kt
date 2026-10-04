@@ -48,6 +48,11 @@ import com.fortune.vibramusic.data.model.UiState
 import com.fortune.vibramusic.data.model.UserPlaylist
 import com.fortune.vibramusic.data.model.SearchHistoryEntity
 import com.fortune.vibramusic.data.model.EntityType
+import com.fortune.vibramusic.data.model.PlaybackSourceType
+import com.fortune.vibramusic.data.model.PodcastEpisode
+import com.fortune.vibramusic.data.model.PodcastFeed
+import com.fortune.vibramusic.data.model.PodcastShow
+import com.fortune.vibramusic.data.podcast.PodcastRepository
 import com.fortune.vibramusic.data.settings.SearchHistory
 import com.fortune.vibramusic.download.Downloads
 import android.util.LruCache
@@ -138,6 +143,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _moodGenreShelves = MutableStateFlow<UiState<List<HomeShelf>>>(UiState.Loading)
     val moodGenreShelves: StateFlow<UiState<List<HomeShelf>>> = _moodGenreShelves.asStateFlow()
+
+    private val _podcasts = MutableStateFlow<UiState<PodcastFeed>>(UiState.Loading)
+    val podcasts: StateFlow<UiState<PodcastFeed>> = _podcasts.asStateFlow()
+
+    private val _podcastShow = MutableStateFlow<UiState<PodcastShow>?>(null)
+    val podcastShow: StateFlow<UiState<PodcastShow>?> = _podcastShow.asStateFlow()
 
     private val _query = MutableStateFlow("")
     val query: StateFlow<String> = _query.asStateFlow()
@@ -1435,7 +1446,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * as one flag: a pull on Library while Home is still refreshing in the
      * background shouldn't leave the wrong tab showing a loader.
      */
-    enum class Feed { HOME, EXPLORE, LIBRARY }
+    enum class Feed { HOME, EXPLORE, PODCASTS, LIBRARY }
 
     private val _refreshing = MutableStateFlow(emptySet<Feed>())
     val refreshing: StateFlow<Set<Feed>> = _refreshing.asStateFlow()
@@ -1455,10 +1466,48 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             when (feed) {
                 Feed.HOME -> refreshHome(identity)
                 Feed.EXPLORE -> fetchExplore()
+                Feed.PODCASTS -> fetchPodcasts(force = true)
                 Feed.LIBRARY -> fetchLibrary(identity)
             }
             _refreshing.value = _refreshing.value - feed
         }
+    }
+
+    fun loadPodcasts(force: Boolean = false) {
+        if (_podcasts.value is UiState.Loading && !force) return
+        if (force) _podcasts.value = UiState.Loading
+        viewModelScope.launch { fetchPodcasts(force) }
+    }
+
+    private suspend fun fetchPodcasts(force: Boolean = false) {
+        PodcastRepository.getPodcastFeed(force).fold(
+            onSuccess = { feed ->
+                _podcasts.value = UiState.Success(feed)
+            },
+            onFailure = { err ->
+                if (_podcasts.value !is UiState.Success) {
+                    _podcasts.value = UiState.Error(err.friendly())
+                }
+            },
+        )
+    }
+
+    fun openPodcastShow(browseId: String) {
+        _podcastShow.value = UiState.Loading
+        viewModelScope.launch {
+            PodcastRepository.getPodcastShow(browseId).fold(
+                onSuccess = { show ->
+                    _podcastShow.value = UiState.Success(show)
+                },
+                onFailure = { err ->
+                    _podcastShow.value = UiState.Error(err.friendly())
+                },
+            )
+        }
+    }
+
+    fun closePodcastShow() {
+        _podcastShow.value = null
     }
 
     fun loadExplore() {

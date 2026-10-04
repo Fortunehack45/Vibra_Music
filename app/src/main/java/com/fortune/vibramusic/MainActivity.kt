@@ -251,6 +251,8 @@ import com.fortune.vibramusic.ui.screens.HomeScreen
 import com.fortune.vibramusic.ui.screens.LibraryGridPage
 import com.fortune.vibramusic.ui.screens.LibraryScreen
 import com.fortune.vibramusic.ui.screens.MoodGenrePlaylistsScreen
+import com.fortune.vibramusic.ui.screens.PodcastScreen
+import com.fortune.vibramusic.ui.screens.PodcastShowScreen
 import com.fortune.vibramusic.ui.screens.SearchScreen
 import com.fortune.vibramusic.data.settings.SongSort
 import com.fortune.vibramusic.ui.replay.ReplayScreen
@@ -651,6 +653,8 @@ private fun VibraMusicApp(
     val searchScrollReset by viewModel.searchScrollReset.collectAsStateWithLifecycle()
     val detailStack by viewModel.detailStack.collectAsStateWithLifecycle()
     val detail = detailStack.lastOrNull()
+    val podcastShowState by viewModel.podcastShow.collectAsStateWithLifecycle()
+    val podcastShow = (podcastShowState as? UiState.Success)?.data
     // Local Music has no artwork to wash the top inset in, so it renders with
     // the ordinary bounded status bar rather than the artwork gradient used by
     // album/artist/playlist pages. Downloads is the same page, and the tab row
@@ -866,6 +870,7 @@ private fun VibraMusicApp(
     val homeListState = rememberLazyListState()
     val exploreListState = rememberLazyListState()
     val moodGenreListState = rememberLazyListState()
+    val podcastListState = rememberLazyListState()
     val libraryListState = rememberLazyListState()
     val historyListState = rememberLazyListState()
     val libraryShowAllGridState = rememberLazyGridState()
@@ -873,6 +878,7 @@ private fun VibraMusicApp(
     val currentListState = when (selectedTab) {
         TAB_HOME -> homeListState
         TAB_EXPLORE -> if (selectedMoodGenre == null) exploreListState else moodGenreListState
+        TAB_PODCASTS -> podcastListState
         TAB_LIBRARY -> libraryListState
         else -> searchListState
     }
@@ -881,12 +887,14 @@ private fun VibraMusicApp(
     // line under the top bar, so the state has to be visible to both.
     val homePull = rememberPullToRefreshState()
     val explorePull = rememberPullToRefreshState()
+    val podcastPull = rememberPullToRefreshState()
     val libraryPull = rememberPullToRefreshState()
     val refreshing by viewModel.refreshing.collectAsStateWithLifecycle()
     val currentFeed = when {
         showSettings || showAccountScrobbling || detail != null -> null
         selectedTab == TAB_HOME -> MainViewModel.Feed.HOME
         selectedTab == TAB_EXPLORE -> MainViewModel.Feed.EXPLORE
+        selectedTab == TAB_PODCASTS -> MainViewModel.Feed.PODCASTS
         selectedTab == TAB_LIBRARY -> MainViewModel.Feed.LIBRARY
         else -> null
     }
@@ -897,11 +905,13 @@ private fun VibraMusicApp(
         // Likewise for Library: a playlist created or a song liked since it
         // was last fetched is a change to exactly this page.
         if (currentFeed == MainViewModel.Feed.LIBRARY) viewModel.onLibraryShown()
+        if (currentFeed == MainViewModel.Feed.PODCASTS) viewModel.loadPodcasts()
     }
 
     val currentPull = when (currentFeed) {
         MainViewModel.Feed.HOME -> homePull
         MainViewModel.Feed.EXPLORE -> explorePull
+        MainViewModel.Feed.PODCASTS -> podcastPull
         MainViewModel.Feed.LIBRARY -> libraryPull
         null -> null
     }
@@ -930,11 +940,18 @@ private fun VibraMusicApp(
     }
 
     val detailListState = remember(detail?.browseId) { LazyListState() }
+    val podcastShowListState = remember(podcastShow?.browseId) { LazyListState() }
     val detailTitleDrop = with(LocalDensity.current) { DETAIL_TITLE_DROP.toPx() }
     val detailScrolled by remember(detailListState, detailTitleDrop) {
         derivedStateOf {
             detailListState.firstVisibleItemIndex > 0 ||
                 detailListState.firstVisibleItemScrollOffset > detailTitleDrop
+        }
+    }
+    val podcastShowScrolled by remember(podcastShowListState, detailTitleDrop) {
+        derivedStateOf {
+            podcastShowListState.firstVisibleItemIndex > 0 ||
+                podcastShowListState.firstVisibleItemScrollOffset > detailTitleDrop
         }
     }
 
@@ -948,16 +965,18 @@ private fun VibraMusicApp(
     val homeLabel = stringResource(R.string.home)
     val playLabel = stringResource(R.string.play)
     val exploreLabel = stringResource(R.string.explore)
+    val podcastsLabel = stringResource(R.string.podcasts)
     val libraryLabel = stringResource(R.string.library)
     val searchLabel = stringResource(R.string.search)
     val historyLabel = stringResource(R.string.history)
     val replayLabel = stringResource(R.string.replay)
     val queueLabel = stringResource(R.string.queue)
     val sharedLinkLabel = stringResource(R.string.shared_link)
-    val tabs = remember(homeLabel, exploreLabel, libraryLabel, searchLabel) {
+    val tabs = remember(homeLabel, exploreLabel, podcastsLabel, libraryLabel, searchLabel) {
         listOf(
             BottomTab(homeLabel, VibraMusicIcons.Home),
             BottomTab(exploreLabel, VibraMusicIcons.Explore),
+            BottomTab(podcastsLabel, VibraMusicIcons.Podcasts),
             BottomTab(libraryLabel, VibraMusicIcons.Library),
             BottomTab(searchLabel, VibraMusicIcons.Search),
         )
@@ -2192,6 +2211,10 @@ private fun VibraMusicApp(
                         showReplay = true
                     }
                     PlaybackSourceType.EXPLORE -> selectedTab = TAB_EXPLORE
+                    PlaybackSourceType.PODCASTS -> {
+                        viewModel.closeMoodGenre()
+                        selectedTab = TAB_PODCASTS
+                    }
                     PlaybackSourceType.SHARED_LINK -> {
                         val id = sourceId ?: return@openSource
                         context.startActivity(
@@ -2228,6 +2251,11 @@ private fun VibraMusicApp(
                     QueueCoordinator.clearUserQueue(c)
                 }
             },
+            playbackSpeed = controller?.playbackParameters?.speed ?: 1.0f,
+            onPlaybackSpeedChange = { speed ->
+                controller?.setPlaybackSpeed(speed)
+            },
+            hasAlternateVersion = displayedSong.hasYouTubeOriginal() || displayedSong.playbackSourceType == PlaybackSourceType.PODCASTS,
         )
     }
 
@@ -2251,7 +2279,11 @@ private fun VibraMusicApp(
             enabled = detail != null && !showSettings && !showAccountScrobbling && !showSources && !showListenTogether &&
                 !showEqualizer && !showReplay,
         ) { viewModel.closeDetail() }
-        BackHandler(enabled = selectedMoodGenre != null && detail == null && !showSettings && !showReplay) {
+        BackHandler(
+            enabled = podcastShow != null && detail == null && !showSettings && !showAccountScrobbling && !showSources && !showListenTogether &&
+                !showEqualizer && !showReplay,
+        ) { viewModel.closePodcastShow() }
+        BackHandler(enabled = selectedMoodGenre != null && detail == null && podcastShow == null && !showSettings && !showReplay) {
             viewModel.closeMoodGenre()
         }
         BackHandler(enabled = showDiscord) {
@@ -2277,10 +2309,10 @@ private fun VibraMusicApp(
             // Only when Settings was the whole of what was on screen. Opened
             // over Replay or over a release page, closing it reveals that again
             // rather than throwing both away.
-            if (detail == null && !showReplay) selectedTab = TAB_HOME
+            if (detail == null && podcastShow == null && !showReplay) selectedTab = TAB_HOME
         }
         BackHandler(
-            enabled = detail == null && !showSettings && !showAccountScrobbling &&
+            enabled = detail == null && podcastShow == null && !showSettings && !showAccountScrobbling &&
                 !showSources && !showListenTogether && !showEqualizer && !showReplay && selectedMoodGenre == null &&
                 selectedTab != TAB_HOME,
         ) {
@@ -2328,6 +2360,7 @@ private fun VibraMusicApp(
                         showSettings -> "settings"
                         showReplay -> "replay"
                         detail != null -> detail.browseId
+                        podcastShow != null -> "podcast_show:${podcastShow.browseId}"
                         else -> "$TAB_KEY$selectedTab"
                     },
                     // Tabs swap outright; everything else crossfades.
@@ -2738,6 +2771,29 @@ private fun VibraMusicApp(
                             songSort = songSort,
                             contentPadding = listPadding,
                         )
+                    } else if (key.startsWith("podcast_show:")) {
+                        podcastShow?.let { show ->
+                            PodcastShowScreen(
+                                showState = podcastShowState,
+                                onBack = { viewModel.closePodcastShow() },
+                                onEpisodeClick = { episode ->
+                                    val songs = show.episodes.map { it.toSong() }
+                                    val index = show.episodes.indexOfFirst { it.videoId == episode.videoId }.coerceAtLeast(0)
+                                    playFrom(
+                                        songs,
+                                        index,
+                                        QueueSource(show.title, PlaybackSourceType.PODCASTS, show.browseId),
+                                    )
+                                },
+                                onAddToQueue = { episode ->
+                                    controller?.addMediaItem(episode.toSong().toMediaItem())
+                                },
+                                onRetry = { viewModel.openPodcastShow(show.browseId) },
+                                currentVideoId = player.song?.videoId,
+                                isPlaying = player.isPlaying,
+                                contentPadding = listPadding,
+                            )
+                        }
                     } else when (key.removePrefix(TAB_KEY).toIntOrNull() ?: selectedTab) {
                         TAB_HOME -> HomeScreen(
                             state = homeState,
@@ -2809,6 +2865,30 @@ private fun VibraMusicApp(
                             refreshing = MainViewModel.Feed.EXPLORE in refreshing,
                             onRefresh = { viewModel.refresh(MainViewModel.Feed.EXPLORE) },
                             pullState = explorePull,
+                            contentPadding = listPadding,
+                        )
+                        TAB_PODCASTS -> PodcastScreen(
+                            state = viewModel.podcasts.collectAsStateWithLifecycle().value,
+                            listState = podcastListState,
+                            onEpisodeClick = { episode ->
+                                playFrom(
+                                    listOf(episode.toSong()),
+                                    0,
+                                    QueueSource(podcastsLabel, PlaybackSourceType.PODCASTS),
+                                )
+                            },
+                            onShowClick = { show ->
+                                viewModel.openPodcastShow(show.browseId)
+                            },
+                            onAddToQueue = { episode ->
+                                controller?.addMediaItem(episode.toSong().toMediaItem())
+                            },
+                            onRetry = { viewModel.loadPodcasts(force = true) },
+                            refreshing = MainViewModel.Feed.PODCASTS in refreshing,
+                            onRefresh = { viewModel.refresh(MainViewModel.Feed.PODCASTS) },
+                            pullState = podcastPull,
+                            currentVideoId = player.song?.videoId,
+                            isPlaying = player.isPlaying,
                             contentPadding = listPadding,
                         )
                         TAB_SEARCH -> SearchScreen(
@@ -2970,11 +3050,12 @@ private fun VibraMusicApp(
                 // transparent so the shared app-level gradient is continuous.
                 // Other pages use the navbar's regular bounded blur unless
                 // Liquid Glass has switched them to separated controls too.
-                val isDetailVisible = detail != null &&
+                val isDetailVisible = ((detail != null &&
                     (detail.type == BrowseType.ALBUM ||
                         detail.type == BrowseType.PLAYLIST ||
                         detail.type == BrowseType.ARTIST) &&
-                    !isLocalDetail && !showDiscord && !showHistory && !showSettings &&
+                    !isLocalDetail) || podcastShow != null) &&
+                    !showDiscord && !showHistory && !showSettings &&
                     !showAccountScrobbling && !showSources && !showListenTogether && !showEqualizer && !showReplay
                 val isReplayVisible = showReplay && !showDiscord && !showHistory &&
                     !(libraryShowAll != null && detail == null) &&
@@ -3016,6 +3097,7 @@ private fun VibraMusicApp(
                         showEqualizer -> stringResource(R.string.equalizer)
                         showSettings -> stringResource(R.string.settings)
                         showReplay -> stringResource(R.string.replay)
+                        podcastShow != null -> podcastShow.title
                         detail != null && detailActiveShelf != null -> detailActiveShelf?.title.orEmpty()
                         detail != null -> detail.title
                         selectedMoodGenre != null -> selectedMoodGenre?.title.orEmpty()
@@ -3039,6 +3121,7 @@ private fun VibraMusicApp(
                         // The page leads with its own large "Replay", so the bar
                         // stays out of the way until that has been scrolled off.
                         showReplay -> replayScrolled
+                        podcastShow != null -> podcastShowScrolled
                         detail != null -> detailScrolled
                         else -> scrolled || selectedTab == TAB_SEARCH
                     },
@@ -3054,6 +3137,7 @@ private fun VibraMusicApp(
                         showEqualizer -> ({ showEqualizer = false })
                         showSettings -> ({ showSettings = false })
                         showReplay -> ({ showReplay = false })
+                        podcastShow != null -> ({ viewModel.closePodcastShow(); Unit })
                         detailActiveShelf != null -> ({ detailActiveShelf = null })
                         detail != null -> ({ viewModel.closeDetail(); Unit })
                         selectedMoodGenre != null -> ({ viewModel.closeMoodGenre(); Unit })
@@ -4669,8 +4753,9 @@ private val DETAIL_TITLE_DROP = 320.dp
 
 private const val TAB_HOME = 0
 private const val TAB_EXPLORE = 1
-private const val TAB_LIBRARY = 2
-private const val TAB_SEARCH = 3
+private const val TAB_PODCASTS = 2
+private const val TAB_LIBRARY = 3
+private const val TAB_SEARCH = 4
 
 /**
  * What a tab's key is prefixed with in the content switcher above.

@@ -1215,4 +1215,28 @@
     <string name="reset_lyrics">Reset to online</string>
     <string name="lyrics_editor_hint">Enter [mm:ss.xx] synced lines or plain text lyrics...</string>
     <string name="custom_lyrics_source">Custom lyrics</string>
+
+    <!-- Podcasts -->
+    <string name="podcasts">Podcasts</string>
+    <string name="live_podcasts">Live Broadcasts</string>
+    <string name="all_podcasts">All</string>
+    <string name="top_podcast_shows">Top Shows</string>
+    <string name="latest_episodes">Latest Episodes</string>
+    <string name="continue_listening">Continue Listening</string>
+    <string name="show_notes">Show notes</string>
+    <string name="show_less">Show less</string>
+    <string name="follow_show">Follow</string>
+    <string name="following_show">Following</string>
+    <string name="sort_newest">Newest first</string>
+    <string name="sort_oldest">Oldest first</string>
+    <string name="video_available">Video</string>
+    <string name="audio_available">Audio</string>
+    <string name="watch_video">Watch video</string>
+    <string name="listen_audio">Listen audio</string>
+    <string name="live_badge">LIVE</string>
+    <string name="no_podcasts_found">No podcasts found</string>
+    <string name="no_episodes_found">No episodes available</string>
+    <string name="episodes_count">%1$d episodes</string>
+    <string name="speed">Playback speed</string>
+    <string name="no_description_available">No description available</string>
 </resources>

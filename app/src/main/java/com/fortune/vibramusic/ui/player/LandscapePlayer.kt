@@ -62,6 +62,7 @@ import com.fortune.vibramusic.ui.icons.VibraMusicIcons
 import com.fortune.vibramusic.data.canvas.CanvasArtwork
 import com.fortune.vibramusic.data.model.LikeStatus
 import com.fortune.vibramusic.data.model.Song
+import com.fortune.vibramusic.data.model.isPodcastSong
 
 /**
  * The widest the two columns are allowed to get between them, centred in
@@ -395,6 +396,9 @@ internal fun LandscapeCredits(
         ) {
             Column {
                 var titleOverflowing by remember { mutableStateOf(false) }
+                val isPodcast = song.isPodcastSong
+                val targetAlbumId = if (isPodcast) (song.albumId ?: song.playbackSourceId ?: song.artistId) else song.albumId
+                val targetHostId = if (isPodcast) (song.artistId ?: song.playbackSourceId ?: song.albumId) else song.artistId
                 MarqueeText(
                     text = song.title,
                     style = MaterialTheme.typography.titleLarge,
@@ -405,7 +409,7 @@ internal fun LandscapeCredits(
                     } else {
                         null
                     },
-                    modifier = Modifier.opensPage(song.albumId, onOpenAlbum),
+                    modifier = Modifier.opensPage(targetAlbumId, onOpenAlbum),
                 )
                 Spacer(Modifier.height(2.dp))
                 MarqueeText(
@@ -415,7 +419,10 @@ internal fun LandscapeCredits(
                     // A title that's also scrolling gets to go first — starting
                     // together reads as clutter, so the artist waits a beat.
                     startDelayMillis = if (titleOverflowing) MARQUEE_ARTIST_STAGGER_MS else 0L,
-                    modifier = Modifier.opensPage(song.artistId, onOpenArtist),
+                    modifier = Modifier.opensPage(
+                        targetHostId,
+                        if (isPodcast && targetHostId?.startsWith("MPSP") == true) onOpenAlbum else onOpenArtist,
+                    ),
                 )
             }
         }

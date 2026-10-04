@@ -110,6 +110,7 @@ import com.fortune.vibramusic.data.innertube.PlayerClient
 import com.fortune.vibramusic.data.innertube.StreamResolver
 import com.fortune.vibramusic.data.model.LikeStatus
 import com.fortune.vibramusic.data.model.Song
+import com.fortune.vibramusic.data.model.isPodcastSong
 import com.fortune.vibramusic.data.scrobbling.LastFM
 import com.fortune.vibramusic.data.scrobbling.ListenBrainzManager
 import com.fortune.vibramusic.data.scrobbling.ScrobbleManager
@@ -6336,6 +6337,7 @@ class PlaybackService : MediaLibraryService() {
                     sources = AppSettings.lyricsSources.value,
                     order = AppSettings.lyricsSourceOrder.value,
                     prioritizeSyllableSync = AppSettings.prioritizeSyllableSync.value,
+                    isPodcast = currentSong.isPodcastSong,
                 )
                 lines = found?.lines
             }

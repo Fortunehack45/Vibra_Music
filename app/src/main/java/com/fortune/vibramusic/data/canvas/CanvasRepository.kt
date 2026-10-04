@@ -2,6 +2,7 @@ package com.fortune.vibramusic.data.canvas
 
 import com.fortune.vibramusic.data.DebugLog as Log
 import com.fortune.vibramusic.data.model.Song
+import com.fortune.vibramusic.data.model.isPodcastSong
 import com.fortune.vibramusic.data.settings.AppSettings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
@@ -72,6 +73,7 @@ object CanvasRepository {
      * ([NowPlayingScreen], which checks [AppSettings.canvasOverCellular]).
      */
     suspend fun canvasFor(song: Song): CanvasArtwork? {
+        if (song.isPodcastSong || song.playbackSourceType == com.fortune.vibramusic.data.model.PlaybackSourceType.PODCASTS) return null
         // Only skip when there is no catalogue identity to search on.
         if (song.videoId.isBlank() && (song.localUri != null || song.localPath != null)) return null
 
@@ -115,6 +117,7 @@ object CanvasRepository {
      * through the settling delay again to arrive back at the same clip.
      */
     fun cached(song: Song): CanvasArtwork? {
+        if (song.isPodcastSong || song.playbackSourceType == com.fortune.vibramusic.data.model.PlaybackSourceType.PODCASTS) return null
         val key = cacheKey(
             base = "song|${song.videoId}",
             spotifyFirst = AppSettings.prioritizeSpotifyCanvas.value,

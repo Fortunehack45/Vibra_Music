@@ -69,6 +69,7 @@ fun PodcastShowScreen(
     onEpisodeClick: (PodcastEpisode) -> Unit,
     onAddToQueue: ((PodcastEpisode) -> Unit)? = null,
     onRetry: () -> Unit,
+    onHostClick: ((String) -> Unit)? = null,
     currentVideoId: String?,
     isPlaying: Boolean,
     modifier: Modifier = Modifier,
@@ -197,7 +198,13 @@ fun PodcastShowScreen(
                                 style = MaterialTheme.typography.titleMedium,
                                 color = MaterialTheme.colorScheme.primary,
                                 textAlign = TextAlign.Center,
-                                modifier = Modifier.padding(horizontal = PAGE_GUTTER),
+                                modifier = Modifier
+                                    .padding(horizontal = PAGE_GUTTER)
+                                    .then(
+                                        if (!show.authorBrowseId.isNullOrBlank() && onHostClick != null) {
+                                            Modifier.clickable { onHostClick(show.authorBrowseId) }
+                                        } else Modifier
+                                    ),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )

@@ -131,6 +131,7 @@ import com.fortune.vibramusic.data.model.SearchFilter
 import com.fortune.vibramusic.data.model.SearchResult
 import com.fortune.vibramusic.data.model.ShelfItem
 import com.fortune.vibramusic.data.model.Song
+import com.fortune.vibramusic.data.model.isPodcastSong
 import com.fortune.vibramusic.data.model.UiState
 import com.fortune.vibramusic.data.model.EntityType
 import com.fortune.vibramusic.data.model.SearchHistoryEntity
@@ -863,6 +864,7 @@ private fun VibraMusicApp(
                 player.durationMs.takeIf { ms -> ms > 0L } ?: it.durationMillis(),
                 it.albumName,
                 it.localUri,
+                isPodcast = it.isPodcastSong,
             )
         }
     }
@@ -2150,25 +2152,33 @@ private fun VibraMusicApp(
             },
             onOpenAlbum = { id ->
                 showNowPlaying = false
-                viewModel.openDetail(
-                    id,
-                    song.albumName ?: song.title,
-                    song.artist,
-                    song.thumbnailUrl,
-                    BrowseType.ALBUM,
-                )
+                val isPodcast = id.startsWith("MPSP") || displayedSong.isPodcastSong
+                if (isPodcast) {
+                    viewModel.openPodcastShow(id)
+                } else {
+                    viewModel.openDetail(
+                        id,
+                        displayedSong.albumName ?: displayedSong.title,
+                        displayedSong.artist,
+                        displayedSong.thumbnailUrl,
+                        BrowseType.ALBUM,
+                    )
+                }
             },
             onOpenArtist = { id ->
                 showNowPlaying = false
-                // No artwork: this track's cover isn't the artist's
-                // picture, and the page fills its own in once loaded.
-                viewModel.openDetail(
-                    id,
-                    song.artist,
-                    context.getString(R.string.artist),
-                    null,
-                    BrowseType.ARTIST,
-                )
+                val isShow = id.startsWith("MPSP")
+                if (isShow) {
+                    viewModel.openPodcastShow(id)
+                } else {
+                    viewModel.openDetail(
+                        id,
+                        displayedSong.artist,
+                        context.getString(R.string.artist),
+                        null,
+                        BrowseType.ARTIST,
+                    )
+                }
             },
             onOpenPlaybackSource = openSource@{
                 val sourceType = displayedSong.playbackSourceType ?: PlaybackSourceType.QUEUE
@@ -2281,10 +2291,10 @@ private fun VibraMusicApp(
                 !showEqualizer && !showReplay,
         ) { viewModel.closeDetail() }
         BackHandler(
-            enabled = podcastShow != null && detail == null && !showSettings && !showAccountScrobbling && !showSources && !showListenTogether &&
+            enabled = podcastShowState != null && detail == null && !showSettings && !showAccountScrobbling && !showSources && !showListenTogether &&
                 !showEqualizer && !showReplay,
         ) { viewModel.closePodcastShow() }
-        BackHandler(enabled = selectedMoodGenre != null && detail == null && podcastShow == null && !showSettings && !showReplay) {
+        BackHandler(enabled = selectedMoodGenre != null && detail == null && podcastShowState == null && !showSettings && !showReplay) {
             viewModel.closeMoodGenre()
         }
         BackHandler(enabled = showDiscord) {
@@ -2361,7 +2371,7 @@ private fun VibraMusicApp(
                         showSettings -> "settings"
                         showReplay -> "replay"
                         detail != null -> detail.browseId
-                        podcastShow != null -> "podcast_show:${podcastShow.browseId}"
+                        podcastShowState != null -> "podcast_show"
                         else -> "$TAB_KEY$selectedTab"
                     },
                     // Tabs swap outright; everything else crossfades.
@@ -2772,29 +2782,43 @@ private fun VibraMusicApp(
                             songSort = songSort,
                             contentPadding = listPadding,
                         )
-                    } else if (key.startsWith("podcast_show:")) {
-                        podcastShow?.let { show ->
-                            PodcastShowScreen(
-                                showState = podcastShowState,
-                                onBack = { viewModel.closePodcastShow() },
-                                onEpisodeClick = { episode ->
-                                    val songs = show.episodes.map { it.toSong() }
-                                    val index = show.episodes.indexOfFirst { it.videoId == episode.videoId }.coerceAtLeast(0)
-                                    playFrom(
-                                        songs,
-                                        index,
-                                        QueueSource(show.title, PlaybackSourceType.PODCASTS, show.browseId),
-                                    )
-                                },
-                                onAddToQueue = { episode ->
-                                    controller?.addMediaItem(episode.toSong().toMediaItem())
-                                },
-                                onRetry = { viewModel.openPodcastShow(show.browseId) },
-                                currentVideoId = player.song?.videoId,
-                                isPlaying = player.isPlaying,
-                                contentPadding = listPadding,
-                            )
-                        }
+                    } else if (key.startsWith("podcast_show")) {
+                        PodcastShowScreen(
+                            showState = podcastShowState,
+                            onBack = { viewModel.closePodcastShow() },
+                            onEpisodeClick = { episode ->
+                                val show = (podcastShowState as? UiState.Success)?.data
+                                val episodes = show?.episodes ?: emptyList()
+                                val songs = episodes.map { it.toSong() }
+                                val index = episodes.indexOfFirst { it.videoId == episode.videoId }.coerceAtLeast(0)
+                                playFrom(
+                                    songs,
+                                    index,
+                                    QueueSource(show?.title ?: "Podcast", PlaybackSourceType.PODCASTS, show?.browseId),
+                                )
+                            },
+                            onAddToQueue = { episode ->
+                                controller?.addMediaItem(episode.toSong().toMediaItem())
+                            },
+                            onRetry = {
+                                (podcastShowState as? UiState.Success)?.data?.browseId?.let {
+                                    viewModel.openPodcastShow(it)
+                                }
+                            },
+                            onHostClick = { hostBrowseId ->
+                                val show = (podcastShowState as? UiState.Success)?.data
+                                viewModel.openDetail(
+                                    hostBrowseId,
+                                    show?.author ?: "Host",
+                                    context.getString(R.string.artist),
+                                    null,
+                                    BrowseType.ARTIST,
+                                )
+                            },
+                            currentVideoId = player.song?.videoId,
+                            isPlaying = player.isPlaying,
+                            contentPadding = listPadding,
+                        )
                     } else when (key.removePrefix(TAB_KEY).toIntOrNull() ?: selectedTab) {
                         TAB_HOME -> HomeScreen(
                             state = homeState,
@@ -3104,7 +3128,7 @@ private fun VibraMusicApp(
                         showEqualizer -> stringResource(R.string.equalizer)
                         showSettings -> stringResource(R.string.settings)
                         showReplay -> stringResource(R.string.replay)
-                        podcastShow != null -> podcastShow.title
+                        podcastShowState != null -> podcastShow?.title.orEmpty()
                         detail != null && detailActiveShelf != null -> detailActiveShelf?.title.orEmpty()
                         detail != null -> detail.title
                         selectedMoodGenre != null -> selectedMoodGenre?.title.orEmpty()
@@ -3128,7 +3152,7 @@ private fun VibraMusicApp(
                         // The page leads with its own large "Replay", so the bar
                         // stays out of the way until that has been scrolled off.
                         showReplay -> replayScrolled
-                        podcastShow != null -> podcastShowScrolled
+                        podcastShowState != null -> podcastShowScrolled
                         detail != null -> detailScrolled
                         else -> scrolled || selectedTab == TAB_SEARCH
                     },
@@ -3144,7 +3168,7 @@ private fun VibraMusicApp(
                         showEqualizer -> ({ showEqualizer = false })
                         showSettings -> ({ showSettings = false })
                         showReplay -> ({ showReplay = false })
-                        podcastShow != null -> ({ viewModel.closePodcastShow(); Unit })
+                        podcastShowState != null -> ({ viewModel.closePodcastShow(); Unit })
                         detailActiveShelf != null -> ({ detailActiveShelf = null })
                         detail != null -> ({ viewModel.closeDetail(); Unit })
                         selectedMoodGenre != null -> ({ viewModel.closeMoodGenre(); Unit })

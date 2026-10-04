@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.data.innertube
+package com.fortune.vibramusic.data.innertube
 
 import com.fortune.vibramusic.auth.normalizeDataSyncId
 import com.fortune.vibramusic.data.DebugLog as Log
@@ -605,6 +605,12 @@ object Innertube {
         // get_transcript expects a tiny protobuf: field 1, length, video id.
         val bytes = byteArrayOf(10, videoId.toByteArray().size.toByte()) + videoId.toByteArray()
         put("params", Base64.getEncoder().encodeToString(bytes))
+    }
+
+    /** Player response containing playback formats and captions. */
+    suspend fun player(videoId: String): JsonObject = postMusicAnonymous("player") {
+        put("videoId", videoId)
+        put("isAudioOnly", true)
     }
 
     suspend fun search(query: String, params: String? = null): JsonObject =

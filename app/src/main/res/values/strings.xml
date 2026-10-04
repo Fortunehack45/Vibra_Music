@@ -454,6 +454,9 @@
     <string name="shuffle_on">Shuffle on</string>
     <string name="shuffle_off">Shuffle off</string>
     <string name="repeat_one">Repeat one</string>
+    <string name="repeat_one_active_title" translatable="false">Single track loop is on</string>
+    <string name="repeat_one_active_desc" translatable="false">This track will repeat when finished. Upcoming queue is paused.</string>
+    <string name="next_in_queue_after_loop" translatable="false">Next in queue (after loop)</string>
     <string name="repeat_all">Repeat all</string>
     <string name="repeat_off">Repeat off</string>
     <string name="autoplay_on">AutoPlay on</string>

@@ -157,14 +157,14 @@ fun PodcastEpisodeCard(
                         .weight(1f)
                         .clickable(onClick = onPlay),
                 ) {
-                    // Header meta: author / date / video badge
+                    // Header meta: author / date
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
                         Text(
-                            text = episode.publishedTimeText ?: episode.author,
+                            text = episode.author,
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.primary,
                             maxLines = 1,
@@ -172,31 +172,14 @@ fun PodcastEpisodeCard(
                             modifier = Modifier.weight(1f, fill = false),
                         )
 
-                        if (episode.hasVideo) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier
-                                    .padding(start = 6.dp)
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
-                                    .padding(horizontal = 6.dp, vertical = 2.dp),
-                            ) {
-                                Icon(
-                                    imageVector = VibraMusicIcons.VideoCamera,
-                                    contentDescription = stringResource(R.string.video_available),
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(11.dp),
-                                )
-                                Spacer(modifier = Modifier.width(3.dp))
-                                Text(
-                                    text = stringResource(R.string.video_available).uppercase(),
-                                    style = MaterialTheme.typography.labelSmall.copy(
-                                        fontSize = 9.sp,
-                                        fontWeight = FontWeight.Bold,
-                                    ),
-                                    color = MaterialTheme.colorScheme.primary,
-                                )
-                            }
+                        if (!episode.publishedTimeText.isNullOrBlank()) {
+                            Text(
+                                text = episode.publishedTimeText,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                                maxLines = 1,
+                                modifier = Modifier.padding(start = 6.dp),
+                            )
                         }
                     }
 
@@ -216,14 +199,18 @@ fun PodcastEpisodeCard(
 
                     Spacer(modifier = Modifier.height(4.dp))
 
-                    // Author / Show name
-                    Text(
-                        text = episode.showTitle ?: episode.author,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    // Show name / description
+                    val secondaryText = episode.showTitle?.takeIf { it != episode.author }
+                        ?: episode.description.takeIf { it.isNotBlank() && it != episode.author && it != episode.title }
+                    if (!secondaryText.isNullOrBlank()) {
+                        Text(
+                            text = secondaryText,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                 }
             }
 

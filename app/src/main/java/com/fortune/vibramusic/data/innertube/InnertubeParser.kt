@@ -888,11 +888,12 @@ object InnertubeParser {
             val id = browse.s("browseId") ?: return@forEach
             val pageType = browse.o("browseEndpointContextSupportedConfigs")
                 .o("browseEndpointContextMusicConfig").s("pageType").orEmpty()
+            val text = run.s("text")?.trim().orEmpty()
             credits = when {
-                "ARTIST" in pageType && credits.artistId == null ->
-                    credits.copy(artistId = id, artistName = run.s("text"))
-                "ALBUM" in pageType && credits.albumId == null ->
-                    credits.copy(albumId = id, albumName = run.s("text"))
+                ("ARTIST" in pageType || "USER_CHANNEL" in pageType || id.startsWith("UC")) && credits.artistId == null ->
+                    credits.copy(artistId = id, artistName = text)
+                ("ALBUM" in pageType || "PODCAST_SHOW" in pageType || id.startsWith("MPSP")) && credits.albumId == null ->
+                    credits.copy(albumId = id, albumName = text)
                 else -> credits
             }
         }
@@ -915,10 +916,12 @@ object InnertubeParser {
         }
         val artistGroup = groups.firstOrNull { group ->
             group.any { run ->
-                val pageType = run.o("navigationEndpoint").o("browseEndpoint")
+                val browse = run.o("navigationEndpoint").o("browseEndpoint")
+                val id = browse.s("browseId").orEmpty()
+                val pageType = browse
                     .o("browseEndpointContextSupportedConfigs")
                     .o("browseEndpointContextMusicConfig").s("pageType").orEmpty()
-                "ARTIST" in pageType
+                "ARTIST" in pageType || "USER_CHANNEL" in pageType || id.startsWith("UC")
             }
         } ?: return null
         return artistGroup.mapIndexedNotNull { index, run ->
@@ -1143,22 +1146,32 @@ object InnertubeParser {
             // the leading runs before the first bullet are the credit.
             val bylineRuns = renderer.o("longBylineText").a("runs").orEmpty()
             val byline = bylineRuns.map { it.s("text").orEmpty() }
-            val artist = byline.takeWhile { !it.contains("•") }.joinToString("").trim()
-            // Those same runs link out to the artist and album pages, which is
-            // how a track started from the queue knows where it came from.
             val credits = creditsOf(bylineRuns)
+            val rawArtist = byline.takeWhile { !it.contains("•") }.joinToString("").trim()
+            val cleanArtist = if (rawArtist.isNotBlank() && !com.fortune.vibramusic.data.podcast.PodcastRepository.isDateOrNoise(rawArtist)) {
+                rawArtist
+            } else {
+                credits.artistName?.takeIf { !com.fortune.vibramusic.data.podcast.PodcastRepository.isDateOrNoise(it) }
+                    ?: bylineRuns.mapNotNull { it.s("text")?.trim() }
+                        .firstOrNull { it != "•" && !com.fortune.vibramusic.data.podcast.PodcastRepository.isDateOrNoise(it) }
+                    ?: rawArtist
+            }
+            val isPodcast = credits.albumId?.startsWith("MPSP") == true || credits.artistId?.startsWith("MPSP") == true
+
             out[videoId] = Song(
                 videoId = videoId,
                 title = title,
-                artist = artist,
+                artist = cleanArtist,
                 thumbnailUrl = renderer.o("thumbnail").a("thumbnails").best(),
                 durationText = renderer.o("lengthText").runs().takeIf { it.isNotBlank() },
                 artistId = credits.artistId,
                 albumId = credits.albumId,
                 albumName = credits.albumName,
+                playbackSourceType = if (isPodcast) com.fortune.vibramusic.data.model.PlaybackSourceType.PODCASTS else null,
+                playbackSourceId = if (isPodcast) (credits.albumId ?: credits.artistId) else null,
                 // A catalogue track is credited "Artist • Album • Year"; the
                 // matching music video is "Artist • 417M views • 2.4M likes".
-                isVideo = byline.any { it.contains("views", ignoreCase = true) },
+                isVideo = if (isPodcast) false else byline.any { it.contains("views", ignoreCase = true) },
                 isExplicit = renderer.hasExplicitBadge(),
             )
         }
@@ -1217,6 +1230,26 @@ object InnertubeParser {
             addToLibraryToken = if (defaultAdds) defaultToken else toggledToken,
             removeFromLibraryToken = if (defaultAdds) toggledToken else defaultToken,
         )
+    }
+
+    data class CaptionTrack(
+        val baseUrl: String,
+        val name: String,
+        val languageCode: String,
+        val isTranslatable: Boolean = false,
+    )
+
+    fun parseCaptionTracks(response: JsonObject): List<CaptionTrack> {
+        val captionsObj = response.o("captions")?.o("playerCaptionsTracklistRenderer") ?: return emptyList()
+        val tracks = captionsObj.a("captionTracks") ?: return emptyList()
+        return tracks.mapNotNull { trackElement ->
+            val track = trackElement as? JsonObject ?: return@mapNotNull null
+            val baseUrl = track.s("baseUrl") ?: return@mapNotNull null
+            val name = track.o("name").runs().ifBlank { track.s("name").orEmpty() }
+            val lang = track.s("languageCode").orEmpty()
+            val isTranslatable = track.b("isTranslatable") ?: false
+            CaptionTrack(baseUrl, name, lang, isTranslatable)
+        }
     }
 
     private fun JsonElement?.feedbackToken(endpoint: String): String? =
@@ -1499,6 +1532,9 @@ private fun JsonElement?.a(key: String): JsonArray? =
 
 private fun JsonElement?.s(key: String): String? =
     ((this as? JsonObject)?.get(key) as? JsonPrimitive)?.contentOrNull
+
+private fun JsonElement?.b(key: String): Boolean? =
+    ((this as? JsonObject)?.get(key) as? JsonPrimitive)?.contentOrNull?.toBooleanStrictOrNull()
 
 /**
  * The first string under [key] anywhere in the subtree, by name rather than by

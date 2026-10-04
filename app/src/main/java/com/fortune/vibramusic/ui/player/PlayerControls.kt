@@ -128,14 +128,11 @@ import kotlin.math.roundToInt
  * to undo work that has not landed yet. One tap is all a toggle can usefully
  * mean in that window, so the rest are dropped rather than queued behind it.
  */
-private const val SHUFFLE_TAP_WINDOW_MS = 400L
+private const val SHUFFLE_TAP_WINDOW_MS = 300L
 /**
- * The same gate for AutoPlay, held longer because its work is heavier: the
- * toggle crosses to the playback service, tears down the in-flight suggestion
- * load, and then either strips AutoPlay's tracks out of the queue or goes back
- * to the network for a fresh set of them.
+ * The same gate for AutoPlay.
  */
-private const val AUTOPLAY_TAP_WINDOW_MS = 700L
+private const val AUTOPLAY_TAP_WINDOW_MS = 350L
 
 /**
  * "Playing from …", "Played by …" or the radio station — what the player is

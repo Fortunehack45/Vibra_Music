@@ -29,6 +29,109 @@ object PodcastRepository {
     @Volatile
     private var cachedFeed: PodcastFeed? = null
 
+    private val DATE_REGEX = Regex(
+        """(?i)\b(?:(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]* \d{1,2}(?:,? \d{4})?|\d{1,2} (?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*(?: \d{4})?|\d+\s+(?:days?|hours?|mins?|minutes?|weeks?|months?|years?)\s+ago|yesterday|today|streamed\s+.*)\b"""
+    )
+    private val TALLY_REGEX = Regex(
+        """(?i)^\d+(?:\.\d+)?[KMBkmb]?\s*(?:views|plays|subscribers|watching|listeners).*$"""
+    )
+    private val DURATION_REGEX = Regex(
+        """(?i)^\d+:\d+(?::\d+)?$|^\d+\s*(?:hr|min|sec)s?(?:\s*\d+\s*(?:min|sec)s?)?$"""
+    )
+    private val CATEGORY_REGEX = Regex(
+        """(?i)^(?:livestreams?|streamed|episode\s*\d*|ep\.?\s*\d*|podcast|video|audio|all)$"""
+    )
+
+    internal fun isDateOrNoise(text: String): Boolean {
+        val trimmed = text.trim()
+        if (trimmed.isBlank() || trimmed == "•") return true
+        return trimmed.matches(DATE_REGEX) ||
+            trimmed.matches(TALLY_REGEX) ||
+            trimmed.matches(DURATION_REGEX) ||
+            trimmed.matches(CATEGORY_REGEX) ||
+            trimmed.contains("watching", ignoreCase = true) ||
+            trimmed.contains("views", ignoreCase = true) ||
+            trimmed.contains("ago", ignoreCase = true)
+    }
+
+    internal data class EpisodeMetadata(
+        val author: String,
+        val authorBrowseId: String? = null,
+        val showTitle: String? = null,
+        val showBrowseId: String? = null,
+        val publishedTimeText: String? = null,
+        val durationText: String? = null,
+    )
+
+    internal fun extractEpisodeMetadata(
+        runs: List<JsonElement>,
+        fallbackAuthor: String = "Podcast",
+    ): EpisodeMetadata {
+        var author: String? = null
+        var authorBrowseId: String? = null
+        var showTitle: String? = null
+        var showBrowseId: String? = null
+        var publishedTime: String? = null
+        var duration: String? = null
+
+        // Pass 1: Parse runs with navigation endpoints
+        for (runElem in runs) {
+            val runObj = runElem as? JsonObject ?: continue
+            val text = runObj.str("text")?.trim().orEmpty()
+            if (text.isBlank() || text == "•") continue
+
+            val nav = runObj.obj("navigationEndpoint")
+            val browse = nav?.obj("browseEndpoint")
+            val browseId = browse?.str("browseId")
+            val pageType = browse?.obj("browseEndpointContextSupportedConfigs")
+                ?.obj("browseEndpointContextMusicConfig")?.str("pageType").orEmpty()
+
+            if (browseId != null) {
+                if (browseId.startsWith("UC") || "USER_CHANNEL" in pageType || "ARTIST" in pageType) {
+                    if (author == null) {
+                        author = text
+                        authorBrowseId = browseId
+                    }
+                } else if (browseId.startsWith("MPSP") || "PODCAST_SHOW" in pageType) {
+                    if (showTitle == null) {
+                        showTitle = text
+                        showBrowseId = browseId
+                    }
+                }
+            }
+
+            if (text.matches(DATE_REGEX) && publishedTime == null) {
+                publishedTime = text
+            } else if (text.matches(DURATION_REGEX) && duration == null) {
+                duration = text
+            }
+        }
+
+        // Pass 2: Fallback to text parts split by bullet
+        val allText = runs.mapNotNull { (it as? JsonObject)?.str("text") }.joinToString("")
+        val parts = allText.split(" • ").map { it.trim() }.filter { it.isNotBlank() }
+        for (part in parts) {
+            if (part.matches(DATE_REGEX) && publishedTime == null) {
+                publishedTime = part
+            } else if (part.matches(DURATION_REGEX) && duration == null) {
+                duration = part
+            } else if (author == null && !isDateOrNoise(part)) {
+                author = part
+            } else if (showTitle == null && author != null && !isDateOrNoise(part) && part != author) {
+                showTitle = part
+            }
+        }
+
+        return EpisodeMetadata(
+            author = author?.takeIf { it.isNotBlank() } ?: fallbackAuthor,
+            authorBrowseId = authorBrowseId,
+            showTitle = showTitle,
+            showBrowseId = showBrowseId,
+            publishedTimeText = publishedTime,
+            durationText = duration,
+        )
+    }
+
     /**
      * Loads the main Podcast hub feed swiftly using concurrent InnerTube queries
      * for Top Shows, Trending Episodes, and Live Broadcasts, backed by memory cache.
@@ -135,8 +238,12 @@ object PodcastRepository {
                 ?.obj("text")?.runsText().orEmpty()
             if (title.isBlank()) return@forEach
 
-            val subtitle = flex.getOrNull(1)?.obj("musicResponsiveListItemFlexColumnRenderer")
-                ?.obj("text")?.runsText().orEmpty()
+            val col1Runs = flex.getOrNull(1)?.obj("musicResponsiveListItemFlexColumnRenderer")
+                ?.obj("text")?.arr("runs") ?: JsonArray(emptyList())
+            val col2Runs = flex.getOrNull(2)?.obj("musicResponsiveListItemFlexColumnRenderer")
+                ?.obj("text")?.arr("runs") ?: JsonArray(emptyList())
+            val allRuns = col1Runs + col2Runs
+            val meta = extractEpisodeMetadata(allRuns, fallbackAuthor = shelfTitle)
 
             val thumb = row.obj("thumbnail")
                 ?.obj("musicThumbnailRenderer")
@@ -154,40 +261,45 @@ object PodcastRepository {
                     ?.obj("playNavigationEndpoint")?.obj("watchEndpoint")?.str("videoId")
                 ?: nav?.obj("watchEndpoint")?.str("videoId")
 
+            val rawSub = flex.getOrNull(1)?.obj("musicResponsiveListItemFlexColumnRenderer")
+                ?.obj("text")?.runsText().orEmpty()
             val isLive = shelfTitle.contains("Live", ignoreCase = true) ||
                 row.arr("badges")?.any {
                     (it as? JsonObject)?.obj("liveBadgeRenderer") != null ||
                         (it as? JsonObject)?.runsText()?.contains("LIVE", ignoreCase = true) == true
-                } == true || subtitle.contains("LIVE", ignoreCase = true) ||
-                subtitle.contains("watching", ignoreCase = true)
+                } == true || rawSub.contains("LIVE", ignoreCase = true) ||
+                rawSub.contains("watching", ignoreCase = true)
 
             if (browseId != null && !isLive) {
                 val show = PodcastShow(
                     browseId = browseId,
                     title = title,
-                    author = subtitle,
+                    author = meta.author,
                     description = "",
                     thumbnailUrl = thumb,
                     bannerUrl = thumb,
-                    episodeCountText = subtitle,
+                    episodeCountText = meta.publishedTimeText ?: meta.author,
                 )
                 domainItems.add(show)
-                shelfItems.add(ShelfItem(title = title, subtitle = subtitle, thumbnailUrl = thumb, videoId = null, browseId = browseId))
+                shelfItems.add(ShelfItem(title = title, subtitle = meta.author, thumbnailUrl = thumb, videoId = null, browseId = browseId))
             } else if (videoId != null) {
                 val episode = PodcastEpisode(
                     id = videoId,
                     videoId = videoId,
                     title = title,
-                    author = subtitle,
-                    description = subtitle,
-                    durationText = if (isLive) "LIVE" else null,
-                    publishedTimeText = subtitle,
+                    author = meta.author,
+                    authorBrowseId = meta.authorBrowseId,
+                    showTitle = meta.showTitle,
+                    showBrowseId = meta.showBrowseId ?: browseId,
+                    description = meta.showTitle ?: meta.author,
+                    durationText = if (isLive) "LIVE" else meta.durationText,
+                    publishedTimeText = meta.publishedTimeText,
                     thumbnailUrl = thumb,
                     isLive = isLive,
                     hasVideo = false,
                 )
                 domainItems.add(episode)
-                shelfItems.add(ShelfItem(title = title, subtitle = subtitle, thumbnailUrl = thumb, videoId = videoId, browseId = null))
+                shelfItems.add(ShelfItem(title = title, subtitle = meta.author, thumbnailUrl = thumb, videoId = videoId, browseId = null))
             }
         }
 
@@ -265,34 +377,40 @@ object PodcastRepository {
                                     (it as? JsonObject)?.runsText()?.contains("LIVE", ignoreCase = true) == true
                             } == true
 
+                        val subRuns = twoRow.obj("subtitle")?.arr("runs") ?: JsonArray(emptyList())
+                        val meta = extractEpisodeMetadata(subRuns, fallbackAuthor = subtitle)
+
                         if (browseId != null) {
                             val show = PodcastShow(
                                 browseId = browseId,
                                 title = title,
-                                author = subtitle,
+                                author = meta.author,
                                 description = "",
                                 thumbnailUrl = thumb,
                                 bannerUrl = thumb,
-                                episodeCountText = subtitle,
+                                episodeCountText = meta.publishedTimeText ?: subtitle,
                             )
                             shelfShows.add(show)
-                            items.add(ShelfItem(title, subtitle, thumb, null, browseId))
+                            items.add(ShelfItem(title, meta.author, thumb, null, browseId))
                         } else if (videoId != null) {
                             val episode = PodcastEpisode(
                                 id = videoId,
                                 videoId = videoId,
                                 title = title,
-                                author = subtitle,
-                                description = subtitle,
-                                durationText = null,
-                                publishedTimeText = subtitle,
+                                author = meta.author,
+                                authorBrowseId = meta.authorBrowseId,
+                                showTitle = meta.showTitle,
+                                showBrowseId = meta.showBrowseId,
+                                description = meta.showTitle ?: meta.author,
+                                durationText = if (isLive) "LIVE" else meta.durationText,
+                                publishedTimeText = meta.publishedTimeText,
                                 thumbnailUrl = thumb,
                                 isLive = isLive,
                                 hasVideo = false,
                             )
                             if (isLive) liveBroadcasts.add(episode)
                             shelfEpisodes.add(episode)
-                            items.add(ShelfItem(title, subtitle, thumb, videoId, null))
+                            items.add(ShelfItem(title, meta.author, thumb, videoId, null))
                         }
                     }
 
@@ -362,9 +480,13 @@ object PodcastRepository {
         val title = titleRuns?.runsText().orEmpty()
         if (title.isBlank()) return null
 
-        val subtitleRuns = col1?.obj("musicResponsiveListItemFlexColumnRenderer")
-            ?.obj("text")
-        val author = subtitleRuns?.runsText().orEmpty()
+        val col1Runs = col1?.obj("musicResponsiveListItemFlexColumnRenderer")
+            ?.obj("text")?.arr("runs") ?: JsonArray(emptyList())
+        val col2Runs = (flexColumns.getOrNull(2) as? JsonObject)
+            ?.obj("musicResponsiveListItemFlexColumnRenderer")
+            ?.obj("text")?.arr("runs") ?: JsonArray(emptyList())
+        val allRuns = col1Runs + col2Runs
+        val meta = extractEpisodeMetadata(allRuns)
 
         val thumb = responsive.obj("thumbnail")
             ?.obj("musicThumbnailRenderer")
@@ -386,25 +508,31 @@ object PodcastRepository {
             ?: responsive.obj("playNavigationEndpoint")?.obj("watchEndpoint")?.str("videoId")
             ?: return null
 
+        val rawAuthor = col1?.obj("musicResponsiveListItemFlexColumnRenderer")
+            ?.obj("text")?.runsText().orEmpty()
         val isLive = responsive.arr("badges")?.any {
             (it as? JsonObject)?.obj("liveBadgeRenderer") != null ||
                 (it as? JsonObject)?.runsText()?.contains("LIVE", ignoreCase = true) == true
-        } == true || author.contains("LIVE", ignoreCase = true)
+        } == true || rawAuthor.contains("LIVE", ignoreCase = true)
 
         val fixedColumns = responsive.arr("fixedColumns")
-        val durationText = fixedColumns?.firstOrNull()?.let {
+        val fixedDuration = fixedColumns?.firstOrNull()?.let {
             (it as? JsonObject)?.obj("musicResponsiveListItemFixedColumnRenderer")
                 ?.obj("text")?.runsText()
         }
+        val duration = fixedDuration?.takeIf { it.isNotBlank() } ?: meta.durationText
 
         return PodcastEpisode(
             id = videoId,
             videoId = videoId,
             title = title,
-            author = author,
-            description = author,
-            durationText = durationText,
-            publishedTimeText = null,
+            author = meta.author,
+            authorBrowseId = meta.authorBrowseId,
+            showTitle = meta.showTitle,
+            showBrowseId = meta.showBrowseId,
+            description = meta.showTitle ?: meta.author,
+            durationText = if (isLive) "LIVE" else duration,
+            publishedTimeText = meta.publishedTimeText,
             thumbnailUrl = thumb,
             isLive = isLive,
             hasVideo = false,
@@ -433,9 +561,13 @@ object PodcastRepository {
         val title = multiRow.obj("title")?.runsText().orEmpty()
         if (title.isBlank()) return null
 
-        val subtitle = multiRow.obj("subtitle")?.runsText().orEmpty()
-        val secondSubtitle = multiRow.obj("secondSubtitle")?.runsText().orEmpty()
+        val subRuns = multiRow.obj("subtitle")?.arr("runs") ?: JsonArray(emptyList())
+        val secRuns = multiRow.obj("secondSubtitle")?.arr("runs") ?: JsonArray(emptyList())
+        val allRuns = subRuns + secRuns
+        val meta = extractEpisodeMetadata(allRuns)
+
         val description = multiRow.obj("description")?.runsText().orEmpty()
+            .ifBlank { multiRow.obj("description")?.str("simpleText").orEmpty() }
 
         val thumb = multiRow.obj("thumbnail")
             ?.obj("musicThumbnailRenderer")
@@ -443,17 +575,17 @@ object PodcastRepository {
             ?.bestThumbnailUrl()
             ?: multiRow.obj("thumbnail")?.bestThumbnailUrl()
 
-        val parts = "$subtitle • $secondSubtitle".split(" • ").filter { it.isNotBlank() }
-        val duration = parts.firstOrNull { it.contains("min", ignoreCase = true) || it.contains("hr", ignoreCase = true) || it.matches(Regex("""\d+:\d+(?::\d+)?""")) }
-
         return PodcastEpisode(
             id = videoId,
             videoId = videoId,
             title = title,
-            author = subtitle,
-            description = description.ifBlank { subtitle },
-            durationText = duration,
-            publishedTimeText = subtitle,
+            author = meta.author,
+            authorBrowseId = meta.authorBrowseId,
+            showTitle = meta.showTitle,
+            showBrowseId = meta.showBrowseId,
+            description = description.ifBlank { meta.showTitle ?: meta.author },
+            durationText = meta.durationText,
+            publishedTimeText = meta.publishedTimeText,
             thumbnailUrl = thumb,
             isLive = false,
             hasVideo = false,
@@ -466,6 +598,7 @@ object PodcastRepository {
     private fun parsePodcastShowResponse(browseId: String, root: JsonObject): PodcastShow {
         var showTitle = "Podcast Show"
         var author = ""
+        var authorBrowseId: String? = null
         var description = ""
         var thumbnailUrl: String? = null
         var bannerUrl: String? = null
@@ -484,7 +617,12 @@ object PodcastRepository {
 
         if (header != null) {
             showTitle = header.obj("title")?.runsText()?.takeIf { it.isNotBlank() } ?: showTitle
-            author = header.obj("subtitle")?.runsText()?.takeIf { it.isNotBlank() } ?: author
+            val subtitleRuns = header.obj("subtitle")?.arr("runs") ?: JsonArray(emptyList())
+            val headerMeta = extractEpisodeMetadata(subtitleRuns)
+            author = headerMeta.author.ifBlank {
+                header.obj("subtitle")?.runsText()?.takeIf { it.isNotBlank() } ?: author
+            }
+            authorBrowseId = headerMeta.authorBrowseId
             description = header.obj("description")?.obj("musicDescriptionShelfRenderer")
                 ?.obj("description")?.runsText().orEmpty().ifBlank {
                     header.obj("description")?.runsText().orEmpty()
@@ -506,12 +644,26 @@ object PodcastRepository {
                 is JsonObject -> {
                     element.obj("musicResponsiveListItemRenderer")?.let { row ->
                         parseResponsiveEpisode(row)?.let { ep ->
-                            episodes.add(ep.copy(showBrowseId = browseId, showTitle = showTitle))
+                            episodes.add(
+                                ep.copy(
+                                    showBrowseId = browseId,
+                                    showTitle = showTitle,
+                                    author = ep.author.ifBlank { author },
+                                    authorBrowseId = ep.authorBrowseId ?: authorBrowseId,
+                                )
+                            )
                         }
                     }
                     element.obj("musicMultiRowListItemRenderer")?.let { row ->
                         parseMultiRowEpisode(row)?.let { ep ->
-                            episodes.add(ep.copy(showBrowseId = browseId, showTitle = showTitle))
+                            episodes.add(
+                                ep.copy(
+                                    showBrowseId = browseId,
+                                    showTitle = showTitle,
+                                    author = ep.author.ifBlank { author },
+                                    authorBrowseId = ep.authorBrowseId ?: authorBrowseId,
+                                )
+                            )
                         }
                     }
                     element.values.forEach { walkForEpisodes(it) }
@@ -532,6 +684,7 @@ object PodcastRepository {
             browseId = browseId,
             title = showTitle,
             author = author,
+            authorBrowseId = authorBrowseId,
             description = description,
             thumbnailUrl = thumbnailUrl,
             bannerUrl = bannerUrl,

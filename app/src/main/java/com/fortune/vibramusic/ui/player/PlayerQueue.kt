@@ -1,7 +1,8 @@
-﻿package com.fortune.vibramusic.ui.player
+package com.fortune.vibramusic.ui.player
 
 import com.fortune.vibramusic.R
 import com.fortune.vibramusic.ui.components.ExplicitSongTitle
+import androidx.media3.common.Player
 
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -208,6 +209,7 @@ internal fun InlineQueue(
     queue: List<Song>,
     currentIndex: Int,
     autoplayEnabled: Boolean,
+    repeatMode: Int = Player.REPEAT_MODE_OFF,
     /**
      * Read-only: the party's running order is the host's while this is set, so
      * the queue is here to be looked at and scrolled, not worked.
@@ -309,10 +311,50 @@ internal fun InlineQueue(
                         )
                     }
                 }
+                if (repeatMode == Player.REPEAT_MODE_ONE && nowPlaying != null) {
+                    item(key = "repeat-one-indicator") {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp)
+                                .background(
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.16f),
+                                    RoundedCornerShape(12.dp),
+                                )
+                                .padding(horizontal = 14.dp, vertical = 10.dp)
+                                .then(queueMotion()),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                imageVector = VibraMusicIcons.Repeat,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp),
+                            )
+                            Spacer(Modifier.width(10.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = stringResource(R.string.repeat_one_active_title),
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = Color.White,
+                                )
+                                Text(
+                                    text = stringResource(R.string.repeat_one_active_desc),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color.White.copy(alpha = 0.7f),
+                                )
+                            }
+                        }
+                    }
+                }
                 if (tracks.user.isNotEmpty()) {
                     item(key = "header-user-queue") {
                         QueueHeading(
-                            title = stringResource(R.string.next_in_queue),
+                            title = if (repeatMode == Player.REPEAT_MODE_ONE) {
+                                stringResource(R.string.next_in_queue_after_loop)
+                            } else {
+                                stringResource(R.string.next_in_queue)
+                            },
                             modifier = Modifier.padding(top = 16.dp, bottom = 6.dp).then(queueMotion()),
                         ) {
                             QueueClearButton(MaterialTheme.typography.labelLarge, controlsLocked, onClear)

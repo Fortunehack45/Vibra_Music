@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.playback
+package com.fortune.vibramusic.playback
 
 import android.os.Bundle
 import androidx.core.os.bundleOf
@@ -102,7 +102,7 @@ object QueueShuffle {
         applyOrder(
             player,
             from,
-            userQueueIndices + shuffledSection(contextIndices) + shuffledSection(autoplayIndices),
+            shuffledSection(userQueueIndices) + shuffledSection(contextIndices) + shuffledSection(autoplayIndices),
         )
         _enabled.value = true
     }

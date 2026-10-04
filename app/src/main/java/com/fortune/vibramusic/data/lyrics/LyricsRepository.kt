@@ -89,6 +89,7 @@ object LyricsRepository {
         order: List<LyricsSource> = LyricsSource.entries,
         prioritizeSyllableSync: Boolean = false,
         isrc: String? = null,
+        isPodcast: Boolean = false,
         /** Called from the provider job itself, including for lazily-started providers. */
         onSourceStarted: ((LyricsSource) -> Unit)? = null,
         /**
@@ -99,8 +100,13 @@ object LyricsRepository {
         /** Lets callers turn a cancelled race loser back into "not fetched". */
         onSourceCancelled: ((LyricsSource) -> Unit)? = null,
     ): Result? = coroutineScope {
-        val sequence = order.filter { it in sources } +
-            LyricsSource.entries.filter { it in sources && it !in order }
+        val sequence = if (isPodcast) {
+            listOf(LyricsSource.YOUTUBE_TRANSCRIPT, LyricsSource.YOUTUBE_MUSIC) +
+                order.filter { it in sources && it != LyricsSource.YOUTUBE_TRANSCRIPT && it != LyricsSource.YOUTUBE_MUSIC }
+        } else {
+            order.filter { it in sources } +
+                LyricsSource.entries.filter { it in sources && it !in order }
+        }
 
         // Every source but [SimpMusicLyrics] is asked for a name, and
         // YouTube's is not the name anyone catalogued. Cleaned once, here,
@@ -111,8 +117,8 @@ object LyricsRepository {
         // Settled before anyone is asked for words, so every source that can
         // name the recording does. What the caller knows beats what we worked
         // out last time, and both beat asking again.
-        val known = isrc?.takeIf { it.isNotBlank() } ?: isrcs[videoId]
-        val hit = if (known == null) {
+        val known = if (isPodcast) null else (isrc?.takeIf { it.isNotBlank() } ?: isrcs[videoId])
+        val hit = if (known == null && !isPodcast) {
             identify(videoId, searchTitle, searchArtist, durationMs, album, sequence)
         } else {
             null

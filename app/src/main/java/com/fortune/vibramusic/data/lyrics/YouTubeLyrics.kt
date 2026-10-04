@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.data.lyrics
+package com.fortune.vibramusic.data.lyrics
 
 import com.fortune.vibramusic.data.innertube.Innertube
 import kotlinx.coroutines.Dispatchers
@@ -38,6 +38,12 @@ object YouTubeMusicLyrics {
 object YouTubeTranscriptLyrics {
     suspend fun lyrics(videoId: String): List<LyricLine>? = withContext(Dispatchers.IO) {
         if (!YOUTUBE_ID.matches(videoId)) return@withContext null
+
+        // 1. Try Player Captions first
+        val fromPlayer = runCatching { fetchPlayerCaptions(videoId) }.getOrNull()
+        if (!fromPlayer.isNullOrEmpty()) return@withContext fromPlayer
+
+        // 2. Fallback to Innertube.transcript
         val response = runCatching { Innertube.transcript(videoId) }.getOrNull()
             ?: return@withContext null
         response.objectsNamed("transcriptCueRenderer").mapNotNull { cue ->
@@ -47,6 +53,56 @@ object YouTubeTranscriptLyrics {
                 .trim(' ', '\n', '?')
             text.takeIf { it.isNotEmpty() }?.let { LyricLine(start, it) }
         }.sortedBy { it.timeMs }.toList().takeIf { it.isNotEmpty() }
+    }
+
+    private suspend fun fetchPlayerCaptions(videoId: String): List<LyricLine>? {
+        val playerResp = runCatching { Innertube.player(videoId) }.getOrNull() ?: return null
+        val tracks = com.fortune.vibramusic.data.innertube.InnertubeParser.parseCaptionTracks(playerResp)
+        if (tracks.isEmpty()) return null
+        val bestTrack = tracks.firstOrNull { it.languageCode.startsWith("en") } ?: tracks.first()
+        val url = bestTrack.baseUrl
+        // Try json3 format
+        val jsonUrl = if (url.contains("fmt=")) url else "$url&fmt=json3"
+        val jsonBody = lyricsGet(jsonUrl)
+        if (!jsonBody.isNullOrBlank() && jsonBody.trimStart().startsWith("{")) {
+            val parsed = parseJson3TimedText(jsonBody)
+            if (!parsed.isNullOrEmpty()) return parsed
+        }
+        // Fallback to XML
+        val xmlBody = lyricsGet(url)
+        if (!xmlBody.isNullOrBlank()) {
+            val parsedXml = parseXmlTimedText(xmlBody)
+            if (!parsedXml.isNullOrEmpty()) return parsedXml
+        }
+        return null
+    }
+
+    private fun parseJson3TimedText(rawJson: String): List<LyricLine>? = runCatching {
+        val element = kotlinx.serialization.json.Json.parseToJsonElement(rawJson)
+        val events = (element as? JsonObject)?.get("events") as? JsonArray ?: return null
+        events.mapNotNull { evElem ->
+            val ev = evElem as? JsonObject ?: return@mapNotNull null
+            val startMs = (ev["tStartMs"] as? JsonPrimitive)?.longOrNull ?: return@mapNotNull null
+            val segs = ev["segs"] as? JsonArray ?: return@mapNotNull null
+            val text = segs.mapNotNull {
+                ((it as? JsonObject)?.get("utf8") as? JsonPrimitive)?.contentOrNull
+            }.joinToString("").trim(' ', '\n', '?')
+            text.takeIf { it.isNotEmpty() }?.let { LyricLine(startMs, it) }
+        }.sortedBy { it.timeMs }.takeIf { it.isNotEmpty() }
+    }.getOrNull()
+
+    private val XML_TEXT_REGEX = Regex("""<text\s+start="([\d.]+)"(?:\s+dur="[\d.]+")?>([^<]+)</text>""")
+    private fun parseXmlTimedText(xml: String): List<LyricLine> {
+        val lines = mutableListOf<LyricLine>()
+        XML_TEXT_REGEX.findAll(xml).forEach { match ->
+            val startSec = match.groupValues[1].toDoubleOrNull() ?: return@forEach
+            val rawText = match.groupValues[2]
+            val decoded = EnhancedLrc.decodeEntities(rawText).trim(' ', '\n', '?')
+            if (decoded.isNotEmpty()) {
+                lines.add(LyricLine((startSec * 1000).toLong(), decoded))
+            }
+        }
+        return lines.sortedBy { it.timeMs }
     }
 }
 

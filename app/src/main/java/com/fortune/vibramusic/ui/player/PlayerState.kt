@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.ui.player
+package com.fortune.vibramusic.ui.player
 
 import kotlinx.coroutines.flow.first
 import androidx.compose.runtime.snapshotFlow
@@ -34,6 +34,7 @@ import com.fortune.vibramusic.data.canvas.CanvasArtwork
 import com.fortune.vibramusic.data.canvas.CanvasRepository
 import com.fortune.vibramusic.data.model.Song
 import com.fortune.vibramusic.data.model.artworkAt
+import com.fortune.vibramusic.data.model.isPodcastSong
 import com.fortune.vibramusic.data.settings.AppSettings
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -47,6 +48,9 @@ import kotlinx.coroutines.launch
  */
 @Composable
 internal fun rememberCanvasArtwork(song: Song): CanvasArtwork? {
+    if (song.isPodcastSong || song.playbackSourceType == com.fortune.vibramusic.data.model.PlaybackSourceType.PODCASTS) {
+        return null
+    }
     val canvasEnabled by AppSettings.animatedCanvas.collectAsStateWithLifecycle()
     val canvasOverCellular by AppSettings.canvasOverCellular.collectAsStateWithLifecycle()
     val prioritizeSpotifyCanvas by AppSettings.prioritizeSpotifyCanvas.collectAsStateWithLifecycle()

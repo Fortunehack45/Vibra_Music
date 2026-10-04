@@ -163,6 +163,7 @@ import com.fortune.vibramusic.data.model.LikeStatus
 import com.fortune.vibramusic.data.model.PlaybackSourceType
 import com.fortune.vibramusic.data.model.PLAYER_ART_PX
 import com.fortune.vibramusic.data.model.Song
+import com.fortune.vibramusic.data.model.isPodcastSong
 import com.fortune.vibramusic.playback.BACK_RESTARTS_AFTER_MS
 import dev.chrisbanes.haze.HazeInputScale
 import dev.chrisbanes.haze.HazeState
@@ -629,7 +630,7 @@ fun NowPlayingScreen(
     val density = LocalDensity.current
     val haptics = rememberHaptics()
     var showShowNotesSheet by remember { mutableStateOf(false) }
-    val isPodcast = song.playbackSourceType == PlaybackSourceType.PODCASTS || song.isVideoOrigin || song.isVideo
+    val isPodcast = song.isPodcastSong
 
     // Remote tracks whose art lives inside the file resolve it here, once —
     // every surface below reads the same value rather than each triggering
@@ -689,7 +690,7 @@ fun NowPlayingScreen(
     // CanvasRepository, which is also where the "is this actually the right
     // track" check lives.
     val spotifyCanvasAutoHide by AppSettings.spotifyCanvasAutoHide.collectAsStateWithLifecycle()
-    val canvas = rememberCanvasArtwork(song)
+    val canvas = if (isPodcast) null else rememberCanvasArtwork(song)
     var canvasAspect by remember(canvas) { mutableFloatStateOf(0f) }
     // Whether the clip actually has a frame on screen right now, and one of
     // them — used to blow the sleeve out to the full-bleed hero treatment and
@@ -845,7 +846,9 @@ fun NowPlayingScreen(
         if (opening) closeLyrics()
     }
     val lyricsLoadingLines = stringArrayResource(R.array.lyrics_loading_lines)
-    val lyricsLoadingText = remember(song.videoId) { lyricsLoadingLines.random() }
+    val lyricsLoadingText = remember(song.videoId, isPodcast) {
+        if (isPodcast) "Loading transcript..." else lyricsLoadingLines.random()
+    }
     val lyricsTranslation = rememberLyricsTranslation(
         trackId = song.videoId,
         lyrics = lyrics,
@@ -1802,6 +1805,7 @@ fun NowPlayingScreen(
                         queue = queue,
                         currentIndex = queueIndex,
                         autoplayEnabled = autoplayEnabled,
+                        repeatMode = repeatMode,
                         controlsLocked = controlsLocked,
                         onJumpTo = onJumpTo,
                         onRemove = onRemoveFromQueue,
@@ -2814,8 +2818,12 @@ fun NowPlayingScreen(
                                     onOverflowChange = { titleOverflowing = it },
                                     // Only the tracks YouTube hands us a browse id for
                                     // lead anywhere; the rest stay plain text.
-                                    modifier = Modifier.opensPage(song.albumId, onOpenAlbum),
+                                    modifier = Modifier.opensPage(
+                                        if (isPodcast) (song.albumId ?: song.playbackSourceId ?: song.artistId) else song.albumId,
+                                        onOpenAlbum,
+                                    ),
                                 )
+                                val targetHostId = if (isPodcast) (song.artistId ?: song.playbackSourceId ?: song.albumId) else song.artistId
                                 MarqueeText(
                                     text = song.artist,
                                     style = MaterialTheme.typography.titleLarge.copy(
@@ -2828,7 +2836,10 @@ fun NowPlayingScreen(
                                     // starting together reads as clutter, so the artist
                                     // waits a beat before it joins in.
                                     startDelayMillis = if (titleOverflowing) MARQUEE_ARTIST_STAGGER_MS else 0L,
-                                    modifier = Modifier.opensPage(song.artistId, onOpenArtist),
+                                    modifier = Modifier.opensPage(
+                                        targetHostId,
+                                        if (isPodcast && targetHostId?.startsWith("MPSP") == true) onOpenAlbum else onOpenArtist,
+                                    ),
                                 )
                             }
                         }
@@ -3000,6 +3011,7 @@ fun NowPlayingScreen(
                             queue = queue,
                             currentIndex = queueIndex,
                             autoplayEnabled = autoplayEnabled,
+                            repeatMode = repeatMode,
                             controlsLocked = controlsLocked,
                             onJumpTo = onJumpTo,
                             onRemove = onRemoveFromQueue,

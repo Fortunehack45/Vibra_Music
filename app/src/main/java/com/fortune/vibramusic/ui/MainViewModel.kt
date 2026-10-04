@@ -319,6 +319,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         durationMs: Long,
         album: String? = null,
         localUri: String? = null,
+        isPodcast: Boolean = false,
     ) {
         val sources = if (AppSettings.syncedLyrics.value) {
             AppSettings.lyricsSources.value
@@ -334,7 +335,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         // dropped as a duplicate, and leave the track marked as being looked up
         // by nobody — which is what left a paused track loading for ever, since
         // pausing is when the duration is most likely to arrive a frame late.
-        if (localUri == null && durationMs <= 0L) return
+        if (!isPodcast && localUri == null && durationMs <= 0L) return
         lyricsFor = key
         lyricsGeneration += 1
         val generation = lyricsGeneration
@@ -379,7 +380,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     return@launch
                 }
             }
-            if (durationMs <= 0L) {
+            if (!isPodcast && durationMs <= 0L) {
                 // Duration arrives a beat after the track does; wait for it.
                 lyricsFor = null
                 return@launch
@@ -387,6 +388,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val found = LyricsRepository.lyrics(
                 videoId, title, artist, durationMs, album, sources,
                 AppSettings.lyricsSourceOrder.value, AppSettings.prioritizeSyllableSync.value,
+                isPodcast = isPodcast,
                 onSourceStarted = { source -> providerStarted(generation, source) },
                 onSourceResult = { source, result ->
                     providerFinished(generation, source, result)
@@ -2374,6 +2376,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             } == true
         ) return
         val resolved = browseTypeOf(browseId, type)
+        if (resolved == BrowseType.PODCAST_SHOW || browseId.startsWith("MPSP")) {
+            openPodcastShow(browseId)
+            return
+        }
         _detailStack.value += DetailPage(
             browseId = browseId,
             title = title,
@@ -2457,7 +2463,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                             subscriberCountText = page.subscriberCountText
                             monthlyListenerCount = page.monthlyListenerCount
                             subscription = page.subscription
-                            if (page.songs.isEmpty()) {
+                            if (page.songs.isEmpty() && sections.isEmpty()) {
                                 UiState.Error(text(R.string.no_tracks_here))
                             } else {
                                 UiState.Success(page.songs.withArtwork(thumbnailUrl ?: artwork))

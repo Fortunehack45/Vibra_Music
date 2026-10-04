@@ -289,9 +289,10 @@ data class PodcastEpisode(
     val publishedTimeText: String? = null,
     val thumbnailUrl: String? = null,
     val isLive: Boolean = false,
-    val hasVideo: Boolean = true,
+    val hasVideo: Boolean = false,
     val showBrowseId: String? = null,
     val showTitle: String? = null,
+    val authorBrowseId: String? = null,
     val progressFraction: Float = 0f,
 ) {
     /** Converts a podcast episode into a playable [Song] for the app's player pipeline. */
@@ -299,23 +300,34 @@ data class PodcastEpisode(
         videoId = videoId,
         title = title,
         artist = author,
+        artistId = authorBrowseId,
         albumName = showTitle ?: author,
+        albumId = showBrowseId ?: authorBrowseId,
         thumbnailUrl = thumbnailUrl,
         durationText = durationText,
-        isVideo = hasVideo,
-        isVideoOrigin = true,
+        isVideo = false,
+        isVideoOrigin = false,
         playbackSource = showTitle ?: "Podcasts",
         playbackSourceType = PlaybackSourceType.PODCASTS,
-        playbackSourceId = showBrowseId,
+        playbackSourceId = showBrowseId ?: authorBrowseId,
         description = description,
     )
 }
+
+/** Whether a song represents a podcast episode. */
+val Song.isPodcastSong: Boolean
+    get() = playbackSourceType == PlaybackSourceType.PODCASTS ||
+        albumId?.startsWith("MPSP") == true ||
+        playbackSourceId?.startsWith("MPSP") == true ||
+        artistId?.startsWith("MPSP") == true
+
 
 /** Represents a podcast channel or show series. */
 data class PodcastShow(
     val browseId: String,
     val title: String,
     val author: String,
+    val authorBrowseId: String? = null,
     val description: String = "",
     val thumbnailUrl: String? = null,
     val bannerUrl: String? = null,

@@ -1315,4 +1315,29 @@
     <string name="reset_lyrics">รีเซ็ตเป็นออนไลน์</string>
     <string name="lyrics_editor_hint">ใส่บรรทัดที่ซิงค์ [mm:ss.xx] หรือข้อความธรรมดา...</string>
     <string name="custom_lyrics_source">เนื้อเพลงที่กำหนดเอง</string>
+
+    <!-- Podcasts -->
+    <string name="podcasts">พอดแคสต์</string>
+    <string name="live_podcasts">การถ่ายทอดสด</string>
+    <string name="all_podcasts">ทั้งหมด</string>
+    <string name="top_podcast_shows">รายการยอดนิยม</string>
+    <string name="latest_episodes">ตอนล่าสุด</string>
+    <string name="continue_listening">ฟังต่อ</string>
+    <string name="show_notes">บันทึกของรายการ</string>
+    <string name="show_less">แสดงน้อยลง</string>
+    <string name="follow_show">ติดตาม</string>
+    <string name="following_show">กำลังติดตาม</string>
+    <string name="sort_newest">ใหม่ล่าสุดก่อน</string>
+    <string name="sort_oldest">เก่าที่สุดก่อน</string>
+    <string name="video_available">วิดีโอ</string>
+    <string name="audio_available">เสียง</string>
+    <string name="watch_video">ดูวิดีโอ</string>
+    <string name="listen_audio">ฟังเสียง</string>
+    <string name="live_badge">ถ่ายทอดสด</string>
+    <string name="no_podcasts_found">ไม่พบพอดแคสต์</string>
+    <string name="no_episodes_found">ไม่มีตอนที่พร้อมใช้งาน</string>
+    <string name="episodes_count">%1$d ตอน</string>
+    <string name="speed">ความเร็วในการเล่น</string>
+    <string name="no_description_available">ไม่มีคำอธิบาย</string>
+
 </resources>

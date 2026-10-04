@@ -1310,4 +1310,29 @@
     <string name="reset_lyrics">オンラインにリセット</string>
     <string name="lyrics_editor_hint">[mm:ss.xx] 同期された行またはプレーンテキストを入力...</string>
     <string name="custom_lyrics_source">カスタム歌詞</string>
+
+    <!-- Podcasts -->
+    <string name="podcasts">ポッドキャスト</string>
+    <string name="live_podcasts">ライブ配信</string>
+    <string name="all_podcasts">すべて</string>
+    <string name="top_podcast_shows">人気の番組</string>
+    <string name="latest_episodes">最新のエピソード</string>
+    <string name="continue_listening">再生を続ける</string>
+    <string name="show_notes">番組ノート</string>
+    <string name="show_less">一部を表示</string>
+    <string name="follow_show">フォロー</string>
+    <string name="following_show">フォロー中</string>
+    <string name="sort_newest">新しい順</string>
+    <string name="sort_oldest">古い順</string>
+    <string name="video_available">動画</string>
+    <string name="audio_available">音声</string>
+    <string name="watch_video">動画を視聴</string>
+    <string name="listen_audio">音声を聴く</string>
+    <string name="live_badge">ライブ</string>
+    <string name="no_podcasts_found">ポッドキャストが見つかりません</string>
+    <string name="no_episodes_found">利用可能なエピソードはありません</string>
+    <string name="episodes_count">%1$dエピソード</string>
+    <string name="speed">再生速度</string>
+    <string name="no_description_available">説明はありません</string>
+
 </resources>

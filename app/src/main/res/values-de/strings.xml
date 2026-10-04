@@ -1329,4 +1329,29 @@
     <string name="reset_lyrics">Auf Online zurücksetzen</string>
     <string name="lyrics_editor_hint">Geben Sie synchronisierte Zeilen [mm:ss.xx] oder einfachen Text ein...</string>
     <string name="custom_lyrics_source">Eigene Songtexte</string>
+
+    <!-- Podcasts -->
+    <string name="podcasts">Podcasts</string>
+    <string name="live_podcasts">Live-Übertragungen</string>
+    <string name="all_podcasts">Alle</string>
+    <string name="top_podcast_shows">Top-Sendungen</string>
+    <string name="latest_episodes">Neueste Folgen</string>
+    <string name="continue_listening">Weiterspielen</string>
+    <string name="show_notes">Folgennotizen</string>
+    <string name="show_less">Weniger anzeigen</string>
+    <string name="follow_show">Folgen</string>
+    <string name="following_show">Gefolgt</string>
+    <string name="sort_newest">Neueste zuerst</string>
+    <string name="sort_oldest">Älteste zuerst</string>
+    <string name="video_available">Video</string>
+    <string name="audio_available">Audio</string>
+    <string name="watch_video">Video ansehen</string>
+    <string name="listen_audio">Audio anhören</string>
+    <string name="live_badge">LIVE</string>
+    <string name="no_podcasts_found">Keine Podcasts gefunden</string>
+    <string name="no_episodes_found">Keine Folgen verfügbar</string>
+    <string name="episodes_count">%1$d Folgen</string>
+    <string name="speed">Wiedergabegeschwindigkeit</string>
+    <string name="no_description_available">Keine Beschreibung verfügbar</string>
+
 </resources>

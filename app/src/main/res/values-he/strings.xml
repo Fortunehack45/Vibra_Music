@@ -1334,4 +1334,29 @@
     <string name="reset_lyrics">אפס למקוון</string>
     <string name="lyrics_editor_hint">הזן שורות מסונכרנות [mm:ss.xx] או טקסט פשוט...</string>
     <string name="custom_lyrics_source">מילים מותאמות אישית</string>
+
+    <!-- Podcasts -->
+    <string name="podcasts">פודקאסטים</string>
+    <string name="live_podcasts">שידורים חיים</string>
+    <string name="all_podcasts">הכל</string>
+    <string name="top_podcast_shows">תוכניות מובילות</string>
+    <string name="latest_episodes">פרקים אחרונים</string>
+    <string name="continue_listening">המשך להאזין</string>
+    <string name="show_notes">הערות הפרק</string>
+    <string name="show_less">הצג פחות</string>
+    <string name="follow_show">עקוב</string>
+    <string name="following_show">במעקב</string>
+    <string name="sort_newest">החדשים ביותר ראשונים</string>
+    <string name="sort_oldest">הישנים ביותר ראשונים</string>
+    <string name="video_available">וידאו</string>
+    <string name="audio_available">שמע</string>
+    <string name="watch_video">צפה בווידאו</string>
+    <string name="listen_audio">האזן לשמע</string>
+    <string name="live_badge">שידור חי</string>
+    <string name="no_podcasts_found">לא נמצאו פודקאסטים</string>
+    <string name="no_episodes_found">אין פרקים זמינים</string>
+    <string name="episodes_count">%1$d פרקים</string>
+    <string name="speed">מהירות הפעלה</string>
+    <string name="no_description_available">אין תיאור זמין</string>
+
 </resources>

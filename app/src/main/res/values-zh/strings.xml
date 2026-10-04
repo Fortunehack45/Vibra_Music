@@ -1309,4 +1309,29 @@
     <string name="reset_lyrics">重置为在线</string>
     <string name="lyrics_editor_hint">输入 [mm:ss.xx] 同步行或纯文本歌词...</string>
     <string name="custom_lyrics_source">自定义歌词</string>
+
+    <!-- Podcasts -->
+    <string name="podcasts">播客</string>
+    <string name="live_podcasts">直播</string>
+    <string name="all_podcasts">全部</string>
+    <string name="top_podcast_shows">热门节目</string>
+    <string name="latest_episodes">最新单集</string>
+    <string name="continue_listening">继续收听</string>
+    <string name="show_notes">单集说明</string>
+    <string name="show_less">收起</string>
+    <string name="follow_show">关注</string>
+    <string name="following_show">已关注</string>
+    <string name="sort_newest">按最新时间</string>
+    <string name="sort_oldest">按最早时间</string>
+    <string name="video_available">视频</string>
+    <string name="audio_available">音频</string>
+    <string name="watch_video">观看视频</string>
+    <string name="listen_audio">收听音频</string>
+    <string name="live_badge">直播</string>
+    <string name="no_podcasts_found">未找到播客</string>
+    <string name="no_episodes_found">暂无单集</string>
+    <string name="episodes_count">%1$d 集</string>
+    <string name="speed">播放速度</string>
+    <string name="no_description_available">暂无说明</string>
+
 </resources>

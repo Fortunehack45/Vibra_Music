@@ -1329,4 +1329,29 @@
     <string name="reset_lyrics">ऑनलाइन पर रीसेट करें</string>
     <string name="lyrics_editor_hint">[mm:ss.xx] सिंक की गई पंक्तियाँ या सादा पाठ दर्ज करें...</string>
     <string name="custom_lyrics_source">कस्टम बोल</string>
+
+    <!-- Podcasts -->
+    <string name="podcasts">पॉडकास्ट</string>
+    <string name="live_podcasts">लाइव प्रसारण</string>
+    <string name="all_podcasts">सभी</string>
+    <string name="top_podcast_shows">शीर्ष शो</string>
+    <string name="latest_episodes">नवीनतम एपिसोड</string>
+    <string name="continue_listening">सुनना जारी रखें</string>
+    <string name="show_notes">शो नोट्स</string>
+    <string name="show_less">कम दिखाएं</string>
+    <string name="follow_show">फ़ॉलो करें</string>
+    <string name="following_show">फ़ॉलो कर रहे हैं</string>
+    <string name="sort_newest">नवीनतम पहले</string>
+    <string name="sort_oldest">पुराने पहले</string>
+    <string name="video_available">वीडियो</string>
+    <string name="audio_available">ऑडियो</string>
+    <string name="watch_video">वीडियो देखें</string>
+    <string name="listen_audio">ऑडियो सुनें</string>
+    <string name="live_badge">लाइव</string>
+    <string name="no_podcasts_found">कोई पॉडकास्ट नहीं मिला</string>
+    <string name="no_episodes_found">कोई एपिसोड उपलब्ध नहीं है</string>
+    <string name="episodes_count">%1$d एपिसोड</string>
+    <string name="speed">प्लेबैक गति</string>
+    <string name="no_description_available">कोई विवरण उपलब्ध नहीं है</string>
+
 </resources>

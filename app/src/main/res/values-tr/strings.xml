@@ -1284,4 +1284,29 @@
     <string name="reset_lyrics">Çevrimiçine sıfırla</string>
     <string name="lyrics_editor_hint">[mm:ss.xx] senkronize satırlar veya düz metin girin...</string>
     <string name="custom_lyrics_source">Özel şarkı sözleri</string>
+
+    <!-- Podcasts -->
+    <string name="podcasts">Podcast\'ler</string>
+    <string name="live_podcasts">Canlı Yayınlar</string>
+    <string name="all_podcasts">Tümü</string>
+    <string name="top_podcast_shows">En İyi Programlar</string>
+    <string name="latest_episodes">Son Bölümler</string>
+    <string name="continue_listening">Dinlemeye Devam Et</string>
+    <string name="show_notes">Bölüm notları</string>
+    <string name="show_less">Daha az göster</string>
+    <string name="follow_show">Takip Et</string>
+    <string name="following_show">Takip Ediliyor</string>
+    <string name="sort_newest">Önce en yeni</string>
+    <string name="sort_oldest">Önce en eski</string>
+    <string name="video_available">Video</string>
+    <string name="audio_available">Ses</string>
+    <string name="watch_video">Videoyu izle</string>
+    <string name="listen_audio">Sesi dinle</string>
+    <string name="live_badge">CANLI</string>
+    <string name="no_podcasts_found">Podcast bulunamadı</string>
+    <string name="no_episodes_found">Kullanılabilir bölüm yok</string>
+    <string name="episodes_count">%1$d bölüm</string>
+    <string name="speed">Oynatma hızı</string>
+    <string name="no_description_available">Açıklama mevcut değil</string>
+
 </resources>

@@ -1355,4 +1355,29 @@
     <string name="reset_lyrics">Сбросить на онлайн</string>
     <string name="lyrics_editor_hint">Введите синхронизированные строки [mm:ss.xx] или простой текст...</string>
     <string name="custom_lyrics_source">Свой текст</string>
+
+    <!-- Podcasts -->
+    <string name="podcasts">Подкасты</string>
+    <string name="live_podcasts">Прямые трансляции</string>
+    <string name="all_podcasts">Все</string>
+    <string name="top_podcast_shows">Популярные передачи</string>
+    <string name="latest_episodes">Новые выпуски</string>
+    <string name="continue_listening">Продолжить прослушивание</string>
+    <string name="show_notes">Описание выпуска</string>
+    <string name="show_less">Показать меньше</string>
+    <string name="follow_show">Подписаться</string>
+    <string name="following_show">Подписка оформлена</string>
+    <string name="sort_newest">Сначала новые</string>
+    <string name="sort_oldest">Сначала старые</string>
+    <string name="video_available">Видео</string>
+    <string name="audio_available">Аудио</string>
+    <string name="watch_video">Смотреть видео</string>
+    <string name="listen_audio">Слушать аудио</string>
+    <string name="live_badge">В ЭФИРЕ</string>
+    <string name="no_podcasts_found">Подкасты не найдены</string>
+    <string name="no_episodes_found">Выпуски отсутствуют</string>
+    <string name="episodes_count">%1$d выпусков</string>
+    <string name="speed">Скорость воспроизведения</string>
+    <string name="no_description_available">Описание отсутствует</string>
+
 </resources>

@@ -1309,4 +1309,29 @@
     <string name="reset_lyrics">Atur ulang ke daring</string>
     <string name="lyrics_editor_hint">Masukkan baris tersinkronisasi [mm:ss.xx] atau teks biasa...</string>
     <string name="custom_lyrics_source">Lirik kustom</string>
+
+    <!-- Podcasts -->
+    <string name="podcasts">Podcast</string>
+    <string name="live_podcasts">Siaran Langsung</string>
+    <string name="all_podcasts">Semua</string>
+    <string name="top_podcast_shows">Acara Teratas</string>
+    <string name="latest_episodes">Episode Terbaru</string>
+    <string name="continue_listening">Lanjutkan Mendengarkan</string>
+    <string name="show_notes">Catatan episode</string>
+    <string name="show_less">Tampilkan lebih sedikit</string>
+    <string name="follow_show">Ikuti</string>
+    <string name="following_show">Mengikuti</string>
+    <string name="sort_newest">Terbaru dahulu</string>
+    <string name="sort_oldest">Terlama dahulu</string>
+    <string name="video_available">Video</string>
+    <string name="audio_available">Audio</string>
+    <string name="watch_video">Tonton video</string>
+    <string name="listen_audio">Dengarkan audio</string>
+    <string name="live_badge">LANGSUNG</string>
+    <string name="no_podcasts_found">Podcast tidak ditemukan</string>
+    <string name="no_episodes_found">Tidak ada episode tersedia</string>
+    <string name="episodes_count">%1$d episode</string>
+    <string name="speed">Kecepatan pemutaran</string>
+    <string name="no_description_available">Deskripsi tidak tersedia</string>
+
 </resources>

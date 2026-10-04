@@ -1247,4 +1247,29 @@
     <string name="reset_lyrics">Đặt lại về trực tuyến</string>
     <string name="lyrics_editor_hint">Nhập các dòng được đồng bộ hóa [mm:ss.xx] hoặc văn bản thuần túy...</string>
     <string name="custom_lyrics_source">Lời bài hát tùy chỉnh</string>
+
+    <!-- Podcasts -->
+    <string name="podcasts">Podcast</string>
+    <string name="live_podcasts">Phát trực tiếp</string>
+    <string name="all_podcasts">Tất cả</string>
+    <string name="top_podcast_shows">Chương trình hàng đầu</string>
+    <string name="latest_episodes">Tập mới nhất</string>
+    <string name="continue_listening">Tiếp tục nghe</string>
+    <string name="show_notes">Ghi chú chương trình</string>
+    <string name="show_less">Thu gọn</string>
+    <string name="follow_show">Theo dõi</string>
+    <string name="following_show">Đang theo dõi</string>
+    <string name="sort_newest">Mới nhất trước</string>
+    <string name="sort_oldest">Cũ nhất trước</string>
+    <string name="video_available">Video</string>
+    <string name="audio_available">Âm thanh</string>
+    <string name="watch_video">Xem video</string>
+    <string name="listen_audio">Nghe âm thanh</string>
+    <string name="live_badge">TRỰC TIẾP</string>
+    <string name="no_podcasts_found">Không tìm thấy podcast</string>
+    <string name="no_episodes_found">Không có tập nào khả dụng</string>
+    <string name="episodes_count">%1$d tập</string>
+    <string name="speed">Tốc độ phát</string>
+    <string name="no_description_available">Không có mô tả</string>
+
 </resources>

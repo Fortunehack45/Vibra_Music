@@ -30,9 +30,8 @@ object PodcastRepository {
     private var cachedFeed: PodcastFeed? = null
 
     /**
-     * Loads the main Podcast hub feed. Tries the official podcasts browse destination first;
-     * if that returns empty shelves (for unauthenticated guests) or errors, falls back to
-     * curated search shelves across top categories.
+     * Loads the main Podcast hub feed swiftly using concurrent InnerTube queries
+     * for Top Shows, Trending Episodes, and Live Broadcasts, backed by memory cache.
      */
     suspend fun getPodcastFeed(forceRefresh: Boolean = false): Result<PodcastFeed> = withContext(Dispatchers.IO) {
         if (!forceRefresh && cachedFeed != null) {
@@ -40,74 +39,65 @@ object PodcastRepository {
         }
 
         try {
-            val response = runCatching { Innertube.browse(BROWSE_PODCASTS) }.getOrNull()
-            val parsed = response?.let { parsePodcastFeedResponse(it) }
-
-            if (parsed != null && (parsed.topShows.isNotEmpty() || parsed.latestEpisodes.isNotEmpty() || parsed.topicShelves.isNotEmpty())) {
-                cachedFeed = parsed
-                return@withContext Result.success(parsed)
+            val feed = buildResilientPodcastFeed()
+            if (feed.topShows.isNotEmpty() || feed.latestEpisodes.isNotEmpty() || feed.liveBroadcasts.isNotEmpty()) {
+                cachedFeed = feed
+                return@withContext Result.success(feed)
             }
-
-            // Fallback: build resilient categorized feed from official InnerTube podcast queries
-            val fallbackFeed = buildFallbackPodcastFeed()
-            cachedFeed = fallbackFeed
-            Result.success(fallbackFeed)
+            cachedFeed?.let { return@withContext Result.success(it) }
+            Result.success(feed)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to load podcast feed: ${e.message}", e)
             cachedFeed?.let { return@withContext Result.success(it) }
-            // Try fallback even if an unexpected exception occurs
-            runCatching {
-                val fallbackFeed = buildFallbackPodcastFeed()
-                cachedFeed = fallbackFeed
-                Result.success(fallbackFeed)
-            }.getOrElse { Result.failure(e) }
+            Result.failure(e)
         }
     }
 
     /**
-     * Builds a comprehensive podcast feed by querying multiple categories concurrently.
+     * Builds a comprehensive podcast feed quickly by querying top shows, trending episodes,
+     * and live podcast streams in parallel.
      */
-    private suspend fun buildFallbackPodcastFeed(): PodcastFeed = coroutineScope {
-        val topShowsDeferred = async { fetchSearchShelf("top podcasts", FILTER_PODCASTS, "Top Shows") }
-        val trendingEpisodesDeferred = async { fetchSearchShelf("popular podcast episodes", FILTER_EPISODES, "Trending Episodes") }
-        val techShowsDeferred = async { fetchSearchShelf("technology podcast", FILTER_PODCASTS, "Technology & Science") }
-        val cultureShowsDeferred = async { fetchSearchShelf("society culture podcast", FILTER_PODCASTS, "Society & Culture") }
-        val comedyShowsDeferred = async { fetchSearchShelf("comedy podcast", FILTER_PODCASTS, "Comedy & Entertainment") }
-        val newsShowsDeferred = async { fetchSearchShelf("news podcast", FILTER_PODCASTS, "News & Politics") }
+    private suspend fun buildResilientPodcastFeed(): PodcastFeed = coroutineScope {
+        val topShowsDeferred = async { fetchSearchShelf("podcasts", FILTER_PODCASTS, "Top Shows") }
+        val trendingEpisodesDeferred = async { fetchSearchShelf("podcast episodes", FILTER_EPISODES, "Trending Episodes") }
+        val liveDeferred = async { fetchSearchShelf("live podcast", null, "Live Broadcasts") }
 
         val topShowsShelf = topShowsDeferred.await()
         val trendingEpisodesShelf = trendingEpisodesDeferred.await()
-        val techShelf = techShowsDeferred.await()
-        val cultureShelf = cultureShowsDeferred.await()
-        val comedyShelf = comedyShowsDeferred.await()
-        val newsShelf = newsShowsDeferred.await()
+        val liveShelf = liveDeferred.await()
 
         val allShows = mutableListOf<PodcastShow>()
         val allEpisodes = mutableListOf<PodcastEpisode>()
+        val liveBroadcasts = mutableListOf<PodcastEpisode>()
         val shelves = mutableListOf<HomeShelf>()
 
-        fun processShelf(result: Pair<HomeShelf, List<Any>>, isTopShows: Boolean = false, isTrendingEpisodes: Boolean = false) {
+        fun processShelf(result: Pair<HomeShelf, List<Any>>, isLiveShelf: Boolean = false) {
             val (shelf, items) = result
             if (shelf.items.isNotEmpty()) {
                 shelves.add(shelf)
                 items.forEach { item ->
                     when (item) {
                         is PodcastShow -> allShows.add(item)
-                        is PodcastEpisode -> allEpisodes.add(item)
+                        is PodcastEpisode -> {
+                            if (item.isLive || isLiveShelf) {
+                                val liveEp = if (!item.isLive) item.copy(isLive = true) else item
+                                liveBroadcasts.add(liveEp)
+                                allEpisodes.add(liveEp)
+                            } else {
+                                allEpisodes.add(item)
+                            }
+                        }
                     }
                 }
             }
         }
 
-        processShelf(topShowsShelf, isTopShows = true)
-        processShelf(trendingEpisodesShelf, isTrendingEpisodes = true)
-        processShelf(techShelf)
-        processShelf(cultureShelf)
-        processShelf(comedyShelf)
-        processShelf(newsShelf)
+        processShelf(topShowsShelf)
+        processShelf(trendingEpisodesShelf)
+        processShelf(liveShelf, isLiveShelf = true)
 
         PodcastFeed(
-            liveBroadcasts = emptyList(),
+            liveBroadcasts = liveBroadcasts.distinctBy { it.videoId },
             continueListening = emptyList(),
             topShows = allShows.distinctBy { it.browseId },
             latestEpisodes = allEpisodes.distinctBy { it.videoId },
@@ -120,7 +110,7 @@ object PodcastRepository {
      */
     private suspend fun fetchSearchShelf(
         query: String,
-        params: String,
+        params: String?,
         shelfTitle: String,
     ): Pair<HomeShelf, List<Any>> = runCatching {
         val response = Innertube.search(query, params)
@@ -164,7 +154,14 @@ object PodcastRepository {
                     ?.obj("playNavigationEndpoint")?.obj("watchEndpoint")?.str("videoId")
                 ?: nav?.obj("watchEndpoint")?.str("videoId")
 
-            if (browseId != null) {
+            val isLive = shelfTitle.contains("Live", ignoreCase = true) ||
+                row.arr("badges")?.any {
+                    (it as? JsonObject)?.obj("liveBadgeRenderer") != null ||
+                        (it as? JsonObject)?.runsText()?.contains("LIVE", ignoreCase = true) == true
+                } == true || subtitle.contains("LIVE", ignoreCase = true) ||
+                subtitle.contains("watching", ignoreCase = true)
+
+            if (browseId != null && !isLive) {
                 val show = PodcastShow(
                     browseId = browseId,
                     title = title,
@@ -183,10 +180,10 @@ object PodcastRepository {
                     title = title,
                     author = subtitle,
                     description = subtitle,
-                    durationText = null,
+                    durationText = if (isLive) "LIVE" else null,
                     publishedTimeText = subtitle,
                     thumbnailUrl = thumb,
-                    isLive = false,
+                    isLive = isLive,
                     hasVideo = false,
                 )
                 domainItems.add(episode)
@@ -384,6 +381,9 @@ object PodcastRepository {
         val videoId = responsive.obj("playlistItemData")?.str("videoId")
             ?: playEndpoint?.str("videoId")
             ?: responsive.obj("navigationEndpoint")?.obj("watchEndpoint")?.str("videoId")
+            ?: responsive.obj("onTap")?.obj("watchEndpoint")?.str("videoId")
+            ?: responsive.obj("playbackEndpoint")?.obj("watchEndpoint")?.str("videoId")
+            ?: responsive.obj("playNavigationEndpoint")?.obj("watchEndpoint")?.str("videoId")
             ?: return null
 
         val isLive = responsive.arr("badges")?.any {
@@ -407,6 +407,55 @@ object PodcastRepository {
             publishedTimeText = null,
             thumbnailUrl = thumb,
             isLive = isLive,
+            hasVideo = false,
+        )
+    }
+
+    /**
+     * Parses a multi-row podcast item into a PodcastEpisode.
+     */
+    private fun parseMultiRowEpisode(multiRow: JsonObject): PodcastEpisode? {
+        val playEndpoint = multiRow.obj("overlay")
+            ?.obj("musicItemThumbnailOverlayRenderer")
+            ?.obj("content")
+            ?.obj("musicPlayButtonRenderer")
+            ?.obj("playNavigationEndpoint")
+            ?.obj("watchEndpoint")
+
+        val videoId = multiRow.obj("onTap")?.obj("watchEndpoint")?.str("videoId")
+            ?: multiRow.obj("navigationEndpoint")?.obj("watchEndpoint")?.str("videoId")
+            ?: multiRow.obj("playbackEndpoint")?.obj("watchEndpoint")?.str("videoId")
+            ?: multiRow.obj("playNavigationEndpoint")?.obj("watchEndpoint")?.str("videoId")
+            ?: multiRow.obj("playlistItemData")?.str("videoId")
+            ?: playEndpoint?.str("videoId")
+            ?: return null
+
+        val title = multiRow.obj("title")?.runsText().orEmpty()
+        if (title.isBlank()) return null
+
+        val subtitle = multiRow.obj("subtitle")?.runsText().orEmpty()
+        val secondSubtitle = multiRow.obj("secondSubtitle")?.runsText().orEmpty()
+        val description = multiRow.obj("description")?.runsText().orEmpty()
+
+        val thumb = multiRow.obj("thumbnail")
+            ?.obj("musicThumbnailRenderer")
+            ?.obj("thumbnail")
+            ?.bestThumbnailUrl()
+            ?: multiRow.obj("thumbnail")?.bestThumbnailUrl()
+
+        val parts = "$subtitle • $secondSubtitle".split(" • ").filter { it.isNotBlank() }
+        val duration = parts.firstOrNull { it.contains("min", ignoreCase = true) || it.contains("hr", ignoreCase = true) || it.matches(Regex("""\d+:\d+(?::\d+)?""")) }
+
+        return PodcastEpisode(
+            id = videoId,
+            videoId = videoId,
+            title = title,
+            author = subtitle,
+            description = description.ifBlank { subtitle },
+            durationText = duration,
+            publishedTimeText = subtitle,
+            thumbnailUrl = thumb,
+            isLive = false,
             hasVideo = false,
         )
     }
@@ -457,6 +506,11 @@ object PodcastRepository {
                 is JsonObject -> {
                     element.obj("musicResponsiveListItemRenderer")?.let { row ->
                         parseResponsiveEpisode(row)?.let { ep ->
+                            episodes.add(ep.copy(showBrowseId = browseId, showTitle = showTitle))
+                        }
+                    }
+                    element.obj("musicMultiRowListItemRenderer")?.let { row ->
+                        parseMultiRowEpisode(row)?.let { ep ->
                             episodes.add(ep.copy(showBrowseId = browseId, showTitle = showTitle))
                         }
                     }

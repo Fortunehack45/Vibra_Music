@@ -2309,6 +2309,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
          */
 
         fun browseTypeOf(browseId: String, fallback: BrowseType = BrowseType.OTHER): BrowseType = when {
+            fallback == BrowseType.PODCAST_SHOW || browseId.startsWith("MPSP") -> BrowseType.PODCAST_SHOW
             browseId.startsWith(Downloads.PLAYLIST_PREFIX) -> BrowseType.PLAYLIST
             browseId.startsWith("local_") || browseId.startsWith("VLlocal_") -> BrowseType.PLAYLIST
             browseId.startsWith("UC") -> BrowseType.ARTIST

@@ -470,6 +470,10 @@ object InnertubeParser {
                         parseResponsiveListItem(renderer as? JsonObject, pageCredit)
                             ?.let { out[it.videoId] = it }
                     }
+                    node["musicMultiRowListItemRenderer"]?.let { renderer ->
+                        parseMultiRowListItem(renderer as? JsonObject, pageCredit)
+                            ?.let { out[it.videoId] = it }
+                    }
                     node.values.forEach(::walk)
                 }
                 is JsonArray -> node.forEach(::walk)
@@ -597,6 +601,11 @@ object InnertubeParser {
                 .o("musicItemThumbnailOverlayRenderer").o("content")
                 .o("musicPlayButtonRenderer").o("playNavigationEndpoint")
                 .o("watchEndpoint").s("videoId")
+            ?: renderer.o("navigationEndpoint").o("watchEndpoint").s("videoId")
+            ?: renderer.o("onTap").o("watchEndpoint").s("videoId")
+            ?: renderer.o("playNavigationEndpoint").o("watchEndpoint").s("videoId")
+            ?: renderer.o("playbackEndpoint").o("watchEndpoint").s("videoId")
+            ?: collectRenderers(renderer, "watchEndpoint").firstOrNull().s("videoId")
             ?: return null
 
         val columns = renderer.a("flexColumns").orEmpty()
@@ -668,6 +677,66 @@ object InnertubeParser {
             // otherwise a music-video upload gives itself away with widescreen
             // art where a catalogue track has square album cover art.
             isVideo = rowType == "video" || thumbnails.isNotSquare(),
+            isExplicit = renderer.hasExplicitBadge(),
+        )
+    }
+
+    /**
+     * One podcast episode row rendered as `musicMultiRowListItemRenderer`.
+     */
+    private fun parseMultiRowListItem(
+        renderer: JsonObject?,
+        fallback: Credits = Credits(),
+    ): Song? {
+        if (renderer == null) return null
+        val videoId = renderer.o("onTap").o("watchEndpoint").s("videoId")
+            ?: renderer.o("navigationEndpoint").o("watchEndpoint").s("videoId")
+            ?: renderer.o("playbackEndpoint").o("watchEndpoint").s("videoId")
+            ?: renderer.o("playNavigationEndpoint").o("watchEndpoint").s("videoId")
+            ?: renderer.o("overlay").o("musicItemThumbnailOverlayRenderer").o("content")
+                .o("musicPlayButtonRenderer").o("playNavigationEndpoint").o("watchEndpoint").s("videoId")
+            ?: renderer.o("playlistItemData").s("videoId")
+            ?: collectRenderers(renderer, "watchEndpoint").firstOrNull().s("videoId")
+            ?: return null
+
+        val title = renderer.o("title").runs().takeIf { it.isNotBlank() }
+            ?: renderer.o("title").s("simpleText").orEmpty()
+        if (title.isBlank()) return null
+
+        val subtitleRuns = renderer.o("subtitle").a("runs").orEmpty()
+        val subtitle = subtitleRuns.joinToString("") { it.s("text").orEmpty() }
+            .ifBlank { renderer.o("subtitle").s("simpleText").orEmpty() }
+        val secondSubtitle = renderer.o("secondSubtitle").runs()
+            .ifBlank { renderer.o("secondSubtitle").s("simpleText").orEmpty() }
+
+        val parts = "$subtitle • $secondSubtitle".split(" • ").filter { it.isNotBlank() }
+        val duration = parts.lastOrNull { it.matches(DURATION) }
+            ?: parts.firstOrNull { it.contains("min", ignoreCase = true) || it.contains("hr", ignoreCase = true) || it.contains("sec", ignoreCase = true) }
+            ?: collectRenderers(renderer, "thumbnailOverlayTimeStatusRenderer").firstOrNull().o("text").runs().takeIf { it.isNotBlank() }
+
+        val credits = creditsOf(subtitleRuns)
+        val creditedArtists = artistNamesFromRuns(subtitleRuns)
+        val artist = creditedArtists
+            ?: credits.artistName?.takeIf { it.isNotBlank() }
+            ?: parts.firstOrNull {
+                !it.matches(DURATION) && it.lowercase(Locale.ROOT) !in TYPE_WORDS && !it.matches(TALLY) && !it.matches(YEAR) &&
+                    !it.contains("min", ignoreCase = true) && !it.contains("hr", ignoreCase = true) && !it.contains("ago", ignoreCase = true)
+            } ?: fallback.artistName ?: "Podcast"
+
+        val thumbnails = renderer.o("thumbnail").o("musicThumbnailRenderer").o("thumbnail").a("thumbnails")
+            ?: renderer.o("thumbnail").a("thumbnails")
+
+        return Song(
+            videoId = videoId,
+            title = title,
+            artist = artist,
+            thumbnailUrl = thumbnails.best(),
+            durationText = duration,
+            artistId = credits.artistId ?: fallback.artistId,
+            albumId = credits.albumId ?: fallback.albumId,
+            albumName = fallback.artistName,
+            isVideo = false,
+            isVideoOrigin = true,
             isExplicit = renderer.hasExplicitBadge(),
         )
     }
@@ -1403,6 +1472,8 @@ object InnertubeParser {
     private val HEADER_RENDERERS = listOf(
         "musicResponsiveHeaderRenderer",
         "musicDetailHeaderRenderer",
+        "musicVisualHeaderRenderer",
+        "musicEditablePlaylistDetailHeaderRenderer",
     )
     /** Header lines that name the artist, in either header shape. */
     private val HEADER_CREDIT_LINES = listOf("straplineTextOne", "subtitle")

@@ -24,6 +24,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -192,7 +195,8 @@ fun PlaybackSpeedPill(
 ) {
     val haptics = rememberHaptics()
     val pillShape = RoundedCornerShape(percent = 50)
-    val displaySpeed = if (speed % 1f == 0f) "${speed.toInt()}.0x" else "${speed}x"
+    var optimisticSpeed by remember(speed) { mutableFloatStateOf(speed) }
+    val displaySpeed = if (optimisticSpeed % 1f == 0f) "${optimisticSpeed.toInt()}.0x" else "${optimisticSpeed}x"
 
     Box(
         modifier = modifier
@@ -202,9 +206,11 @@ fun PlaybackSpeedPill(
             .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, pillShape)
             .clickable {
                 haptics.play(Haptic.Tick)
-                val currentIndex = SPEED_STEPS.indexOfFirst { kotlin.math.abs(it - speed) < 0.05f }
+                val currentIndex = SPEED_STEPS.indexOfFirst { kotlin.math.abs(it - optimisticSpeed) < 0.05f }
                 val nextIndex = if (currentIndex in 0 until SPEED_STEPS.lastIndex) currentIndex + 1 else 0
-                onSpeedChange(SPEED_STEPS[nextIndex])
+                val nextSpeed = SPEED_STEPS[nextIndex]
+                optimisticSpeed = nextSpeed
+                onSpeedChange(nextSpeed)
             }
             .padding(horizontal = 10.dp),
         contentAlignment = Alignment.Center,

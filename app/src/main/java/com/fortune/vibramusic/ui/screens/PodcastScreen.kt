@@ -240,6 +240,14 @@ fun PodcastScreen(
                                         .padding(horizontal = PAGE_GUTTER, vertical = 6.dp),
                                 )
                             }
+                        } else if (selectedFilter == "Live Broadcasts") {
+                            item {
+                                MessageState(
+                                    message = stringResource(R.string.no_podcasts_found),
+                                    actionLabel = stringResource(R.string.retry),
+                                    onAction = onRefresh,
+                                )
+                            }
                         }
                     }
 

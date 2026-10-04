@@ -91,6 +91,8 @@ data class PlayerState(
     val hasNext: Boolean = false,
     /** True while the current item is the replacement installed by a quality upgrade. */
     val isQualityUpgraded: Boolean = false,
+    /** Current playback speed of the media controller. */
+    val playbackSpeed: Float = 1.0f,
 )
 
 /** Binds to [PlaybackService] for the lifetime of the composition. */
@@ -308,6 +310,7 @@ fun rememberPlayerState(controller: MediaController?): PlayerState {
                 hasNext = player.hasNextMediaItem(),
                 isQualityUpgraded = item?.mediaMetadata?.extras
                     ?.getBoolean(EXTRA_QUALITY_UPGRADED) == true,
+                playbackSpeed = player.playbackParameters.speed,
             )
         }
 
@@ -321,6 +324,9 @@ fun rememberPlayerState(controller: MediaController?): PlayerState {
                 ) {
                     queueChanged = true
                 }
+            }
+            override fun onPlaybackParametersChanged(playbackParameters: androidx.media3.common.PlaybackParameters) {
+                sync()
             }
             override fun onEvents(p: Player, events: Player.Events) = sync(
                 error = state.error,

@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic
+package com.fortune.vibramusic
 
 import com.fortune.vibramusic.data.model.BrowseType
 import com.fortune.vibramusic.download.Downloads
@@ -29,6 +29,13 @@ class BrowseTypeTest {
         assertEquals(BrowseType.PLAYLIST, MainViewModel.browseTypeOf("VLPL1234567890"))
         assertEquals(BrowseType.PLAYLIST, MainViewModel.browseTypeOf("PL1234567890"))
         assertEquals(BrowseType.PLAYLIST, MainViewModel.browseTypeOf("${Downloads.PLAYLIST_PREFIX}local_downloads"))
+    }
+
+    @Test
+    fun `resolves MPSP and fallback PODCAST_SHOW as BrowseType PODCAST_SHOW`() {
+        assertEquals(BrowseType.PODCAST_SHOW, MainViewModel.browseTypeOf("MPSP1234567890"))
+        assertEquals(BrowseType.PODCAST_SHOW, MainViewModel.browseTypeOf("VL1234567890", fallback = BrowseType.PODCAST_SHOW))
+        assertEquals(BrowseType.PODCAST_SHOW, MainViewModel.browseTypeOf("some_show_id", fallback = BrowseType.PODCAST_SHOW))
     }
 
     @Test

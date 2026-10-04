@@ -248,7 +248,6 @@ fun DetailScreen(
      * photo, not in this header.
      */
     songSort: SongSort = SongSort.DEFAULT,
-    hazeState: HazeState? = null,
 ) {
     val rawSongs = (page.songs as? UiState.Success)?.data.orEmpty()
     val songs = remember(rawSongs, songSort) { rawSongs.sortedForDetail(songSort) }
@@ -320,7 +319,7 @@ fun DetailScreen(
         canvas = CanvasRepository.canvasForAlbum(page.title, credit) ?: canvas
     }
 
-    val pageHaze = hazeState ?: remember { HazeState() }
+    val pageHaze = remember { HazeState() }
 
     // Opening the search carries the page up to it, so the field lands just
     // clear of the frosted bar with the tracks under it rather than at the foot
@@ -1696,12 +1695,29 @@ private fun List<Song>.playtimeSummary(): String {
     }
 }
 
-/** "3:45" or "1:02:33" as seconds; 0 for anything that isn't a duration. */
+/** "3:45", "1:02:33", or "45 min" / "1 hr 12 min" as seconds; 0 for anything else. */
 private fun String?.toSeconds(): Int {
-    val parts = this?.split(":")?.map { it.trim().toIntOrNull() ?: return 0 } ?: return 0
-    return when (parts.size) {
-        2 -> parts[0] * 60 + parts[1]
-        3 -> parts[0] * 3600 + parts[1] * 60 + parts[2]
-        else -> 0
+    if (this == null) return 0
+    if (contains(":")) {
+        val parts = split(":").map { it.trim().toIntOrNull() ?: return 0 }
+        return when (parts.size) {
+            2 -> parts[0] * 60 + parts[1]
+            3 -> parts[0] * 3600 + parts[1] * 60 + parts[2]
+            else -> 0
+        }
     }
+    var total = 0
+    val hrMatch = Regex("""(\d+)\s*(?:hr|hour|h)\b""", RegexOption.IGNORE_CASE).find(this)
+    if (hrMatch != null) {
+        total += (hrMatch.groupValues[1].toIntOrNull() ?: 0) * 3600
+    }
+    val minMatch = Regex("""(\d+)\s*(?:min|minute|m)\b""", RegexOption.IGNORE_CASE).find(this)
+    if (minMatch != null) {
+        total += (minMatch.groupValues[1].toIntOrNull() ?: 0) * 60
+    }
+    val secMatch = Regex("""(\d+)\s*(?:sec|second|s)\b""", RegexOption.IGNORE_CASE).find(this)
+    if (secMatch != null) {
+        total += (secMatch.groupValues[1].toIntOrNull() ?: 0)
+    }
+    return total
 }

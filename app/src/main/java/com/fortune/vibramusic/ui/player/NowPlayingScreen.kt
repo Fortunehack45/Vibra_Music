@@ -1692,41 +1692,10 @@ fun NowPlayingScreen(
                             }
                         },
                         transport = {
-                            if (isPodcast) {
-                                Column(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                ) {
-                                    PodcastTransportRow(
-                                        isPlaying = isPlaying,
-                                        isLoading = isLoading || audioVersionSwitching,
-                                        previousEnabled = !controlsLocked &&
-                                            (hasPrevious || pastRestartPoint),
-                                        nextEnabled = !controlsLocked && hasNext,
-                                        onPrevious = onPrevious,
-                                        onPlayPause = onPlayPause,
-                                        onNext = onNext,
-                                        onReplay15 = { onSeek(maxOf(0L, position.positionMs - 15_000L)) },
-                                        onForward30 = { onSeek(minOf(durationMs, position.positionMs + 30_000L)) },
-                                        compact = compact,
-                                    )
-                                    Spacer(Modifier.height(if (compact) 4.dp else 8.dp))
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.Center,
-                                        verticalAlignment = Alignment.CenterVertically,
-                                    ) {
-                                        PlaybackSpeedPill(
-                                            speed = playbackSpeed,
-                                            onSpeedChange = onPlaybackSpeedChange,
-                                        )
-                                        Spacer(Modifier.width(16.dp))
-                                        ShowNotesPill(
-                                            onClick = { showShowNotesSheet = true },
-                                        )
-                                    }
-                                }
-                            } else {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                            ) {
                                 TransportRow(
                                     isPlaying = isPlaying,
                                     isLoading = isLoading || audioVersionSwitching,
@@ -1738,6 +1707,23 @@ fun NowPlayingScreen(
                                     onNext = onNext,
                                     compact = compact,
                                 )
+                                Spacer(Modifier.height(if (compact) 4.dp else 8.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.Center,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    PlaybackSpeedPill(
+                                        speed = playbackSpeed,
+                                        onSpeedChange = onPlaybackSpeedChange,
+                                    )
+                                    if (isPodcast) {
+                                        Spacer(Modifier.width(16.dp))
+                                        ShowNotesPill(
+                                            onClick = { showShowNotesSheet = true },
+                                        )
+                                    }
+                                }
                             }
                         },
                         volume = if (hideVolumeBar) {
@@ -3138,45 +3124,32 @@ fun NowPlayingScreen(
             // centre rather than drifting up under the seek bar.
             Spacer(Modifier.height(8.dp + controlSpread / 2))
 
-            if (isPodcast) {
-                PodcastTransportRow(
-                    isPlaying = isPlaying,
-                    isLoading = isLoading || audioVersionSwitching,
-                    previousEnabled = !controlsLocked &&
-                        (hasPrevious || pastRestartPoint),
-                    nextEnabled = !controlsLocked && hasNext,
-                    onPrevious = onPrevious,
-                    onPlayPause = onPlayPause,
-                    onNext = onNext,
-                    onReplay15 = { onSeek(maxOf(0L, position.positionMs - 15_000L)) },
-                    onForward30 = { onSeek(minOf(durationMs, position.positionMs + 30_000L)) },
+            TransportRow(
+                isPlaying = isPlaying,
+                isLoading = isLoading || audioVersionSwitching,
+                previousEnabled = !controlsLocked &&
+                    (hasPrevious || pastRestartPoint),
+                nextEnabled = !controlsLocked && hasNext,
+                onPrevious = onPrevious,
+                onPlayPause = onPlayPause,
+                onNext = onNext,
+            )
+            Spacer(Modifier.height(10.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                PlaybackSpeedPill(
+                    speed = playbackSpeed,
+                    onSpeedChange = onPlaybackSpeedChange,
                 )
-                Spacer(Modifier.height(10.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    PlaybackSpeedPill(
-                        speed = playbackSpeed,
-                        onSpeedChange = onPlaybackSpeedChange,
-                    )
+                if (isPodcast) {
                     Spacer(Modifier.width(16.dp))
                     ShowNotesPill(
                         onClick = { showShowNotesSheet = true },
                     )
                 }
-            } else {
-                TransportRow(
-                    isPlaying = isPlaying,
-                    isLoading = isLoading || audioVersionSwitching,
-                    previousEnabled = !controlsLocked &&
-                        (hasPrevious || pastRestartPoint),
-                    nextEnabled = !controlsLocked && hasNext,
-                    onPrevious = onPrevious,
-                    onPlayPause = onPlayPause,
-                    onNext = onNext,
-                )
             }
 
             // Keep the volume slot's full footprint when its contents are

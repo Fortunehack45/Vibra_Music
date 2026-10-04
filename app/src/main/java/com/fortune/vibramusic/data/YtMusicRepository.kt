@@ -614,10 +614,22 @@ object YtMusicRepository {
      */
     suspend fun browseSongs(browseId: String): Result<SongPage> = call("browse:$browseId") {
         val response = Innertube.browse(browseId)
-        val page = if (browseId.startsWith("MPREb")) {
+        var page = if (browseId.startsWith("MPREb")) {
             albumPageOf(response)
         } else {
             pageOf(response)
+        }
+        if (page.songs.isEmpty() && !browseId.startsWith("VL")) {
+            val fallbackResponse = runCatching { Innertube.browse("VL$browseId") }.getOrNull()
+            if (fallbackResponse != null) {
+                val fallbackPage = pageOf(fallbackResponse)
+                if (fallbackPage.songs.isNotEmpty()) {
+                    page = fallbackPage.copy(
+                        header = page.header ?: fallbackPage.header,
+                        description = page.description ?: fallbackPage.description,
+                    )
+                }
+            }
         }
         // Only a playlist has an owner in the sense that matters — see
         // parsePlaylistOwned — and only its own first response can be asked.

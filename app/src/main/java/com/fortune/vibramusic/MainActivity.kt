@@ -2251,8 +2251,9 @@ private fun VibraMusicApp(
                     QueueCoordinator.clearUserQueue(c)
                 }
             },
-            playbackSpeed = controller?.playbackParameters?.speed ?: 1.0f,
+            playbackSpeed = player.playbackSpeed,
             onPlaybackSpeedChange = { speed ->
+                AppSettings.setPlaybackSpeed(speed)
                 controller?.setPlaybackSpeed(speed)
             },
             hasAlternateVersion = displayedSong.hasYouTubeOriginal() || displayedSong.playbackSourceType == PlaybackSourceType.PODCASTS,
@@ -2695,7 +2696,6 @@ private fun VibraMusicApp(
                             isPlaying = player.isPlaying,
                             listState = detailListState,
                             activeShelf = detailActiveShelf,
-                            hazeState = hazeState,
                             onActiveShelfChange = { detailActiveShelf = it },
                             onSongClick = { songs, index ->
                                 playFrom(
@@ -2879,7 +2879,13 @@ private fun VibraMusicApp(
                                 )
                             },
                             onShowClick = { show ->
-                                viewModel.openPodcastShow(show.browseId)
+                                viewModel.openDetail(
+                                    browseId = show.browseId,
+                                    title = show.title,
+                                    subtitle = show.author,
+                                    thumbnailUrl = show.thumbnailUrl,
+                                    type = com.fortune.vibramusic.data.model.BrowseType.PODCAST_SHOW,
+                                )
                             },
                             onAddToQueue = { episode ->
                                 controller?.addMediaItem(episode.toSong().toMediaItem())

@@ -109,8 +109,8 @@ android {
         // Real-time blur kicks in on API 31+, Haze falls back to a translucent scrim below that.
         minSdk = 23
         targetSdk = 36
-        versionCode = 56
-        versionName = "1.8.26"
+        versionCode = 57
+        versionName = "1.8.27"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         externalNativeBuild {

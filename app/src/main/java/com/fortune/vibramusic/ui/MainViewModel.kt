@@ -1352,6 +1352,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             // Prioritize bandwidth and CPU for home screen during initial startup
             delay(1200)
             loadExplore()
+            loadPodcasts()
             if (_signedIn.value) {
                 loadLibrary()
                 loadAccount()
@@ -1475,10 +1476,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    private var podcastJob: Job? = null
+
     fun loadPodcasts(force: Boolean = false) {
-        if (_podcasts.value is UiState.Loading && !force) return
-        if (force) _podcasts.value = UiState.Loading
-        viewModelScope.launch { fetchPodcasts(force) }
+        if (_podcasts.value is UiState.Success && !force) return
+        if (podcastJob?.isActive == true && !force) return
+        if (force || _podcasts.value !is UiState.Loading) {
+            _podcasts.value = UiState.Loading
+        }
+        podcastJob = viewModelScope.launch { fetchPodcasts(force) }
     }
 
     private suspend fun fetchPodcasts(force: Boolean = false) {

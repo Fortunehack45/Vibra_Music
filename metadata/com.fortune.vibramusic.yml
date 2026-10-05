@@ -1,0 +1,46 @@
+Categories:
+  - Multimedia
+License: GPL-3.0-or-later
+AuthorName: Fortune Adebayo
+AuthorWebSite: https://fortuneadebayo.space/
+SourceCode: https://github.com/Fortunehack45/Vibra_Music
+IssueTracker: https://github.com/Fortunehack45/Vibra_Music/issues
+Changelog: https://github.com/Fortunehack45/Vibra_Music_Releases/releases
+
+AutoName: Vibra Music
+Summary: Ad-free music and podcast player with synced lyrics and zero tracking
+Description: |-
+  Vibra Music is an ad-free, privacy-focused audio player designed for seamless
+  streaming and local playback. Engineered with a liquid glass aesthetic and
+  powered by Jetpack Compose, Vibra Music provides an immersive listening
+  experience without accounts, subscriptions, or telemetry.
+
+  Key Features:
+  * Zero tracking: No database, no user accounts, no telemetry collected.
+  * Hi-Res lossless streaming and local playback.
+  * Synchronized lyrics with word highlighting, translation, and romanization.
+  * High-fidelity audio DSP: 10-band equalizer, bass boost, and loudness enhancer.
+  * Offline caching and downloads with embedded metadata.
+  * Podcasts discovery and episode streaming.
+  * Listen Together multi-device synchronized parties.
+  * Android Auto and background MediaSession playback.
+
+RepoType: git
+Repo: https://github.com/Fortunehack45/Vibra_Music.git
+
+Builds:
+  - versionName: '1.8.29'
+    versionCode: 59
+    commit: v1.8.29
+    subdir: app
+    gradle:
+      - assembleProdRelease
+    output: build/outputs/apk/prod/release/app-prod-universal-release.apk
+
+AntiFeatures:
+  - NonFreeNet
+
+AutoUpdateMode: Version
+UpdateCheckMode: Tags
+CurrentVersion: '1.8.29'
+CurrentVersionCode: 59

@@ -43,6 +43,7 @@ import androidx.compose.material.icons.rounded.Cloud
 import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.Dns
 import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FileDownload
 import androidx.compose.material.icons.rounded.FileUpload
 import androidx.compose.material.icons.rounded.FilterAlt
@@ -276,6 +277,7 @@ fun SettingsScreen(
     var picking by remember { mutableStateOf<QualityTarget?>(null) }
     var pickingDownloadQuality by remember { mutableStateOf(false) }
     var pickingAutomixPerformance by remember { mutableStateOf(false) }
+    var showingSupportSheet by remember { mutableStateOf(false) }
     // What the last export or import did, shown on the row that did it rather
     // than as a toast: a backup is the one action here whose outcome nobody can
     // check by looking at the app afterwards. Held per direction, or an import's
@@ -1418,6 +1420,15 @@ fun SettingsScreen(
                     onClick = onCheckForUpdates,
                 )
             }
+            val supportVibraTitle = stringResource(R.string.support_vibra_title)
+            row(supportVibraTitle, "support", "donate", "coffee", "tip", "sponsor", "contribute") {
+                SettingsRow(
+                    icon = Icons.Rounded.Favorite,
+                    title = supportVibraTitle,
+                    subtitle = stringResource(R.string.support_vibra_subtitle),
+                    onClick = { showingSupportSheet = true },
+                )
+            }
         }
 
         // Read after every group above has had its turn at the query, which is
@@ -1521,6 +1532,17 @@ fun SettingsScreen(
                     AppSettings.setAutomixPerformanceMode(mode)
                     pickingAutomixPerformance = false
                 },
+            )
+        }
+    }
+
+    if (showingSupportSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showingSupportSheet = false },
+            containerColor = MaterialTheme.colorScheme.background,
+        ) {
+            SupportSheet(
+                onDismiss = { showingSupportSheet = false },
             )
         }
     }

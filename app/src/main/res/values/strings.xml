@@ -1239,4 +1239,29 @@
     <string name="episodes_count">%1$d episodes</string>
     <string name="speed">Playback speed</string>
     <string name="no_description_available">No description available</string>
+
+    <!-- Support Vibra Music -->
+    <string name="support_vibra_title" translatable="false">Support Vibra Music</string>
+    <string name="support_vibra_subtitle" translatable="false">Keep Vibra Music ad-free, private, and independent</string>
+    <string name="support_vibra_header" translatable="false">Keep Vibra Free &amp; Private</string>
+    <string name="support_vibra_description" translatable="false">Vibra Music is completely free and open-source with no advertisements, subscriptions, or user tracking. If you enjoy using Vibra Music, your support helps cover development tools, test devices, and server infrastructure.</string>
+    <string name="support_platforms_title" translatable="false">Supporter Platforms</string>
+    <string name="support_crypto_title" translatable="false">Crypto Wallets</string>
+    <string name="support_copied_to_clipboard" translatable="false">%1$s address copied to clipboard</string>
+    <string name="support_open_link" translatable="false">Open</string>
+    <string name="support_copy_address" translatable="false">Copy</string>
+    <string name="support_buy_me_a_coffee" translatable="false">Buy Me a Coffee</string>
+    <string name="support_buy_me_a_coffee_sub" translatable="false">Support via Buy Me a Coffee</string>
+    <string name="support_kofi" translatable="false">Ko-fi</string>
+    <string name="support_kofi_sub" translatable="false">Tip or subscribe on Ko-fi</string>
+    <string name="support_patreon" translatable="false">Patreon</string>
+    <string name="support_patreon_sub" translatable="false">Become a patron</string>
+    <string name="support_github_sponsors" translatable="false">GitHub Sponsors</string>
+    <string name="support_github_sponsors_sub" translatable="false">Sponsor the developer on GitHub</string>
+    <string name="support_paypal" translatable="false">PayPal</string>
+    <string name="support_paypal_sub" translatable="false">Donate directly via PayPal</string>
+    <string name="support_badge_adfree" translatable="false">Zero Ads</string>
+    <string name="support_badge_privacy" translatable="false">No Tracking</string>
+    <string name="support_badge_foss" translatable="false">100% Open Source</string>
+    <string name="support_thank_you" translatable="false">Thank you for supporting independent software!</string>
 </resources>

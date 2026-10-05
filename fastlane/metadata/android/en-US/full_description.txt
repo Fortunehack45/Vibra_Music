@@ -1,0 +1,28 @@
+Vibra Music is an ad-free, privacy-focused audio player designed for seamless streaming and local playback. Engineered with a liquid glass aesthetic and powered by Jetpack Compose, Vibra Music provides an immersive listening experience without accounts, subscriptions, or telemetry.
+
+Zero-Tracking Privacy
+Vibra Music does not maintain any user database, does not collect analytics or crash telemetry, and never tracks your listening habits. Everything stays strictly on your device.
+
+Playback and Audio Engine
+* Stream audio from online sources with ad-free playback.
+* Hi-Res lossless audio playback with support for custom module sources.
+* True gapless playback with configurable crossfade (0 to 12 seconds).
+* High-fidelity audio DSP: 10-band equalizer, bass boost, virtualizer, and loudness enhancer.
+* Background playback with full Android MediaSession controls and Android Auto integration.
+* Automix with beat-matching and tempo-stretching.
+
+Lyrics and Visuals
+* Real-time synchronized lyrics with word and syllable highlighting.
+* Multi-source lyric fallback, lyric search, translation, and romanization.
+* Shareable lyric poster generator with customizable backgrounds and themes.
+* Dynamic liquid glass interface with colors extracted from album artwork.
+* Animated album canvas artwork.
+
+Library and Podcasts
+* Discover, browse, and stream podcast shows and episodes.
+* Download songs and episodes for offline listening with embedded metadata.
+* Integrated local music library scanner for offline audio files.
+* Synchronized listening parties with Listen Together.
+* Discord Rich Presence and scrobbling to Last.fm and ListenBrainz.
+
+Vibra Music is completely free and open-source software licensed under the GNU General Public License v3.0.

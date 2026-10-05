@@ -1,0 +1,3 @@
+- Added voluntary Support Vibra Music supporter sheet.
+- Added official F-Droid and IzzyOnDroid store metadata and assets.
+- Performance optimizations and dependency polish.

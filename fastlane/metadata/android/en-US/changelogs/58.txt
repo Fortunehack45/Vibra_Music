@@ -1,0 +1,3 @@
+- Content-adaptive lyric card sizing with natural typography line spacing.
+- Podcast stream resilience and instant reload handling.
+- Player gesture improvements and bug fixes.

@@ -133,9 +133,60 @@ object LyricPosterRenderer {
         val isCompact = posterHeight < 1600
         val cardWidth = 880f
         val cardLeft = (posterWidth - cardWidth) / 2f
-        val cardPadding = 56f
+        val cardPadding = if (isCompact) 48f else 54f
+        val innerWidth = cardWidth - (cardPadding * 2f)
 
-        val cardHeight = if (isCompact) 1160f else 1400f
+        // 1. Measure header height
+        val thumbSize = 104f
+        val headerHeight = if (config.showArtwork) thumbSize else 84f
+
+        // 2. Measure lyrics text with tight, natural line spacing
+        val (fontSize, lineSpacingMult) = when (lines.size) {
+            1 -> Pair(if (isCompact) 66f else 72f, 1.12f)
+            2 -> Pair(if (isCompact) 58f else 64f, 1.12f)
+            3 -> Pair(if (isCompact) 52f else 58f, 1.12f)
+            4 -> Pair(if (isCompact) 46f else 50f, 1.12f)
+            else -> Pair(if (isCompact) 42f else 46f, 1.12f)
+        }
+
+        val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+            this.typeface = typeface
+            textSize = fontSize
+            color = Color.WHITE
+            letterSpacing = -0.015f
+        }
+
+        val fullLyricsText = lines.joinToString("\n")
+        val staticAlignment = when (config.alignment) {
+            LyricCardAlignment.LEFT -> Layout.Alignment.ALIGN_NORMAL
+            LyricCardAlignment.CENTER -> Layout.Alignment.ALIGN_CENTER
+            LyricCardAlignment.RIGHT -> Layout.Alignment.ALIGN_OPPOSITE
+        }
+
+        val textLayout = StaticLayout.Builder.obtain(
+            fullLyricsText, 0, fullLyricsText.length, textPaint, innerWidth.toInt()
+        )
+            .setAlignment(staticAlignment)
+            .setLineSpacing(0f, lineSpacingMult)
+            .setIncludePad(false)
+            .build()
+
+        // 3. Compact, balanced vertical gaps
+        val gapBeforeLyrics = if (isCompact) 36f else 42f
+        val gapAfterLyrics = if (isCompact) 32f else 38f
+        val footerHeight = 36f
+
+        // 4. Content-adaptive card height
+        val contentHeight = cardPadding + headerHeight + gapBeforeLyrics + textLayout.height + gapAfterLyrics + footerHeight + cardPadding
+        val minCardHeight = if (isCompact) 420f else 480f
+        val maxCardHeight = posterHeight - 160f
+        val cardHeight = contentHeight.coerceIn(minCardHeight, maxCardHeight)
+
+        // Distribute any extra space (when constrained by minCardHeight) evenly
+        val extraSpacing = (cardHeight - contentHeight).coerceAtLeast(0f)
+        val actualGapBefore = gapBeforeLyrics + (extraSpacing * 0.5f)
+        val actualGapAfter = gapAfterLyrics + (extraSpacing * 0.5f)
+
         val cardTop = (posterHeight - cardHeight) / 2f
         val cardRect = RectF(cardLeft, cardTop, cardLeft + cardWidth, cardTop + cardHeight)
 
@@ -175,7 +226,6 @@ object LyricPosterRenderer {
 
         val headerBottom: Float
         if (config.showArtwork) {
-            val thumbSize = 104f
             val thumbX = cardLeft + cardPadding
             if (coverArt != null) {
                 drawSquircleArtwork(canvas, coverArt, thumbX, headerY, thumbSize, cornerRadius = 22f)
@@ -197,53 +247,16 @@ object LyricPosterRenderer {
             headerBottom = headerY + 84f
         }
 
-        // Footer: Brand badge at bottom-left of card
-        val footerY = cardTop + cardHeight - cardPadding - 36f
-        drawBrandBadge(context, canvas, typeface, cardLeft + cardPadding, footerY, iconSize = 36f, textSize = 26f)
-
-        // Lyrics Block: Positioned in the middle between header and footer
-        val innerWidth = cardWidth - (cardPadding * 2f)
-        val lyricsSpaceTop = headerBottom + 36f
-        val lyricsSpaceBottom = footerY - 24f
-        val availableLyricsHeight = lyricsSpaceBottom - lyricsSpaceTop
-
-        val (fontSize, lineSpacingExtra, lineSpacingMult) = when (lines.size) {
-            1 -> Triple(if (isCompact) 66f else 74f, 14f, 1.25f)
-            2 -> Triple(if (isCompact) 58f else 64f, 12f, 1.24f)
-            3 -> Triple(if (isCompact) 50f else 56f, 10f, 1.22f)
-            4 -> Triple(if (isCompact) 44f else 48f, 8f, 1.20f)
-            else -> Triple(if (isCompact) 40f else 44f, 6f, 1.18f)
-        }
-
-        val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-            this.typeface = typeface
-            textSize = fontSize
-            color = Color.WHITE
-            letterSpacing = -0.015f
-        }
-
-        val fullLyricsText = lines.joinToString("\n")
-        val staticAlignment = when (config.alignment) {
-            LyricCardAlignment.LEFT -> Layout.Alignment.ALIGN_NORMAL
-            LyricCardAlignment.CENTER -> Layout.Alignment.ALIGN_CENTER
-            LyricCardAlignment.RIGHT -> Layout.Alignment.ALIGN_OPPOSITE
-        }
-
-        val textLayout = StaticLayout.Builder.obtain(
-            fullLyricsText, 0, fullLyricsText.length, textPaint, innerWidth.toInt()
-        )
-            .setAlignment(staticAlignment)
-            .setLineSpacing(lineSpacingExtra, lineSpacingMult)
-            .setIncludePad(false)
-            .build()
-
-        val lyricsTop = (lyricsSpaceTop + (availableLyricsHeight - textLayout.height) / 2f)
-            .coerceAtLeast(lyricsSpaceTop)
-
+        // Draw lyrics with tight, clean positioning
+        val lyricsTop = headerBottom + actualGapBefore
         canvas.save()
         canvas.translate(cardLeft + cardPadding, lyricsTop)
         textLayout.draw(canvas)
         canvas.restore()
+
+        // Footer: Brand badge at bottom-left of card
+        val footerY = lyricsTop + textLayout.height + actualGapAfter
+        drawBrandBadge(context, canvas, typeface, cardLeft + cardPadding, footerY, iconSize = 36f, textSize = 26f)
     }
 
     private fun drawSongCard(

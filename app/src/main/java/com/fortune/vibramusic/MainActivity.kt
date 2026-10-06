@@ -265,6 +265,7 @@ import com.fortune.vibramusic.ui.screens.LibraryGridPage
 import com.fortune.vibramusic.ui.screens.LibraryScreen
 import com.fortune.vibramusic.ui.screens.SPOTIFY_BROWSE_ID
 import com.fortune.vibramusic.ui.screens.SpotifyLibraryScreen
+import com.fortune.vibramusic.ui.screens.SpotifyLoginScreen
 import com.fortune.vibramusic.ui.components.SpotifyImportAlert
 import com.fortune.vibramusic.data.spotify.SPOTIFY_PAGE_PREFIX
 import com.fortune.vibramusic.data.model.isUnresolvedSpotify
@@ -490,6 +491,7 @@ private fun VibraMusicApp(
     var showListenTogether by remember { mutableStateOf(false) }
     var showEqualizer by remember { mutableStateOf(false) }
     var showSpotifyCanvasAuth by remember { mutableStateOf(false) }
+    var showSpotifyLogin by remember { mutableStateOf(false) }
     var showSpotifyLibrary by rememberSaveable { mutableStateOf(false) }
     var showSpotifyImportDialog by rememberSaveable { mutableStateOf(false) }
 
@@ -2491,6 +2493,8 @@ private fun VibraMusicApp(
                                     type = BrowseType.PLAYLIST,
                                 )
                             },
+                            onOpenLogin = { showSpotifyLogin = true },
+                            onOpenManualCookie = { showSpotifyCanvasAuth = true },
                             contentPadding = listPadding,
                         )
                     } else if (key == "history") {
@@ -4579,6 +4583,40 @@ private fun VibraMusicApp(
                         onTokenCaptured = { token ->
                             AppSettings.setDiscordToken(token)
                             showDiscordLogin = false
+                        },
+                    )
+                }
+            }
+        }
+
+        if (showSpotifyLogin) {
+            BackHandler { showSpotifyLogin = false }
+            Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                Column(Modifier.fillMaxSize()) {
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .statusBarsPadding()
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        IconButton(onClick = { showSpotifyLogin = false }) {
+                            Icon(
+                                Icons.Rounded.Close,
+                                contentDescription = stringResource(R.string.close),
+                                tint = MaterialTheme.colorScheme.onBackground,
+                            )
+                        }
+                        Text(
+                            stringResource(R.string.spotify_sign_in),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onBackground,
+                        )
+                    }
+                    SpotifyLoginScreen(
+                        onConnected = { token ->
+                            AppSettings.setSpotifySpdcToken(token)
+                            showSpotifyLogin = false
                         },
                     )
                 }

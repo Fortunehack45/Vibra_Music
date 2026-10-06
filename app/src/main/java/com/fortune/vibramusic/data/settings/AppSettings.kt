@@ -259,6 +259,7 @@ object AppSettings {
     // [SourceResolver.requestForNow][com.fortune.vibramusic.data.sources.SourceResolver.requestForNow],
     // which now reads [effectiveAudioQuality] and nothing else.
 
+    val songTransitions = MutableStateFlow(SongTransitions())
     val crossfadeSeconds = MutableStateFlow(0)
 
     /**
@@ -811,8 +812,9 @@ object AppSettings {
         downloadQuality.value = readDownloadQuality()
         wifiOnlyDownloads.value = prefs.getBoolean(KEY_WIFI_ONLY_DOWNLOADS, true)
         exportDownloads.value = prefs.getBoolean(KEY_EXPORT_DOWNLOADS, false)
-        crossfadeSeconds.value = prefs.getInt(KEY_CROSSFADE, 0)
-        smartFadeEnabled.value = prefs.getBoolean(KEY_SMART_FADE, false)
+        migrateSongTransitions()
+        songTransitions.value = readSongTransitions()
+        applySongTransitions()
         automixPerformanceMode.value = runCatching {
             AutomixPerformanceMode.valueOf(
                 prefs.getString(KEY_AUTOMIX_PERFORMANCE_MODE, null) ?: AutomixPerformanceMode.BALANCED.name,
@@ -1116,14 +1118,74 @@ object AppSettings {
         prefs.edit().putBoolean(KEY_WIFI_ONLY_DOWNLOADS, value).apply()
     }
 
+    fun setSongTransitionsEnabled(value: Boolean) {
+        writeSongTransitions(songTransitions.value.copy(enabled = value))
+    }
+
+    fun setSongTransitionStyle(value: SongTransitionStyle) {
+        writeSongTransitions(songTransitions.value.copy(style = value))
+    }
+
+    fun setCrossfadeDuration(seconds: Int) {
+        writeSongTransitions(songTransitions.value.withCrossfadeSeconds(seconds))
+    }
+
+    private fun writeSongTransitions(value: SongTransitions) {
+        songTransitions.value = value
+        applySongTransitions()
+        prefs.edit()
+            .putBoolean(KEY_SONG_TRANSITIONS, value.enabled)
+            .putString(KEY_SONG_TRANSITION_STYLE, value.style.name)
+            .putInt(KEY_CROSSFADE_DURATION, value.crossfadeSeconds)
+            .apply()
+    }
+
     fun setCrossfadeSeconds(value: Int) {
-        crossfadeSeconds.value = value
-        prefs.edit().putInt(KEY_CROSSFADE, value).apply()
+        setCrossfadeDuration(value)
     }
 
     fun setSmartFadeEnabled(value: Boolean) {
-        smartFadeEnabled.value = value
-        prefs.edit().putBoolean(KEY_SMART_FADE, value).apply()
+        if (value) {
+            writeSongTransitions(songTransitions.value.copy(enabled = true, style = SongTransitionStyle.AUTOMIX))
+        } else {
+            writeSongTransitions(songTransitions.value.copy(enabled = false))
+        }
+    }
+
+    private fun migrateSongTransitions() {
+        if (prefs.contains(KEY_SONG_TRANSITIONS)) return
+        val legacyCrossfade = prefs.getInt(KEY_CROSSFADE, 0)
+        val legacySmartFade = prefs.getBoolean(KEY_SMART_FADE, false)
+        if (!prefs.contains(KEY_CROSSFADE) && !prefs.contains(KEY_SMART_FADE)) return
+        val migrated = SongTransitions.fromLegacy(legacyCrossfade, legacySmartFade)
+        prefs.edit()
+            .putBoolean(KEY_SONG_TRANSITIONS, migrated.enabled)
+            .putString(KEY_SONG_TRANSITION_STYLE, migrated.style.name)
+            .putInt(KEY_CROSSFADE_DURATION, migrated.crossfadeSeconds)
+            .remove(KEY_CROSSFADE)
+            .remove(KEY_SMART_FADE)
+            .apply()
+    }
+
+    private fun readSongTransitions(): SongTransitions {
+        val defaults = SongTransitions()
+        val style = runCatching {
+            SongTransitionStyle.valueOf(prefs.getString(KEY_SONG_TRANSITION_STYLE, null) ?: defaults.style.name)
+        }.getOrDefault(defaults.style)
+        return defaults.copy(
+            enabled = prefs.getBoolean(KEY_SONG_TRANSITIONS, defaults.enabled),
+            style = style,
+        ).withCrossfadeSeconds(prefs.getInt(KEY_CROSSFADE_DURATION, defaults.crossfadeSeconds))
+    }
+
+    /**
+     * Points the two values playback reads at [songTransitions]. The only
+     * writer of [crossfadeSeconds] and [smartFadeEnabled].
+     */
+    private fun applySongTransitions() {
+        val transitions = songTransitions.value
+        crossfadeSeconds.value = transitions.playbackCrossfadeSeconds
+        smartFadeEnabled.value = transitions.automix
     }
 
     fun setAutomixPerformanceMode(value: AutomixPerformanceMode) {
@@ -1966,7 +2028,11 @@ object AppSettings {
     private const val KEY_LOW_QUALITY_MIGRATED = "low_quality_default_migrated_v2"
     private const val KEY_WIFI_ONLY_DOWNLOADS = "wifi_only_downloads"
     private const val KEY_EXPORT_DOWNLOADS = "export_downloads"
-    private const val KEY_LOSSLESS = "lossless_audio"
+    private const val KEY_SONG_TRANSITIONS = "song_transitions_enabled"
+    private const val KEY_SONG_TRANSITION_STYLE = "song_transition_style"
+    private const val KEY_CROSSFADE_DURATION = "crossfade_duration_seconds"
+
+    /** Replaced by the three keys above; only [migrateSongTransitions] reads them. */
     private const val KEY_CROSSFADE = "crossfade_seconds"
     private const val KEY_SMART_FADE = "smart_fade_enabled"
     private const val KEY_AUTOMIX_PERFORMANCE_MODE = "automix_performance_mode"

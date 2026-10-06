@@ -12,42 +12,60 @@ permissions:
 
 jobs:
   build-windows:
-    name: Build Windows Desktop Release (.msi & .zip)
+    name: Build Windows Desktop Release (.exe, .msi, .zip)
     runs-on: windows-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Set up Java 17
+      - name: Set up Java 21
         uses: actions/setup-java@v5
         with:
-          java-version: '17'
+          java-version: '21'
           distribution: 'temurin'
           cache: gradle
 
-      - name: Build Windows Distributable & MSI Package
+      - name: Setup local.properties
+        shell: pwsh
         run: |
-          ./gradlew :desktop:packageMsi :desktop:createDistributable --no-daemon
+          Set-Content -Path "local.properties" -Value "LASTFM_API_KEY=4ea1e882eb80524d4ed3a250f47cefe5`nLASTFM_SECRET=00f3857fc1d79480e51242b3720a140a`nLISTEN_TOGETHER_SERVER=https://party.vibramusic.store"
+
+      - name: Build Windows Distributable & Packages
+        run: |
+          ./gradlew :desktopApp:packageMsi :desktopApp:createDistributable --no-daemon
+          ./gradlew :desktopApp:packageExe --no-daemon || exit 0
 
       - name: Prepare Windows Distribution Archives
         shell: pwsh
         run: |
-          $tag = if ($env:GITHUB_REF -like "refs/tags/*") { $env:GITHUB_REF -replace "refs/tags/", "" } else { "v1.8.30" }
-          New-Item -ItemType Directory -Force -Path "desktop/dist" | Out-Null
+          $tag = if ($env:GITHUB_REF -like "refs/tags/*") { $env:GITHUB_REF -replace "refs/tags/", "" } else { "v1.8.31" }
+          New-Item -ItemType Directory -Force -Path "desktopApp/dist" | Out-Null
           
           # Copy and rename MSI
-          $msi = Get-ChildItem -Path "desktop/build/compose/binaries/main/msi" -Filter "*.msi" | Select-Object -First 1
+          $msi = Get-ChildItem -Path "desktopApp/build/compose/binaries/main/msi" -Filter "*.msi" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
           if ($msi) {
-            Copy-Item -Path $msi.FullName -Destination "desktop/dist/VibraMusic-$tag-Windows-Installer.msi"
+            Copy-Item -Path $msi.FullName -Destination "desktopApp/dist/VibraMusic-$tag-Windows-Installer.msi"
+          }
+          
+          # Copy and rename EXE (installer or standalone)
+          $exe = Get-ChildItem -Path "desktopApp/build/compose/binaries/main/exe" -Filter "*.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($exe) {
+            Copy-Item -Path $exe.FullName -Destination "desktopApp/dist/VibraMusic-$tag-Windows-Setup.exe"
+          }
+
+          # Copy standalone executable from distributable if available
+          $standaloneExe = "desktopApp/build/compose/binaries/main/app/VibraMusic/VibraMusic.exe"
+          if (Test-Path $standaloneExe) {
+            Copy-Item -Path $standaloneExe -Destination "desktopApp/dist/VibraMusic-$tag-Windows-Standalone.exe"
           }
           
           # Compress portable distribution folder
-          $appDir = "desktop/build/compose/binaries/main/app/VibraMusic"
+          $appDir = "desktopApp/build/compose/binaries/main/app/VibraMusic"
           if (Test-Path $appDir) {
-            Compress-Archive -Path "$appDir\*" -DestinationPath "desktop/dist/VibraMusic-$tag-Windows-Portable.zip" -Force
+            Compress-Archive -Path "$appDir\*" -DestinationPath "desktopApp/dist/VibraMusic-$tag-Windows-Portable.zip" -Force
           }
           
-          Get-ChildItem -Path "desktop/dist"
+          Get-ChildItem -Path "desktopApp/dist"
 
       - name: Upload Windows Build Artifacts
         uses: actions/upload-artifact@v4
@@ -55,15 +73,16 @@ jobs:
         with:
           name: VibraMusic-Windows-Release
           retention-days: 7
-          path: desktop/dist/*
+          path: desktopApp/dist/*
 
       - name: Publish Windows Release to Source Repo
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            desktop/dist/VibraMusic-*-Windows-Installer.msi
-            desktop/dist/VibraMusic-*-Windows-Portable.zip
+            desktopApp/dist/VibraMusic-*-Windows-Installer.msi
+            desktopApp/dist/VibraMusic-*-Windows-*.exe
+            desktopApp/dist/VibraMusic-*-Windows-Portable.zip
           draft: false
           prerelease: false
 
@@ -77,7 +96,8 @@ jobs:
           token: ${{ secrets.RELEASES_TOKEN }}
           tag_name: ${{ github.ref_name }}
           files: |
-            desktop/dist/VibraMusic-*-Windows-Installer.msi
-            desktop/dist/VibraMusic-*-Windows-Portable.zip
+            desktopApp/dist/VibraMusic-*-Windows-Installer.msi
+            desktopApp/dist/VibraMusic-*-Windows-*.exe
+            desktopApp/dist/VibraMusic-*-Windows-Portable.zip
           draft: false
           prerelease: false

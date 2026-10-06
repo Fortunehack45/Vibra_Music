@@ -622,6 +622,12 @@ class PlaybackService : MediaLibraryService() {
     private var loudnessEnhancerSessionId: Int = C.AUDIO_SESSION_ID_UNSET
     private var loudnessRetryJob: Job? = null
 
+    /**
+     * When each track was last resolved ahead for its loudness figure, from
+     * [SystemClock.elapsedRealtime]. See [warmLoudnessFigures].
+     */
+    private val loudnessWarmups = java.util.concurrent.ConcurrentHashMap<String, Long>()
+
     /** The platform audio session currently advertised to system audio tools. */
     private var advertisedAudioEffectSessionId: Int = C.AUDIO_SESSION_ID_UNSET
 
@@ -1056,6 +1062,7 @@ class PlaybackService : MediaLibraryService() {
             // session is currently pointed at.
             val exoPlayer = player ?: return
             if (exoPlayer.isPlaying) prefetchAround(exoPlayer)
+            warmLoudnessFigures(exoPlayer)
             if (reason == Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED) {
                 saveQueueSnapshot(exoPlayer)
                 refreshCustomLayouts()
@@ -1702,6 +1709,7 @@ class PlaybackService : MediaLibraryService() {
                     spareFilter.setCutoffs(lowPassHz, highPassHz)
             },
             analysisRunningFor = { item -> trackAnalyzer.isAnalysing(item.mediaId) },
+            onArmIncoming = { item -> player?.let(::warmLoudnessFigures) },
             versionSwapActive = { versionSwapJob?.isActive == true },
         )
 
@@ -2052,8 +2060,9 @@ class PlaybackService : MediaLibraryService() {
 
                     val inGain = sin(progress * (PI / 2.0)).toFloat()
                     val outGain = cos(progress * (PI / 2.0)).toFloat()
-                    standbyPlayer.volume = inGain
-                    activePlayer.volume = outGain
+                    val swapTrim = blendHeadroom(inGain, outGain)
+                    standbyPlayer.volume = inGain * swapTrim
+                    activePlayer.volume = outGain * swapTrim
 
                     if (progress >= 1f) break
                     delay(16)
@@ -2770,6 +2779,7 @@ class PlaybackService : MediaLibraryService() {
         // is precisely what carries the applied gain across the swap.
         setupLoudnessEnhancer(mediaItem?.mediaId)
         scheduleLoudnessRetry(mediaItem?.mediaId)
+        warmLoudnessFigures(exoPlayer)
 
         // Keep a real, bounded history in the player rather than merely hiding
         // old rows in Compose. MediaController mirrors the playlist across the
@@ -5734,6 +5744,7 @@ class PlaybackService : MediaLibraryService() {
         scope.launch {
             AppSettings.loudnessNormalization.collect {
                 setupLoudnessEnhancer(player?.currentMediaItem?.mediaId)
+                player?.let(::warmLoudnessFigures)
             }
         }
         scope.launch {
@@ -5863,6 +5874,26 @@ class PlaybackService : MediaLibraryService() {
         loudnessRetryJob = scope.launch {
             delay(LOUDNESS_RETRY_MS)
             if (player?.currentMediaItem?.mediaId == id) setupLoudnessEnhancer(id)
+        }
+    }
+
+    private fun warmLoudnessFigures(exoPlayer: ExoPlayer) {
+        if (!AppSettings.loudnessNormalization.value) return
+        val next = exoPlayer.nextMediaItemIndex
+            .takeIf { it != C.INDEX_UNSET && it < exoPlayer.mediaItemCount }
+            ?.let(exoPlayer::getMediaItemAt)
+        val now = SystemClock.elapsedRealtime()
+        for (item in listOfNotNull(exoPlayer.currentMediaItem, next)) {
+            val id = item.mediaId
+            val uri = item.localConfiguration?.uri
+            if (!LoudnessWarmup.wanted(uri?.scheme, uri?.authority, StreamResolver.loudnessDbFor(id) != null)) continue
+            val last = loudnessWarmups[id]
+            if (last != null && now - last < LOUDNESS_WARMUP_RETRY_MS) continue
+            loudnessWarmups[id] = now
+            scope.launch {
+                withContext(Dispatchers.IO) { runCatching { StreamResolver.resolve(id) } }
+                if (player?.currentMediaItem?.mediaId == id) setupLoudnessEnhancer(id)
+            }
         }
     }
 
@@ -7587,6 +7618,9 @@ class PlaybackService : MediaLibraryService() {
 
         /** How long [scheduleLoudnessRetry] waits for a still-resolving figure. */
         const val LOUDNESS_RETRY_MS = 6_000L
+
+        /** The least time between two attempts by [warmLoudnessFigures] at one track's figure. */
+        const val LOUDNESS_WARMUP_RETRY_MS = 60_000L
 
         /**
          * How long a Discord teardown may spend clearing the presence before the

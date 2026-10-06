@@ -7,10 +7,22 @@ import android.media.audiofx.AudioEffect
 import android.net.Uri
 import android.provider.Settings
 import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.semantics.Role
+import com.fortune.vibramusic.data.settings.SongTransitionStyle
+import com.fortune.vibramusic.data.settings.SongTransitions
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -190,8 +202,7 @@ fun SettingsScreen(
     val wifiQuality by AppSettings.audioQualityWifi.collectAsStateWithLifecycle()
     val cellularQuality by AppSettings.audioQualityCellular.collectAsStateWithLifecycle()
     val metered by AppSettings.meteredConnection.collectAsStateWithLifecycle()
-    val crossfade by AppSettings.crossfadeSeconds.collectAsStateWithLifecycle()
-    val smartFade by AppSettings.smartFadeEnabled.collectAsStateWithLifecycle()
+    val songTransitions by AppSettings.songTransitions.collectAsStateWithLifecycle()
     val automixPerformance by AppSettings.automixPerformanceMode.collectAsStateWithLifecycle()
     val skipSilence by AppSettings.skipSilence.collectAsStateWithLifecycle()
     val dolbyAtmos by AppSettings.dolbyAtmos.collectAsStateWithLifecycle()
@@ -648,55 +659,22 @@ fun SettingsScreen(
                     onClick = { AppSettings.setMinimizeOnPanelBack(!minimizeOnPanelBack) },
                 )
             }
-            // Automix decides its own length from each pair of tracks —
-            // tempo, key, structure — so it replaces the manual slider rather
-            // than needing it set to anything first.
-            if (!smartFade) {
-                val crossfadeTitle = stringResource(R.string.crossfade)
-                row(crossfadeTitle, "fade", "gapless") {
-                    SliderRow(
-                        icon = Icons.Rounded.Waves,
-                        title = crossfadeTitle,
-                        subtitle = stringResource(R.string.crossfade_subtitle),
-                        value = if (crossfade == 0) stringResource(R.string.off) else "${crossfade}s",
-                        sliderValue = crossfade.toFloat(),
-                        onSliderValue = { AppSettings.setCrossfadeSeconds(it.roundToInt()) },
-                        valueRange = 0f..12f,
-                        steps = 11,
-                    )
-                }
-            }
-            val automixTitle = stringResource(R.string.automix)
-            row(automixTitle, "crossfade", "smart fade", "mix") {
-                SettingsRow(
-                    icon = Icons.Rounded.AutoAwesome,
-                    title = automixTitle,
-                    subtitle = if (smartFade) {
-                        stringResource(R.string.automix_enabled_subtitle)
-                    } else {
-                        stringResource(R.string.automix_disabled_subtitle)
-                    },
-                    trailing = {
-                        Switch(
-                            checked = smartFade,
-                            onCheckedChange = AppSettings::setSmartFadeEnabled,
-                            colors = SwitchDefaults.colors(
-                                checkedTrackColor = MaterialTheme.colorScheme.primary,
-                                checkedBorderColor = MaterialTheme.colorScheme.primary,
-                            ),
-                        )
-                    },
-                    onClick = { AppSettings.setSmartFadeEnabled(!smartFade) },
-                )
-            }
-            val automixPerformanceTitle = stringResource(R.string.automix_performance)
-            row(automixPerformanceTitle, "cpu", "battery") {
-                SettingsRow(
-                    icon = Icons.Rounded.Tune,
-                    title = automixPerformanceTitle,
-                    subtitle = stringResource(R.string.automix_performance_subtitle),
-                    value = automixPerformance.localizedLabel(),
-                    onClick = { pickingAutomixPerformance = true },
+            // Apple Music's Song Transitions, folded into this card: one switch,
+            // then the two styles it can blend in and whatever the chosen one
+            // needs.
+            val songTransitionsTitle = stringResource(R.string.song_transitions)
+            row(
+                songTransitionsTitle,
+                stringResource(R.string.crossfade),
+                stringResource(R.string.automix),
+                stringResource(R.string.automix_performance),
+                "crossfade", "automix", "mix", "fade", "gapless", "dj", "beat", "cpu", "battery",
+            ) {
+                SongTransitionsRows(
+                    transitions = songTransitions,
+                    automixPerformance = automixPerformance,
+                    onAutomixPerformance = { pickingAutomixPerformance = true },
+                    reduceAnimation = reduceAnimation,
                 )
             }
             val skipSilenceTitle = stringResource(R.string.skip_silence)
@@ -2453,11 +2431,157 @@ internal fun Chevron() {
     )
 }
 
+/**
+ * Song transitions as Apple Music lays it out: the switch, then, while it is
+ * on, the two styles with a check on the one in use, then what that style
+ * needs: the Crossfade length, or the CPU budget Automix's analysis runs on.
+ *
+ * The rows under the switch expand and collapse with it rather than popping
+ * in, since they push the rest of the card around; with Reduce animation on
+ * they simply appear, like every other row that depends on a switch.
+ */
+@Composable
+private fun SongTransitionsRows(
+    transitions: SongTransitions,
+    automixPerformance: AutomixPerformanceMode,
+    onAutomixPerformance: () -> Unit,
+    reduceAnimation: Boolean,
+) {
+    SettingsRow(
+        // The wave the crossfade slider always wore; the crossfade glyph itself
+        // marks the Crossfade style below, as each style carries its own.
+        icon = Icons.Rounded.Waves,
+        title = stringResource(R.string.song_transitions),
+        subtitle = stringResource(R.string.crossfade_subtitle),
+        trailing = {
+            Switch(
+                checked = transitions.enabled,
+                onCheckedChange = AppSettings::setSongTransitionsEnabled,
+                colors = SwitchDefaults.colors(
+                    checkedTrackColor = MaterialTheme.colorScheme.primary,
+                    checkedBorderColor = MaterialTheme.colorScheme.primary,
+                ),
+            )
+        },
+        onClick = { AppSettings.setSongTransitionsEnabled(!transitions.enabled) },
+    )
+    AnimatedVisibility(
+        visible = transitions.enabled,
+        enter = if (reduceAnimation) EnterTransition.None else fadeIn(tween(160)) + expandVertically(tween(220)),
+        exit = if (reduceAnimation) ExitTransition.None else fadeOut(tween(120)) + shrinkVertically(tween(180)),
+    ) {
+        Column(if (reduceAnimation) Modifier else Modifier.animateContentSize(tween(180))) {
+            TransitionStyleRow(
+                icon = Icons.Rounded.AutoAwesome,
+                title = stringResource(R.string.automix),
+                subtitle = stringResource(R.string.automix_enabled_subtitle),
+                selected = transitions.style == SongTransitionStyle.AUTOMIX,
+                onSelect = { AppSettings.setSongTransitionStyle(SongTransitionStyle.AUTOMIX) },
+            )
+            RowDivider()
+            TransitionStyleRow(
+                icon = VibraMusicIcons.Crossfade,
+                title = stringResource(R.string.crossfade),
+                subtitle = stringResource(R.string.crossfade_style_subtitle),
+                selected = transitions.style == SongTransitionStyle.CROSSFADE,
+                onSelect = { AppSettings.setSongTransitionStyle(SongTransitionStyle.CROSSFADE) },
+            )
+            RowDivider()
+            when (transitions.style) {
+                SongTransitionStyle.CROSSFADE -> SliderRow(
+                    icon = null,
+                    title = stringResource(R.string.crossfade_duration),
+                    value = stringResource(R.string.seconds_short, transitions.crossfadeSeconds),
+                    sliderValue = transitions.crossfadeSeconds.toFloat(),
+                    onSliderValue = { AppSettings.setCrossfadeDuration(it.roundToInt()) },
+                    valueRange = SongTransitions.MIN_CROSSFADE_SECONDS.toFloat()..
+                        SongTransitions.MAX_CROSSFADE_SECONDS.toFloat(),
+                    // One stop per whole second between the two ends.
+                    steps = SongTransitions.MAX_CROSSFADE_SECONDS - SongTransitions.MIN_CROSSFADE_SECONDS - 1,
+                    startLabel = stringResource(R.string.seconds_short, SongTransitions.MIN_CROSSFADE_SECONDS),
+                    endLabel = stringResource(R.string.seconds_short, SongTransitions.MAX_CROSSFADE_SECONDS),
+                )
+                SongTransitionStyle.AUTOMIX -> SettingsRow(
+                    icon = Icons.Rounded.Tune,
+                    title = stringResource(R.string.automix_performance),
+                    subtitle = stringResource(R.string.automix_performance_subtitle),
+                    value = automixPerformance.localizedLabel(),
+                    onClick = onAutomixPerformance,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * One of the two styles under Song transitions: its glyph, what it is called,
+ * what it does, and a check on the one in use, the same mark the quality
+ * sheets put on theirs. Laid out like [SettingsRow], glyph slot and all, so
+ * its text lines up with every other row in the card; only the trailing check
+ * and the radio-button semantics set it apart.
+ */
+@Composable
+private fun TransitionStyleRow(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    selected: Boolean,
+    onSelect: () -> Unit,
+) {
+    val haptics = LocalHapticFeedback.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .selectable(
+                selected = selected,
+                role = Role.RadioButton,
+                onClick = {
+                    if (!selected) {
+                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onSelect()
+                    }
+                },
+            )
+            .heightIn(min = 52.dp)
+            .padding(horizontal = ROW_INSET, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onBackground,
+            modifier = Modifier.size(ICON_SIZE),
+        )
+        Spacer(Modifier.width(ICON_GAP))
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (selected) {
+            Spacer(Modifier.width(12.dp))
+            Icon(
+                imageVector = Icons.Rounded.Check,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(20.dp),
+            )
+        }
+    }
+}
+
 /** A continuous setting: label and current value on one line, track beneath. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun SliderRow(
-    icon: ImageVector,
+    icon: ImageVector?,
     title: String,
     value: String,
     sliderValue: Float,
@@ -2465,6 +2589,8 @@ internal fun SliderRow(
     valueRange: ClosedFloatingPointRange<Float>,
     steps: Int,
     subtitle: String? = null,
+    startLabel: String? = null,
+    endLabel: String? = null,
 ) {
     val colors = SliderDefaults.colors(
         thumbColor = MaterialTheme.colorScheme.primary,
@@ -2473,12 +2599,16 @@ internal fun SliderRow(
     )
     Column(Modifier.padding(start = ROW_INSET, end = ROW_INSET, top = 12.dp, bottom = 4.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onBackground,
-                modifier = Modifier.size(ICON_SIZE),
-            )
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onBackground,
+                    modifier = Modifier.size(ICON_SIZE),
+                )
+            } else {
+                Spacer(Modifier.size(ICON_SIZE))
+            }
             Spacer(Modifier.width(ICON_GAP))
             Column(Modifier.weight(1f)) {
                 Text(
@@ -2501,25 +2631,49 @@ internal fun SliderRow(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        Slider(
-            value = sliderValue,
-            onValueChange = onSliderValue,
-            valueRange = valueRange,
-            steps = steps,
-            colors = colors,
-            // Bare track: the step ticks and the end-stop dot are noise when the
-            // value is already spelled out on the line above.
-            track = { state ->
-                SliderDefaults.Track(
-                    sliderState = state,
-                    colors = colors,
-                    drawStopIndicator = null,
-                    drawTick = { _, _ -> },
-                )
-            },
-            modifier = Modifier.padding(start = ICON_SIZE + ICON_GAP),
-        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = ICON_SIZE + ICON_GAP),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (startLabel != null) {
+                SliderEndLabel(startLabel)
+                Spacer(Modifier.width(10.dp))
+            }
+            Slider(
+                value = sliderValue,
+                onValueChange = onSliderValue,
+                valueRange = valueRange,
+                steps = steps,
+                colors = colors,
+                // Bare track: the step ticks and the end-stop dot are noise when the
+                // value is already spelled out on the line above.
+                track = { state ->
+                    SliderDefaults.Track(
+                        sliderState = state,
+                        colors = colors,
+                        drawStopIndicator = null,
+                        drawTick = { _, _ -> },
+                    )
+                },
+                modifier = Modifier.weight(1f),
+            )
+            if (endLabel != null) {
+                Spacer(Modifier.width(10.dp))
+                SliderEndLabel(endLabel)
+            }
+        }
     }
+}
+
+@Composable
+private fun SliderEndLabel(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 /** Sign out: centered, accent-coloured, no glyph — the shape of a real one. */

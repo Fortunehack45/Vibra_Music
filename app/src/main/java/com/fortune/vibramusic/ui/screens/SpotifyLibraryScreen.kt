@@ -83,16 +83,15 @@ private const val LOGIN_LAYOUT_FIX = """
 @Composable
 fun SpotifyLibraryScreen(
     onOpenPlaylist: (SpotifyPlaylist) -> Unit,
+    onOpenLogin: () -> Unit,
+    onOpenManualCookie: () -> Unit,
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier,
 ) {
     val cookie by AppSettings.spotifySpdcToken.collectAsStateWithLifecycle()
-    var showLogin by remember { mutableStateOf(false) }
     var playlists by remember { mutableStateOf<List<SpotifyPlaylist>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-
-    BackHandler(enabled = showLogin) { showLogin = false }
 
     LaunchedEffect(cookie) {
         if (cookie.isBlank()) {
@@ -106,17 +105,6 @@ fun SpotifyLibraryScreen(
             .onSuccess { playlists = it }
             .onFailure { error = it.message }
         loading = false
-    }
-
-    if (showLogin) {
-        SpotifyLogin(
-            modifier = modifier.padding(contentPadding),
-            onConnected = { token ->
-                AppSettings.setSpotifySpdcToken(token)
-                showLogin = false
-            },
-        )
-        return
     }
 
     LazyColumn(
@@ -151,12 +139,42 @@ fun SpotifyLibraryScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Spacer(Modifier.height(16.dp))
-                    Button(onClick = { showLogin = true }) {
+                    Button(onClick = onOpenLogin) {
                         Text(stringResource(R.string.spotify_sign_in))
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    androidx.compose.material3.TextButton(onClick = onOpenManualCookie) {
+                        Text(stringResource(R.string.integrate_spotify_canvas))
                     }
                 }
             }
         } else {
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = stringResource(R.string.spotify_library_subtitle),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    androidx.compose.material3.TextButton(
+                        onClick = {
+                            clearSpotifyWebSession()
+                            AppSettings.setSpotifySpdcToken("")
+                        },
+                    ) {
+                        Text(
+                            text = stringResource(R.string.spotify_disconnect),
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                }
+            }
             if (loading) {
                 item {
                     Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
@@ -272,56 +290,74 @@ fun clearSpotifyWebSession() {
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-private fun SpotifyLogin(
+fun SpotifyLoginScreen(
     onConnected: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var sent by remember { mutableStateOf(false) }
+    var webViewError by remember { mutableStateOf<String?>(null) }
+
+    if (webViewError != null) {
+        Box(modifier = modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+            Text(
+                text = "Could not initialize web browser: $webViewError",
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodyLarge,
+            )
+        }
+        return
+    }
+
     AndroidView(
         modifier = modifier.fillMaxSize(),
         factory = { context ->
-            WebView(context).apply {
-                layoutParams = ViewGroup.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                )
-                settings.javaScriptEnabled = true
-                settings.domStorageEnabled = true
-                settings.loadWithOverviewMode = true
-                settings.useWideViewPort = true
-                settings.userAgentString = LOGIN_USER_AGENT
-                if (Build.VERSION.SDK_INT >= 33) {
-                    settings.isAlgorithmicDarkeningAllowed = false
-                } else if (Build.VERSION.SDK_INT >= 29) {
-                    @Suppress("DEPRECATION")
-                    settings.forceDark = WebSettings.FORCE_DARK_OFF
-                }
-                setBackgroundColor(0xFF121212.toInt())
-                CookieManager.getInstance().setAcceptCookie(true)
-                CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
-                webViewClient = object : WebViewClient() {
-                    override fun shouldOverrideUrlLoading(
-                        view: WebView,
-                        request: WebResourceRequest,
-                    ): Boolean = !isLoginHost(request.url)
-
-                    override fun onPageFinished(view: WebView, url: String?) {
-                        if (isSpotifyHost(url?.toUri())) view.evaluateJavascript(LOGIN_LAYOUT_FIX, null)
-                        if (sent || url?.startsWith("https://open.spotify.com") != true) return
-                        val raw = CookieManager.getInstance().getCookie("https://open.spotify.com") ?: return
-                        val token = raw.split(";")
-                            .map { it.trim() }
-                            .firstOrNull { it.startsWith("sp_dc=") }
-                            ?.substringAfter("=")
-                            ?.takeIf { it.isNotBlank() }
-                            ?: return
-                        sent = true
-                        onConnected(token)
+            try {
+                WebView(context).apply {
+                    layoutParams = ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                    )
+                    settings.javaScriptEnabled = true
+                    settings.domStorageEnabled = true
+                    settings.loadWithOverviewMode = true
+                    settings.useWideViewPort = true
+                    settings.userAgentString = LOGIN_USER_AGENT
+                    if (Build.VERSION.SDK_INT >= 33) {
+                        settings.isAlgorithmicDarkeningAllowed = false
+                    } else if (Build.VERSION.SDK_INT >= 29) {
+                        @Suppress("DEPRECATION")
+                        settings.forceDark = WebSettings.FORCE_DARK_OFF
                     }
+                    setBackgroundColor(0xFF121212.toInt())
+                    CookieManager.getInstance().setAcceptCookie(true)
+                    CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+                    webViewClient = object : WebViewClient() {
+                        override fun shouldOverrideUrlLoading(
+                            view: WebView,
+                            request: WebResourceRequest,
+                        ): Boolean = !isLoginHost(request.url)
+
+                        override fun onPageFinished(view: WebView, url: String?) {
+                            if (isSpotifyHost(url?.toUri())) view.evaluateJavascript(LOGIN_LAYOUT_FIX, null)
+                            if (sent || url?.startsWith("https://open.spotify.com") != true) return
+                            val raw = CookieManager.getInstance().getCookie("https://open.spotify.com") ?: return
+                            val token = raw.split(";")
+                                .map { it.trim() }
+                                .firstOrNull { it.startsWith("sp_dc=") }
+                                ?.substringAfter("=")
+                                ?.takeIf { it.isNotBlank() }
+                                ?: return
+                            sent = true
+                            onConnected(token)
+                        }
+                    }
+                    loadUrl(LOGIN_URL)
                 }
-                loadUrl(LOGIN_URL)
+            } catch (e: Throwable) {
+                webViewError = e.message ?: "Failed to initialize WebView"
+                android.view.View(context)
             }
         },
-        onRelease = { it.destroy() },
+        onRelease = { view -> (view as? WebView)?.destroy() },
     )
 }

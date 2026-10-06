@@ -15,7 +15,9 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Vibra Music"
+rootProject.name = "vibramusic"
+include(":shared")
+include(":sharedUi")
+include(":desktopApp")
 include(":app")
-include(":desktop")
  

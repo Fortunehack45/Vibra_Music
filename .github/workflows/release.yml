@@ -203,6 +203,7 @@ jobs:
             - **PC Emulators / Chromebooks**: [`VibraMusic-${{ github.ref_name }}-x86_64.apk`](https://github.com/Fortunehack45/Vibra_Music_Releases/releases/download/${{ github.ref_name }}/VibraMusic-${{ github.ref_name }}-x86_64.apk) — For x86_64 emulators and Chromebooks.
 
             ### Windows Desktop (PC)
+            - **Windows Setup (.exe)**: [`VibraMusic-${{ github.ref_name }}-Windows-Setup.exe`](https://github.com/Fortunehack45/Vibra_Music_Releases/releases/download/${{ github.ref_name }}/VibraMusic-${{ github.ref_name }}-Windows-Setup.exe) — Standard Windows installer.
             - **Windows Installer (.msi)**: [`VibraMusic-${{ github.ref_name }}-Windows-Installer.msi`](https://github.com/Fortunehack45/Vibra_Music_Releases/releases/download/${{ github.ref_name }}/VibraMusic-${{ github.ref_name }}-Windows-Installer.msi) — Install on Windows 10/11 with desktop & start menu shortcuts.
             - **Windows Portable (.zip)**: [`VibraMusic-${{ github.ref_name }}-Windows-Portable.zip`](https://github.com/Fortunehack45/Vibra_Music_Releases/releases/download/${{ github.ref_name }}/VibraMusic-${{ github.ref_name }}-Windows-Portable.zip) — Run directly without installation.
           generate_release_notes: true
@@ -229,6 +230,7 @@ jobs:
             - **PC Emulators / Chromebooks**: [`VibraMusic-${{ github.ref_name }}-x86_64.apk`](https://github.com/Fortunehack45/Vibra_Music_Releases/releases/download/${{ github.ref_name }}/VibraMusic-${{ github.ref_name }}-x86_64.apk) — For x86_64 emulators and Chromebooks.
 
             ### Windows Desktop (PC)
+            - **Windows Setup (.exe)**: [`VibraMusic-${{ github.ref_name }}-Windows-Setup.exe`](https://github.com/Fortunehack45/Vibra_Music_Releases/releases/download/${{ github.ref_name }}/VibraMusic-${{ github.ref_name }}-Windows-Setup.exe) — Standard Windows installer.
             - **Windows Installer (.msi)**: [`VibraMusic-${{ github.ref_name }}-Windows-Installer.msi`](https://github.com/Fortunehack45/Vibra_Music_Releases/releases/download/${{ github.ref_name }}/VibraMusic-${{ github.ref_name }}-Windows-Installer.msi) — Install on Windows 10/11 with desktop & start menu shortcuts.
             - **Windows Portable (.zip)**: [`VibraMusic-${{ github.ref_name }}-Windows-Portable.zip`](https://github.com/Fortunehack45/Vibra_Music_Releases/releases/download/${{ github.ref_name }}/VibraMusic-${{ github.ref_name }}-Windows-Portable.zip) — Run directly without installation.
           generate_release_notes: true

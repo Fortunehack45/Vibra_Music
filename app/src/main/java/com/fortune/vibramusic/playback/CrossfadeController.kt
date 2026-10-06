@@ -1082,8 +1082,11 @@ class CrossfadeController(
         val elapsed = (player.currentPosition - incomingCueTimeMs).coerceAtLeast(0L)
         val progress = (elapsed.toFloat() / span).coerceIn(0f, 1f)
 
-        player.volume = riseGain(progress)
-        out?.volume = fallGain(progress)
+        val rise = riseGain(progress)
+        val fall = fallGain(progress)
+        val trim = blendHeadroom(rise, fall)
+        player.volume = rise * trim
+        out?.volume = fall * trim
         // Only from here, never during ARMING: the standby is silent until the
         // handoff, and [filters] describes the split between the track arriving
         // and the track leaving, which only exists once both are audible.
@@ -1172,13 +1175,15 @@ class CrossfadeController(
     /** Ramps the outgoing track away rather than cutting it, so an interruption has no click in it. */
     private fun driveBail() {
         val progress = ((SystemClock.elapsedRealtime() - bailStartedAt).toFloat() / BAIL_MS).coerceIn(0f, 1f)
-        outgoing?.let { out ->
-            out.volume = bailFromGain * fallGain(progress)
-        }
-        incoming?.let { inc ->
-            inc.volume = bailIncomingFromGain + (1f - bailIncomingFromGain) * progress
-        }
         if (progress < 1f) {
+            val fall = bailFromGain * fallGain(progress)
+            val trim = blendHeadroom(1f, fall)
+            outgoing?.let { out ->
+                out.volume = fall * trim
+            }
+            incoming?.let { inc ->
+                inc.volume = trim
+            }
             return
         }
         finish()
@@ -1213,6 +1218,7 @@ class CrossfadeController(
         filters.open()
         bailFromGain = outgoing?.volume ?: 0f
         bailIncomingFromGain = incoming?.volume ?: 1f
+        incoming?.volume = blendHeadroom(1f, bailFromGain)
         bailStartedAt = SystemClock.elapsedRealtime()
         phase = Phase.BAILING
     }

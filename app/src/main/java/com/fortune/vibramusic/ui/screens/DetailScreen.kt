@@ -119,6 +119,7 @@ import com.fortune.vibramusic.ui.components.SHELF_CARD_WIDTH
 import com.fortune.vibramusic.ui.components.SongRow
 import com.fortune.vibramusic.ui.components.libraryGrid
 import com.fortune.vibramusic.ui.components.lightweightLiquidGlass
+import com.fortune.vibramusic.ui.components.liquidGlassButton
 import com.fortune.vibramusic.ui.components.thumbnailBorder
 import com.fortune.vibramusic.ui.components.detailSkeleton
 import com.fortune.vibramusic.ui.components.topBarContentPadding
@@ -1206,12 +1207,13 @@ private fun PlayPill(
     Row(
         modifier = modifier
             .then(if (iconOnly) Modifier.size(size) else Modifier.height(size))
+            .liquidGlassButton(
+                onClick = onClick,
+                haptic = Haptic.Resume,
+                expandScale = 1.10f,
+            )
             .clip(CircleShape)
             .background(Color.White)
-            .clickable {
-                haptics.play(Haptic.Resume)
-                onClick()
-            }
             .then(if (iconOnly) Modifier else Modifier.padding(horizontal = horizontalPadding)),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
@@ -1235,7 +1237,7 @@ private fun PlayPill(
 
 /**
  * Small circular icon-only button — used for Shuffle and Download flanking the
- * Play pill. Translucent glassy fill, accent-coloured icon.
+ * Play pill. Translucent glassy fill, accent-coloured icon with liquid glass expansion.
  */
 @Composable
 private fun CircleIconButton(
@@ -1246,18 +1248,19 @@ private fun CircleIconButton(
     haptic: Haptic = Haptic.Tap,
     size: Dp = 50.dp,
 ) {
-    val haptics = rememberHaptics()
     Box(
         modifier = Modifier
             .size(size)
+            .liquidGlassButton(
+                onClick = onClick,
+                haptic = haptic,
+                expandScale = 1.14f,
+                pressScale = 0.91f,
+            )
             .lightweightLiquidGlass(
                 shape = CircleShape,
                 fallbackColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f),
-            )
-            .clickable {
-                haptics.play(haptic)
-                onClick()
-            },
+            ),
         contentAlignment = Alignment.Center,
     ) {
         Icon(

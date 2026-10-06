@@ -54,6 +54,12 @@ import com.fortune.vibramusic.data.model.PodcastFeed
 import com.fortune.vibramusic.data.model.PodcastShow
 import com.fortune.vibramusic.data.podcast.PodcastRepository
 import com.fortune.vibramusic.data.settings.SearchHistory
+import com.fortune.vibramusic.data.spotify.SPOTIFY_PAGE_PREFIX
+import com.fortune.vibramusic.data.spotify.SpotifyLibrary
+import com.fortune.vibramusic.data.spotify.SpotifyImporter
+import com.fortune.vibramusic.data.spotify.SpotifyTrack
+import com.fortune.vibramusic.data.model.SPOTIFY_PENDING_PREFIX
+import com.fortune.vibramusic.data.model.SPOTIFY_MISSING_PREFIX
 import com.fortune.vibramusic.download.Downloads
 import android.util.LruCache
 import kotlinx.coroutines.FlowPreview
@@ -1042,6 +1048,93 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 },
                 onFailure = {},
             )
+        }
+    }
+
+    fun createPlaylistWithVideoIds(
+        title: String,
+        privacy: PlaylistPrivacy,
+        videoIds: List<String>,
+        songs: List<Song> = emptyList(),
+        onResult: ((browseId: String?, title: String, savedLocally: Boolean) -> Unit)? = null,
+    ) {
+        val name = title.trim().ifBlank { text(R.string.new_playlist) }
+        viewModelScope.launch {
+            if (_signedIn.value) {
+                val initialBatch = videoIds.take(50)
+                YtMusicRepository.createPlaylist(
+                    title = name,
+                    privacy = privacy,
+                    videoIds = initialBatch,
+                ).fold(
+                    onSuccess = { playlistId ->
+                        if (videoIds.size > 50) {
+                            videoIds.drop(50).chunked(50).forEach { chunk ->
+                                YtMusicRepository.addToPlaylist(playlistId, chunk)
+                            }
+                        }
+                        setPlaylistOwned("VL$playlistId", true)
+                        libraryStale = true
+                        val created = UserPlaylist(
+                            playlistId = playlistId,
+                            title = name,
+                            subtitle = "${videoIds.size} songs",
+                            thumbnailUrl = null,
+                        )
+                        _playlists.value = listOf(created) +
+                            _playlists.value.filterNot { it.playlistId == created.playlistId }
+                        editPlaylistShelf { items ->
+                            listOf(
+                                ShelfItem(
+                                    title = created.title,
+                                    subtitle = created.subtitle,
+                                    thumbnailUrl = created.thumbnailUrl,
+                                    videoId = null,
+                                    browseId = created.browseId,
+                                ),
+                            ) + items.filterNot { it.browseId == created.browseId }
+                        }
+                        onResult?.invoke(created.browseId, created.title, false)
+                    },
+                    onFailure = {
+                        val local = LocalPlaylistsStore.savePlaylist(name, songs)
+                        setPlaylistOwned(local.browseId, true)
+                        libraryStale = true
+                        _playlists.value = listOf(local) +
+                            _playlists.value.filterNot { it.playlistId == local.playlistId }
+                        editPlaylistShelf { items ->
+                            listOf(
+                                ShelfItem(
+                                    title = local.title,
+                                    subtitle = local.subtitle,
+                                    thumbnailUrl = local.thumbnailUrl,
+                                    videoId = null,
+                                    browseId = local.browseId,
+                                ),
+                            ) + items.filterNot { it.browseId == local.browseId }
+                        }
+                        onResult?.invoke(local.browseId, local.title, true)
+                    },
+                )
+            } else {
+                val local = LocalPlaylistsStore.savePlaylist(name, songs)
+                setPlaylistOwned(local.browseId, true)
+                libraryStale = true
+                _playlists.value = listOf(local) +
+                    _playlists.value.filterNot { it.playlistId == local.playlistId }
+                editPlaylistShelf { items ->
+                    listOf(
+                        ShelfItem(
+                            title = local.title,
+                            subtitle = local.subtitle,
+                            thumbnailUrl = local.thumbnailUrl,
+                            videoId = null,
+                            browseId = local.browseId,
+                        ),
+                    ) + items.filterNot { it.browseId == local.browseId }
+                }
+                onResult?.invoke(local.browseId, local.title, true)
+            }
         }
     }
 
@@ -2255,6 +2348,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     companion object {
+        private const val SPOTIFY_MATCH_PARALLELISM = 6
+
         /**
          * How long a keystroke waits before the typeahead is asked about it.
          *
@@ -2371,6 +2466,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         subtitle: String = "",
         thumbnailUrl: String? = null,
         type: BrowseType = BrowseType.OTHER,
+        initialSongs: List<Song>? = null,
     ) {
         // A fast double tap used to push two identical loading pages and launch
         // two identical browse requests. Besides wasting the connection, both
@@ -2378,9 +2474,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         // stack. The page is pushed synchronously, so this closes that window
         // without suppressing a deliberate revisit after the first page loads.
         if (_detailStack.value.lastOrNull()?.let {
-                it.browseId == browseId && it.songs is UiState.Loading
+                it.browseId == browseId && (it.songs is UiState.Loading || (initialSongs != null && it.songs is UiState.Success))
             } == true
         ) return
+        if (browseId.startsWith(SPOTIFY_PAGE_PREFIX)) {
+            openSpotifyPage(browseId, title, subtitle, thumbnailUrl)
+            return
+        }
         val resolved = browseTypeOf(browseId, type)
         if (resolved == BrowseType.PODCAST_SHOW || browseId.startsWith("MPSP")) {
             openPodcastShow(browseId)
@@ -2391,7 +2491,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             title = title,
             subtitle = subtitle,
             thumbnailUrl = thumbnailUrl,
-            songs = UiState.Loading,
+            songs = if (initialSongs != null) UiState.Success(initialSongs) else UiState.Loading,
             type = resolved,
         )
         viewModelScope.launch {
@@ -2518,9 +2618,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }
             // Update by id — the user may have pushed another page meanwhile.
             _detailStack.value = _detailStack.value.map {
-                if (it.browseId == browseId && it.songs is UiState.Loading) {
+                if (it.browseId == browseId && (it.songs is UiState.Loading || (initialSongs != null && it.songs is UiState.Success))) {
+                    val resolvedSongs = when {
+                        state is UiState.Success && state.data.isNotEmpty() -> state
+                        initialSongs != null -> UiState.Success(initialSongs)
+                        else -> state
+                    }
                     it.copy(
-                        songs = state,
+                        songs = resolvedSongs,
                         sections = sections,
                         thumbnailUrl = artwork ?: it.thumbnailUrl,
                         title = name ?: it.title,
@@ -2541,6 +2646,107 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             more?.let { fillIn(browseId, it, thumbnailUrl ?: artwork) }
         }
     }
+
+    private fun openSpotifyPage(
+        browseId: String,
+        title: String,
+        subtitle: String,
+        thumbnailUrl: String?,
+    ) {
+        _detailStack.value += DetailPage(
+            browseId = browseId,
+            title = title,
+            subtitle = subtitle,
+            thumbnailUrl = thumbnailUrl,
+            songs = UiState.Loading,
+            type = BrowseType.PLAYLIST,
+        )
+        viewModelScope.launch {
+            val playlistId = browseId.removePrefix(SPOTIFY_PAGE_PREFIX)
+            fun open() = _detailStack.value.any { it.browseId == browseId }
+            fun setSongs(songs: UiState<List<Song>>) {
+                _detailStack.value = _detailStack.value.map {
+                    if (it.browseId == browseId) it.copy(songs = songs) else it
+                }
+            }
+            launch {
+                val cover = runCatching { SpotifyLibrary.cover(playlistId) }.getOrNull()
+                if (cover != null) {
+                    _detailStack.value = _detailStack.value.map {
+                        if (it.browseId == browseId) it.copy(thumbnailUrl = cover) else it
+                    }
+                }
+            }
+            val tracks = runCatching {
+                SpotifyLibrary.tracks(playlistId) { soFar ->
+                    setSongs(UiState.Success(soFar.map { it.asPendingSong() }))
+                }
+            }.getOrElse {
+                // If SpotifyLibrary.tracks fails (not logged in, expired token, or web API issue),
+                // fall back to public embed extraction via SpotifyImporter
+                runCatching {
+                    val (_, importedTracks, coverUrl) = SpotifyImporter.fetchPlaylistTracks(playlistId)
+                    if (coverUrl != null) {
+                        _detailStack.value = _detailStack.value.map {
+                            if (it.browseId == browseId && it.thumbnailUrl == null) it.copy(thumbnailUrl = coverUrl) else it
+                        }
+                    }
+                    val mappedTracks = importedTracks.mapIndexed { i, t ->
+                        SpotifyTrack(
+                            id = "imp_$i",
+                            title = t.title,
+                            artist = t.artist,
+                            album = "",
+                            durationMs = 0,
+                            imageUrl = thumbnailUrl ?: coverUrl,
+                        )
+                    }
+                    setSongs(UiState.Success(mappedTracks.map { it.asPendingSong() }))
+                    mappedTracks
+                }.getOrElse { fallbackError ->
+                    setSongs(UiState.Error(fallbackError.message ?: it.message ?: text(R.string.failed)))
+                    return@launch
+                }
+            }
+            if (tracks.isEmpty()) {
+                setSongs(UiState.Error(text(R.string.spotify_empty_tracks)))
+                return@launch
+            }
+            setSongs(UiState.Success(tracks.map { it.asPendingSong() }))
+            val gate = Semaphore(SPOTIFY_MATCH_PARALLELISM)
+            coroutineScope {
+                tracks.forEachIndexed { index, track ->
+                    launch {
+                        gate.withPermit {
+                            if (!open()) return@withPermit
+                            val match = runCatching { SpotifyImporter.matchTrack(track) }.getOrNull()
+                            val found = match?.copy(thumbnailUrl = match.thumbnailUrl ?: track.imageUrl)
+                                ?: track.asPendingSong().let {
+                                    it.copy(videoId = SPOTIFY_MISSING_PREFIX + track.id)
+                                }
+                            _detailStack.value = _detailStack.value.map { page ->
+                                val list = (page.songs as? UiState.Success<List<Song>>)?.data
+                                if (page.browseId == browseId && list != null && index < list.size) {
+                                    page.copy(songs = UiState.Success(list.toMutableList().also { it[index] = found }))
+                                } else page
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun SpotifyTrack.asPendingSong() = Song(
+        videoId = SPOTIFY_PENDING_PREFIX + id,
+        title = title,
+        artist = artist,
+        thumbnailUrl = imageUrl,
+        durationText = durationMs.takeIf { it > 0 }?.let { ms ->
+            "%d:%02d".format(ms / 60000, ms / 1000 % 60)
+        },
+        albumName = album,
+    )
 
     fun reloadLocalDetail(browseId: String) {
         viewModelScope.launch {

@@ -1,0 +1,5 @@
+- Fluid liquid glass navigation and elastic tactile button expansion animations.
+- Fixed Library page and section tab rendering stability.
+- Enhanced Spotify Connect with automatic public fallback and instant playlist imports.
+- Redesigned Explore and Library experiences with Cupertino vector icons.
+- Playback fixes for automix end-of-track volume curves and live podcast streams.

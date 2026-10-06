@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.data.innertube
+package com.fortune.vibramusic.data.innertube
 
 import android.content.Context
 import android.content.SharedPreferences
@@ -217,7 +217,7 @@ object InnerTubeXResolver {
         innerTube.locale = YouTubeLocale(gl = "US", hl = Innertube.currentLanguage)
         val stream = extractor.extract(
             videoId = videoId,
-            hints = ContentHints().withStreamCapabilities(allowHls = false, allowSabr = false, allowBoundedRange = true),
+            hints = ContentHints().withStreamCapabilities(allowHls = true, allowSabr = false, allowBoundedRange = true),
             excludedClients = excludedFor(videoId) + skipClients,
             audioQuality = when {
                 requireM4a -> AudioQuality.MP4

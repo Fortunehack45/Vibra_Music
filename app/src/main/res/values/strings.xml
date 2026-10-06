@@ -1264,4 +1264,27 @@
     <string name="support_badge_privacy" translatable="false">No Tracking</string>
     <string name="support_badge_foss" translatable="false">100% Open Source</string>
     <string name="support_thank_you" translatable="false">Thank you for supporting independent software!</string>
+    <string name="import_spotify" translatable="false">Import Spotify</string>
+    <string name="import_spotify_subtitle" translatable="false">From a playlist link</string>
+    <string name="spotify_import_title" translatable="false">Import Spotify playlist</string>
+    <string name="spotify_import_description" translatable="false">Paste a public playlist link. Songs are matched on YouTube Music.</string>
+    <string name="spotify_import_description_local" translatable="false">Paste a public playlist link. Songs are matched on YouTube Music and saved on this device.</string>
+    <string name="spotify_import_hint" translatable="false">open.spotify.com/playlist/…</string>
+    <string name="spotify_import_invalid" translatable="false">That isn\'t a Spotify playlist link.</string>
+    <string name="spotify_import_fetching" translatable="false">Reading the Spotify playlist…</string>
+    <string name="spotify_import_matching" translatable="false">Matching songs %1$d of %2$d</string>
+    <string name="spotify_import_none" translatable="false">None of those songs were found on YouTube Music.</string>
+    <string name="spotify_import_failed" translatable="false">Couldn\'t import the playlist: %1$s</string>
+    <string name="spotify_import_button" translatable="false">Import</string>
+    <string name="spotify_import_local_fallback" translatable="false">Couldn\'t create it on YouTube Music, so \'%1$s\' was saved on this device instead.</string>
+    <string name="spotify_import_done" translatable="false">Imported \'%1$s\'</string>
+    <string name="spotify_import_unmatched" translatable="false">%1$d songs weren\'t found on YouTube Music</string>
+    <string name="local_playlist_subtitle" translatable="false">%1$d songs · On this device</string>
+    <string name="spotify_import_empty_playlist" translatable="false">No songs in this playlist</string>
+    <string name="spotify_library_subtitle" translatable="false">Your Spotify playlists</string>
+    <string name="spotify" translatable="false">Spotify</string>
+    <string name="spotify_connect_subtitle" translatable="false">Connect your Spotify account to browse and import your library</string>
+    <string name="spotify_sign_in" translatable="false">Sign in with Spotify</string>
+    <string name="spotify_empty_tracks" translatable="false">No songs in this playlist</string>
+    <string name="spotify_disconnect" translatable="false">Disconnect Spotify</string>
 </resources>

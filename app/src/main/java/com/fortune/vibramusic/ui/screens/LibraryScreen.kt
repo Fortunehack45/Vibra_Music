@@ -22,8 +22,16 @@ import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Cloud
+import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.Folder
+import androidx.compose.material.icons.rounded.Lan
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -33,10 +41,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -90,6 +100,7 @@ fun LibraryScreen(
     onShelfItemClick: (ShelfItem) -> Unit,
     onShelfItemLongPress: (ShelfItem) -> Unit,
     onNewPlaylist: () -> Unit,
+    onImportSpotifyPlaylist: (() -> Unit)? = null,
     /**
      * A shelf's "Show all" — every shelf's row here stops at five cards (see
      * [LibraryGridShelf]), so this is the only way to reach whatever didn't
@@ -110,38 +121,16 @@ fun LibraryScreen(
     contentPadding: PaddingValues,
     /**
      * The playlists downloaded whole, as cards behind the two device folders.
-     *
-     * They belong on that shelf because they are the same promise everything
-     * else on it makes — here, now, without a network. Nothing is truncated:
-     * the shelf is a row that scrolls, so "all of them" costs nothing.
-     *
-     * Downloaded *albums* are deliberately not here. An album stamps its name
-     * onto each of its tracks, so the Downloads folder's Albums tab groups it
-     * back up on its own and a card here would be a second door onto the same
-     * list. A playlist has no tag anything can derive it from — its tracks are
-     * off forty different releases — so this is the only place it can be reached
-     * without going through that folder.
      */
     downloadedPlaylists: List<SavedCollection> = emptyList(),
     playlists: List<UserPlaylist> = emptyList(),
 ) {
     val pinnedPlaylists by AppSettings.pinnedPlaylists.collectAsStateWithLifecycle()
-    val webdavConfigured by AppSettings.webdavUrl.collectAsStateWithLifecycle()
-    val smbHost by AppSettings.smbHost.collectAsStateWithLifecycle()
-    val smbShare by AppSettings.smbShare.collectAsStateWithLifecycle()
     val onDevice = stringResource(R.string.on_device)
-    val downloadsTitle = stringResource(R.string.downloads)
-    val downloadedSongsSub = stringResource(R.string.downloaded_songs)
-    val localMusicTitle = stringResource(R.string.local_music)
-    val audioFilesSub = stringResource(R.string.audio_files_on_device)
-    val webdavTitle = stringResource(R.string.webdav)
-    val webdavNotConfigured = stringResource(R.string.webdav_not_configured)
-    val webdavSub = stringResource(R.string.webdav_subtitle)
-    val smbTitle = stringResource(R.string.smb)
-    val smbNotConfigured = stringResource(R.string.smb_not_configured)
-    val smbSub = stringResource(R.string.smb_subtitle)
-    val downloadedPlaylistDefaultSub = stringResource(R.string.downloaded_playlist)
     val autoLikedTitle = stringResource(R.string.auto_liked)
+    val downloadedPlaylistDefaultSub = stringResource(R.string.downloaded_playlist)
+
+    val links = libraryLinks()
 
     val localShelf = remember(playlists, pinnedPlaylists, autoLikedTitle) {
         val localList = playlists.filter { it.playlistId.startsWith("local_") }
@@ -167,72 +156,18 @@ fun LibraryScreen(
         baseShelf.pinnedFirst(pinnedPlaylists)
     }
 
-    val onDeviceShelf = remember(
-        onDevice,
-        webdavConfigured,
-        smbHost,
-        smbShare,
-        downloadedPlaylists,
-        downloadsTitle,
-        downloadedSongsSub,
-        localMusicTitle,
-        audioFilesSub,
-        webdavTitle,
-        webdavNotConfigured,
-        webdavSub,
-        smbTitle,
-        smbNotConfigured,
-        smbSub,
-        downloadedPlaylistDefaultSub,
-    ) {
-        val remotes = listOf(
-            Triple(
-                webdavTitle,
-                if (webdavConfigured.isBlank()) webdavNotConfigured else webdavSub,
-                com.fortune.vibramusic.data.webdav.WebDavConfig.BROWSE_ID,
-            ),
-            Triple(
-                smbTitle,
-                if (smbHost.isBlank() || smbShare.isBlank()) smbNotConfigured else smbSub,
-                com.fortune.vibramusic.data.smb.SmbConfig.BROWSE_ID,
-            ),
-        )
-        HomeShelf(
-            title = onDevice,
-            items = listOf(
-                ShelfItem(
-                    title = downloadsTitle,
-                    subtitle = downloadedSongsSub,
-                    thumbnailUrl = null,
-                    videoId = null,
-                    browseId = "local:downloads",
-                ),
-                ShelfItem(
-                    title = localMusicTitle,
-                    subtitle = audioFilesSub,
-                    thumbnailUrl = null,
-                    videoId = null,
-                    browseId = "local:all",
-                ),
-            ) + remotes.map { (title, subtitle, browseId) ->
-                ShelfItem(
-                    title = title,
-                    subtitle = subtitle,
-                    thumbnailUrl = null,
-                    videoId = null,
-                    browseId = browseId,
-                )
-            } + downloadedPlaylists.map { playlist ->
-                ShelfItem(
-                    title = playlist.title,
-                    subtitle = playlist.subtitle.ifBlank { downloadedPlaylistDefaultSub },
-                    thumbnailUrl = playlist.thumbnailUrl,
-                    videoId = null,
-                    browseId = Downloads.pageIdFor(playlist.id),
-                )
-            },
-        )
+    val deviceItems = remember(downloadedPlaylists, downloadedPlaylistDefaultSub) {
+        downloadedPlaylists.map { playlist ->
+            ShelfItem(
+                title = playlist.title,
+                subtitle = playlist.subtitle.ifBlank { downloadedPlaylistDefaultSub },
+                thumbnailUrl = playlist.thumbnailUrl,
+                videoId = null,
+                browseId = Downloads.pageIdFor(playlist.id),
+            )
+        }
     }
+
     PullToRefresh(
         refreshing = refreshing,
         onRefresh = onRefresh,
@@ -271,13 +206,21 @@ fun LibraryScreen(
                     )
                 }
             }
-            item(key = "shelf:$onDevice") {
-                LibraryGridShelf(
-                    shelf = onDeviceShelf,
-                    onItemClick = onShelfItemClick,
-                    onItemLongPress = onShelfItemLongPress,
-                    onShowAll = { onShowAll(onDeviceShelf) },
-                )
+            if (links.isNotEmpty()) {
+                item(key = "links") {
+                    LibraryLinkList(links = links, onClick = onShelfItemClick)
+                }
+            }
+            if (deviceItems.isNotEmpty()) {
+                item(key = "shelf:$onDevice") {
+                    val onDeviceShelf = HomeShelf(title = onDevice, items = deviceItems)
+                    LibraryGridShelf(
+                        shelf = onDeviceShelf,
+                        onItemClick = onShelfItemClick,
+                        onItemLongPress = onShelfItemLongPress,
+                        onShowAll = { onShowAll(onDeviceShelf) },
+                    )
+                }
             }
             if (!signedIn) {
                 item(key = "shelf:$PLAYLISTS") {
@@ -286,6 +229,7 @@ fun LibraryScreen(
                         onItemClick = onShelfItemClick,
                         onItemLongPress = onShelfItemLongPress,
                         onNewPlaylist = onNewPlaylist,
+                        onImportSpotifyPlaylist = onImportSpotifyPlaylist,
                         onShowAll = { onShowAll(localShelf) },
                         pinnedPlaylists = pinnedPlaylists,
                     )
@@ -318,12 +262,13 @@ fun LibraryScreen(
                                 onItemClick = onShelfItemClick,
                                 onItemLongPress = onShelfItemLongPress,
                                 onNewPlaylist = onNewPlaylist,
+                                onImportSpotifyPlaylist = onImportSpotifyPlaylist,
                                 onShowAll = { onShowAll(emptyPlaylists) },
                             )
                         }
                     }
-                    shelves.forEach { shelf ->
-                        item(key = "shelf:${shelf.title}") {
+                    shelves.forEachIndexed { index, shelf ->
+                        item(key = "shelf:${shelf.title}_$index") {
                             if (shelf.title == PLAYLISTS) {
                                 val pinnedFirst = shelf.pinnedFirst(pinnedPlaylists)
                                 PlaylistShelf(
@@ -331,6 +276,7 @@ fun LibraryScreen(
                                     onItemClick = onShelfItemClick,
                                     onItemLongPress = onShelfItemLongPress,
                                     onNewPlaylist = onNewPlaylist,
+                                    onImportSpotifyPlaylist = onImportSpotifyPlaylist,
                                     onShowAll = { onShowAll(pinnedFirst) },
                                     pinnedPlaylists = pinnedPlaylists,
                                 )
@@ -448,6 +394,126 @@ private fun ReplayBanner(card: ReplayHeroCard?, onClick: () -> Unit) {
     }
 }
 
+/** One of the Library's folder rows: the page [item] opens, behind [icon] or [logo]. */
+data class LibraryLink(val item: ShelfItem, val icon: ImageVector, val logo: Int? = null)
+
+const val SPOTIFY_BROWSE_ID = "app:spotify"
+
+@Composable
+fun libraryLinks(): List<LibraryLink> {
+    val webdavConfigured by AppSettings.webdavUrl.collectAsStateWithLifecycle()
+    val smbHost by AppSettings.smbHost.collectAsStateWithLifecycle()
+    val smbShare by AppSettings.smbShare.collectAsStateWithLifecycle()
+    val spotifyConnected by AppSettings.spotifySpdcToken.collectAsStateWithLifecycle()
+    fun link(icon: ImageVector, title: String, subtitle: String, browseId: String, logo: Int? = null) = LibraryLink(
+        item = ShelfItem(
+            title = title,
+            subtitle = subtitle,
+            thumbnailUrl = null,
+            videoId = null,
+            browseId = browseId,
+        ),
+        icon = icon,
+        logo = logo,
+    )
+    return listOfNotNull(
+        link(
+            Icons.Rounded.Download,
+            stringResource(R.string.downloads),
+            stringResource(R.string.downloaded_songs),
+            "local:downloads",
+        ),
+        link(
+            Icons.Rounded.Folder,
+            stringResource(R.string.local_music),
+            stringResource(R.string.audio_files_on_device),
+            "local:all",
+        ),
+        link(
+            Icons.Rounded.Cloud,
+            stringResource(R.string.webdav),
+            stringResource(R.string.webdav_subtitle),
+            com.fortune.vibramusic.data.webdav.WebDavConfig.BROWSE_ID,
+        ).takeIf { webdavConfigured.isNotBlank() },
+        link(
+            Icons.Rounded.Lan,
+            stringResource(R.string.smb),
+            stringResource(R.string.smb_subtitle),
+            com.fortune.vibramusic.data.smb.SmbConfig.BROWSE_ID,
+        ).takeIf { smbHost.isNotBlank() && smbShare.isNotBlank() },
+        link(
+            Icons.Rounded.Cloud,
+            stringResource(R.string.spotify),
+            if (spotifyConnected.isNotBlank()) stringResource(R.string.spotify_library_subtitle)
+            else stringResource(R.string.spotify_connect_subtitle),
+            SPOTIFY_BROWSE_ID,
+            logo = R.drawable.ic_spotify,
+        ),
+    )
+}
+
+/**
+ * The folders as a plain list — icon, name, chevron, hairlines between — the
+ * way a music app's library has always opened, rather than as cards that all
+ * look alike because none of them has artwork.
+ */
+@Composable
+private fun LibraryLinkList(links: List<LibraryLink>, onClick: (ShelfItem) -> Unit) {
+    Column(Modifier.padding(top = 4.dp, bottom = 22.dp)) {
+        links.forEachIndexed { index, link ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 54.dp)
+                    .clickable { onClick(link.item) }
+                    .padding(horizontal = PAGE_GUTTER),
+            ) {
+                if (link.logo != null) {
+                    Icon(
+                        painter = painterResource(link.logo),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onBackground,
+                        modifier = Modifier.size(LINK_ICON_SIZE),
+                    )
+                } else {
+                    Icon(
+                        imageVector = link.icon,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(LINK_ICON_SIZE),
+                    )
+                }
+                Spacer(Modifier.width(LINK_ICON_GAP))
+                Text(
+                    text = link.item.title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                Icon(
+                    imageVector = VibraMusicIcons.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .6f),
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+            if (index < links.lastIndex) {
+                HorizontalDivider(
+                    modifier = Modifier.padding(start = PAGE_GUTTER + LINK_ICON_SIZE + LINK_ICON_GAP),
+                    thickness = 0.5.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant,
+                )
+            }
+        }
+    }
+}
+
+private val LINK_ICON_SIZE = 24.dp
+private val LINK_ICON_GAP = 16.dp
+
 /**
  * The one shelf on this page that can be written to: it leads with the tile
  * that creates a playlist, and holding a card gets rename and delete on top of
@@ -459,22 +525,36 @@ private fun PlaylistShelf(
     onItemClick: (ShelfItem) -> Unit,
     onItemLongPress: (ShelfItem) -> Unit,
     onNewPlaylist: () -> Unit,
+    onImportSpotifyPlaylist: (() -> Unit)? = null,
     onShowAll: () -> Unit,
     pinnedPlaylists: List<String> = emptyList(),
 ) {
+    val leadingCount = if (onImportSpotifyPlaylist != null) 2 else 1
     LibraryGridShelf(
         shelf = shelf,
         onItemClick = onItemClick,
         onItemLongPress = onItemLongPress,
         onShowAll = onShowAll,
         pinnedPlaylists = pinnedPlaylists,
+        leadingCountOverride = leadingCount,
         leadingCard = {
-            NewShelfCard(
-                icon = VibraMusicIcons.Plus,
-                label = stringResource(R.string.new_playlist),
-                subtitle = stringResource(R.string.saved_to_youtube_music),
-                onClick = onNewPlaylist,
-            )
+            Row(horizontalArrangement = Arrangement.spacedBy(LIBRARY_GRID_SPACING)) {
+                NewShelfCard(
+                    icon = VibraMusicIcons.Plus,
+                    label = stringResource(R.string.new_playlist),
+                    subtitle = stringResource(R.string.saved_to_youtube_music),
+                    onClick = onNewPlaylist,
+                )
+                if (onImportSpotifyPlaylist != null) {
+                    NewShelfCard(
+                        icon = VibraMusicIcons.Download,
+                        label = stringResource(R.string.import_spotify),
+                        subtitle = stringResource(R.string.import_spotify_subtitle),
+                        onClick = onImportSpotifyPlaylist,
+                        logo = R.drawable.ic_spotify,
+                    )
+                }
+            }
         },
     )
 }
@@ -500,8 +580,9 @@ internal fun LibraryGridShelf(
     onShowAll: () -> Unit,
     leadingCard: (@Composable () -> Unit)? = null,
     pinnedPlaylists: List<String> = emptyList(),
+    leadingCountOverride: Int? = null,
 ) {
-    val leadingCount = if (leadingCard != null) 1 else 0
+    val leadingCount = leadingCountOverride ?: if (leadingCard != null) 1 else 0
     val visibleItems = remember(shelf.items, leadingCount) {
         shelf.items.take((LIBRARY_ROW_MAX_ITEMS - leadingCount).coerceAtLeast(0))
     }
@@ -516,7 +597,7 @@ internal fun LibraryGridShelf(
             horizontalArrangement = Arrangement.spacedBy(LIBRARY_GRID_SPACING),
         ) {
             leadingCard?.let { card -> item(key = "leading") { card() } }
-            items(visibleItems, key = { it.browseId ?: it.title }) { item ->
+            itemsIndexed(visibleItems, key = { index, item -> "${item.browseId ?: item.title}_$index" }) { _, item ->
                 ShelfCard(
                     item = item,
                     onClick = { onItemClick(item) },
@@ -541,6 +622,7 @@ fun LibraryGridPage(
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier,
     onNewPlaylist: (() -> Unit)? = null,
+    onImportSpotifyPlaylist: (() -> Unit)? = null,
 ) {
     // Re-read live rather than trusting [shelf] to already be sorted: this page
     // is opened from a snapshot (see `libraryShowAll` in MainActivity), and a
@@ -565,7 +647,7 @@ fun LibraryGridPage(
             modifier = Modifier.padding(horizontal = PAGE_GUTTER),
         ) {
             if (onNewPlaylist != null) {
-                item(key = "leading") {
+                item(key = "leading:new") {
                     NewShelfCard(
                         icon = VibraMusicIcons.Plus,
                         label = stringResource(R.string.new_playlist),
@@ -575,7 +657,23 @@ fun LibraryGridPage(
                     )
                 }
             }
-            gridItems(sortedShelf.items, key = { it.browseId ?: it.title }) { item ->
+            if (onImportSpotifyPlaylist != null) {
+                item(key = "leading:spotify") {
+                    NewShelfCard(
+                        icon = VibraMusicIcons.Download,
+                        label = stringResource(R.string.import_spotify),
+                        subtitle = stringResource(R.string.import_spotify_subtitle),
+                        onClick = onImportSpotifyPlaylist,
+                        logo = R.drawable.ic_spotify,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+            items(
+                count = sortedShelf.items.size,
+                key = { index -> "${sortedShelf.items[index].browseId ?: sortedShelf.items[index].title}_$index" },
+            ) { index ->
+                val item = sortedShelf.items[index]
                 ShelfCard(
                     item = item,
                     onClick = { onItemClick(item) },

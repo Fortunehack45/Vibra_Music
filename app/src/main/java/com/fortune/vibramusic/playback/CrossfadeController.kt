@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.playback
+package com.fortune.vibramusic.playback
 
 import android.os.SystemClock
 import android.util.Log
@@ -334,6 +334,7 @@ class CrossfadeController(
      * out starts from where it actually is rather than from full volume.
      */
     private var bailFromGain = 0f
+    private var bailIncomingFromGain = 1f
 
     /** Dedupes the per-tick plan log down to one line per distinct verdict. */
     private var lastPlanVerdict = ""
@@ -388,7 +389,12 @@ class CrossfadeController(
                 // does *not* fire when AutoPlay appends to the end, since the
                 // playing item doesn't change: extending the queue mid-fade is
                 // harmless and shouldn't cost the listener the blend.
-                Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED -> bail()
+                Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED -> {
+                    val current = (incoming ?: outgoing)?.currentMediaItem
+                    if (mediaItem != null && current != null && mediaItem.mediaId != current.mediaId) {
+                        bail()
+                    }
+                }
                 Player.MEDIA_ITEM_TRANSITION_REASON_SEEK -> bail()
             }
         }
@@ -1051,8 +1057,8 @@ class CrossfadeController(
      * while the other waits.
      */
     private fun driveFade() {
-        val out = outgoing ?: return bail()
         val player = incoming ?: return bail()
+        val out = outgoing
         // The incoming track gets the same say over the length as the outgoing
         // one did, so a long crossfade into a short track tightens rather than
         // swallowing it. Its duration is often still unknown when the fade
@@ -1077,14 +1083,21 @@ class CrossfadeController(
         val progress = (elapsed.toFloat() / span).coerceIn(0f, 1f)
 
         player.volume = riseGain(progress)
-        out.volume = fallGain(progress)
+        out?.volume = fallGain(progress)
         // Only from here, never during ARMING: the standby is silent until the
         // handoff, and [filters] describes the split between the track arriving
         // and the track leaving, which only exists once both are audible.
         rideFilters(progress)
 
-        // Whichever comes first: the fade running its course, the old track
-        // genuinely ending, the tail failing outright, or whichever setting
+        // When the outgoing player finishes its audio tail early, retire it
+        // silently without cutting short the incoming track's rising curve.
+        if (out != null && (out.playbackState == Player.STATE_ENDED || out.playbackState == Player.STATE_IDLE)) {
+            out.volume = 0f
+            retire(out)
+            outgoing = null
+        }
+
+        // Whichever comes first: the fade running its course or whichever setting
         // armed this fade being switched off mid-blend. Checked against the
         // setting that actually started it — a Automix normally runs with
         // [configuredFadeMs] at zero, and reading that as "turned off" would
@@ -1094,10 +1107,7 @@ class CrossfadeController(
         } else {
             configuredFadeMs() <= 0L
         }
-        val done = progress >= 1f ||
-            out.playbackState == Player.STATE_ENDED ||
-            out.playbackState == Player.STATE_IDLE ||
-            settingSwitchedOff
+        val done = progress >= 1f || settingSwitchedOff
         if (done) finish()
     }
 
@@ -1161,14 +1171,14 @@ class CrossfadeController(
 
     /** Ramps the outgoing track away rather than cutting it, so an interruption has no click in it. */
     private fun driveBail() {
-        val out = outgoing
-        if (out == null) {
-            finish()
-            return
-        }
-        val progress = (SystemClock.elapsedRealtime() - bailStartedAt).toFloat() / BAIL_MS
-        if (progress < 1f) {
+        val progress = ((SystemClock.elapsedRealtime() - bailStartedAt).toFloat() / BAIL_MS).coerceIn(0f, 1f)
+        outgoing?.let { out ->
             out.volume = bailFromGain * fallGain(progress)
+        }
+        incoming?.let { inc ->
+            inc.volume = bailIncomingFromGain + (1f - bailIncomingFromGain) * progress
+        }
+        if (progress < 1f) {
             return
         }
         finish()
@@ -1201,8 +1211,8 @@ class CrossfadeController(
         // currently lifted out. Dropping a 24 dB/octave filter in one buffer is
         // the click this ramp exists to avoid.
         filters.open()
-        incoming?.volume = 1f
         bailFromGain = outgoing?.volume ?: 0f
+        bailIncomingFromGain = incoming?.volume ?: 1f
         bailStartedAt = SystemClock.elapsedRealtime()
         phase = Phase.BAILING
     }

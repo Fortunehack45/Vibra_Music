@@ -22,6 +22,8 @@ import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
@@ -101,6 +103,10 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -220,8 +226,14 @@ import com.fortune.vibramusic.ui.components.backdrop.backdrops.rememberLayerBack
 import com.fortune.vibramusic.ui.components.isGlassSupported
 import com.fortune.vibramusic.ui.components.GLASS_EDGE_COLOR
 import com.fortune.vibramusic.ui.components.GLASS_EDGE_WIDTH
+import com.fortune.vibramusic.ui.components.GlassSpring
+import com.fortune.vibramusic.ui.components.STRETCH
+import com.fortune.vibramusic.ui.components.SQUASH
 import com.fortune.vibramusic.ui.components.glassContentColor
 import com.fortune.vibramusic.ui.components.liquidGlass
+import com.fortune.vibramusic.ui.haptics.Haptic
+import com.fortune.vibramusic.ui.haptics.rememberHaptics
+import kotlin.math.abs
 import com.fortune.vibramusic.data.sources.SourceConfig
 import com.fortune.vibramusic.data.sources.SourceKind
 import com.fortune.vibramusic.data.sources.SourceRegistry
@@ -251,6 +263,11 @@ import com.fortune.vibramusic.ui.screens.LocalMusicScreen
 import com.fortune.vibramusic.ui.screens.HomeScreen
 import com.fortune.vibramusic.ui.screens.LibraryGridPage
 import com.fortune.vibramusic.ui.screens.LibraryScreen
+import com.fortune.vibramusic.ui.screens.SPOTIFY_BROWSE_ID
+import com.fortune.vibramusic.ui.screens.SpotifyLibraryScreen
+import com.fortune.vibramusic.ui.components.SpotifyImportAlert
+import com.fortune.vibramusic.data.spotify.SPOTIFY_PAGE_PREFIX
+import com.fortune.vibramusic.data.model.isUnresolvedSpotify
 import com.fortune.vibramusic.ui.screens.MoodGenrePlaylistsScreen
 import com.fortune.vibramusic.ui.screens.PodcastScreen
 import com.fortune.vibramusic.ui.screens.PodcastShowScreen
@@ -473,6 +490,8 @@ private fun VibraMusicApp(
     var showListenTogether by remember { mutableStateOf(false) }
     var showEqualizer by remember { mutableStateOf(false) }
     var showSpotifyCanvasAuth by remember { mutableStateOf(false) }
+    var showSpotifyLibrary by rememberSaveable { mutableStateOf(false) }
+    var showSpotifyImportDialog by rememberSaveable { mutableStateOf(false) }
 
     // Hosted here rather than inside SourcesScreen so its frosted card has
     // something to blur: that screen is drawn inside the `hazeSource` subtree,
@@ -977,10 +996,10 @@ private fun VibraMusicApp(
     val tabs = remember(homeLabel, exploreLabel, podcastsLabel, libraryLabel, searchLabel) {
         listOf(
             BottomTab(homeLabel, VibraMusicIcons.Home),
-            BottomTab(exploreLabel, VibraMusicIcons.Explore),
+            BottomTab(exploreLabel, VibraMusicIcons.TabExplore),
             BottomTab(podcastsLabel, VibraMusicIcons.Podcasts),
-            BottomTab(libraryLabel, VibraMusicIcons.Library),
-            BottomTab(searchLabel, VibraMusicIcons.Search),
+            BottomTab(libraryLabel, VibraMusicIcons.TabLibrary),
+            BottomTab(searchLabel, VibraMusicIcons.TabSearch),
         )
     }
 
@@ -1137,7 +1156,13 @@ private fun VibraMusicApp(
         }
     }
 
-    val playFrom: (List<Song>, Int, QueueSource) -> Unit = { songs, index, source ->
+    val playFrom: (List<Song>, Int, QueueSource) -> Unit = playFrom@ { rawSongs, rawIndex, source ->
+        if (rawSongs.getOrNull(rawIndex)?.isUnresolvedSpotify == true) return@playFrom
+        val songs = rawSongs.filterNot { it.isUnresolvedSpotify }
+        val index = if (songs.size == rawSongs.size) rawIndex else {
+            val target = rawSongs.getOrNull(rawIndex)
+            songs.indexOfFirst { it.videoId == target?.videoId }.coerceAtLeast(0)
+        }
         playRequestGeneration++
         activeRadioSeed = null
         scope.launch {
@@ -1786,6 +1811,10 @@ private fun VibraMusicApp(
     // card opens the same way from either.
     val onLibraryItemClick: (ShelfItem) -> Unit = { item ->
         item.browseId?.let { id ->
+            if (id == SPOTIFY_BROWSE_ID) {
+                showSpotifyLibrary = true
+                return@let
+            }
             if (id == "local:all" && !LocalMediaRepository.hasStoragePermission(context)) {
                 val perm = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     Manifest.permission.READ_MEDIA_AUDIO
@@ -2336,6 +2365,7 @@ private fun VibraMusicApp(
         BackHandler(enabled = editingSource != null) { editingSource = null }
         BackHandler(enabled = editingPartyServer) { editingPartyServer = false }
         BackHandler(enabled = showHistory) { showHistory = false }
+        BackHandler(enabled = showSpotifyLibrary && detail == null) { showSpotifyLibrary = false }
         // Disabled while a detail page is open over the grid: that one's own
         // BackHandler below has to close first, or back would skip past it
         // straight to Library. See [onLibraryItemClick].
@@ -2351,6 +2381,7 @@ private fun VibraMusicApp(
             Box(Modifier.weight(1f).fillMaxHeight()) {
                 AnimatedContent(
                     targetState = when {
+                        showSpotifyLibrary && detail == null -> "spotify_library"
                         showDiscord -> "discord"
                         showHistory -> "history"
                         // `&& detail == null`: a card opened from the grid
@@ -2449,7 +2480,20 @@ private fun VibraMusicApp(
                     val held = remember(key) { mutableStateOf(live) }
                     if (live != null) held.value = live
                     val page = held.value
-                    if (key == "history") {
+                    if (key == "spotify_library") {
+                        SpotifyLibraryScreen(
+                            onOpenPlaylist = { playlist ->
+                                viewModel.openDetail(
+                                    browseId = SPOTIFY_PAGE_PREFIX + playlist.id,
+                                    title = playlist.name,
+                                    subtitle = playlist.owner ?: context.getString(R.string.spotify),
+                                    thumbnailUrl = playlist.imageUrl,
+                                    type = BrowseType.PLAYLIST,
+                                )
+                            },
+                            contentPadding = listPadding,
+                        )
+                    } else if (key == "history") {
                         HistoryScreen(
                             state = historyState,
                             listState = historyListState,
@@ -2473,6 +2517,11 @@ private fun VibraMusicApp(
                                 // [PlaylistShelf].
                                 onNewPlaylist = if (shelf.title == YtMusicRepository.PLAYLISTS_SHELF) {
                                     { creatingPlaylist = true }
+                                } else {
+                                    null
+                                },
+                                onImportSpotifyPlaylist = if (shelf.title == YtMusicRepository.PLAYLISTS_SHELF) {
+                                    { showSpotifyImportDialog = true }
                                 } else {
                                     null
                                 },
@@ -2535,6 +2584,7 @@ private fun VibraMusicApp(
                             onOpenListenBrainzLogin = { showListenBrainzLogin = true },
                             onOpenLastfmLogin = { showLastfmLogin = true },
                             onOpenDiscord = { showDiscord = true },
+                            onOpenSpotify = { showSpotifyLibrary = true },
                             contentPadding = listPadding,
                         )
                     } else if (key == "sources") {
@@ -3057,6 +3107,7 @@ private fun VibraMusicApp(
                             // does nothing; see [onBrowseLongPress].
                             onShelfItemLongPress = onBrowseLongPress,
                             onNewPlaylist = { creatingPlaylist = true },
+                            onImportSpotifyPlaylist = { showSpotifyImportDialog = true },
                             onShowAll = { shelf -> libraryShowAll = shelf },
                             replayCards = replayCards,
                             replayHolder = account?.name.orEmpty(),
@@ -3086,9 +3137,9 @@ private fun VibraMusicApp(
                         detail.type == BrowseType.PLAYLIST ||
                         detail.type == BrowseType.ARTIST) &&
                     !isLocalDetail) || podcastShow != null) &&
-                    !showDiscord && !showHistory && !showSettings &&
+                    !showSpotifyLibrary && !showDiscord && !showHistory && !showSettings &&
                     !showAccountScrobbling && !showSources && !showListenTogether && !showEqualizer && !showReplay
-                val isReplayVisible = showReplay && !showDiscord && !showHistory &&
+                val isReplayVisible = showReplay && !showSpotifyLibrary && !showDiscord && !showHistory &&
                     !(libraryShowAll != null && detail == null) &&
                     !showAccountScrobbling && !showSources && !showListenTogether &&
                     !showEqualizer && !showSettings
@@ -3119,6 +3170,7 @@ private fun VibraMusicApp(
 
                 FrostedTopBar(
                     title = when {
+                        showSpotifyLibrary && detail == null -> stringResource(R.string.spotify)
                         showDiscord -> "Discord"
                         showHistory -> stringResource(R.string.history)
                         libraryShowAll != null && detail == null -> libraryShowAll?.title.orEmpty()
@@ -3143,7 +3195,8 @@ private fun VibraMusicApp(
                     // Search has no large in-list header to hand the title back to —
                     // the field takes that space — so its bar title is always up.
                     scrolled = when {
-                        showSettings || showAccountScrobbling || showSources || showListenTogether ||
+                        (showSpotifyLibrary && detail == null) ||
+                            showSettings || showAccountScrobbling || showSources || showListenTogether ||
                             showEqualizer ||
                             showDiscord || showHistory ||
                             (libraryShowAll != null && detail == null) ||
@@ -3159,6 +3212,7 @@ private fun VibraMusicApp(
                     refreshing = currentFeed != null && currentFeed in refreshing,
                     pullFraction = { currentPull?.distanceFraction ?: 0f },
                     onBack = when {
+                        showSpotifyLibrary && detail == null -> ({ showSpotifyLibrary = false })
                         showDiscord -> ({ showDiscord = false })
                         showHistory -> ({ showHistory = false })
                         libraryShowAll != null && detail == null -> ({ libraryShowAll = null })
@@ -3259,7 +3313,7 @@ private fun VibraMusicApp(
                             // Left of the account photo, and only on Library itself:
                             // a history is a record of what was played, which reads
                             // as that tab's business rather than every tab's.
-                            if (!showHistory && !showReplay && !showDiscord && libraryShowAll == null &&
+                            if (!showHistory && !showSpotifyLibrary && !showReplay && !showDiscord && libraryShowAll == null &&
                                 detail == null && selectedTab == TAB_LIBRARY
                             ) {
                                 IconButton(
@@ -3375,6 +3429,7 @@ private fun VibraMusicApp(
                     showEqualizer = false
                     showReplay = false
                     showHistory = false
+                    showSpotifyLibrary = false
                     libraryShowAll = null
                     selectedTab = index
 
@@ -4216,6 +4271,39 @@ private fun VibraMusicApp(
             )
         }
 
+        if (showSpotifyImportDialog) {
+            BackHandler { showSpotifyImportDialog = false }
+            SpotifyImportAlert(
+                hazeState = hazeState,
+                signedIn = signedIn,
+                onImported = { title, privacy, songs ->
+                    viewModel.createPlaylistWithVideoIds(
+                        title = title,
+                        privacy = privacy,
+                        videoIds = songs.map { it.videoId },
+                        songs = songs,
+                    ) { browseId, pTitle, savedLocally ->
+                        val text = context.getString(
+                            if (savedLocally && signedIn) R.string.spotify_import_local_fallback
+                            else R.string.spotify_import_done,
+                            pTitle,
+                        )
+                        showQueueNotice(text)
+                        browseId?.let { id ->
+                            viewModel.openDetail(
+                                browseId = id,
+                                title = pTitle,
+                                subtitle = "${songs.size} songs",
+                                thumbnailUrl = songs.firstOrNull()?.thumbnailUrl,
+                                initialSongs = songs,
+                            )
+                        }
+                    }
+                },
+                onDismiss = { showSpotifyImportDialog = false },
+            )
+        }
+
         if (songSortMenuOpen) {
             BackHandler { songSortMenuOpen = false }
             FrostedSortMenu(
@@ -4584,7 +4672,9 @@ private fun FrostedSortMenu(
     val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
     val useLiquidGlass = LocalLiquidGlassEnabled.current && isGlassSupported()
     val isGlassActive = useLiquidGlass && !reduceDynamicBlur
+    val reduceAnimation by AppSettings.reduceAnimation.collectAsStateWithLifecycle()
     val shape = RoundedCornerShape(22.dp)
+    val haptics = rememberHaptics()
 
     val scrimColor = if (isGlassActive) {
         Color.Black.copy(alpha = 0.28f)
@@ -4604,6 +4694,46 @@ private fun FrostedSortMenu(
         MaterialTheme.colorScheme.primary
     }
 
+    var appeared by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { appeared = true }
+    val menuScale by animateFloatAsState(
+        targetValue = if (appeared) 1f else 0.72f,
+        animationSpec = if (reduceAnimation) snap() else spring(dampingRatio = 0.72f, stiffness = 420f),
+        label = "sortMenuScale",
+    )
+    val menuAlpha by animateFloatAsState(
+        targetValue = if (appeared) 1f else 0f,
+        animationSpec = tween(150),
+        label = "sortMenuAlpha",
+    )
+
+    val selectedIndex = when (selected) {
+        SongSort.DATE_ADDED_ASC, SongSort.DATE_ADDED_DESC -> 0
+        SongSort.DEFAULT -> 1
+        SongSort.TITLE_ASC -> 2
+        SongSort.TITLE_DESC -> 3
+    }
+
+    var itemTops by remember { mutableStateOf(emptyMap<Int, Float>()) }
+    var itemHeights by remember { mutableStateOf(emptyMap<Int, Float>()) }
+    val targetTopPx = itemTops[selectedIndex] ?: 0f
+    val targetHeightPx = itemHeights[selectedIndex] ?: with(LocalDensity.current) { 44.dp.toPx() }
+
+    val animatedPillTop by animateFloatAsState(
+        targetValue = targetTopPx,
+        animationSpec = if (reduceAnimation) snap() else GlassSpring,
+        label = "sortPillTop",
+    )
+    val animatedPillHeight by animateFloatAsState(
+        targetValue = targetHeightPx,
+        animationSpec = if (reduceAnimation) snap() else GlassSpring,
+        label = "sortPillHeight",
+    )
+
+    val lag = if (targetHeightPx > 0f) {
+        (abs(targetTopPx - animatedPillTop) / targetHeightPx).coerceIn(0f, 1f)
+    } else 0f
+
     Box(
         Modifier
             .fillMaxSize()
@@ -4618,6 +4748,12 @@ private fun FrostedSortMenu(
             modifier = Modifier
                 .padding(top = 56.dp, end = 20.dp)
                 .width(IntrinsicSize.Max)
+                .graphicsLayer {
+                    scaleX = menuScale
+                    scaleY = menuScale
+                    alpha = menuAlpha
+                    transformOrigin = TransformOrigin(0.92f, 0.05f)
+                }
                 .clip(shape)
                 .then(
                     when {
@@ -4637,56 +4773,114 @@ private fun FrostedSortMenu(
                 )
                 .clickable(onClick = {}),
         ) {
-            Column(Modifier.padding(vertical = 8.dp, horizontal = 4.dp)) {
-                // Date added is one row, Spotify-style: the arrow on it shows
-                // the direction — up for newest first, down for oldest — and
-                // tapping flips it, the rotation animating the flip. Up is
-                // also where a fresh activation lands, newest first being the
-                // point of the feature.
-                val dateActive = selected == SongSort.DATE_ADDED_ASC ||
-                    selected == SongSort.DATE_ADDED_DESC
-                val arrowRotation by animateFloatAsState(
-                    targetValue = if (selected == SongSort.DATE_ADDED_ASC) 180f else 0f,
-                    animationSpec = tween(durationMillis = 200),
-                    label = "dateAddedArrow",
-                )
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 48.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(if (dateActive && isGlassActive) Color.White.copy(alpha = 0.10f) else Color.Transparent)
-                        .clickable(role = Role.Button) { onFlipDateDirection() }
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        stringResource(R.string.sort_date_added_toggle),
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = if (dateActive) FontWeight.Bold else FontWeight.Medium,
-                        color = if (dateActive) activeColor else contentColor.copy(alpha = 0.85f),
-                        modifier = Modifier.weight(1f),
+            Box(Modifier.padding(vertical = 8.dp, horizontal = 4.dp)) {
+                // Traveling Liquid Glass Selection Pill
+                if (itemTops.containsKey(selectedIndex)) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(with(LocalDensity.current) { animatedPillHeight.toDp() })
+                            .graphicsLayer {
+                                translationY = animatedPillTop
+                                scaleY = 1f + lag * STRETCH
+                                scaleX = 1f - lag * STRETCH * SQUASH
+                            }
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(
+                                if (isGlassActive) Color.White.copy(alpha = 0.16f)
+                                else MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
+                            )
+                            .border(
+                                GLASS_EDGE_WIDTH,
+                                if (isGlassActive) Color.White.copy(alpha = 0.30f)
+                                else MaterialTheme.colorScheme.primary.copy(alpha = 0.25f),
+                                RoundedCornerShape(14.dp)
+                            ),
                     )
-                    if (dateActive) {
-                        Icon(
-                            Icons.Rounded.ArrowUpward,
-                            contentDescription = null,
-                            tint = activeColor,
-                            modifier = Modifier.rotate(arrowRotation),
-                        )
-                    }
                 }
-                SongSort.entries
-                    .filter { it != SongSort.DATE_ADDED_ASC && it != SongSort.DATE_ADDED_DESC }
-                    .forEach { option ->
+
+                Column {
+                    // Date added is one row, Spotify-style: the arrow on it shows
+                    // the direction - up for newest first, down for oldest - and
+                    // tapping flips it, the rotation animating the flip.
+                    val dateActive = selected == SongSort.DATE_ADDED_ASC ||
+                        selected == SongSort.DATE_ADDED_DESC
+                    val arrowRotation by animateFloatAsState(
+                        targetValue = if (selected == SongSort.DATE_ADDED_ASC) 180f else 0f,
+                        animationSpec = tween(durationMillis = 200),
+                        label = "dateAddedArrow",
+                    )
+                    val dateScale by animateFloatAsState(
+                        targetValue = if (dateActive) 1.03f else 1f,
+                        animationSpec = GlassSpring,
+                        label = "dateScale",
+                    )
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .onGloballyPositioned { coords ->
+                                val top = coords.positionInParent().y
+                                val height = coords.size.height.toFloat()
+                                itemTops = itemTops + (0 to top)
+                                itemHeights = itemHeights + (0 to height)
+                            }
+                            .clip(RoundedCornerShape(14.dp))
+                            .clickable(role = Role.Button) {
+                                haptics.play(Haptic.Select)
+                                onFlipDateDirection()
+                            }
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            stringResource(R.string.sort_date_added_toggle),
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = if (dateActive) FontWeight.Bold else FontWeight.Medium,
+                            color = if (dateActive) activeColor else contentColor.copy(alpha = 0.85f),
+                            modifier = Modifier
+                                .weight(1f)
+                                .graphicsLayer {
+                                    scaleX = dateScale
+                                    scaleY = dateScale
+                                },
+                        )
+                        if (dateActive) {
+                            Icon(
+                                Icons.Rounded.ArrowUpward,
+                                contentDescription = null,
+                                tint = activeColor,
+                                modifier = Modifier.rotate(arrowRotation),
+                            )
+                        }
+                    }
+
+                    val otherOptions = remember {
+                        SongSort.entries.filter { it != SongSort.DATE_ADDED_ASC && it != SongSort.DATE_ADDED_DESC }
+                    }
+                    otherOptions.forEachIndexed { optIndex, option ->
+                        val rowIndex = optIndex + 1
                         val isSelected = option == selected
+                        val optScale by animateFloatAsState(
+                            targetValue = if (isSelected) 1.03f else 1f,
+                            animationSpec = GlassSpring,
+                            label = "optScale$rowIndex",
+                        )
                         Row(
                             Modifier
                                 .fillMaxWidth()
                                 .heightIn(min = 44.dp)
+                                .onGloballyPositioned { coords ->
+                                    val top = coords.positionInParent().y
+                                    val height = coords.size.height.toFloat()
+                                    itemTops = itemTops + (rowIndex to top)
+                                    itemHeights = itemHeights + (rowIndex to height)
+                                }
                                 .clip(RoundedCornerShape(14.dp))
-                                .background(if (isSelected && isGlassActive) Color.White.copy(alpha = 0.10f) else Color.Transparent)
-                                .clickable(role = Role.Button) { onSelect(option) }
+                                .clickable(role = Role.Button) {
+                                    if (!isSelected) haptics.play(Haptic.Select)
+                                    onSelect(option)
+                                }
                                 .padding(horizontal = 16.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
@@ -4695,7 +4889,12 @@ private fun FrostedSortMenu(
                                 style = MaterialTheme.typography.bodyLarge,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                 color = if (isSelected) activeColor else contentColor.copy(alpha = 0.85f),
-                                modifier = Modifier.weight(1f),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .graphicsLayer {
+                                        scaleX = optScale
+                                        scaleY = optScale
+                                    },
                             )
                             if (isSelected) {
                                 Icon(
@@ -4706,6 +4905,7 @@ private fun FrostedSortMenu(
                             }
                         }
                     }
+                }
             }
         }
     }

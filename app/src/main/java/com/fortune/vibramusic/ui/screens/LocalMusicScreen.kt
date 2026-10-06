@@ -18,6 +18,8 @@ import com.fortune.vibramusic.ui.components.GLASS_EDGE_COLOR
 import com.fortune.vibramusic.ui.components.GLASS_EDGE_WIDTH
 import com.fortune.vibramusic.ui.components.LocalLiquidGlassEnabled
 import com.fortune.vibramusic.ui.components.isGlassSupported
+import com.fortune.vibramusic.ui.components.LiquidGlassSectionTabs
+import com.fortune.vibramusic.ui.components.SectionTabItem
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -314,46 +316,26 @@ fun LocalMusicScreen(
             ),
         )
 
-        // -- Tab row ----------------------------------------------------------
-        TabRow(
-            selectedTabIndex = selectedTab,
-            containerColor = MaterialTheme.colorScheme.background,
-            contentColor = MaterialTheme.colorScheme.primary,
-            indicator = { tabPositions ->
-                TabRowDefaults.SecondaryIndicator(
-                    modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            },
-        ) {
-            LocalTab(
-                icon = Icons.Rounded.MusicNote,
-                label = stringResource(R.string.songs),
-                selected = selectedTab == LOCAL_TAB_SONGS,
-                onClick = {
-                    selectedTab = LOCAL_TAB_SONGS
-                    leaveDrillDown()
-                },
-            )
-            LocalTab(
-                icon = Icons.Rounded.Person,
-                label = stringResource(R.string.artists),
-                selected = selectedTab == LOCAL_TAB_ARTISTS,
-                onClick = {
-                    selectedTab = LOCAL_TAB_ARTISTS
-                    leaveDrillDown()
-                },
-            )
-            LocalTab(
-                icon = Icons.Rounded.Album,
-                label = stringResource(R.string.albums),
-                selected = selectedTab == LOCAL_TAB_ALBUMS,
-                onClick = {
-                    selectedTab = LOCAL_TAB_ALBUMS
-                    leaveDrillDown()
-                },
+        // -- Liquid Glass Tab row --------------------------------------------
+        val songsLabel = stringResource(R.string.songs)
+        val artistsLabel = stringResource(R.string.artists)
+        val albumsLabel = stringResource(R.string.albums)
+        val sectionTabs = remember(songsLabel, artistsLabel, albumsLabel) {
+            listOf(
+                SectionTabItem(LOCAL_TAB_SONGS, songsLabel, Icons.Rounded.MusicNote),
+                SectionTabItem(LOCAL_TAB_ARTISTS, artistsLabel, Icons.Rounded.Person),
+                SectionTabItem(LOCAL_TAB_ALBUMS, albumsLabel, Icons.Rounded.Album),
             )
         }
+        LiquidGlassSectionTabs(
+            tabs = sectionTabs,
+            selectedIndex = selectedTab,
+            onTabSelected = { index ->
+                selectedTab = index
+                leaveDrillDown()
+            },
+            modifier = Modifier.padding(horizontal = PAGE_GUTTER, vertical = 6.dp),
+        )
 
         // -- Content ----------------------------------------------------------
         AnimatedContent(

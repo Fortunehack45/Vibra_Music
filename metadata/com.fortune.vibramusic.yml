@@ -37,10 +37,18 @@ Builds:
       - assembleProdRelease
     output: build/outputs/apk/prod/release/app-prod-universal-release.apk
 
+  - versionName: '1.8.30'
+    versionCode: 60
+    commit: v1.8.30
+    subdir: app
+    gradle:
+      - assembleProdRelease
+    output: build/outputs/apk/prod/release/app-prod-universal-release.apk
+
 AntiFeatures:
   - NonFreeNet
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags
-CurrentVersion: '1.8.29'
-CurrentVersionCode: 59
+CurrentVersion: '1.8.30'
+CurrentVersionCode: 60

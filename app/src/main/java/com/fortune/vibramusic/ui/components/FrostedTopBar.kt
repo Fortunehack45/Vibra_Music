@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.ui.components
+package com.fortune.vibramusic.ui.components
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -77,6 +77,7 @@ import com.fortune.vibramusic.BuildConfig
 import com.fortune.vibramusic.R
 import com.fortune.vibramusic.data.model.Account
 import com.fortune.vibramusic.data.settings.AppSettings
+import com.fortune.vibramusic.ui.haptics.Haptic
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
 import dev.chrisbanes.haze.materials.HazeMaterials
@@ -420,11 +421,17 @@ private fun ArtworkPageBackButton(
         MaterialTheme.colorScheme.onSurface
     }
 
-    IconButton(
-        onClick = onClick,
+    Box(
         modifier = modifier
             .size(44.dp)
+            .liquidGlassButton(
+                onClick = onClick,
+                haptic = Haptic.Tap,
+                expandScale = 1.14f,
+                pressScale = 0.91f,
+            )
             .then(artworkPageSurface(shape = shape, hazeState = hazeState)),
+        contentAlignment = Alignment.Center,
     ) {
         Icon(
             Icons.AutoMirrored.Rounded.ArrowBack,

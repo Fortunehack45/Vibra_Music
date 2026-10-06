@@ -22,9 +22,21 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.items
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.border
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.fortune.vibramusic.data.settings.AppSettings
+import com.fortune.vibramusic.ui.components.GLASS_EDGE_COLOR
+import com.fortune.vibramusic.ui.components.GLASS_EDGE_WIDTH
+import com.fortune.vibramusic.ui.components.GlassSpring
+import com.fortune.vibramusic.ui.components.LocalLiquidGlassEnabled
+import com.fortune.vibramusic.ui.components.isGlassSupported
+import com.fortune.vibramusic.ui.components.liquidGlassButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.History
@@ -42,7 +54,9 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -730,7 +744,10 @@ private fun BrowseRow(item: BrowseItem, onClick: () -> Unit, onLongPress: (() ->
  */
 @Composable
 private fun SearchFilterTabs(filter: SearchFilter, onFilterChange: (SearchFilter) -> Unit) {
-    val haptics = rememberHaptics()
+    val useGlass = LocalLiquidGlassEnabled.current && isGlassSupported()
+    val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
+    val isGlassActive = useGlass && !reduceDynamicBlur
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -741,27 +758,53 @@ private fun SearchFilterTabs(filter: SearchFilter, onFilterChange: (SearchFilter
     ) {
         SearchFilter.entries.forEach { entry ->
             val selected = entry == filter
+            val scale by animateFloatAsState(
+                targetValue = if (selected) 1.05f else 1f,
+                animationSpec = GlassSpring,
+                label = "filterScale",
+            )
             Box(
                 modifier = Modifier
-                    .clip(FILTER_PILL_SHAPE)
-                    .background(
-                        if (selected) MaterialTheme.colorScheme.onBackground
-                        else MaterialTheme.colorScheme.surfaceVariant,
-                    )
-                    // Only the pill that isn't already selected has anything to
-                    // report — re-tapping the current filter changes nothing, so
-                    // buzzing for it would be feedback for a no-op.
-                    .clickable {
-                        if (!selected) haptics.play(Haptic.Select)
-                        onFilterChange(entry)
+                    .graphicsLayer {
+                        scaleX = scale
+                        scaleY = scale
                     }
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                    .liquidGlassButton(
+                        onClick = { onFilterChange(entry) },
+                        haptic = Haptic.Select,
+                        expandScale = 1.08f,
+                        pressScale = 0.94f,
+                    )
+                    .clip(FILTER_PILL_SHAPE)
+                    .then(
+                        if (selected) {
+                            if (isGlassActive) {
+                                Modifier
+                                    .background(Color.White.copy(alpha = 0.22f))
+                                    .border(GLASS_EDGE_WIDTH, Color.White.copy(alpha = 0.45f), FILTER_PILL_SHAPE)
+                            } else {
+                                Modifier.background(MaterialTheme.colorScheme.onBackground)
+                            }
+                        } else {
+                            if (isGlassActive) {
+                                Modifier
+                                    .background(Color.White.copy(alpha = 0.08f))
+                                    .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, FILTER_PILL_SHAPE)
+                            } else {
+                                Modifier.background(MaterialTheme.colorScheme.surfaceVariant)
+                            }
+                        },
+                    )
+                    .padding(horizontal = 14.dp, vertical = 7.dp),
             ) {
                 Text(
                     text = entry.label,
                     style = MaterialTheme.typography.labelLarge,
-                    color = if (selected) MaterialTheme.colorScheme.background
-                    else MaterialTheme.colorScheme.onBackground,
+                    color = if (selected) {
+                        if (isGlassActive) Color.White else MaterialTheme.colorScheme.background
+                    } else {
+                        if (isGlassActive) Color.White.copy(alpha = 0.75f) else MaterialTheme.colorScheme.onBackground
+                    },
                     maxLines = 1,
                 )
             }

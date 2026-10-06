@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.ui.screens
+package com.fortune.vibramusic.ui.screens
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -22,6 +22,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -42,6 +43,7 @@ fun AccountAndScrobblingScreen(
     onOpenListenBrainzLogin: () -> Unit,
     onOpenLastfmLogin: () -> Unit,
     onOpenDiscord: () -> Unit,
+    onOpenSpotify: () -> Unit,
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier,
 ) {
@@ -60,6 +62,7 @@ fun AccountAndScrobblingScreen(
     val discordToken by AppSettings.discordToken.collectAsStateWithLifecycle()
     val discordUsername by AppSettings.discordUsername.collectAsStateWithLifecycle()
     val discordRpcEnabled by AppSettings.discordRpcEnabled.collectAsStateWithLifecycle()
+    val spotifyConnected by AppSettings.spotifySpdcToken.collectAsStateWithLifecycle()
 
     Column(
         modifier = modifier
@@ -90,6 +93,30 @@ fun AccountAndScrobblingScreen(
 
             SettingsGroup {
                 DestructiveRow(label = stringResource(R.string.sign_out), onClick = onSignOut)
+            }
+        }
+
+        SettingsGroup(
+            header = stringResource(R.string.spotify),
+            footer = stringResource(R.string.spotify_connect_subtitle),
+        ) {
+            SettingsRow(
+                iconPainter = painterResource(R.drawable.ic_spotify),
+                title = stringResource(R.string.spotify),
+                subtitle = stringResource(
+                    if (spotifyConnected.isNotBlank()) R.string.connected else R.string.tap_to_connect,
+                ),
+                onClick = onOpenSpotify,
+            )
+            if (spotifyConnected.isNotBlank()) {
+                RowDivider()
+                DestructiveRow(
+                    label = stringResource(R.string.spotify_disconnect),
+                    onClick = {
+                        clearSpotifyWebSession()
+                        AppSettings.setSpotifySpdcToken("")
+                    },
+                )
             }
         }
 

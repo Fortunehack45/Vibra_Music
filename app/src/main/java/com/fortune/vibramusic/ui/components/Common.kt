@@ -78,9 +78,13 @@ import com.fortune.vibramusic.data.model.ROW_ART_PX
 import com.fortune.vibramusic.data.model.Song
 import com.fortune.vibramusic.data.model.artworkAt
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.ui.composed
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.foundation.border
+import com.fortune.vibramusic.data.model.isMatchPending
+import com.fortune.vibramusic.data.model.isMatchMissing
 
 fun Modifier.thumbnailBorder(shape: Shape): Modifier = composed {
     this.border(
@@ -491,11 +495,20 @@ private fun SongRowContent(
         targetValue = if (isCurrent || selected) activeTint.copy(alpha = 0.14f) else Color.Transparent,
         label = "song row background",
     )
+    val matching = song.isMatchPending
+    val unavailable = song.isMatchMissing
+    val activeOnClick = if (matching || unavailable) { {} } else onClick
+    val activeOnLongPress = if (matching || unavailable) null else onLongPress
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .alpha(if (unavailable) 0.45f else 1f)
             .background(activeBackground)
-            .combinedClickable(onClick = onClick, onLongClick = onLongPress)
+            .combinedClickable(
+                enabled = !matching && !unavailable,
+                onClick = activeOnClick,
+                onLongClick = activeOnLongPress,
+            )
             .padding(horizontal = PAGE_GUTTER, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -569,16 +582,25 @@ private fun SongRowContent(
                 modifier = Modifier.size(20.dp),
             )
         }
-        song.durationText?.let {
+        if (matching) {
             Spacer(Modifier.width(8.dp))
-            Text(
-                text = it,
-                style = MaterialTheme.typography.labelMedium,
+            CircularProgressIndicator(
+                modifier = Modifier.size(16.dp),
+                strokeWidth = 2.dp,
                 color = subtitleColor,
             )
+        } else {
+            song.durationText?.let {
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = subtitleColor,
+                )
+            }
         }
         // Same sheet the long-press opens, for anyone who doesn't think to hold.
-        if (onMore != null) {
+        if (onMore != null && !matching && !unavailable) {
             Box(
                 modifier = Modifier
                     .size(36.dp)

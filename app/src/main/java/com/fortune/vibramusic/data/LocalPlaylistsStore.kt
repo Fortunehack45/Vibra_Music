@@ -117,6 +117,22 @@ object LocalPlaylistsStore {
     }
 
     @Synchronized
+    fun savePlaylist(title: String, songs: List<Song>): UserPlaylist {
+        val id = UUID.randomUUID().toString().take(8)
+        val list = songs.toMutableList()
+        val stored = StoredPlaylist(id, title, list)
+        playlists.add(0, stored)
+        save()
+        val count = list.size
+        return UserPlaylist(
+            playlistId = "local_$id",
+            title = title,
+            subtitle = "$count " + if (count == 1) "song" else "songs",
+            thumbnailUrl = list.firstOrNull()?.thumbnailUrl,
+        )
+    }
+
+    @Synchronized
     fun addSong(playlistId: String, song: Song): Boolean {
         val cleanId = playlistId.removePrefix("VL").removePrefix("local_")
         val p = playlists.firstOrNull { it.id == cleanId } ?: return false

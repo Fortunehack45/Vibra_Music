@@ -226,7 +226,12 @@ object InnertubeParser {
                 val browseId = endpoint.s("browseId") ?: return@mapNotNull null
                 val label = button.o("buttonText").runs().takeIf { it.isNotBlank() }
                     ?: return@mapNotNull null
-                MoodGenre(label, browseId, endpoint.s("params"))
+                MoodGenre(
+                    label,
+                    browseId,
+                    endpoint.s("params"),
+                    stripeColor = button.o("solid").s("leftStripeColor")?.toLongOrNull(),
+                )
             }
             if (title.isBlank() || items.isEmpty()) null else MoodGenreSection(title, items)
         }

@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.data.innertube
+package com.fortune.vibramusic.data.innertube
 
 import android.os.SystemClock
 import com.fortune.vibramusic.data.TrackLog
@@ -1000,6 +1000,24 @@ object StreamResolver {
                 "https://www.youtube.com/watch?v=$videoId",
             )
             extractor.fetchPage()
+            val hlsUrl = runCatching { extractor.hlsUrl }.getOrNull()
+            val isLive = runCatching {
+                extractor.streamType == org.schabi.newpipe.extractor.stream.StreamType.LIVE_STREAM ||
+                    extractor.streamType == org.schabi.newpipe.extractor.stream.StreamType.AUDIO_LIVE_STREAM
+            }.getOrDefault(false)
+
+            if ((isLive || extractor.audioStreams.none { it.deliveryMethod == DeliveryMethod.PROGRESSIVE_HTTP }) && !hlsUrl.isNullOrBlank()) {
+                TrackLog.d(
+                    TAG,
+                    "NewPipe picked live HLS stream (extraction held the gate ${SystemClock.elapsedRealtime() - waited}ms)",
+                )
+                return@withContext Stream(
+                    url = hlsUrl,
+                    kbps = 128,
+                    mimeType = "application/x-mpegURL",
+                )
+            }
+
             val candidates = extractor.audioStreams
                 // Progressive only — DASH/HLS entries carry a manifest, not a URL.
                 .filter {

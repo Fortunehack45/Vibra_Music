@@ -26,7 +26,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -129,7 +129,7 @@ fun GlassNavBar(
         selectedTabKey = selectedIndex,
         scrollConnection = scrollConnection,
         modifier = modifier
-            .navigationBarsPadding()
+            .windowInsetsPadding(floatingBarInsets)
             .padding(horizontal = PAGE_GUTTER)
             .padding(bottom = 2.dp)
             .fillMaxWidth(),

@@ -17,11 +17,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
@@ -76,6 +79,16 @@ data class BottomTab(
 internal val PILL_INSET = 6.dp
 
 /**
+ * How far the floating bars stand off the bottom edge: the system navigation
+ * bar's inset, but never less than a gesture bar's.
+ */
+internal val floatingBarInsets: WindowInsets
+    @Composable get() = WindowInsets.navigationBars.union(WindowInsets(bottom = GESTURE_BAR_FLOOR))
+
+/** A gesture bar's inset - 45px at a 3x density. */
+private val GESTURE_BAR_FLOOR = 15.dp
+
+/**
  * Each tab's own vertical padding, and the counterweight to [PILL_INSET].
  *
  * The pill has no height of its own — it is whatever its contents come to — so
@@ -102,34 +115,20 @@ internal val TAB_ICON_LABEL_GAP = 2.dp
  * Stiffness 320 puts the whole movement at roughly a third of a second, quick
  * enough that the tap and the arrival feel like one event.
  */
-internal val GlassSpring = spring<Float>(dampingRatio = 0.72f, stiffness = 320f)
+internal val GlassSpring = spring<Float>(dampingRatio = 0.84f, stiffness = 220f)
 
 /**
  * How far the indicator elongates along its travel, at full stride.
  *
- * This is the part that reads as liquid rather than as a sliding rectangle. A
- * shape crossing a gap under its own momentum does not stay the shape it was:
- * it draws out along the direction it is going and gathers itself back at the
- * end. Driven off how far there is still to go, so it is widest in the middle
- * of the trip and exactly itself once it arrives — no state to keep, and it
- * falls out of a drag for free, since dragging is nothing but a long way still
- * to go.
- *
- * Sixteen percent is enough to be felt and not enough to be caught at: past
- * about a fifth the pill starts reading as a stretched image of itself.
+ * Tuned to 0.08f for fluid, continuous liquid deformation that stays
+ * organic and smooth without feeling snappy or exaggerated.
  */
-internal const val STRETCH = 0.16f
+internal const val STRETCH = 0.08f
 
 /**
  * How much of the stretch is taken back out of the indicator's height.
- *
- * Half, not all. Conserving area exactly is what a drop of water does, and it
- * is too much here — the indicator sits behind a glyph that is not deforming
- * with it, and a full counter-squash reads as the pill being crushed rather
- * than drawn. Half keeps the sense of something with a volume to redistribute
- * while leaving the glyph its ground.
  */
-internal const val SQUASH = 0.5f
+internal const val SQUASH = 0.35f
 
 @OptIn(ExperimentalHazeMaterialsApi::class)
 @Composable
@@ -201,7 +200,7 @@ fun FloatingBottomBar(
 
     Row(
         modifier = modifier
-            .navigationBarsPadding()
+            .windowInsetsPadding(floatingBarInsets)
             .padding(horizontal = PAGE_GUTTER)
             .padding(bottom = 2.dp)
             .fillMaxWidth(),
@@ -311,6 +310,11 @@ fun FloatingBottomBar(
             Box(
                 modifier = Modifier
                     .size(54.dp)
+                    .liquidGlassButton(
+                        onClick = { onTabSelected(searchIndex) },
+                        haptic = Haptic.Select,
+                        expandScale = 1.12f,
+                    )
                     .clip(CircleShape)
                     .then(
                         if (reduceDynamicBlur) {
@@ -325,7 +329,6 @@ fun FloatingBottomBar(
                         },
                     )
                     .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, CircleShape)
-                    .clickable { onTabSelected(searchIndex) }
                     .padding(8.dp),
                 contentAlignment = Alignment.Center,
             ) {

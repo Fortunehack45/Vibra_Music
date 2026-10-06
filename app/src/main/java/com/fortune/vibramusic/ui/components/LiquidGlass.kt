@@ -1,4 +1,4 @@
-﻿/*
+/*
  * The glass rendering itself is Kyant0/backdrop (Apache-2.0), vendored at
  * [com.fortune.vibramusic.ui.components.backdrop] — see that package for the
  * upstream attribution. This file is the integration glue, adapted from
@@ -33,13 +33,36 @@ import com.fortune.vibramusic.ui.components.backdrop.highlight.Highlight
 import com.fortune.vibramusic.ui.components.backdrop.highlight.HighlightElement
 import com.fortune.vibramusic.ui.components.backdrop.internal.ShapeProvider
 import com.fortune.vibramusic.ui.components.backdrop.shadow.Shadow
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.graphics.graphicsLayer
+import com.fortune.vibramusic.ui.haptics.Haptic
+import com.fortune.vibramusic.ui.haptics.rememberHaptics
+import kotlinx.coroutines.launch
 import androidx.compose.ui.unit.dp
+
+import androidx.compose.runtime.compositionLocalOf
+import com.fortune.vibramusic.ui.components.backdrop.backdrops.LayerBackdrop
 
 /** Whether the liquid glass nav bar is turned on — see [AppSettings.liquidGlass]. */
 val LocalLiquidGlassEnabled = staticCompositionLocalOf { false }
 
 /** The backdrop content (app UI) that a liquid glass surface samples from. */
 val LocalAppBackdrop = staticCompositionLocalOf<Backdrop> { error("No AppBackdrop provided") }
+
+/**
+ * Where a [liquidGlass] surface composed under it also records the glass it
+ * draws — the sampled, blurred and tinted backdrop, without its rim or shadow —
+ * so a lens above it can refract that surface rather than the page behind it.
+ * The tab bar's travelling selection pill is the one reader.
+ */
+internal val LocalGlassExport = compositionLocalOf<LayerBackdrop?> { null }
 
 /**
  * The backdrop blur pipeline requires [android.graphics.RenderEffect] on a
@@ -141,6 +164,75 @@ fun Modifier.lightweightLiquidGlass(
 }
 
 /**
+ * Interactive liquid glass button physics:
+ * When pressed, the surface compresses slightly (tactile pressure).
+ * When released or clicked, it elastically expands outward in a liquid spring
+ * overshoot before settling back to rest, paired with tactile haptic feedback.
+ */
+@Composable
+fun Modifier.liquidGlassButton(
+    onClick: () -> Unit,
+    enabled: Boolean = true,
+    haptic: Haptic? = Haptic.Tap,
+    expandScale: Float = 1.12f,
+    pressScale: Float = 0.93f,
+    interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
+): Modifier {
+    val haptics = rememberHaptics()
+    val reduceAnimation by AppSettings.reduceAnimation.collectAsStateWithLifecycle()
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale = remember { Animatable(1f) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(isPressed) {
+        if (reduceAnimation) {
+            scale.snapTo(1f)
+            return@LaunchedEffect
+        }
+        if (isPressed) {
+            scale.animateTo(
+                targetValue = pressScale,
+                animationSpec = spring(dampingRatio = 0.8f, stiffness = 600f),
+            )
+        } else if (scale.value < 0.98f) {
+            // Released from a press: trigger expansive liquid spring bounce
+            scale.animateTo(
+                targetValue = expandScale,
+                animationSpec = spring(dampingRatio = 0.55f, stiffness = 500f),
+            )
+            scale.animateTo(
+                targetValue = 1f,
+                animationSpec = spring(dampingRatio = 0.62f, stiffness = 360f),
+            )
+        }
+    }
+
+    return graphicsLayer {
+        scaleX = scale.value
+        scaleY = scale.value
+    }.clickable(
+        interactionSource = interactionSource,
+        indication = null,
+        enabled = enabled,
+    ) {
+        if (haptic != null) haptics.play(haptic)
+        if (!reduceAnimation && !isPressed) {
+            scope.launch {
+                scale.animateTo(
+                    targetValue = expandScale,
+                    animationSpec = spring(dampingRatio = 0.55f, stiffness = 500f),
+                )
+                scale.animateTo(
+                    targetValue = 1f,
+                    animationSpec = spring(dampingRatio = 0.62f, stiffness = 360f),
+                )
+            }
+        }
+        onClick()
+    }
+}
+
+/**
  * Renders this composable as a liquid glass surface sampling [LocalAppBackdrop]:
  * vibrancy, blur and lens refraction, then a theme-adaptive surface tint (light
  * glass on light theme, dark on dark). Returns the receiver unchanged on devices
@@ -165,6 +257,7 @@ fun Modifier.liquidGlass(shape: CornerBasedShape): Modifier {
             .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
     }
     val backdrop = LocalAppBackdrop.current
+    val exportedBackdrop = LocalGlassExport.current
     val density = LocalDensity.current
     val blurPx = with(density) { BLUR_RADIUS_DP.dp.toPx() } * GLASS_RESOLUTION_SCALE
     val lensHeightPx = with(density) { (LENS_HEIGHT * LENS_MAX_DP).dp.toPx() } * GLASS_RESOLUTION_SCALE
@@ -195,6 +288,7 @@ fun Modifier.liquidGlass(shape: CornerBasedShape): Modifier {
         onDrawSurface = {
             drawRect(color = surfaceTintColor.copy(alpha = SURFACE_OPACITY), size = size)
         },
+        exportedBackdrop = exportedBackdrop,
         backdropScale = GLASS_RESOLUTION_SCALE,
     )
 }

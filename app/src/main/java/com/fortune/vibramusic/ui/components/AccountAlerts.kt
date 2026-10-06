@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.ui.components
+package com.fortune.vibramusic.ui.components
 
 import com.fortune.vibramusic.R
 
@@ -807,7 +807,7 @@ private fun ChoiceRow(
 /** The scrim + frosted card frame shared by every UIAlertController-style dialog. */
 @OptIn(ExperimentalHazeMaterialsApi::class)
 @Composable
-private fun AlertScaffold(
+internal fun AlertScaffold(
     hazeState: HazeState,
     onDismiss: () -> Unit,
     content: @Composable ColumnScope.() -> Unit,

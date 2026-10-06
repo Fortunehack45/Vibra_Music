@@ -215,6 +215,9 @@
     <string name="blocking">Đang chặn</string>
     <string name="crossfade">Chuyển bài mượt (Crossfade)</string>
     <string name="crossfade_subtitle">Hòa quyện bài hát hiện tại vào bài tiếp theo</string>
+    <string name="song_transitions">Chuyển tiếp bài hát</string>
+    <string name="crossfade_style_subtitle">Làm mờ dần từng bài hát khi bài hát tiếp theo mờ dần vào, trong khoảng thời gian đã đặt</string>
+    <string name="crossfade_duration">Thời lượng chuyển tiếp mờ dần</string>
     <string name="automix">Automix [BETA]</string>
     <string name="automix_performance">Hiệu năng Automix</string>
     <string name="automix_performance_subtitle">Đặt mức sử dụng CPU cho phân tích nền</string>

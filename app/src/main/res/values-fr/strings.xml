@@ -199,6 +199,9 @@
     <string name="blocking">Bloquant</string>
     <string name="crossfade">Fondu enchaîné</string>
     <string name="crossfade_subtitle">Fond une piste dans la suivante</string>
+    <string name="song_transitions">Transitions entre les morceaux</string>
+    <string name="crossfade_style_subtitle">Atténue chaque morceau à mesure que le suivant démarre, sur une durée définie</string>
+    <string name="crossfade_duration">Durée du fondu enchaîné</string>
     <string name="automix">Automix [BÊTA]</string>
     <string name="skip_silence">Ignorer les silences</string>
     <string name="skip_silence_subtitle">Coupe les silences de plus d\'une seconde</string>

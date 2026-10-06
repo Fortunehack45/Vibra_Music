@@ -211,6 +211,9 @@
     <string name="blocking">Engelliyor</string>
     <string name="crossfade">Çapraz geçiş</string>
     <string name="crossfade_subtitle">Bir parçayı diğerine karıştırır</string>
+    <string name="song_transitions">Şarkı geçişleri</string>
+    <string name="crossfade_style_subtitle">Belirlenen bir süre boyunca bir şarkı biterken diğerini kademeli olarak başlatır</string>
+    <string name="crossfade_duration">Çapraz geçiş süresi</string>
     <string name="automix">Automix [BETA]</string>
     <string name="automix_performance">Automix performansı</string>
     <string name="automix_performance_subtitle">Arka plan analizinin ne kadar CPU kullanabileceğini ayarlar</string>

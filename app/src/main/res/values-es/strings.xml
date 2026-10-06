@@ -199,6 +199,9 @@
     <string name="blocking">Bloqueando</string>
     <string name="crossfade">Fundido cruzado</string>
     <string name="crossfade_subtitle">Mezcla una pista con la siguiente</string>
+    <string name="song_transitions">Transiciones de canciones</string>
+    <string name="crossfade_style_subtitle">Atenúa cada canción mientras la siguiente aparece gradualmente, durante un tiempo establecido</string>
+    <string name="crossfade_duration">Duración de crossfade</string>
     <string name="automix">Mezcla automática [BETA]</string>
     <string name="automix_performance">Rendimiento de mezcla automática</string>
     <string name="automix_performance_subtitle">Define cuánta CPU puede usar el análisis en segundo plano</string>

@@ -198,6 +198,9 @@
     <string name="blocking">रोक रहा है</string>
     <string name="crossfade">क्रॉसफ़ेड</string>
     <string name="crossfade_subtitle">एक ट्रैक को अगले में मिलाता है</string>
+    <string name="song_transitions">गानों के बीच संक्रमण</string>
+    <string name="crossfade_style_subtitle">एक निर्धारित समय में अगले गाने के शुरू होने पर पिछले गाने को धीमा करता है</string>
+    <string name="crossfade_duration">क्रॉसफ़ेड अवधि</string>
     <string name="automix">ऑटोमिक्स [BETA]</string>
     <string name="skip_silence">खामोशी छोड़ें</string>
     <string name="skip_silence_subtitle">एक सेकंड से लंबे गैप को काटता है</string>

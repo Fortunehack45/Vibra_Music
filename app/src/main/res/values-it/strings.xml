@@ -229,6 +229,9 @@
     <string name="blocking">Bloccante</string>
     <string name="crossfade">Dissolvenza incrociata</string>
     <string name="crossfade_subtitle">Sfuma un brano nel successivo</string>
+    <string name="song_transitions">Transizioni dei brani</string>
+    <string name="crossfade_style_subtitle">Sfuma ogni brano mentre il successivo entra gradualmente, per una durata definita</string>
+    <string name="crossfade_duration">Durata dissolvenza incrociata</string>
     <string name="automix">Automix [BETA]</string>
     <string name="automix_performance">Prestazioni Automix</string>
     <string name="automix_performance_subtitle">Imposta quanta CPU può usare l\'analisi in background</string>

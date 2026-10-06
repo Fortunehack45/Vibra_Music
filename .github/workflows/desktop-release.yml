@@ -38,7 +38,7 @@ jobs:
       - name: Prepare Windows Distribution Archives
         shell: pwsh
         run: |
-          $tag = if ($env:GITHUB_REF -like "refs/tags/*") { $env:GITHUB_REF -replace "refs/tags/", "" } else { "v1.8.31" }
+          $tag = if ($env:GITHUB_REF -like "refs/tags/*") { $env:GITHUB_REF -replace "refs/tags/", "" } else { "v1.8.32" }
           New-Item -ItemType Directory -Force -Path "desktopApp/dist" | Out-Null
           
           # Copy and rename MSI

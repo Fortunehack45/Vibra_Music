@@ -97,11 +97,32 @@ internal object SpotifyToken {
      * see [harvestViaWebView] for why signing the request ourselves isn't
      * enough.
      */
+    /**
+     * The bearer token for the user's personal signed-in Spotify account.
+     * Returns null if the user has not signed in to Spotify.
+     */
+    suspend fun userAccessToken(): String? {
+        val userCookie = AppSettings.spotifySpdcToken.value.trim()
+        val builtIn = SpotifyTokenSecret.getBuiltInSpdc()
+        if (userCookie.isBlank() || userCookie == builtIn) return null
+        return getOrHarvestToken(userCookie, isUserCookie = true)
+    }
+
+    /**
+     * The current bearer token for Canvas, or null when there is no cookie to mint one
+     * from, [init] was never called, or the harvest failed.
+     * Uses the user's personal session cookie if set, or falls back to the built-in service.
+     */
     suspend fun accessToken(): String? {
         val userCookie = AppSettings.spotifySpdcToken.value.trim()
-        val cookie = if (userCookie.isNotBlank()) userCookie else SpotifyTokenSecret.getBuiltInSpdc()
+        val builtIn = SpotifyTokenSecret.getBuiltInSpdc()
+        val isUser = userCookie.isNotBlank() && userCookie != builtIn
+        val cookie = if (isUser) userCookie else builtIn
         if (cookie.isNullOrBlank()) return null
+        return getOrHarvestToken(cookie, isUserCookie = isUser)
+    }
 
+    private suspend fun getOrHarvestToken(cookie: String, isUserCookie: Boolean): String? {
         val now = System.currentTimeMillis()
         if (cookie != lastCookie) {
             invalidate()
@@ -125,7 +146,7 @@ internal object SpotifyToken {
                 return@withLock null
             }
 
-            val harvested = withContext(Dispatchers.Main) { harvestViaWebView(context, cookie) }
+            val harvested = withContext(Dispatchers.Main) { harvestViaWebView(context, cookie, isUserCookie) }
             if (harvested == null) {
                 Log.w(TAG, "token harvest failed or timed out")
                 return@withLock null
@@ -154,7 +175,7 @@ internal object SpotifyToken {
      * runs.
      */
     @SuppressLint("SetJavaScriptEnabled")
-    private suspend fun harvestViaWebView(context: Context, cookie: String): HarvestedToken? {
+    private suspend fun harvestViaWebView(context: Context, cookie: String, isUserCookie: Boolean): HarvestedToken? {
         val deferred = CompletableDeferred<HarvestedToken?>()
 
         val cookieManager = CookieManager.getInstance().apply {
@@ -203,6 +224,19 @@ internal object SpotifyToken {
                 webView?.removeJavascriptInterface(BRIDGE_NAME)
                 webView?.stopLoading()
                 webView?.destroy()
+            }
+            if (!isUserCookie) {
+                // Ensure the built-in fallback cookie NEVER lingers in CookieManager,
+                // so user login WebViews are never auto-logged into the built-in account.
+                runCatching {
+                    val cm = CookieManager.getInstance()
+                    val urls = listOf("https://open.spotify.com/", "https://accounts.spotify.com/", "https://spotify.com/")
+                    for (u in urls) {
+                        cm.setCookie(u, "sp_dc=; Domain=.spotify.com; Path=/; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT")
+                        cm.setCookie(u, "sp_dc=; Path=/; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT")
+                    }
+                    cm.flush()
+                }
             }
         }
     }

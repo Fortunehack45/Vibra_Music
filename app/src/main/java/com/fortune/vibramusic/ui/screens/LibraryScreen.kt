@@ -416,6 +416,8 @@ fun libraryLinks(): List<LibraryLink> {
         icon = icon,
         logo = logo,
     )
+    val builtInSpotify = com.fortune.vibramusic.data.canvas.SpotifyTokenSecret.getBuiltInSpdc()
+    val isRealUserSpotify = spotifyConnected.isNotBlank() && spotifyConnected.trim() != builtInSpotify
     return listOfNotNull(
         link(
             Icons.Rounded.Download,
@@ -444,7 +446,7 @@ fun libraryLinks(): List<LibraryLink> {
         link(
             Icons.Rounded.Cloud,
             stringResource(R.string.spotify),
-            if (spotifyConnected.isNotBlank()) stringResource(R.string.spotify_library_subtitle)
+            if (isRealUserSpotify) stringResource(R.string.spotify_library_subtitle)
             else stringResource(R.string.spotify_connect_subtitle),
             SPOTIFY_BROWSE_ID,
             logo = R.drawable.ic_spotify,

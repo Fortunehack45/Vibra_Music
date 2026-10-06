@@ -96,6 +96,9 @@ fun AccountAndScrobblingScreen(
             }
         }
 
+        val builtIn = com.fortune.vibramusic.data.canvas.SpotifyTokenSecret.getBuiltInSpdc()
+        val isRealUserSpotify = spotifyConnected.isNotBlank() && spotifyConnected.trim() != builtIn
+
         SettingsGroup(
             header = stringResource(R.string.spotify),
             footer = stringResource(R.string.spotify_connect_subtitle),
@@ -104,17 +107,18 @@ fun AccountAndScrobblingScreen(
                 iconPainter = painterResource(R.drawable.ic_spotify),
                 title = stringResource(R.string.spotify),
                 subtitle = stringResource(
-                    if (spotifyConnected.isNotBlank()) R.string.connected else R.string.tap_to_connect,
+                    if (isRealUserSpotify) R.string.connected else R.string.tap_to_connect,
                 ),
                 onClick = onOpenSpotify,
             )
-            if (spotifyConnected.isNotBlank()) {
+            if (isRealUserSpotify) {
                 RowDivider()
                 DestructiveRow(
                     label = stringResource(R.string.spotify_disconnect),
                     onClick = {
                         clearSpotifyWebSession()
                         AppSettings.setSpotifySpdcToken("")
+                        com.fortune.vibramusic.data.canvas.SpotifyToken.invalidate()
                     },
                 )
             }

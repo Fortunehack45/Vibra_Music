@@ -157,7 +157,12 @@ object SpotifyLibrary {
     }
 
     private suspend fun authHeaders(): Map<String, String> {
-        val token = SpotifyToken.accessToken()
+        val userCookie = com.fortune.vibramusic.data.settings.AppSettings.spotifySpdcToken.value.trim()
+        val builtIn = com.fortune.vibramusic.data.canvas.SpotifyTokenSecret.getBuiltInSpdc()
+        if (userCookie.isBlank() || userCookie == builtIn) {
+            throw IllegalStateException("Spotify account not connected")
+        }
+        val token = SpotifyToken.userAccessToken()
             ?: throw IllegalStateException("Spotify sign-in expired")
         return buildMap {
             put("Authorization", "Bearer $token")

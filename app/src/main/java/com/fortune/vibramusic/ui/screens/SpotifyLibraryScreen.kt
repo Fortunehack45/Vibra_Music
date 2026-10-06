@@ -7,6 +7,7 @@ import android.view.ViewGroup
 import android.webkit.CookieManager
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
+import android.webkit.WebStorage
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
@@ -94,6 +95,14 @@ fun SpotifyLibraryScreen(
     var error by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(cookie) {
+        val builtIn = com.fortune.vibramusic.data.canvas.SpotifyTokenSecret.getBuiltInSpdc()
+        if (cookie.isNotBlank() && cookie.trim() == builtIn) {
+            clearSpotifyWebSession()
+            AppSettings.setSpotifySpdcToken("")
+            playlists = emptyList()
+            error = null
+            return@LaunchedEffect
+        }
         if (cookie.isBlank()) {
             playlists = emptyList()
             error = null
@@ -150,30 +159,14 @@ fun SpotifyLibraryScreen(
             }
         } else {
             item {
-                Row(
+                Text(
+                    text = stringResource(R.string.spotify_library_subtitle),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 20.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = stringResource(R.string.spotify_library_subtitle),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    androidx.compose.material3.TextButton(
-                        onClick = {
-                            clearSpotifyWebSession()
-                            AppSettings.setSpotifySpdcToken("")
-                        },
-                    ) {
-                        Text(
-                            text = stringResource(R.string.spotify_disconnect),
-                            color = MaterialTheme.colorScheme.error,
-                        )
-                    }
-                }
+                )
             }
             if (loading) {
                 item {
@@ -283,9 +276,17 @@ fun clearSpotifyWebSession() {
             val expired = "$name=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/"
             cookies.setCookie(url, expired)
             cookies.setCookie(url, "$expired; Domain=.spotify.com")
+            cookies.setCookie(url, "$expired; Domain=spotify.com")
+            cookies.setCookie(url, "$expired; Domain=.open.spotify.com")
+            cookies.setCookie(url, "$expired; Domain=.accounts.spotify.com")
         }
+        cookies.setCookie(url, "sp_dc=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; Domain=.spotify.com")
+        cookies.setCookie(url, "sp_dc=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; Domain=spotify.com")
+        cookies.setCookie(url, "sp_dc=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/")
     }
+    runCatching { cookies.removeSessionCookies(null) }
     cookies.flush()
+    runCatching { WebStorage.getInstance().deleteAllData() }
 }
 
 @SuppressLint("SetJavaScriptEnabled")
@@ -296,6 +297,10 @@ fun SpotifyLoginScreen(
 ) {
     var sent by remember { mutableStateOf(false) }
     var webViewError by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(Unit) {
+        clearSpotifyWebSession()
+    }
 
     if (webViewError != null) {
         Box(modifier = modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
@@ -312,6 +317,7 @@ fun SpotifyLoginScreen(
         modifier = modifier.fillMaxSize(),
         factory = { context ->
             try {
+                clearSpotifyWebSession()
                 WebView(context).apply {
                     layoutParams = ViewGroup.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
@@ -347,6 +353,11 @@ fun SpotifyLoginScreen(
                                 ?.substringAfter("=")
                                 ?.takeIf { it.isNotBlank() }
                                 ?: return
+                            val builtIn = com.fortune.vibramusic.data.canvas.SpotifyTokenSecret.getBuiltInSpdc()
+                            if (token == builtIn) {
+                                // Ignore built-in token if somehow present; wait for user's own credentials
+                                return
+                            }
                             sent = true
                             onConnected(token)
                         }

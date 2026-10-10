@@ -105,6 +105,24 @@ We welcome contributions to Vibra Music! Please review our [Contributing Guide](
 </div>
 
 ---
+<div align="center">
+
+<h1><a id="credits"></a>Credits & Attribution</h1>
+
+**Vibra Music** is derived from and built upon the architecture and codebase of **[BitChord](https://github.com/kushagrasinghx/BitChord)** by [Kushagra Singh](https://github.com/kushagrasinghx).
+
+We extend our sincere gratitude to the BitChord project for providing the foundation that made Vibra Music possible. Vibra Music builds upon this foundation with custom branding, additional features, UI enhancements, and platform-specific improvements.
+
+Both projects are licensed under **GPLv3**, respecting the original license and contributing back to the open-source community.
+
+**Additional Credits:**
+- Apple-like lyrics animation by [binimum](https://github.com/binimum/am-lyrics)
+- Material Design & UI framework contributors
+- Community contributors and testers
+
+</div>
+
+---
 
 <div align="center">
 

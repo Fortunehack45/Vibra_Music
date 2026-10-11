@@ -1,6 +1,8 @@
 package com.fortune.vibramusic.ui.screens
 
 import android.annotation.SuppressLint
+import android.content.Intent
+import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Build
 import android.view.ViewGroup
@@ -28,11 +30,19 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -294,9 +304,12 @@ fun clearSpotifyWebSession() {
 fun SpotifyLoginScreen(
     onConnected: (String) -> Unit,
     modifier: Modifier = Modifier,
+    onManualCookieClick: (() -> Unit)? = null,
 ) {
     var sent by remember { mutableStateOf(false) }
     var webViewError by remember { mutableStateOf<String?>(null) }
+    var showGoogleNoticeDialog by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     LaunchedEffect(Unit) {
         clearSpotifyWebSession()
@@ -313,62 +326,182 @@ fun SpotifyLoginScreen(
         return
     }
 
-    AndroidView(
-        modifier = modifier.fillMaxSize(),
-        factory = { context ->
-            try {
-                clearSpotifyWebSession()
-                WebView(context).apply {
-                    layoutParams = ViewGroup.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                    )
-                    settings.javaScriptEnabled = true
-                    settings.domStorageEnabled = true
-                    settings.loadWithOverviewMode = true
-                    settings.useWideViewPort = true
-                    settings.userAgentString = LOGIN_USER_AGENT
-                    if (Build.VERSION.SDK_INT >= 33) {
-                        settings.isAlgorithmicDarkeningAllowed = false
-                    } else if (Build.VERSION.SDK_INT >= 29) {
-                        @Suppress("DEPRECATION")
-                        settings.forceDark = WebSettings.FORCE_DARK_OFF
-                    }
-                    setBackgroundColor(0xFF121212.toInt())
-                    CookieManager.getInstance().setAcceptCookie(true)
-                    CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
-                    webViewClient = object : WebViewClient() {
-                        override fun shouldOverrideUrlLoading(
-                            view: WebView,
-                            request: WebResourceRequest,
-                        ): Boolean = !isLoginHost(request.url)
+    if (showGoogleNoticeDialog) {
+        AlertDialog(
+            onDismissRequest = { showGoogleNoticeDialog = false },
+            icon = {
+                Icon(
+                    Icons.Rounded.Info,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            },
+            title = {
+                Text(stringResource(R.string.spotify_login_google_notice_title))
+            },
+            text = {
+                Text(stringResource(R.string.spotify_login_google_notice_desc))
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showGoogleNoticeDialog = false
+                        runCatching {
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.spotify.com/password-reset"))
+                            context.startActivity(intent)
+                        }
+                    },
+                ) {
+                    Text(stringResource(R.string.spotify_login_set_password))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showGoogleNoticeDialog = false }) {
+                    Text(stringResource(R.string.close))
+                }
+            },
+        )
+    }
 
-                        override fun onPageFinished(view: WebView, url: String?) {
-                            if (isSpotifyHost(url?.toUri())) view.evaluateJavascript(LOGIN_LAYOUT_FIX, null)
-                            if (sent || url?.startsWith("https://open.spotify.com") != true) return
-                            val raw = CookieManager.getInstance().getCookie("https://open.spotify.com") ?: return
-                            val token = raw.split(";")
-                                .map { it.trim() }
-                                .firstOrNull { it.startsWith("sp_dc=") }
-                                ?.substringAfter("=")
-                                ?.takeIf { it.isNotBlank() }
-                                ?: return
-                            val builtIn = com.fortune.vibramusic.data.canvas.SpotifyTokenSecret.getBuiltInSpdc()
-                            if (token == builtIn) {
-                                // Ignore built-in token if somehow present; wait for user's own credentials
-                                return
+    Column(modifier = modifier.fillMaxSize()) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+            ),
+        ) {
+            Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Rounded.Info,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = stringResource(R.string.spotify_login_tip_banner_title),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = stringResource(R.string.spotify_login_tip_banner_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            runCatching {
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.spotify.com/password-reset"))
+                                context.startActivity(intent)
                             }
-                            sent = true
-                            onConnected(token)
+                        },
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.spotify_login_set_password),
+                            style = MaterialTheme.typography.labelSmall,
+                        )
+                    }
+                    if (onManualCookieClick != null) {
+                        TextButton(
+                            onClick = onManualCookieClick,
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Text(
+                                text = stringResource(R.string.spotify_login_manual_cookie),
+                                style = MaterialTheme.typography.labelSmall,
+                            )
                         }
                     }
-                    loadUrl(LOGIN_URL)
                 }
-            } catch (e: Throwable) {
-                webViewError = e.message ?: "Failed to initialize WebView"
-                android.view.View(context)
             }
-        },
-        onRelease = { view -> (view as? WebView)?.destroy() },
-    )
+        }
+
+        AndroidView(
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            factory = { ctx ->
+                try {
+                    clearSpotifyWebSession()
+                    WebView(ctx).apply {
+                        layoutParams = ViewGroup.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                        )
+                        settings.javaScriptEnabled = true
+                        settings.domStorageEnabled = true
+                        settings.loadWithOverviewMode = true
+                        settings.useWideViewPort = true
+                        settings.userAgentString = LOGIN_USER_AGENT
+                        if (Build.VERSION.SDK_INT >= 33) {
+                            settings.isAlgorithmicDarkeningAllowed = false
+                        } else if (Build.VERSION.SDK_INT >= 29) {
+                            @Suppress("DEPRECATION")
+                            settings.forceDark = WebSettings.FORCE_DARK_OFF
+                        }
+                        setBackgroundColor(0xFF121212.toInt())
+                        CookieManager.getInstance().setAcceptCookie(true)
+                        CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+                        webViewClient = object : WebViewClient() {
+                            override fun shouldOverrideUrlLoading(
+                                view: WebView,
+                                request: WebResourceRequest,
+                            ): Boolean {
+                                val host = request.url.host?.lowercase().orEmpty()
+                                val urlStr = request.url.toString()
+                                if (host == "accounts.google.com" || host.endsWith(".accounts.google.com") || host == "google.com" || host.endsWith(".google.com") || urlStr.contains("/login/google") || urlStr.contains("api/login/google")) {
+                                    showGoogleNoticeDialog = true
+                                    return true
+                                }
+                                return !isLoginHost(request.url)
+                            }
+
+                            override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
+                                super.onPageStarted(view, url, favicon)
+                                val host = url?.toUri()?.host?.lowercase().orEmpty()
+                                if (host == "accounts.google.com" || host.endsWith(".accounts.google.com")) {
+                                    view.stopLoading()
+                                    showGoogleNoticeDialog = true
+                                    view.loadUrl(LOGIN_URL)
+                                }
+                            }
+
+                            override fun onPageFinished(view: WebView, url: String?) {
+                                if (isSpotifyHost(url?.toUri())) view.evaluateJavascript(LOGIN_LAYOUT_FIX, null)
+                                if (sent || url?.startsWith("https://open.spotify.com") != true) return
+                                val raw = CookieManager.getInstance().getCookie("https://open.spotify.com") ?: return
+                                val token = raw.split(";")
+                                    .map { it.trim() }
+                                    .firstOrNull { it.startsWith("sp_dc=") }
+                                    ?.substringAfter("=")
+                                    ?.takeIf { it.isNotBlank() }
+                                    ?: return
+                                val builtIn = com.fortune.vibramusic.data.canvas.SpotifyTokenSecret.getBuiltInSpdc()
+                                if (token == builtIn) {
+                                    // Ignore built-in token if somehow present; wait for user's own credentials
+                                    return
+                                }
+                                sent = true
+                                onConnected(token)
+                            }
+                        }
+                        loadUrl(LOGIN_URL)
+                    }
+                } catch (e: Throwable) {
+                    webViewError = e.message ?: "Failed to initialize WebView"
+                    android.view.View(ctx)
+                }
+            },
+            onRelease = { view -> (view as? WebView)?.destroy() },
+        )
+    }
 }

@@ -4618,6 +4618,10 @@ private fun VibraMusicApp(
                             AppSettings.setSpotifySpdcToken(token)
                             showSpotifyLogin = false
                         },
+                        onManualCookieClick = {
+                            showSpotifyLogin = false
+                            showSpotifyCanvasAuth = true
+                        },
                     )
                 }
             }

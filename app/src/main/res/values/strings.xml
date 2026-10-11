@@ -1290,4 +1290,10 @@
     <string name="spotify_sign_in" translatable="false">Sign in with Spotify</string>
     <string name="spotify_empty_tracks" translatable="false">No songs in this playlist</string>
     <string name="spotify_disconnect" translatable="false">Disconnect Spotify</string>
+    <string name="spotify_login_google_notice_title" translatable="false">Sign in with Google Notice</string>
+    <string name="spotify_login_google_notice_desc" translatable="false">Google restricts signing in through in-app browsers for third-party apps.\n\nTo connect your Spotify:\n• Enter your Spotify Email or Username and Password directly on the form below.\n• If you originally signed up with Google, tap \"Set Spotify Password\" to create a password for your account, then log in here.</string>
+    <string name="spotify_login_set_password" translatable="false">Set Spotify Password</string>
+    <string name="spotify_login_tip_banner_title" translatable="false">Log in with Spotify Email &amp; Password</string>
+    <string name="spotify_login_tip_banner_desc" translatable="false">Google restricts \"Continue with Google\" in app browsers. Please enter your Spotify Email and Password below. If your account was created with Google, tap Set Password first.</string>
+    <string name="spotify_login_manual_cookie" translatable="false">Use Cookie</string>
 </resources>

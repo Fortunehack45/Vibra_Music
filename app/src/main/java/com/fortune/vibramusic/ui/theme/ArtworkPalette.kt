@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.ui.theme
+package com.fortune.vibramusic.ui.theme
 
 import android.graphics.Bitmap
 import androidx.compose.animation.animateColorAsState
@@ -190,33 +190,77 @@ private data class Seed(
     val topBandLuminance: Float,
 )
 
-private fun seedOf(bitmap: Bitmap): Seed? {
+private fun seedOf(rawBitmap: Bitmap): Seed? {
+    val bitmap = if (
+        android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O &&
+        rawBitmap.config == Bitmap.Config.HARDWARE
+    ) {
+        rawBitmap.copy(Bitmap.Config.ARGB_8888, false) ?: return null
+    } else {
+        rawBitmap
+    }
+
     fun swatches(builder: Palette.Builder) =
         builder.maximumColorCount(SWATCH_COUNT).generate().swatches
 
-    // The default filter deliberately throws away near-black and near-white.
-    // That is useful while looking for an accent, but it is the wrong answer
-    // to "what colour is this page mostly made of?" A dark photograph would
-    // otherwise be reduced to whatever warm face or tiny coloured detail
-    // survived the filter, and a monochrome sleeve to an anti-aliased fringe.
-    // Both cases used to turn into the same maroon page.
-    val all = swatches(Palette.from(bitmap).clearFilters())
+    val all = runCatching { swatches(Palette.from(bitmap).clearFilters()) }.getOrNull().orEmpty()
     if (all.isEmpty()) return null
-    val accentCandidates = swatches(Palette.from(bitmap)).ifEmpty { all }
 
-    val dominant = all.maxBy { it.population }
-    // The accent has to earn its place twice over: a colour nobody sees enough
-    // of reads as arbitrary, and a grey one isn't an accent at all. Scoring on
-    // saturation against the *square root* of population is what stops a sleeve
-    // that is four-fifths black sky from accenting in black.
-    val vibrant = accentCandidates.maxBy { swatch ->
+    val sortedByPop = all.sortedByDescending { it.population }
+    val totalPop = sortedByPop.sumOf { it.population }.coerceAtLeast(1)
+
+    // Compute population-weighted saturation across the main body (top 85% of pixels)
+    var accPop = 0
+    var weightedSat = 0f
+    for (sw in sortedByPop) {
+        val hsl = FloatArray(3).also { ColorUtils.colorToHSL(sw.rgb, it) }
+        weightedSat += hsl[1] * sw.population
+        accPop += sw.population
+        if (accPop >= totalPop * 0.85f) break
+    }
+    val avgBodySat = weightedSat / accPop.coerceAtLeast(1).toFloat()
+
+    // Select the true theme color of the album art from swatches that cover a meaningful
+    // portion of the image (>= 10% of pixels), preventing small 1-5% details from hijacking
+    // the theme gradient.
+    val majorSwatches = sortedByPop.filter { it.population >= totalPop * 0.10f }
+        .ifEmpty { listOf(sortedByPop.first()) }
+
+    val dominant = if (avgBodySat < 0.10f) {
+        sortedByPop.first()
+    } else {
+        majorSwatches.maxBy { swatch ->
+            val hsl = FloatArray(3).also { ColorUtils.colorToHSL(swatch.rgb, it) }
+            val popShare = swatch.population.toFloat() / totalPop.toFloat()
+            val satWeight = if (hsl[1] >= CHROMATIC_SATURATION_THRESHOLD) 1f + hsl[1] * 0.55f else 0.75f
+            popShare * satWeight
+        }
+    }
+
+    // Only allow an accent candidate if it represents at least 8% of the cover's pixels
+    // and the cover itself is not overwhelmingly monochrome.
+    val filteredAccents = runCatching { swatches(Palette.from(bitmap)) }.getOrNull().orEmpty()
+        .filter { it.population >= totalPop * 0.08f }
+    val accentPool = if (avgBodySat < 0.10f) {
+        listOf(dominant)
+    } else {
+        filteredAccents.ifEmpty { majorSwatches }
+    }
+
+    val vibrant = accentPool.maxBy { swatch ->
         val hsl = FloatArray(3).also { ColorUtils.colorToHSL(swatch.rgb, it) }
         hsl[1] * sqrt(swatch.population.toFloat())
     }
+
+    val rawEdge = bitmap.bottomEdgeColor()
+    // Harmonize the bottom edge with the overall dominant theme so a contrasting bottom
+    // strip or bright/dark edge transitions smoothly into the page wash.
+    val harmonizedEdgeArgb = ColorUtils.blendARGB(dominant.rgb, rawEdge.toArgb(), 0.45f)
+
     return Seed(
         dominant = Color(dominant.rgb),
         vibrant = Color(vibrant.rgb),
-        edge = bitmap.bottomEdgeColor(),
+        edge = Color(harmonizedEdgeArgb),
         topBandLuminance = bitmap.topBandRelativeLuminance(),
     )
 }

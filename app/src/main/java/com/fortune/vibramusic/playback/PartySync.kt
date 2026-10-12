@@ -7,6 +7,7 @@ import com.fortune.vibramusic.data.listentogether.ListenTogether
 import com.fortune.vibramusic.data.listentogether.PartyTrack
 import com.fortune.vibramusic.data.model.QueueTier
 import com.fortune.vibramusic.data.model.Song
+import com.fortune.vibramusic.data.settings.AppSettings
 import com.fortune.vibramusic.data.sources.TrackMatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -545,6 +546,7 @@ class PartySync(
 
         if (!target.isPlaying) {
             deferredPlayPending = false
+            if (exo.playbackParameters.speed != 1.0f) exo.setPlaybackSpeed(1.0f)
             if (exo.playWhenReady) exo.pause()
             // Held where the party paused it, so that everybody resumes from the
             // same place rather than from wherever their own playhead stopped.
@@ -582,6 +584,7 @@ class PartySync(
                 }
                 return
             }
+            if (exo.playbackParameters.speed != 1.0f) exo.setPlaybackSpeed(1.0f)
             if (want != null) exo.seekTo(want)
             deferredPlayPending = false
             startJob?.cancel()
@@ -617,6 +620,7 @@ class PartySync(
         // position, track, or playing state (e.g. queue operations or metadata updates),
         // we must not force an audible seek flush.
         if (target.seq != alignedSeq) {
+            val previousTrackId = lastTrackId
             val isPlaybackAnchorChanged = lastAnchorMs != target.anchorMs ||
                 lastPositionMs != target.positionMs ||
                 lastTrackId != track.videoId ||
@@ -628,14 +632,29 @@ class PartySync(
             lastTrackId = track.videoId
             lastIsPlaying = target.isPlaying
 
-            if (isPlaybackAnchorChanged && abs(drift) > ALIGN_TOLERANCE_MS) {
+            val isDuplicateAutoAdvance = previousTrackId == track.videoId &&
+                exo.currentMediaItem?.mediaId == track.videoId &&
+                target.positionMs < 1_500L &&
+                exo.currentPosition in 0L..2_500L &&
+                abs(drift) < 900L
+
+            if (isPlaybackAnchorChanged && !isDuplicateAutoAdvance && abs(drift) > ALIGN_TOLERANCE_MS) {
                 Log.i(TAG, "aligning ${drift}ms onto party control ${target.seq}")
+                if (exo.playbackParameters.speed != 1.0f) exo.setPlaybackSpeed(1.0f)
                 exo.seekTo(want)
                 return
             }
         }
         if (abs(drift) <= DRIFT_LIMIT_MS) {
             driftStrikes = 0
+            if (abs(drift) > RATE_NUDGE_THRESHOLD_MS) {
+                val nudgedSpeed = (1.0f - (drift.toFloat() / 8_000f)).coerceIn(0.97f, 1.03f)
+                if (abs(exo.playbackParameters.speed - nudgedSpeed) > 0.004f) {
+                    exo.setPlaybackSpeed(nudgedSpeed)
+                }
+            } else if (abs(drift) <= RATE_NUDGE_SETTLED_MS && exo.playbackParameters.speed != 1.0f) {
+                exo.setPlaybackSpeed(1.0f)
+            }
             return
         }
         // Seeking is not free, and on a slow device it is not cheap either: the
@@ -655,6 +674,7 @@ class PartySync(
         Log.i(TAG, "correcting ${drift}ms of drift against the party")
         driftStrikes = 0
         driftCooldownUntilMs = now + DRIFT_COOLDOWN_MS
+        if (exo.playbackParameters.speed != 1.0f) exo.setPlaybackSpeed(1.0f)
         exo.seekTo(want)
     }
 
@@ -912,26 +932,37 @@ class PartySync(
 
     private fun onEnteredParty() {
         val exo = player() ?: return
-        Log.i(TAG, "entered party, stashing personal queue")
-        PartyPersonalQueueStash.stashFromPlayer(exo)
+        Log.i(TAG, "entered party")
+        PartyPersonalQueueStash.clear()
+        if (exo.playbackParameters.speed != 1.0f) {
+            exo.setPlaybackSpeed(1.0f)
+        }
     }
 
     private fun onLeftParty() {
-        Log.i(TAG, "left party, restoring personal queue if stashed")
+        Log.i(TAG, "left party, continuing current playback seamlessly")
         loadingVideoId = null
         focusLost = false
         rejoining = false
-        val stashed = PartyPersonalQueueStash.load()
+        deferredPlayPending = false
+        locallyPaused = false
         PartyPersonalQueueStash.clear()
-        if (stashed != null && stashed.songs.isNotEmpty()) {
-            val exo = player() ?: return
-            val items = stashed.songs.map { it.toMediaItem() }
-            exo.setMediaItems(items, stashed.index, stashed.positionMs)
-            exo.prepare()
-            if (exo.playWhenReady || stashed.wasPlaying) {
-                exo.play()
-            } else {
-                exo.pause()
+        val exo = player() ?: return
+        val preferredSpeed = AppSettings.playbackSpeed.value
+        if (exo.playbackParameters.speed != preferredSpeed) {
+            exo.setPlaybackSpeed(preferredSpeed)
+        }
+        if (exo.mediaItemCount > 0) {
+            val range = LastPlayed.window(exo.mediaItemCount, exo.currentMediaItemIndex)
+            if (!range.isEmpty()) {
+                LastPlayed.saveQueue(
+                    songs = range.map { exo.getMediaItemAt(it).toSong() },
+                    index = exo.currentMediaItemIndex - range.first,
+                )
+                LastPlayed.savePlaybackState(
+                    index = exo.currentMediaItemIndex - range.first,
+                    positionMs = exo.currentPosition,
+                )
             }
         }
     }
@@ -1054,7 +1085,13 @@ class PartySync(
          * a head start worth hearing, high enough not to seek over the few tens
          * of milliseconds between asking the player where it is and it acting.
          */
-        const val ALIGN_TOLERANCE_MS = 120L
+        const val ALIGN_TOLERANCE_MS = 350L
+
+        /** Drift above which proportional playback speed nudging gently closes the gap. */
+        const val RATE_NUDGE_THRESHOLD_MS = 220L
+
+        /** Drift below which playback speed is restored to 1.0f. */
+        const val RATE_NUDGE_SETTLED_MS = 90L
 
         /**
          * Below this, a difference from the party's playhead is not a seek

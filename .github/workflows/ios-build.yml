@@ -1,0 +1,87 @@
+name: Vibra Music iOS CI/CD
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+
+permissions:
+  contents: write
+
+jobs:
+  build-ios:
+    name: Build iOS Release (.ipa)
+    runs-on: macos-15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'gradle'
+
+      - name: Setup local.properties
+        run: |
+          echo "LASTFM_API_KEY=${{ secrets.LASTFM_API_KEY || '4ea1e882eb80524d4ed3a250f47cefe5' }}" > local.properties
+          echo "LASTFM_SECRET=${{ secrets.LASTFM_SECRET || '00f3857fc1d79480e51242b3720a140a' }}" >> local.properties
+          echo "LISTEN_TOGETHER_SERVER=https://party.vibramusic.store" >> local.properties
+
+      - name: Build SharedUi iOS Framework (Arm64)
+        run: |
+          chmod +x gradlew
+          ./gradlew :sharedUi:linkReleaseFrameworkIosArm64 --no-daemon
+
+      - name: Generate Xcode Project & Build Unsigned iOS App
+        working-directory: iosApp
+        run: |
+          TAG="${{ github.ref_name }}"
+          if [ -z "$TAG" ] || [ "$TAG" = "main" ]; then
+            TAG="v1.8.36"
+          fi
+          brew install xcodegen
+          xcodegen generate
+          xcodebuild \
+            -project VibraMusic.xcodeproj \
+            -scheme VibraMusic \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
+          mkdir -p Payload
+          cp -r build/Build/Products/Release-iphoneos/VibraMusic.app Payload/
+          zip -r "VibraMusic-${TAG}-iOS-unsigned.ipa" Payload
+
+      - name: Upload Unsigned iOS IPA
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: VibraMusic-iOS-Release
+          path: iosApp/VibraMusic-*-iOS-unsigned.ipa
+
+      - name: Publish iOS Release to Source Repo
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: iosApp/VibraMusic-*-iOS-unsigned.ipa
+          draft: false
+          prerelease: false
+
+      - name: Publish iOS Release to Public Releases Repo
+        if: startsWith(github.ref, 'refs/tags/v') && env.HAS_RELEASES_TOKEN == 'true'
+        env:
+          HAS_RELEASES_TOKEN: ${{ secrets.RELEASES_TOKEN != '' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          repository: Fortunehack45/Vibra_Music_Releases
+          token: ${{ secrets.RELEASES_TOKEN }}
+          tag_name: ${{ github.ref_name }}
+          files: iosApp/VibraMusic-*-iOS-unsigned.ipa
+          draft: false
+          prerelease: false

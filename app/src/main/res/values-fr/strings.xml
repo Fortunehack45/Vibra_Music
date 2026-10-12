@@ -1358,4 +1358,6 @@
     <string name="speed">Vitesse de lecture</string>
     <string name="no_description_available">Aucune description disponible</string>
 
+    <string name="saved_short">Enregistré</string>
+    <string name="cover_background">Arrière-plan de pochette assombri</string>
 </resources>

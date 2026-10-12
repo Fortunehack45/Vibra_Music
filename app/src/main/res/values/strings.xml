@@ -1296,4 +1296,7 @@
     <string name="spotify_login_tip_banner_title" translatable="false">Log in with Spotify Email &amp; Password</string>
     <string name="spotify_login_tip_banner_desc" translatable="false">Google restricts \"Continue with Google\" in app browsers. Please enter your Spotify Email and Password below. If your account was created with Google, tap Set Password first.</string>
     <string name="spotify_login_manual_cookie" translatable="false">Use Cookie</string>
+    <string name="saved_short">Saved</string>
+    <string name="cover_background">Darkened cover background</string>
 </resources>
+

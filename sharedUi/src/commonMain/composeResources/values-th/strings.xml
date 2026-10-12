@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="analysis_complete">วิเคราะห์แล้ว</string>
     <string name="analysis_in_progress">กำลังวิเคราะห์…</string>
@@ -200,4 +200,6 @@
     <string name="search_library_empty">ค้นหาเพลงในโฟลเดอร์เพลงในเครื่องของคุณ</string>
     <string name="search_library_hint">เพลง ศิลปิน และอัลบั้ม</string>
     <string name="search_library_no_results">ไม่มีอะไรในเพลงในเครื่องตรงกับ “%1$s”</string>
+    <string name="saved_short">บันทึกแล้ว</string>
+    <string name="cover_background">พื้นหลังปกแบบมืด</string>
 </resources>

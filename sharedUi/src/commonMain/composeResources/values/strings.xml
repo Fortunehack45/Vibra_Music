@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="analysis_complete">analysed</string>
     <string name="analysis_in_progress">analysing…</string>
@@ -200,4 +200,6 @@
     <string name="member_since">Member since</string>
     <string name="import_spotify">Import Spotify</string>
     <string name="import_spotify_subtitle">From a playlist link</string>
+    <string name="saved_short">Saved</string>
+    <string name="cover_background">Darkened cover background</string>
 </resources>

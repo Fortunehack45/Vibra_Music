@@ -1611,19 +1611,8 @@ class PlaybackService : MediaLibraryService() {
         observeScrobbling()
         observeDiscord()
         watchSleepTimer()
-        val restored = if (PartyPersonalQueueStash.hasStash()) {
-            val stashed = PartyPersonalQueueStash.load()
-            PartyPersonalQueueStash.clear()
-            if (stashed != null && stashed.songs.isNotEmpty()) {
-                persistedQueueStart = 0
-                exoPlayer.setMediaItems(stashed.songs.map { it.toMediaItem() }, stashed.index, stashed.positionMs)
-                true
-            } else {
-                restoreLastQueue(exoPlayer)
-            }
-        } else {
-            restoreLastQueue(exoPlayer)
-        }
+        PartyPersonalQueueStash.clear()
+        val restored = restoreLastQueue(exoPlayer)
         if (restored) {
             publishWidgetState()
         } else {
@@ -1711,6 +1700,8 @@ class PlaybackService : MediaLibraryService() {
             analysisRunningFor = { item -> trackAnalyzer.isAnalysing(item.mediaId) },
             onArmIncoming = { item -> player?.let(::warmLoudnessFigures) },
             versionSwapActive = { versionSwapJob?.isActive == true },
+            trackVolumeFor = ::trackVolumeFor,
+            onFadeFinished = { setupLoudnessEnhancer(player?.currentMediaItem?.mediaId) },
         )
 
     /** Favorite and Shuffle: the only actions shown on the phone notification. */
@@ -2049,7 +2040,7 @@ class PlaybackService : MediaLibraryService() {
                         standbyPlayer.stop()
                         standbyPlayer.clearMediaItems()
                         standbyPlayer.volume = 1f
-                        activePlayer.volume = 1f
+                        activePlayer.volume = trackVolumeFor(activePlayer)
                         swappingMediaId = null
                         return@launch
                     }
@@ -2060,9 +2051,11 @@ class PlaybackService : MediaLibraryService() {
 
                     val inGain = sin(progress * (PI / 2.0)).toFloat()
                     val outGain = cos(progress * (PI / 2.0)).toFloat()
-                    val swapTrim = blendHeadroom(inGain, outGain)
-                    standbyPlayer.volume = inGain * swapTrim
-                    activePlayer.volume = outGain * swapTrim
+                    val baseTrim = blendHeadroom(inGain, outGain)
+                    val swapTrim = baseTrim * baseTrim
+                    val trackGain = trackVolumeFor(activePlayer)
+                    standbyPlayer.volume = (inGain * swapTrim * trackGain).coerceIn(0f, 1f)
+                    activePlayer.volume = (outGain * swapTrim * trackGain).coerceIn(0f, 1f)
 
                     if (progress >= 1f) break
                     delay(16)
@@ -2235,7 +2228,7 @@ class PlaybackService : MediaLibraryService() {
             lockedTransport = { playing -> partySync?.onLockedTransport(playing) == true },
         ) { lastPublishedSubtitle }
 
-        incoming.volume = 1f
+        incoming.volume = trackVolumeFor(incoming)
         outgoing.stop()
         outgoing.clearMediaItems()
         outgoing.volume = 1f
@@ -4941,7 +4934,6 @@ class PlaybackService : MediaLibraryService() {
 
     /** Serialize only the bounded window needed for a future cold-start resume. */
     private fun saveQueueSnapshot(player: ExoPlayer) {
-        if (ListenTogether.state.value.inParty) return
         if (player.mediaItemCount == 0) {
             persistedQueueStart = 0
             LastPlayed.clear()
@@ -4959,7 +4951,6 @@ class PlaybackService : MediaLibraryService() {
 
     /** Make the newly installed radio queue the durable cold-start boundary. */
     private fun saveQueueSnapshotImmediately(player: ExoPlayer) {
-        if (ListenTogether.state.value.inParty) return
         if (player.mediaItemCount == 0) {
             persistedQueueStart = 0
             LastPlayed.clearImmediately()
@@ -5807,6 +5798,15 @@ class PlaybackService : MediaLibraryService() {
         spatialAudioProcessorB.enabled = enabled
     }
 
+    private fun trackVolumeFor(target: ExoPlayer): Float {
+        if (!AppSettings.loudnessNormalization.value) return 1f
+        val id = target.currentMediaItem?.mediaId?.takeIf { it.isNotBlank() } ?: return 1f
+        val loudnessDb = StreamResolver.loudnessDbFor(id) ?: return 1f
+        if (loudnessDb <= 0.0) return 1f
+        val attenuationDb = (-loudnessDb).coerceIn(MIN_LOUDNESS_GAIN_MB / 100.0, 0.0)
+        return Math.pow(10.0, attenuationDb / 20.0).toFloat().coerceIn(0.18f, 1f)
+    }
+
     /**
      * Gets [loudnessEnhancer] onto whichever audio session [player] and
      * [spare] currently share, recreating it if a rebuild has moved that
@@ -5816,7 +5816,7 @@ class PlaybackService : MediaLibraryService() {
         if (sessionId == C.AUDIO_SESSION_ID_UNSET || sessionId <= 0) return null
         val existing = loudnessEnhancer
         if (existing != null && loudnessEnhancerSessionId == sessionId) return existing
-        existing?.release()
+        runCatching { existing?.release() }
         val created = runCatching { LoudnessEnhancer(sessionId) }
             .onFailure { Log.w("VibraMusicLoudness", "could not create LoudnessEnhancer", it) }
             .getOrNull()
@@ -5828,32 +5828,43 @@ class PlaybackService : MediaLibraryService() {
     /**
      * Reads YouTube's own normalization figure for [mediaId] — see
      * [com.fortune.vibramusic.data.innertube.StreamResolver.loudnessDbFor] — and
-     * applies it to the shared session as a millibel gain, or switches the
-     * effect off when nothing is known yet or the setting is off.
-     *
-     * A track substituted to JioSaavn or an addon still carries a figure here
-     * as long as it was queued from YouTube, because [StreamResolver] resolves
-     * the YouTube stream alongside the substitute lookup rather than only when
-     * one fails — see [StreamResolver.loudnessDbFor]'s own doc.
+     * applies attenuation per-player via [trackVolumeFor] and positive boost via
+     * the shared session's [LoudnessEnhancer] when not mid-transition.
      */
     private fun setupLoudnessEnhancer(mediaId: String?) {
         val exoPlayer = player ?: return
-        val enhancer = ensureLoudnessEnhancer(exoPlayer.audioSessionId) ?: return
         val enabled = AppSettings.loudnessNormalization.value
         val id = mediaId?.takeIf { it.isNotBlank() }
         val loudnessDb = id?.let(StreamResolver::loudnessDbFor)
+
+        if (crossfade?.isTransitioning() != true && versionSwapJob?.isActive != true) {
+            exoPlayer.volume = trackVolumeFor(exoPlayer)
+        }
+
+        val enhancer = ensureLoudnessEnhancer(exoPlayer.audioSessionId)
         if (!enabled || loudnessDb == null) {
-            enhancer.enabled = false
+            if (crossfade?.isTransitioning() != true || !enabled) {
+                runCatching { enhancer?.enabled = false }
+            }
             AudioOutputStatus.publishLoudness(gainDb = null, lufs = null)
             return
         }
         val gainMb = (-loudnessDb * 100.0).roundToInt().coerceIn(MIN_LOUDNESS_GAIN_MB, MAX_LOUDNESS_GAIN_MB)
-        runCatching {
-            enhancer.setTargetGain(gainMb)
-            enhancer.enabled = true
-        }.onFailure {
-            Log.w("VibraMusicLoudness", "could not apply loudness gain", it)
-            enhancer.enabled = false
+        if (gainMb <= 0) {
+            // Attenuation is applied per-player via trackVolumeFor so overlapping
+            // crossfade/Automix decks never jump or fight over the shared audioSessionId.
+            runCatching {
+                enhancer?.setTargetGain(0)
+                enhancer?.enabled = false
+            }
+        } else if (crossfade?.isTransitioning() != true) {
+            runCatching {
+                enhancer?.setTargetGain(gainMb)
+                enhancer?.enabled = true
+            }.onFailure {
+                Log.w("VibraMusicLoudness", "could not apply loudness gain", it)
+                runCatching { enhancer?.enabled = false }
+            }
         }
         AudioOutputStatus.publishLoudness(gainDb = gainMb / 100f, lufs = loudnessDb.toFloat())
     }
@@ -6267,7 +6278,7 @@ class PlaybackService : MediaLibraryService() {
         cancelPrefetch()
         trackAnalyzer.release()
         loudnessRetryJob?.cancel()
-        loudnessEnhancer?.release()
+        runCatching { loudnessEnhancer?.release() }
         loudnessEnhancer = null
         // The YouTube Music history entry for whatever was playing, closed out
         // on the same terms as the ListenBrainz submit below: a swipe-away never

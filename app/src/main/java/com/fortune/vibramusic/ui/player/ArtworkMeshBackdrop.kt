@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.ui.player
+package com.fortune.vibramusic.ui.player
 
 import android.graphics.Bitmap
 import android.os.Build
@@ -443,10 +443,15 @@ private val fullBlurCache = object : LinkedHashMap<String, ImageBitmap>(0, 0.75f
 
 /** Three small box passes approximate a broad Gaussian blur at thumbnail scale. */
 private fun Bitmap.boxBlurred(passes: Int): Bitmap {
-    val width = width
-    val height = height
-    if (width < 2 || height < 2) return this
-    var source = IntArray(width * height).also { getPixels(it, 0, width, 0, 0, width, height) }
+    val safeBitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && config == Bitmap.Config.HARDWARE) {
+        copy(Bitmap.Config.ARGB_8888, false) ?: return this
+    } else {
+        this
+    }
+    val width = safeBitmap.width
+    val height = safeBitmap.height
+    if (width < 2 || height < 2) return safeBitmap
+    var source = IntArray(width * height).also { safeBitmap.getPixels(it, 0, width, 0, 0, width, height) }
     var target = IntArray(source.size)
     val radius = (minOf(width, height) / 12).coerceAtLeast(2)
 
@@ -495,15 +500,6 @@ private fun boxBlurPass(
     }
 }
 
-/**
- * Meshes already read, keyed by artwork URL — the artwork at a URL cannot
- * change, so reading it twice buys a decode and a downsample for the same
- * answer. Touched from composition and from the resumption of
- * [rememberArtworkMesh]'s effect, both on the main thread, so it needs no lock.
- *
- * Clip frames never land here: the next one for the same URL is a different
- * picture, and there would be a new entry several times a second.
- */
 private val meshCache = object : LinkedHashMap<String, ArtworkMesh>(0, 0.75f, true) {
     override fun removeEldestEntry(eldest: Map.Entry<String, ArtworkMesh>) = size > MESH_CACHE_ENTRIES
 }
@@ -514,96 +510,25 @@ fun clearBackdropCaches() {
     synchronized(meshCache) { meshCache.clear() }
 }
 
-/** A session's worth of covers, at four kilobytes of texture each. */
 private const val MESH_CACHE_ENTRIES = 64
-
-/**
- * What a still sleeve is decoded at before it is averaged down. A whole
- * multiple of [MESH_GRID], so every cell is an equal number of source pixels
- * and no column comes out weighted differently from its neighbour.
- */
 private const val MESH_PX = 120
-
-/**
- * How many goes the backdrop's read gets before it is given up on, and how long
- * it waits between them.
- *
- * Matched to the cover's own retry in [NowPlayingScreen] rather than chosen
- * separately: the two read the same URL out of the same cache, so a run of
- * attempts that gave up at a different point from the cover's would be a way for
- * the backdrop and the artwork on top of it to disagree about whether this track
- * has a picture.
- */
 private const val MESH_ATTEMPTS = 4
-
-/** @see MESH_ATTEMPTS */
 private const val MESH_RETRY_DELAY_MS = 1_500L
-
-/**
- * How many cells across the mesh is.
- *
- * Coarse deliberately — see [ArtworkMesh]. Enough that a cover's layout
- * survives (where the bright part was, how much of the frame it took) and few
- * enough that nothing recognisable does.
- */
 private const val MESH_GRID = 6
-
-/**
- * How far the grid is interpolated on the CPU before the GPU stretches it.
- *
- * Bilinear filtering straight off a 6x6 texture is smooth but not *soft*: it is
- * piecewise-linear, and the eye finds the crease at every cell boundary when
- * they are a hundred and eighty pixels apart. Resampling to this first, with a
- * curve that flattens at each control point, leaves creases too small to see
- * before they are magnified — and it is what lets the GPU blur be narrow, which
- * is what makes following a clip affordable. It costs about a thousand lerps,
- * off the main thread, and the control points come through untouched, so the
- * artwork's proportions are exactly what they were.
- */
 private const val MESH_TEX = 32
-
-/**
- * How long the backdrop takes to change colour, whether that is a track skip or
- * the next frame of a clip playing over the sleeve.
- *
- * Long enough to read as the screen changing colour rather than cutting, and
- * comfortably inside the interval a clip's frames arrive on — see
- * `MESH_REFRESH_MS` in `NowPlayingScreen`. It has to finish before the next one
- * lands, or every fade is cut off partway and the backdrop never settles where
- * a frame actually put it.
- */
 private const val MESH_FADE_MS = 900
-
-/**
- * The most rows and columns of [source] that are actually looked at.
- *
- * A still sleeve is decoded at [MESH_PX] and falls well under this, but a clip
- * frame is whatever size the caller grabbed it at, and every pixel of it would
- * be read to produce thirty-six averages. Sampling on a stride instead bounds
- * the work at a fixed cost per frame however large the frame is, which is what
- * makes it safe to do this several times a second.
- */
 private const val MESH_SAMPLE = 128
 
-/**
- * Averages [source] into the mesh texture, flipped top to bottom and then
- * rotated sideways — see [rotatedBelowSeam] for why the flip alone isn't the
- * finish line.
- *
- * Row 0 of the grid is the sleeve's own bottom edge and later rows run back up
- * into it, which is the order [ArtworkMeshBackdrop] draws down the screen.
- *
- * A mean per cell, not a quantised swatch: what should sit under the artwork is
- * what a blur of the artwork would leave there, and a blur has no opinion about
- * which colour in the frame was the interesting one.
- */
-private fun meshOf(source: Bitmap, seed: Int): ArtworkMesh? {
+private fun meshOf(rawSource: Bitmap, seed: Int): ArtworkMesh? {
+    val source = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && rawSource.config == Bitmap.Config.HARDWARE) {
+        rawSource.copy(Bitmap.Config.ARGB_8888, false) ?: return null
+    } else {
+        rawSource
+    }
     val width = source.width
     val height = source.height
     if (width < 1 || height < 1) return null
 
-    // A cell nothing lands in would come out black, so the grid never asks for
-    // more cells than the artwork has pixels.
     val cols = MESH_GRID.coerceAtMost(width)
     val rows = MESH_GRID.coerceAtMost(height)
     val rowStep = (height / MESH_SAMPLE).coerceAtLeast(1)
@@ -615,65 +540,98 @@ private fun meshOf(source: Bitmap, seed: Int): ArtworkMesh? {
     val blue = LongArray(cells)
     val count = IntArray(cells)
 
-    // One row at a time, so the scratch buffer is the width of the artwork
-    // rather than the whole of it. A clip frame read whole is megabytes.
+    var totalRed = 0L
+    var totalGreen = 0L
+    var totalBlue = 0L
+    var totalCount = 0L
+
     val line = IntArray(width)
     var y = 0
     while (y < height) {
         source.getPixels(line, 0, width, 0, y, width, 1)
-        // Flipped as it is read — see the note above.
         val rowBase = ((height - 1 - y) * rows / height) * cols
         var x = 0
         while (x < width) {
             val cell = rowBase + x * cols / width
             val pixel = line[x]
-            red[cell] += (pixel shr 16) and 0xFF
-            green[cell] += (pixel shr 8) and 0xFF
-            blue[cell] += pixel and 0xFF
+            val r = (pixel shr 16) and 0xFF
+            val g = (pixel shr 8) and 0xFF
+            val b = pixel and 0xFF
+            red[cell] += r
+            green[cell] += g
+            blue[cell] += b
             count[cell]++
+            totalRed += r
+            totalGreen += g
+            totalBlue += b
+            totalCount++
             x += colStep
         }
         y += rowStep
     }
 
-    val grid = IntArray(cells) { cell ->
+    val safeTotal = totalCount.coerceAtLeast(1L)
+    val meanThemeArgb = argb(
+        (totalRed / safeTotal).toInt(),
+        (totalGreen / safeTotal).toInt(),
+        (totalBlue / safeTotal).toInt(),
+    )
+
+    // Compute raw cell colors and determine the population-weighted theme color across cells
+    // so that a small 1-cell contrasting detail never hijacks the gradient theme.
+    val rawCells = IntArray(cells) { cell ->
         val n = count[cell].coerceAtLeast(1)
-        argb((red[cell] / n).toInt(), (green[cell] / n).toInt(), (blue[cell] / n).toInt()).lifted()
+        argb((red[cell] / n).toInt(), (green[cell] / n).toInt(), (blue[cell] / n).toInt())
+    }
+
+    var satSum = 0f
+    val cellHsls = Array(cells) { cell ->
+        FloatArray(3).also {
+            ColorUtils.colorToHSL(rawCells[cell], it)
+            satSum += it[1]
+        }
+    }
+    val avgCellSat = satSum / cells.coerceAtLeast(1).toFloat()
+    val isMonochromeCover = avgCellSat < 0.10f
+
+    // Find the dominant chromatic theme among cells only if >= 20% of cells share chromaticity
+    val chromaticCells = cellHsls.indices.filter { cellHsls[it][1] >= 0.15f }
+    val themeArgb = if (!isMonochromeCover && chromaticCells.size >= (cells * 0.20f).toInt().coerceAtLeast(2)) {
+        var rAcc = 0L
+        var gAcc = 0L
+        var bAcc = 0L
+        for (idx in chromaticCells) {
+            val c = rawCells[idx]
+            rAcc += (c shr 16) and 0xFF
+            gAcc += (c shr 8) and 0xFF
+            bAcc += c and 0xFF
+        }
+        val n = chromaticCells.size
+        ColorUtils.blendARGB(
+            meanThemeArgb,
+            argb((rAcc / n).toInt(), (gAcc / n).toInt(), (bAcc / n).toInt()),
+            0.60f,
+        )
+    } else {
+        meanThemeArgb
+    }
+
+    val grid = IntArray(cells) { cell ->
+        val row = cell / cols
+        val rowFraction = if (rows > 1) row.toFloat() / (rows - 1).toFloat() else 0f
+        // Harmonize each cell toward the overall album theme so isolated small details do not
+        // produce unrepresentative color blotches, and smoothly taper lightness from the seam
+        // down to the bottom of the player so neither light-to-dark nor dark-to-light bottom
+        // gradient inversions occur.
+        val themeBlend = if (row == 0) 0.42f else 0.58f + (rowFraction * 0.18f)
+        val blended = ColorUtils.blendARGB(rawCells[cell], themeArgb, themeBlend)
+        blended.liftedForRow(rowFraction, isMonochromeCover)
     }
     val texels = grid.rotatedBelowSeam(cols, rows, seed).resampled(cols, rows, MESH_TEX)
     val bitmap = Bitmap.createBitmap(texels, MESH_TEX, MESH_TEX, Bitmap.Config.ARGB_8888)
     return ArtworkMesh(bitmap.asImageBitmap())
 }
 
-/**
- * Every row but row 0 — the seam row [meshOf] keeps literal, for the
- * no-visible-join reason [ArtworkMeshBackdrop] documents — rotated sideways
- * by the same random amount, and mirrored left-to-right half the time.
- *
- * The flip alone reads as a mirror on a cover with any real layout to it: a
- * face, a logo, a horizon line reappears upside down in the same columns it
- * left off in, and that symmetry is what makes the backdrop look like a
- * reflection rather than a colour field. An earlier version broke that by
- * shuffling every cell below the seam independently, which also broke the
- * *mesh*: a photo's neighbouring regions are usually close in colour, and a
- * random per-cell permutation puts wildly different cells next to each other
- * far more often than the photo itself ever did, so the smooth blend between
- * them read as a patchwork of small blended islands — a mosaic — rather than
- * the two or three broad blobs a real mesh gradient has.
- *
- * A cyclic shift doesn't have that problem: every cell keeps the exact
- * neighbours it started with, just carried around the row, so whatever
- * gradient existed between them survives untouched. What moves is *where on
- * screen* that gradient sits — which is exactly enough to stop the column
- * directly under the artwork's face or logo from being the same column that
- * face or logo was in above it, without inventing a single new boundary
- * between colours that weren't adjacent in the source.
- *
- * Seeded rather than re-rolled on every call: the same artwork should land in
- * the same arrangement each time it's read, or a canvas clip refreshing this
- * once a second (see `MESH_REFRESH_MS`) would show its layout visibly turning
- * underneath its own colours instead of just changing hue.
- */
 private fun IntArray.rotatedBelowSeam(cols: Int, rows: Int, seed: Int): IntArray {
     if (rows <= 1) return this
     val random = Random(seed)
@@ -690,10 +648,6 @@ private fun IntArray.rotatedBelowSeam(cols: Int, rows: Int, seed: Int): IntArray
     return out
 }
 
-/**
- * Smoothly resamples a [cols] x [rows] grid of control points up to a
- * [size] x [size] texture — see [MESH_TEX] for why this happens at all.
- */
 private fun IntArray.resampled(cols: Int, rows: Int, size: Int): IntArray {
     val out = IntArray(size * size)
     for (ty in 0 until size) {
@@ -734,22 +688,23 @@ private fun lerpArgb(from: Int, to: Int, t: Float): Int {
 private fun argb(red: Int, green: Int, blue: Int): Int =
     (0xFF shl 24) or (red shl 16) or (green shl 8) or blue
 
-/**
- * The one liberty taken with the artwork's colours.
- *
- * Saturation is nudged because averaging a block of pixels greys it — the mean
- * of a red stripe and the black around it is a dull maroon, and this puts back
- * roughly what the averaging took, not more. Lightness is only floored, off
- * pure black, which is not so much a colour choice as somewhere for the blur to
- * find an edge. Neither touches the *proportions*, which is the whole point of
- * this backdrop: a sleeve that is mostly black stays mostly black.
- */
-private fun Int.lifted(): Int {
+private fun Int.liftedForRow(rowFraction: Float, isMonochromeCover: Boolean): Int {
     val hsl = FloatArray(3).also { ColorUtils.colorToHSL(this, it) }
-    hsl[1] = (hsl[1] * MESH_VIBRANCE).coerceAtMost(1f)
-    hsl[2] = hsl[2].coerceAtLeast(MESH_FLOOR)
+    hsl[1] = if (isMonochromeCover || hsl[1] < 0.08f) {
+        hsl[1].coerceAtMost(0.06f)
+    } else {
+        (hsl[1] * MESH_VIBRANCE).coerceIn(0.14f, 0.72f)
+    }
+    // Smoothly taper lightness from the artwork seam (rowFraction = 0) down to the bottom of
+    // the player (rowFraction = 1), preventing both bright bottom inversions (dark-to-light)
+    // and harsh bright seam drop-offs (light-to-dark).
+    val minL = 0.09f - (rowFraction * 0.03f)
+    val maxL = 0.32f - (rowFraction * 0.14f)
+    val compressedL = minL + (hsl[2].coerceIn(0f, 1f) * (maxL - minL))
+    hsl[2] = compressedL.coerceIn(MESH_FLOOR, maxL)
     return ColorUtils.HSLToColor(hsl)
 }
 
 private const val MESH_VIBRANCE = 1.12f
-private const val MESH_FLOOR = 0.045f
+private const val MESH_FLOOR = 0.055f
+

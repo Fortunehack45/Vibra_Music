@@ -1,0 +1,27 @@
+name: VibraMusic
+options:
+  bundleIdPrefix: com.fortune
+  deploymentTarget:
+    iOS: "16.0"
+targets:
+  VibraMusic:
+    type: application
+    platform: iOS
+    sources:
+      - path: iosApp
+    info:
+      path: iosApp/Info.plist
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.fortune.vibramusic
+        PRODUCT_NAME: VibraMusic
+        SWIFT_VERSION: "5.9"
+        OTHER_LDFLAGS:
+          - "$(inherited)"
+          - "-framework"
+          - "SharedUi"
+          - "-lsqlite3"
+        FRAMEWORK_SEARCH_PATHS:
+          - "$(inherited)"
+          - "$(SRCROOT)/../sharedUi/build/bin/iosArm64/releaseFramework"
+          - "$(SRCROOT)/../sharedUi/build/bin/iosSimulatorArm64/debugFramework"

@@ -997,17 +997,6 @@ func handleInviteLanding(w http.ResponseWriter, r *http.Request) {
 			if currentSongThumb == "" && p.Playback.Track.ThumbnailUrl != nil {
 				currentSongThumb = *p.Playback.Track.ThumbnailUrl
 			}
-		} else if currentSongTitle != "" {
-			var thumbPtr *string
-			if currentSongThumb != "" {
-				thumbPtr = &currentSongThumb
-			}
-			p.Playback.Track = &party.Track{
-				VideoId:      "shared",
-				Title:        currentSongTitle,
-				Artist:       currentSongArtist,
-				ThumbnailUrl: thumbPtr,
-			}
 		}
 		memberCount = len(p.Members)
 		maxMembers = p.MaxMembers
@@ -1102,17 +1091,6 @@ func handleInvitePreviewImage(w http.ResponseWriter, r *http.Request) {
 			}
 			if currentSongThumb == "" && p.Playback.Track.ThumbnailUrl != nil {
 				currentSongThumb = *p.Playback.Track.ThumbnailUrl
-			}
-		} else if currentSongTitle != "" {
-			var thumbPtr *string
-			if currentSongThumb != "" {
-				thumbPtr = &currentSongThumb
-			}
-			p.Playback.Track = &party.Track{
-				VideoId:      "shared",
-				Title:        currentSongTitle,
-				Artist:       currentSongArtist,
-				ThumbnailUrl: thumbPtr,
 			}
 		}
 		p.Unlock()
@@ -1250,8 +1228,8 @@ func handleSocketFrame(p *party.Party, member *party.Member, sc *hub.SafeConn, f
 	}
 
 	p.Lock()
-	defer p.Unlock()
 	if !p.SpendFrameBudget(member) {
+		p.Unlock()
 		_ = sc.WriteJSON(map[string]interface{}{
 			"type": protocol.FrameError, "error": "rate_limited", "message": "Too many messages at once.",
 		})
@@ -1262,17 +1240,23 @@ func handleSocketFrame(p *party.Party, member *party.Member, sc *hub.SafeConn, f
 
 	switch kind {
 	case protocol.FramePing:
-		_ = sc.WriteJSON(map[string]interface{}{
+		pong := map[string]interface{}{
 			"type":     protocol.FramePong,
 			"clientMs": frame["clientMs"],
 			"serverMs": clock.NowMs(),
-		})
+		}
+		p.Unlock()
+		_ = sc.WriteJSON(pong)
 
 	case protocol.FrameSync:
-		_ = sc.WriteJSON(stateFrame(p))
+		sFrame := stateFrame(p)
+		p.Unlock()
+		_ = sc.WriteJSON(sFrame)
 
 	case protocol.FrameSyncQueue:
-		_ = sc.WriteJSON(queueFrame(p))
+		qFrame := queueFrame(p)
+		p.Unlock()
+		_ = sc.WriteJSON(qFrame)
 
 	case protocol.FrameReport:
 		// Playhead position report from client for monitoring
@@ -1282,9 +1266,11 @@ func handleSocketFrame(p *party.Party, member *party.Member, sc *hub.SafeConn, f
 				log.Printf("party %s: %s drifted %dms", p.Code, member.DisplayName, drift)
 			}
 		}
+		p.Unlock()
 
 	case protocol.FrameControl:
 		if !p.SpendControlBudget(member) {
+			p.Unlock()
 			_ = sc.WriteJSON(map[string]interface{}{
 				"type":    protocol.FrameError,
 				"error":   "rate_limited",
@@ -1298,24 +1284,43 @@ func handleSocketFrame(p *party.Party, member *party.Member, sc *hub.SafeConn, f
 		success, errCode, errMsg := applyControl(p, member, action, frame)
 		if success {
 			p.Touch()
-			// If queue changed, broadcast queue first
+			var qFrame map[string]interface{}
 			if p.Playback.QueueSeq != queueBefore {
-				hubInst.Broadcast(p.Code, queueFrame(p), "")
+				qFrame = queueFrame(p)
 			}
-			hubInst.Broadcast(p.Code, stateFrame(p), "")
+			sFrame := stateFrame(p)
+			var mFrame map[string]interface{}
 			if action == protocol.ActionKick ||
 				action == protocol.ActionSetMaxMembers ||
 				action == protocol.ActionSetHostOnlyControl {
-				hubInst.Broadcast(p.Code, membersFrame(p), "")
+				mFrame = membersFrame(p)
 			}
-			hubInst.Broadcast(p.Code, activityFrame(member, action, frame), "")
-		} else if errCode != "" {
-			_ = sc.WriteJSON(map[string]interface{}{
-				"type":    protocol.FrameError,
-				"error":   errCode,
-				"message": errMsg,
-			})
+			aFrame := activityFrame(member, action, frame)
+			partyCode := p.Code
+			p.Unlock()
+
+			// Broadcast outside p.Lock() so a slow client write never stalls the room mutex.
+			if qFrame != nil {
+				hubInst.Broadcast(partyCode, qFrame, "")
+			}
+			hubInst.Broadcast(partyCode, sFrame, "")
+			if mFrame != nil {
+				hubInst.Broadcast(partyCode, mFrame, "")
+			}
+			hubInst.Broadcast(partyCode, aFrame, "")
+		} else {
+			p.Unlock()
+			if errCode != "" {
+				_ = sc.WriteJSON(map[string]interface{}{
+					"type":    protocol.FrameError,
+					"error":   errCode,
+					"message": errMsg,
+				})
+			}
 		}
+
+	default:
+		p.Unlock()
 	}
 }
 

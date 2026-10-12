@@ -97,7 +97,7 @@ func TrackFromWire(raw map[string]interface{}) *Track {
 // PlaybackState tracks playhead, playback mode, anchor timestamps, and queue sequencing.
 type PlaybackState struct {
 	Track         *Track   `json:"track"`
-	Queue         []*Track `json:"-"`
+	Queue         []*Track `json:"queue"`
 	QueueIndex    int      `json:"queueIndex"`
 	IsPlaying     bool     `json:"isPlaying"`
 	PositionMs    int64    `json:"positionMs"`
@@ -207,17 +207,34 @@ func (p *PlaybackState) SetTrack(
 	queueIndex *int,
 	memberName *string,
 ) {
-	p.Track = track
+	now := clock.NowMs()
 	if positionMs < 0 {
 		positionMs = 0
 	}
-	p.PositionMs = positionMs
-	p.IsPlaying = isPlaying && track != nil
-	lead := int64(0)
-	if p.IsPlaying {
-		lead = int64(config.PlayLeadMs)
+	duplicateAutoAdvance := p.Track != nil &&
+		track != nil &&
+		p.Track.VideoId == track.VideoId &&
+		p.IsPlaying &&
+		isPlaying &&
+		positionMs < 2500 &&
+		p.PositionAt(now) < 3500 &&
+		now-p.UpdatedAtMs < 2500 &&
+		memberId != nil &&
+		p.UpdatedBy != nil &&
+		*memberId != *p.UpdatedBy
+
+	p.Track = track
+	if !duplicateAutoAdvance {
+		p.PositionMs = positionMs
+		p.IsPlaying = isPlaying && track != nil
+		lead := int64(0)
+		if p.IsPlaying {
+			lead = int64(config.PlayLeadMs)
+		}
+		p.AnchorMs = now + lead
+		p.StartedBy = memberId
+		p.StartedByName = memberName
 	}
-	p.AnchorMs = clock.NowMs() + lead
 
 	if queueIndex != nil {
 		p.QueueIndex = *queueIndex
@@ -232,8 +249,6 @@ func (p *PlaybackState) SetTrack(
 		p.QueueIndex = match
 	}
 
-	p.StartedBy = memberId
-	p.StartedByName = memberName
 	p.touch(memberId)
 }
 
@@ -794,6 +809,14 @@ func (s *PartyStore) loadFromDiskLocked() {
 	if err := json.Unmarshal(data, &loaded); err == nil && loaded != nil {
 		for k, v := range loaded {
 			if _, exists := s.parties[k]; !exists && v != nil {
+				if v.Playback != nil {
+					if v.Playback.Queue == nil {
+						v.Playback.Queue = make([]*Track, 0)
+					}
+					if v.Playback.QueueIndex >= len(v.Playback.Queue) {
+						v.Playback.QueueIndex = -1
+					}
+				}
 				s.parties[k] = v
 			}
 		}

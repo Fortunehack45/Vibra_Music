@@ -1,4 +1,4 @@
-﻿import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     id("org.jetbrains.kotlin.multiplatform")
@@ -18,6 +18,10 @@ kotlin {
             jvmTarget.set(JvmTarget.JVM_17)
         }
     }
+
+    iosX64()
+    iosArm64()
+    iosSimulatorArm64()
 
     // Android and desktop are both JVM, but the default hierarchy gives them no source set in
     // common.
@@ -53,6 +57,7 @@ kotlin {
         commonMain.dependencies {
             // Models in this module intentionally have no Android or Compose dependency.
             implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
+            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
         }
         commonTest.dependencies {
             implementation(kotlin("test"))

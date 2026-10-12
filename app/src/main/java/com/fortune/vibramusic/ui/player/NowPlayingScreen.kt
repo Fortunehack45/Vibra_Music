@@ -1946,7 +1946,13 @@ fun NowPlayingScreen(
                             drawContent()
                             drawRect(
                                 brush = Brush.verticalGradient(
-                                    colors = listOf(Color.Black, Color.Transparent),
+                                    0.00f to Color.Black,
+                                    0.20f to Color.Black.copy(alpha = 0.92f),
+                                    0.40f to Color.Black.copy(alpha = 0.72f),
+                                    0.60f to Color.Black.copy(alpha = 0.44f),
+                                    0.80f to Color.Black.copy(alpha = 0.16f),
+                                    0.92f to Color.Black.copy(alpha = 0.04f),
+                                    1.00f to Color.Transparent,
                                     startY = size.height * (1f - HERO_FADE_FRACTION),
                                     endY = size.height,
                                 ),

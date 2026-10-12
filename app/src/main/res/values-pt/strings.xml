@@ -1362,4 +1362,6 @@
     <string name="speed">Velocidade de reprodução</string>
     <string name="no_description_available">Nenhuma descrição disponível</string>
 
+    <string name="saved_short">Salvo</string>
+    <string name="cover_background">Fundo de capa escurecido</string>
 </resources>

@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.ui.player
+package com.fortune.vibramusic.ui.player
 
 import android.content.Context
 import android.graphics.Bitmap
@@ -613,13 +613,17 @@ private fun TextureView.setBottomFade(fraction: Float, bounds: IntSize, endPx: F
         endY * (1f - fraction.coerceAtMost(1f)),
         0f,
         endY,
-        android.graphics.Color.BLACK,
-        android.graphics.Color.TRANSPARENT,
+        intArrayOf(
+            android.graphics.Color.BLACK,
+            android.graphics.Color.argb(235, 0, 0, 0),
+            android.graphics.Color.argb(184, 0, 0, 0),
+            android.graphics.Color.argb(112, 0, 0, 0),
+            android.graphics.Color.argb(40, 0, 0, 0),
+            android.graphics.Color.TRANSPARENT,
+        ),
+        floatArrayOf(0f, 0.22f, 0.45f, 0.68f, 0.86f, 1f),
         Shader.TileMode.CLAMP,
     )
-    // createOffsetEffect(0, 0) is the identity effect over the node's own
-    // content, which is the only way to name "what this view drew" as the
-    // destination of a blend.
     setRenderEffect(
         RenderEffect.createBlendModeEffect(
             RenderEffect.createOffsetEffect(0f, 0f),
@@ -629,21 +633,6 @@ private fun TextureView.setBottomFade(fraction: Float, bounds: IntSize, endPx: F
     )
 }
 
-/**
- * The pre-[Build.VERSION_CODES.S] bottom fade: the same dissolve
- * [setBottomFade] gets from a [RenderEffect], done the way it was done before
- * there was one.
- *
- * Draw the child into an offscreen layer, paint a gradient over that layer with
- * [PorterDuff.Mode.DST_IN], then compose the result down. Because the layer is
- * this group's — not the TextureView's own node — the video frames are inside it
- * by the time the mask lands, which is exactly what a Compose blend over the
- * texture cannot achieve.
- *
- * It costs a full-screen offscreen buffer per frame, so it stays off entirely
- * while [fadeFraction] is zero: with no fade asked for this is a plain
- * FrameLayout and `dispatchDraw` takes the ordinary path.
- */
 private class FadingBottomFrame(context: Context) : FrameLayout(context) {
     /** Share of the height, from the bottom, over which the child dissolves. */
     var fadeFraction: Float = 0f
@@ -651,8 +640,6 @@ private class FadingBottomFrame(context: Context) : FrameLayout(context) {
             val clamped = value.coerceIn(0f, 1f)
             if (clamped == field) return
             field = clamped
-            // A software layer would defeat the point — the texture has to stay
-            // hardware-composited — so this is only ever the invalidate.
             gradient = null
             invalidate()
         }
@@ -688,8 +675,15 @@ private class FadingBottomFrame(context: Context) : FrameLayout(context) {
             endY * (1f - fade),
             0f,
             endY,
-            android.graphics.Color.BLACK,
-            android.graphics.Color.TRANSPARENT,
+            intArrayOf(
+                android.graphics.Color.BLACK,
+                android.graphics.Color.argb(235, 0, 0, 0),
+                android.graphics.Color.argb(184, 0, 0, 0),
+                android.graphics.Color.argb(112, 0, 0, 0),
+                android.graphics.Color.argb(40, 0, 0, 0),
+                android.graphics.Color.TRANSPARENT,
+            ),
+            floatArrayOf(0f, 0.22f, 0.45f, 0.68f, 0.86f, 1f),
             Shader.TileMode.CLAMP,
         ).also {
             gradient = it

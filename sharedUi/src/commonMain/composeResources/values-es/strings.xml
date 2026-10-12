@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="analysis_complete">analizada</string>
     <string name="analysis_in_progress">analizando…</string>
@@ -200,4 +200,6 @@
     <string name="search_library_empty">Busca las canciones de tu carpeta de Música local.</string>
     <string name="search_library_hint">Canciones, artistas y álbumes</string>
     <string name="search_library_no_results">Nada en Música local coincide con “%1$s”.</string>
+    <string name="saved_short">Guardado</string>
+    <string name="cover_background">Fondo de portada oscurecido</string>
 </resources>

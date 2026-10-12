@@ -1275,4 +1275,6 @@
     <string name="speed">Tốc độ phát</string>
     <string name="no_description_available">Không có mô tả</string>
 
+    <string name="saved_short">Đã lưu</string>
+    <string name="cover_background">Nền ảnh bìa làm tối</string>
 </resources>

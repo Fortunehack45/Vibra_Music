@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="analysis_complete">analysée</string>
     <string name="analysis_in_progress">analyse en cours…</string>
@@ -200,4 +200,6 @@
     <string name="search_library_empty">Recherche les titres de votre dossier Musique locale.</string>
     <string name="search_library_hint">Titres, artistes et albums</string>
     <string name="search_library_no_results">Rien dans Musique locale ne correspond à « %1$s ».</string>
+    <string name="saved_short">Enregistré</string>
+    <string name="cover_background">Arrière-plan de pochette assombri</string>
 </resources>

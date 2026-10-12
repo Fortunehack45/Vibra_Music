@@ -171,6 +171,10 @@ class CrossfadeController(
      * [Phase.IDLE] is the only phase that can still be preempted for free.
      */
     private val versionSwapActive: () -> Boolean = { false },
+    /** Per-player base volume multiplier (for per-track loudness normalization without session jumps). */
+    private val trackVolumeFor: (ExoPlayer) -> Float = { 1f },
+    /** Invoked when a handed-off transition finishes or settles so session effects can reconcile cleanly. */
+    private val onFadeFinished: () -> Unit = {},
 ) {
 
     private enum class Phase {
@@ -1084,9 +1088,16 @@ class CrossfadeController(
 
         val rise = riseGain(progress)
         val fall = fallGain(progress)
-        val trim = blendHeadroom(rise, fall)
-        player.volume = rise * trim
-        out?.volume = fall * trim
+        // Two overlapping brickwall-limited masters (especially beat-aligned in Automix)
+        // sum constructively in the midrange and low end. Squaring blendHeadroom (i.e. 1 / (rise + fall))
+        // shapes sin/cos into a smooth S-curve where rise*trim + fall*trim == 1.0 across the entire
+        // transition, eliminating any midpoint loudness jump while preserving per-track normalization.
+        val baseTrim = blendHeadroom(rise, fall)
+        val trim = baseTrim * baseTrim
+        val inTrackGain = trackVolumeFor(player)
+        val outTrackGain = out?.let(trackVolumeFor) ?: 1f
+        player.volume = (rise * trim * inTrackGain).coerceIn(0f, 1f)
+        out?.volume = (fall * trim * outTrackGain).coerceIn(0f, 1f)
         // Only from here, never during ARMING: the standby is silent until the
         // handoff, and [filters] describes the split between the track arriving
         // and the track leaving, which only exists once both are audible.
@@ -1149,7 +1160,7 @@ class CrossfadeController(
         // hand the track back at full volume and let ordinary transition
         // logic resume next tick.
         if (!SleepTimer.afterTrack.value) {
-            out.volume = 1f
+            out.volume = trackVolumeFor(out)
             outgoing = null
             phase = Phase.IDLE
             return
@@ -1166,7 +1177,7 @@ class CrossfadeController(
     /** Pauses the track the fade-out was run on and retires the timer that asked for it. */
     private fun finishSleepFade() {
         outgoing?.pause()
-        outgoing?.volume = 1f
+        outgoing?.let { it.volume = trackVolumeFor(it) }
         SleepTimer.cancel()
         outgoing = null
         phase = Phase.IDLE
@@ -1177,12 +1188,13 @@ class CrossfadeController(
         val progress = ((SystemClock.elapsedRealtime() - bailStartedAt).toFloat() / BAIL_MS).coerceIn(0f, 1f)
         if (progress < 1f) {
             val fall = bailFromGain * fallGain(progress)
-            val trim = blendHeadroom(1f, fall)
+            val baseTrim = blendHeadroom(1f, fall)
+            val trim = baseTrim * baseTrim
             outgoing?.let { out ->
-                out.volume = fall * trim
+                out.volume = (fall * trim).coerceIn(0f, 1f)
             }
             incoming?.let { inc ->
-                inc.volume = trim
+                inc.volume = (trim * trackVolumeFor(inc)).coerceIn(0f, 1f)
             }
             return
         }
@@ -1218,12 +1230,17 @@ class CrossfadeController(
         filters.open()
         bailFromGain = outgoing?.volume ?: 0f
         bailIncomingFromGain = incoming?.volume ?: 1f
-        incoming?.volume = blendHeadroom(1f, bailFromGain)
+        val baseTrim = blendHeadroom(1f, bailFromGain)
+        val trim = baseTrim * baseTrim
+        incoming?.let { inc ->
+            inc.volume = (trim * trackVolumeFor(inc)).coerceIn(0f, 1f)
+        }
         bailStartedAt = SystemClock.elapsedRealtime()
         phase = Phase.BAILING
     }
 
     private fun finish() {
+        val wasHandedOff = handedOff
         if (phase != Phase.IDLE) {
             Log.d(TAG, "finish from $phase")
             // Stamped under this guard rather than beside the assignment at the
@@ -1239,11 +1256,11 @@ class CrossfadeController(
         filters.open()
         render = Render()
 
-        if (handedOff) {
+        if (wasHandedOff) {
             // The roles have already traded: the incoming player is the session
             // and owns the queue from here, and the outgoing one is spare.
             incoming?.let {
-                it.volume = 1f
+                it.volume = trackVolumeFor(it)
                 // Undoes whatever [begin] stacked on for a beatmatched handoff.
                 // Unconditional and idempotent, so this is correct whether or
                 // not a stretch was ever actually applied.
@@ -1253,7 +1270,7 @@ class CrossfadeController(
         } else {
             // The transition never became audible, so the session player never
             // moved and the standby is the one to throw away.
-            outgoing?.volume = 1f
+            outgoing?.let { it.volume = trackVolumeFor(it) }
             incoming?.let(::retire)
         }
 
@@ -1264,6 +1281,9 @@ class CrossfadeController(
         incomingCueTimeMs = 0L
         incomingPlaybackRate = 1.0
         phase = Phase.IDLE
+        if (wasHandedOff) {
+            onFadeFinished()
+        }
     }
 
     /** Still a next track, still playing, still switched on — by whichever setting armed this one. */

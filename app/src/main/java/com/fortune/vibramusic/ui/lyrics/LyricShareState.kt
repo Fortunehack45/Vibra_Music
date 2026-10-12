@@ -52,5 +52,7 @@ data class LyricShareConfig(
     val alignment: LyricCardAlignment = LyricCardAlignment.LEFT,
     val ratio: LyricCardRatio = LyricCardRatio.CARD_3_4,
     val showArtwork: Boolean = true,
+    val useCoverBackground: Boolean = false,
 )
+
 

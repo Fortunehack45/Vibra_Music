@@ -1343,4 +1343,6 @@
     <string name="speed">ความเร็วในการเล่น</string>
     <string name="no_description_available">ไม่มีคำอธิบาย</string>
 
+    <string name="saved_short">บันทึกแล้ว</string>
+    <string name="cover_background">พื้นหลังปกแบบมืด</string>
 </resources>

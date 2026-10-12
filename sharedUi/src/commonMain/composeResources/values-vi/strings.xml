@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="analysis_complete">đã phân tích</string>
     <string name="analysis_in_progress">đang phân tích…</string>
@@ -200,4 +200,6 @@
     <string name="search_library_empty">Tìm các bài hát trong thư mục Nhạc cục bộ của bạn.</string>
     <string name="search_library_hint">Bài hát, nghệ sĩ và album</string>
     <string name="search_library_no_results">Không có gì trong Nhạc cục bộ khớp với “%1$s”.</string>
+    <string name="saved_short">Đã lưu</string>
+    <string name="cover_background">Nền ảnh bìa làm tối</string>
 </resources>

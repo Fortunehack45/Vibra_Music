@@ -1312,4 +1312,6 @@
     <string name="speed">Oynatma hızı</string>
     <string name="no_description_available">Açıklama mevcut değil</string>
 
+    <string name="saved_short">Kaydedildi</string>
+    <string name="cover_background">Karartılmış kapak arka planı</string>
 </resources>

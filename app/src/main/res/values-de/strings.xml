@@ -1357,4 +1357,6 @@
     <string name="speed">Wiedergabegeschwindigkeit</string>
     <string name="no_description_available">Keine Beschreibung verfügbar</string>
 
+    <string name="saved_short">Gespeichert</string>
+    <string name="cover_background">Abgedunkelter Cover-Hintergrund</string>
 </resources>

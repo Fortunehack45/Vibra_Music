@@ -1337,4 +1337,6 @@
     <string name="speed">Kecepatan pemutaran</string>
     <string name="no_description_available">Deskripsi tidak tersedia</string>
 
+    <string name="saved_short">Tersimpan</string>
+    <string name="cover_background">Latar belakang sampul gelap</string>
 </resources>

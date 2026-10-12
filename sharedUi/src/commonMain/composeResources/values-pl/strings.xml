@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="analysis_complete">przeanalizowano</string>
     <string name="analysis_in_progress">analizowanie…</string>
@@ -200,4 +200,6 @@
     <string name="search_library_empty">Szukaj utworów w folderze muzyki lokalnej.</string>
     <string name="search_library_hint">Utwory, wykonawcy i albumy</string>
     <string name="search_library_no_results">NIC w muzyce lokalnej nie pasuje do „%1$s”.</string>
+    <string name="saved_short">Zapisano</string>
+    <string name="cover_background">Przyciemnione tło okładki</string>
 </resources>

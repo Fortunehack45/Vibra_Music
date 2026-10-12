@@ -1362,4 +1362,6 @@
     <string name="speed">מהירות הפעלה</string>
     <string name="no_description_available">אין תיאור זמין</string>
 
+    <string name="saved_short">נשמר</string>
+    <string name="cover_background">רקע עטיפה מוחשך</string>
 </resources>

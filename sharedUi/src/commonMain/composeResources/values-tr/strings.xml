@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="analysis_complete">analiz edildi</string>
     <string name="analysis_in_progress">analiz ediliyor…</string>
@@ -200,4 +200,6 @@
     <string name="search_library_empty">Yerel Müzik klasörünüzdeki şarkıları arar.</string>
     <string name="search_library_hint">Şarkılar, Sanatçılar ve Albümler</string>
     <string name="search_library_no_results">Yerel Müzik’te “%1$s” ile eşleşen bir şey yok.</string>
+    <string name="saved_short">Kaydedildi</string>
+    <string name="cover_background">Karartılmış kapak arka planı</string>
 </resources>

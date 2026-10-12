@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="analysis_complete">נותח</string>
     <string name="analysis_in_progress">מנתח…</string>
@@ -200,4 +200,6 @@
     <string name="search_library_empty">מחפש את השירים בתיקיית המוזיקה המקומית שלכם.</string>
     <string name="search_library_hint">שירים, אמנים ואלבומים</string>
     <string name="search_library_no_results">אין דבר במוזיקה המקומית שתואם ל-„%1$s”.</string>
+    <string name="saved_short">נשמר</string>
+    <string name="cover_background">רקע עטיפה מוחשך</string>
 </resources>

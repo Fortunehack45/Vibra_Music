@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.ui.components
+package com.fortune.vibramusic.ui.components
 
 import android.os.Build
 import androidx.compose.foundation.Canvas
@@ -87,10 +87,16 @@ fun ArtworkBackdrop(
                     .blur(72.dp, BlurredEdgeTreatment.Unbounded),
             )
         }
-        val isDark = androidx.compose.foundation.isSystemInDarkTheme()
-        val alpha0 = if (isDark) 0.40f else 0.08f
-        val alpha1 = if (isDark) 0.55f else 0.25f
-        val alpha2 = if (isDark) 0.85f else 0.72f
+        val isDark = (
+            0.2126f * palette.background.red +
+                0.7152f * palette.background.green +
+                0.0722f * palette.background.blue
+            ) < 0.5f
+        val alpha0 = if (isDark) 0.34f else 0.08f
+        val alpha1 = if (isDark) 0.48f else 0.22f
+        val alpha2 = if (isDark) 0.68f else 0.46f
+        val alpha3 = if (isDark) 0.86f else 0.74f
+        val alpha4 = if (isDark) 0.96f else 0.92f
 
         Box(
             Modifier
@@ -98,8 +104,10 @@ fun ArtworkBackdrop(
                 .background(
                     Brush.verticalGradient(
                         0f to palette.background.copy(alpha = alpha0),
-                        0.20f to palette.background.copy(alpha = alpha1),
-                        0.55f to palette.background.copy(alpha = alpha2),
+                        (washFraction * 0.22f) to palette.background.copy(alpha = alpha1),
+                        (washFraction * 0.46f) to palette.background.copy(alpha = alpha2),
+                        (washFraction * 0.70f) to palette.background.copy(alpha = alpha3),
+                        (washFraction * 0.88f) to palette.background.copy(alpha = alpha4),
                         washFraction to palette.background,
                     ),
                 ),
@@ -109,56 +117,27 @@ fun ArtworkBackdrop(
 
 /**
  * The colour a detail page is made of below its artwork.
- *
- * Holds [ArtworkPalette.wash] — the colour the sleeve's own blur ends on —
- * across the height the artwork occupies and a little past it, so the page
- * reads as that blur carrying on rather than as a second surface starting, and
- * then settles into the flat page tint on the way down.
- *
- * Two soft blobs of the artwork's other colours keep that from being a dead
- * vertical ramp. They are radial gradients rather than a blurred copy of the
- * sleeve, which is the whole point: a full-screen blur of a picture that is
- * *also on screen* still reads as the picture, and the faces in it show through
- * the song list. Nothing here is an image, so there is nothing to recognise —
- * and no full-screen `RenderEffect` behind a scrolling list either, so it costs
- * the same on every API level and under "reduce dynamic blur".
  */
 @Composable
 fun ArtworkWash(
     palette: ArtworkPalette,
     modifier: Modifier = Modifier,
-    /**
-     * Where the artwork above stops, as a fraction of the surface's height —
-     * the point past which the wash is allowed to start letting go.
-     *
-     * Defaulted past where a detail header lands on a phone: both headers are
-     * very nearly square and run the full width, so the artwork's own aspect
-     * ratio and the band overhanging it reach a little under 60% of the way
-     * down. The wash has to still be at full strength where that band hands
-     * over to it, or the join it was drawn to hide reappears as a step in
-     * brightness.
-     */
     washFraction: Float = 0.62f,
 ) {
     Canvas(modifier.fillMaxSize()) {
-        // Eased rather than run straight from [washFraction] to the bottom: a
-        // gradient that changes slope at a stop has a visible line at that
-        // stop, however close the two colours are either side of it. The eye
-        // finds the kink, not the colours. These stops round it off.
         drawRect(
             Brush.verticalGradient(
                 0f to palette.wash,
                 washFraction to palette.wash,
-                lerp(washFraction, 1f, 0.35f) to lerp(palette.wash, palette.background, 0.12f),
-                lerp(washFraction, 1f, 0.70f) to lerp(palette.wash, palette.background, 0.55f),
+                lerp(washFraction, 1f, 0.20f) to lerp(palette.wash, palette.background, 0.08f),
+                lerp(washFraction, 1f, 0.45f) to lerp(palette.wash, palette.background, 0.30f),
+                lerp(washFraction, 1f, 0.72f) to lerp(palette.wash, palette.background, 0.64f),
+                lerp(washFraction, 1f, 0.90f) to lerp(palette.wash, palette.background, 0.88f),
                 1f to palette.background,
             ),
         )
-        // Placed just under where the sleeve ends and off opposite edges, so
-        // the first thing below the artwork is the widest part of the mesh
-        // rather than a horizon line across it.
-        blob(palette.accent.copy(alpha = 0.13f), Offset(0.12f, washFraction + 0.08f), 0.80f)
-        blob(palette.elevated.copy(alpha = 0.30f), Offset(0.96f, washFraction + 0.30f), 0.95f)
+        blob(palette.accent.copy(alpha = 0.11f), Offset(0.12f, washFraction + 0.08f), 0.80f)
+        blob(palette.elevated.copy(alpha = 0.26f), Offset(0.96f, washFraction + 0.30f), 0.95f)
     }
 }
 

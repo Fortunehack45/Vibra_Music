@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="analysis_complete">dianalisis</string>
     <string name="analysis_in_progress">menganalisis…</string>
@@ -200,4 +200,6 @@
     <string name="search_library_empty">Cari lagu di folder Musik Lokal Anda.</string>
     <string name="search_library_hint">Lagu, Artis, dan Album</string>
     <string name="search_library_no_results">Tidak ada di Musik Lokal yang cocok dengan “%1$s”.</string>
+    <string name="saved_short">Tersimpan</string>
+    <string name="cover_background">Latar belakang sampul gelap</string>
 </resources>

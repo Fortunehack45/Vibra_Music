@@ -103,12 +103,23 @@ fun LyricShareSheet(
     var alignment by remember { mutableStateOf(LyricCardAlignment.LEFT) }
     var ratio by remember { mutableStateOf(LyricCardRatio.CARD_3_4) }
     var showArtwork by remember { mutableStateOf(true) }
+    var useCoverBackground by remember { mutableStateOf(false) }
 
     var poster by remember { mutableStateOf<Bitmap?>(null) }
     var isRendering by remember { mutableStateOf(true) }
     var isSaved by remember { mutableStateOf(false) }
 
-    val config = remember(song, selectedLines, cardStyle, palette, font, alignment, ratio, showArtwork) {
+    val config = remember(
+        song,
+        selectedLines,
+        cardStyle,
+        palette,
+        font,
+        alignment,
+        ratio,
+        showArtwork,
+        useCoverBackground,
+    ) {
         LyricShareConfig(
             song = song,
             selectedLines = selectedLines,
@@ -118,6 +129,7 @@ fun LyricShareSheet(
             alignment = alignment,
             ratio = ratio,
             showArtwork = showArtwork,
+            useCoverBackground = useCoverBackground,
         )
     }
 
@@ -231,7 +243,7 @@ fun LyricShareSheet(
                 // Dynamic Live Card Preview
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth(if (ratio == LyricCardRatio.CARD_3_4) 0.60f else 0.48f)
+                        .fillMaxWidth(if (ratio == LyricCardRatio.CARD_3_4) 0.64f else 0.50f)
                         .align(Alignment.CenterHorizontally)
                         .aspectRatio(ratio.ratio)
                         .clip(RoundedCornerShape(20.dp))
@@ -329,6 +341,34 @@ fun LyricShareSheet(
                             ),
                         )
                     }
+
+                    // Toggle Darkened Cover Background
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .clickable { useCoverBackground = !useCoverBackground }
+                            .padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = stringResource(R.string.cover_background),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium,
+                            color = Color.White,
+                        )
+                        Switch(
+                            checked = useCoverBackground,
+                            onCheckedChange = { useCoverBackground = it },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.Black,
+                                checkedTrackColor = Color.White,
+                                uncheckedThumbColor = Color.White.copy(alpha = 0.7f),
+                                uncheckedTrackColor = Color.White.copy(alpha = 0.2f),
+                            ),
+                        )
+                    }
                 }
 
                 Spacer(Modifier.height(18.dp))
@@ -343,7 +383,12 @@ fun LyricShareSheet(
                 )
                 PaletteSelector(
                     current = palette,
-                    onSelect = { palette = it },
+                    onSelect = {
+                        palette = it
+                        if (useCoverBackground && cardStyle == LyricCardStyle.LYRICS_CARD) {
+                            useCoverBackground = false
+                        }
+                    },
                 )
 
                 Spacer(Modifier.height(18.dp))
@@ -371,7 +416,7 @@ fun LyricShareSheet(
                 ) {
                     // Save to Photos
                     ActionButton(
-                        label = if (isSaved) stringResource(R.string.image_saved) else stringResource(R.string.save_image),
+                        label = if (isSaved) stringResource(R.string.saved_short) else stringResource(R.string.save_image),
                         icon = if (isSaved) Icons.Rounded.Check else Icons.Rounded.Download,
                         accent = false,
                         enabled = ready,
@@ -671,7 +716,7 @@ private fun ActionButton(
             .background(finalBackground)
             .then(borderModifier)
             .clickable(enabled = enabled, onClick = onClick)
-            .padding(vertical = 15.dp),
+            .padding(horizontal = 16.dp, vertical = 15.dp),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {

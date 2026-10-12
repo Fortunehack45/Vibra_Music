@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="analysis_complete">已分析</string>
     <string name="analysis_in_progress">正在分析…</string>
@@ -200,4 +200,6 @@
     <string name="search_library_empty">搜索本地音乐文件夹中的歌曲。</string>
     <string name="search_library_hint">歌曲、艺人和专辑</string>
     <string name="search_library_no_results">本地音乐中没有与「%1$s」匹配的内容。</string>
+    <string name="saved_short">已保存</string>
+    <string name="cover_background">暗化封面背景</string>
 </resources>

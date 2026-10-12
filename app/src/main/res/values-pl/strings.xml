@@ -1395,4 +1395,6 @@
     <string name="speed">Prędkość odtwarzania</string>
     <string name="no_description_available">Brak dostępnego opisu</string>
 
+    <string name="saved_short">Zapisano</string>
+    <string name="cover_background">Przyciemnione tło okładki</string>
 </resources>

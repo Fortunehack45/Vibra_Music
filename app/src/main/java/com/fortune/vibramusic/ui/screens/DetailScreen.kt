@@ -1019,8 +1019,12 @@ private fun PageBackground(
                     .matchParentSize()
                     .background(
                         Brush.verticalGradient(
-                            0.55f to Color.Transparent,
-                            1.00f to palette.wash.copy(alpha = 0.88f),
+                            0.38f to Color.Transparent,
+                            0.54f to palette.wash.copy(alpha = 0.10f),
+                            0.68f to palette.wash.copy(alpha = 0.32f),
+                            0.80f to palette.wash.copy(alpha = 0.62f),
+                            0.91f to palette.wash.copy(alpha = 0.86f),
+                            1.00f to palette.wash,
                         ),
                     ),
             )

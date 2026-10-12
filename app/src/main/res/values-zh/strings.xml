@@ -1337,4 +1337,6 @@
     <string name="speed">播放速度</string>
     <string name="no_description_available">暂无说明</string>
 
+    <string name="saved_short">已保存</string>
+    <string name="cover_background">暗化封面背景</string>
 </resources>

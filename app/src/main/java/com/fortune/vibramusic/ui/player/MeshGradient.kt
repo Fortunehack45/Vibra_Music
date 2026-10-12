@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.ui.player
+package com.fortune.vibramusic.ui.player
 
 import android.graphics.Bitmap
 import androidx.compose.animation.animateColorAsState
@@ -229,14 +229,12 @@ fun rememberArtworkColors(imageUrl: String?, canvasFrame: Bitmap? = null): MeshP
             .build()
         val result = SingletonImageLoader.get(context).execute(request)
         val bitmap = (result as? SuccessResult)?.image?.toBitmap() ?: return@LaunchedEffect
-        palette = MeshPalette(paletteOf(bitmap))
+        val colors = withContext(Dispatchers.Default) { paletteOf(bitmap) }
+        palette = MeshPalette(colors)
     }
 
     LaunchedEffect(canvasFrame) {
         val frame = canvasFrame ?: return@LaunchedEffect
-        // Reject near-black frames (first read after surface recreation, before
-        // ExoPlayer decodes real content).  A dark sleeve will still exceed the
-        // threshold because compression noise pushes mean luminance above ~12.
         if (isLikelyBlackFrame(frame)) return@LaunchedEffect
         val colors = withContext(Dispatchers.Default) { paletteOf(frame) }
         palette = MeshPalette(colors)
@@ -244,35 +242,31 @@ fun rememberArtworkColors(imageUrl: String?, canvasFrame: Bitmap? = null): MeshP
     return palette
 }
 
-/**
- * How far the blobs travel in one settle. A shade under half a turn: enough
- * that the backdrop visibly reacts to a track change, short of a full orbit
- * that would land the blobs back where they started.
- */
 private const val DRIFT_RADIANS = (PI * 0.45f).toFloat()
 
-/**
- * Four mesh colours drawn from the artwork.
- *
- * The named swatches — vibrant, muted and friends — are a convenience over the
- * full set, and on dark or desaturated sleeves every vibrant slot comes back
- * null: Karan Aujla's marble interior fills two of the five. Topping the rest
- * up from [FallbackColors] is what left those covers sitting under the stock
- * purple. So the whole swatch list is read instead, and any shortfall is
- * derived from the art's own colours rather than borrowed.
- */
-private fun paletteOf(bitmap: Bitmap): List<Color> {
-    fun swatchesOf(builder: Palette.Builder): List<Color> =
-        builder.maximumColorCount(24).generate().swatches
-            .sortedByDescending { it.population }
-            .map { Color(it.rgb) }
-
-    val found = swatchesOf(Palette.from(bitmap)).ifEmpty {
-        // The default filter discards near-black and near-white, which on a
-        // monochrome sleeve can be everything there is.
-        swatchesOf(Palette.from(bitmap).clearFilters())
+private fun paletteOf(rawBitmap: Bitmap): List<Color> {
+    val bitmap = if (
+        android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O &&
+        rawBitmap.config == Bitmap.Config.HARDWARE
+    ) {
+        rawBitmap.copy(Bitmap.Config.ARGB_8888, false) ?: return FallbackColors
+    } else {
+        rawBitmap
     }
 
+    val allSwatches = runCatching {
+        Palette.from(bitmap).clearFilters().maximumColorCount(24).generate().swatches
+            .sortedByDescending { it.population }
+    }.getOrNull().orEmpty()
+
+    if (allSwatches.isEmpty()) return FallbackColors
+
+    val totalPop = allSwatches.sumOf { it.population }.coerceAtLeast(1)
+    // Filter out tiny details (< 8% of cover area) so a small logo or sticker never hijacks the gradient
+    val majorSwatches = allSwatches.filter { it.population >= totalPop * 0.08f }
+        .ifEmpty { allSwatches.take(2) }
+
+    val found = majorSwatches.map { Color(it.rgb) }
     val distinct = found.distinctEnough()
     return when {
         distinct.isEmpty() -> FallbackColors
@@ -295,12 +289,12 @@ private fun Color.isCloseTo(other: Color): Boolean {
     return hueGap < 15f && abs(a[2] - b[2]) < 0.12f
 }
 
-/** Fill the empty slots off the art itself, fanning hue and lightness out. */
+/** Fill the empty slots off the art itself, staying within the cover's own hue family. */
 private fun List<Color>.expandedToFour(): List<Color> {
     val out = toMutableList()
     var step = 1
     while (out.size < 4) {
-        out += this[(out.size - size) % size].shifted(24f * step, 0.12f * step)
+        out += this[(out.size - size) % size].shifted(8f * step, 0.06f * step)
         step++
     }
     return out
@@ -308,26 +302,34 @@ private fun List<Color>.expandedToFour(): List<Color> {
 
 private fun Color.shifted(hue: Float, lightness: Float): Color {
     val hsl = hsl()
-    hsl[0] = (hsl[0] + hue) % 360f
-    hsl[2] = (hsl[2] + lightness).coerceIn(0.2f, 0.7f)
+    if (hsl[1] >= 0.10f) {
+        hsl[0] = (hsl[0] + hue) % 360f
+    }
+    hsl[2] = (hsl[2] + lightness).coerceIn(0.16f, 0.48f)
     return Color(ColorUtils.HSLToColor(hsl))
 }
 
 private fun Color.hsl(): FloatArray =
     FloatArray(3).also { ColorUtils.colorToHSL(toArgb(), it) }
 
-/** Boost saturation and clamp lightness so any artwork yields a rich, non-muddy mesh. */
+/** Preserve neutral covers while gently tuning chromatic covers to a cohesive, non-muddy mesh. */
 private fun Color.tuned(): Color {
     val hsl = FloatArray(3)
     ColorUtils.colorToHSL(toArgb(), hsl)
-    hsl[1] = (hsl[1] * 1.35f).coerceAtMost(1f)
-    hsl[2] = hsl[2].coerceIn(0.28f, 0.58f)
+    hsl[1] = if (hsl[1] < 0.10f) {
+        hsl[1].coerceAtMost(0.06f)
+    } else {
+        (hsl[1] * 1.18f).coerceAtMost(0.78f)
+    }
+    hsl[2] = hsl[2].coerceIn(0.18f, 0.44f)
     return Color(ColorUtils.HSLToColor(hsl))
 }
 
 private fun Color.dimmed(): Color {
     val hsl = FloatArray(3)
     ColorUtils.colorToHSL(toArgb(), hsl)
-    hsl[2] = 0.12f
+    if (hsl[1] < 0.10f) hsl[1] = hsl[1].coerceAtMost(0.05f)
+    hsl[2] = 0.10f
     return Color(ColorUtils.HSLToColor(hsl))
 }
+

@@ -7,9 +7,9 @@ import android.net.Uri
 import android.os.Build
 import android.view.ViewGroup
 import android.webkit.CookieManager
+import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
-import android.webkit.WebStorage
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
@@ -28,7 +28,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Info
@@ -194,7 +194,7 @@ fun SpotifyLibraryScreen(
                     )
                 }
             }
-            items(playlists, key = { it.id }) { item ->
+            itemsIndexed(playlists, key = { index, item -> "${item.id}_$index" }) { _, item ->
                 LibraryRow(
                     title = item.name,
                     subtitle = item.owner.orEmpty(),
@@ -276,27 +276,27 @@ private fun isLoginHost(uri: Uri?) = hostMatches(uri, LOGIN_HOST_SUFFIXES)
  * the YouTube Music sign-in.
  */
 fun clearSpotifyWebSession() {
-    val cookies = CookieManager.getInstance()
-    for (url in SPOTIFY_COOKIE_URLS) {
-        val names = cookies.getCookie(url)?.split(";")
-            ?.map { it.substringBefore("=").trim() }
-            ?.filter { it.isNotEmpty() }
-            .orEmpty()
-        for (name in names) {
-            val expired = "$name=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/"
-            cookies.setCookie(url, expired)
-            cookies.setCookie(url, "$expired; Domain=.spotify.com")
-            cookies.setCookie(url, "$expired; Domain=spotify.com")
-            cookies.setCookie(url, "$expired; Domain=.open.spotify.com")
-            cookies.setCookie(url, "$expired; Domain=.accounts.spotify.com")
+    runCatching {
+        val cookies = CookieManager.getInstance()
+        for (url in SPOTIFY_COOKIE_URLS) {
+            val names = cookies.getCookie(url)?.split(";")
+                ?.map { it.substringBefore("=").trim() }
+                ?.filter { it.isNotEmpty() }
+                .orEmpty()
+            for (name in names) {
+                val expired = "$name=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/"
+                cookies.setCookie(url, expired)
+                cookies.setCookie(url, "$expired; Domain=.spotify.com")
+                cookies.setCookie(url, "$expired; Domain=spotify.com")
+                cookies.setCookie(url, "$expired; Domain=.open.spotify.com")
+                cookies.setCookie(url, "$expired; Domain=.accounts.spotify.com")
+            }
+            cookies.setCookie(url, "sp_dc=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; Domain=.spotify.com")
+            cookies.setCookie(url, "sp_dc=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; Domain=spotify.com")
+            cookies.setCookie(url, "sp_dc=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/")
         }
-        cookies.setCookie(url, "sp_dc=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; Domain=.spotify.com")
-        cookies.setCookie(url, "sp_dc=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; Domain=spotify.com")
-        cookies.setCookie(url, "sp_dc=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/")
+        cookies.flush()
     }
-    runCatching { cookies.removeSessionCookies(null) }
-    cookies.flush()
-    runCatching { WebStorage.getInstance().deleteAllData() }
 }
 
 @SuppressLint("SetJavaScriptEnabled")
@@ -310,10 +310,6 @@ fun SpotifyLoginScreen(
     var webViewError by remember { mutableStateOf<String?>(null) }
     var showGoogleNoticeDialog by remember { mutableStateOf(false) }
     val context = LocalContext.current
-
-    LaunchedEffect(Unit) {
-        clearSpotifyWebSession()
-    }
 
     if (webViewError != null) {
         Box(modifier = modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
@@ -471,14 +467,14 @@ fun SpotifyLoginScreen(
                                 if (host == "accounts.google.com" || host.endsWith(".accounts.google.com")) {
                                     view.stopLoading()
                                     showGoogleNoticeDialog = true
-                                    view.loadUrl(LOGIN_URL)
+                                    view.post { view.loadUrl(LOGIN_URL) }
                                 }
                             }
 
                             override fun onPageFinished(view: WebView, url: String?) {
                                 if (isSpotifyHost(url?.toUri())) view.evaluateJavascript(LOGIN_LAYOUT_FIX, null)
                                 if (sent || url?.startsWith("https://open.spotify.com") != true) return
-                                val raw = CookieManager.getInstance().getCookie("https://open.spotify.com") ?: return
+                                val raw = runCatching { CookieManager.getInstance().getCookie("https://open.spotify.com") }.getOrNull() ?: return
                                 val token = raw.split(";")
                                     .map { it.trim() }
                                     .firstOrNull { it.startsWith("sp_dc=") }
@@ -493,6 +489,14 @@ fun SpotifyLoginScreen(
                                 sent = true
                                 onConnected(token)
                             }
+
+                            override fun onRenderProcessGone(
+                                view: WebView?,
+                                detail: RenderProcessGoneDetail?,
+                            ): Boolean {
+                                webViewError = "Web browser process stopped. Please reopen this screen."
+                                return true
+                            }
                         }
                         loadUrl(LOGIN_URL)
                     }
@@ -501,7 +505,7 @@ fun SpotifyLoginScreen(
                     android.view.View(ctx)
                 }
             },
-            onRelease = { view -> (view as? WebView)?.destroy() },
+            onRelease = { view -> runCatching { (view as? WebView)?.destroy() } },
         )
     }
 }

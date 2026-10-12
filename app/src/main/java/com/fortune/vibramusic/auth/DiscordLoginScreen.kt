@@ -1,9 +1,10 @@
-﻿package com.fortune.vibramusic.auth
+package com.fortune.vibramusic.auth
 
 import android.annotation.SuppressLint
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.JsResult
+import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -188,6 +189,14 @@ fun DiscordLoginScreen(
                     override fun onPageFinished(view: WebView?, url: String?) {
                         canGoBack = view?.canGoBack() == true
                         if (isSignedIn(url)) harvestToken()
+                    }
+
+                    override fun onRenderProcessGone(
+                        view: WebView?,
+                        detail: RenderProcessGoneDetail?,
+                    ): Boolean {
+                        webView = null
+                        return true
                     }
                 }
 

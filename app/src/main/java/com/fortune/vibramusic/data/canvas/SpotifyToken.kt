@@ -5,7 +5,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
-import android.webkit.WebStorage
+import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import com.fortune.vibramusic.data.DebugLog as Log
@@ -14,6 +14,7 @@ import com.fortune.vibramusic.data.settings.AppSettings
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -71,6 +72,7 @@ internal object SpotifyToken {
     /** Pre-warms the token asynchronously in the background so it is instantly available when music plays. */
     fun warmUp() {
         CoroutineScope(Dispatchers.IO).launch {
+            delay(10_000L)
             runCatching { accessToken() }
         }
     }
@@ -178,20 +180,15 @@ internal object SpotifyToken {
     private suspend fun harvestViaWebView(context: Context, cookie: String, isUserCookie: Boolean): HarvestedToken? {
         val deferred = CompletableDeferred<HarvestedToken?>()
 
-        val cookieManager = CookieManager.getInstance().apply {
-            setAcceptCookie(true)
-            setCookie("https://open.spotify.com/", "sp_dc=$cookie; Domain=.spotify.com; Path=/; Secure")
-            setCookie("https://accounts.spotify.com/", "sp_dc=$cookie; Domain=.spotify.com; Path=/; Secure")
-            flush()
-        }
-        // The player caches its token in web storage and skips a fresh
-        // /api/token request if a live one is already sitting there, leaving
-        // the hook with nothing to see — wipe storage so every harvest forces
-        // a real mint.
-        runCatching { WebStorage.getInstance().deleteAllData() }
-
         var webView: WebView? = null
         return try {
+            val cookieManager = CookieManager.getInstance().apply {
+                setAcceptCookie(true)
+                setCookie("https://open.spotify.com/", "sp_dc=$cookie; Domain=.spotify.com; Path=/; Secure")
+                setCookie("https://accounts.spotify.com/", "sp_dc=$cookie; Domain=.spotify.com; Path=/; Secure")
+                flush()
+            }
+
             webView = WebView(context).apply {
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
@@ -211,12 +208,21 @@ internal object SpotifyToken {
                         // after the onPageStarted injection ran.
                         view.evaluateJavascript(HOOK_SCRIPT, null)
                     }
+
+                    override fun onRenderProcessGone(
+                        view: WebView?,
+                        detail: RenderProcessGoneDetail?,
+                    ): Boolean {
+                        Log.w(TAG, "WebView render process gone during Spotify token harvest (didCrash=${detail?.didCrash()})")
+                        if (!deferred.isCompleted) deferred.complete(null)
+                        return true
+                    }
                 }
                 loadUrl("https://open.spotify.com/")
             }
 
             withTimeoutOrNull(HARVEST_TIMEOUT_MS) { deferred.await() }
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.w(TAG, "token harvest threw: ${e.message}")
             null
         } finally {
@@ -268,6 +274,7 @@ internal object SpotifyToken {
         (function () {
           if (window.__sirenTokenHook) return;
           window.__sirenTokenHook = true;
+          try { window.localStorage.clear(); window.sessionStorage.clear(); } catch (e) {}
           var report = function (body) {
             try { $BRIDGE_NAME.onTokenPayload(body); } catch (e) {}
           };

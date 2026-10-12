@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.data.canvas
+package com.fortune.vibramusic.data.canvas
 
 import android.content.Context
 import androidx.media3.common.util.UnstableApi
@@ -43,12 +43,16 @@ object CanvasCache {
     private lateinit var cache: SimpleCache
 
     /** Opened once per process, alongside [com.fortune.vibramusic.playback.AudioCache.init]. */
+    @Synchronized
     fun init(context: Context) {
-        cache = SimpleCache(
-            File(context.cacheDir, "canvas"),
-            LeastRecentlyUsedCacheEvictor(CACHE_LIMIT_BYTES),
-            StandaloneDatabaseProvider(context),
-        )
+        if (::cache.isInitialized) return
+        runCatching {
+            cache = SimpleCache(
+                File(context.cacheDir, "canvas"),
+                LeastRecentlyUsedCacheEvictor(CACHE_LIMIT_BYTES),
+                StandaloneDatabaseProvider(context),
+            )
+        }
     }
 
     /**
@@ -58,9 +62,11 @@ object CanvasCache {
      * plain streaming rather than surfacing as a playback error, the same
      * choice [com.fortune.vibramusic.playback.AudioCache] makes for audio.
      */
-    fun dataSourceFactory(upstream: DataSource.Factory): DataSource.Factory =
-        CacheDataSource.Factory()
+    fun dataSourceFactory(upstream: DataSource.Factory): DataSource.Factory {
+        if (!::cache.isInitialized) return upstream
+        return CacheDataSource.Factory()
             .setCache(cache)
             .setUpstreamDataSourceFactory(upstream)
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+    }
 }

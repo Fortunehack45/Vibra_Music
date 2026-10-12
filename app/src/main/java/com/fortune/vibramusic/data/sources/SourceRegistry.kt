@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.data.sources
+package com.fortune.vibramusic.data.sources
 
 import android.content.Context
 import android.content.SharedPreferences
@@ -81,6 +81,7 @@ object SourceRegistry {
      */
     private var instances: Map<String, MusicSource> = emptyMap()
 
+    @Synchronized
     fun init(context: Context) {
         // Same repair and degradation as AuthStore; see EncryptedPrefs.
         prefs = EncryptedPrefs.open(context, "vibra_sources", "vibra_sources_plain").also { vibraPrefs ->

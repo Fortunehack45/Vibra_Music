@@ -3,6 +3,7 @@ package com.fortune.vibramusic.ui.player
 import android.annotation.SuppressLint
 import android.graphics.Color as AndroidColor
 import android.view.ViewGroup
+import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -138,7 +139,15 @@ fun PodcastVideoView(
                         cacheMode = WebSettings.LOAD_DEFAULT
                     }
                     webChromeClient = WebChromeClient()
-                    webViewClient = object : WebViewClient() {}
+                    webViewClient = object : WebViewClient() {
+                        override fun onRenderProcessGone(
+                            view: WebView?,
+                            detail: RenderProcessGoneDetail?,
+                        ): Boolean {
+                            webViewRef = null
+                            return true
+                        }
+                    }
                     loadDataWithBaseURL("https://www.youtube.com", htmlContent, "text/html", "UTF-8", null)
                     webViewRef = this
                 }
@@ -152,7 +161,7 @@ fun PodcastVideoView(
 
     DisposableEffect(videoId) {
         onDispose {
-            webViewRef?.destroy()
+            runCatching { webViewRef?.destroy() }
             webViewRef = null
         }
     }

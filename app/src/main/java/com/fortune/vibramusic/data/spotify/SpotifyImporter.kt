@@ -16,13 +16,18 @@ import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
 import java.util.concurrent.atomic.AtomicInteger
+
+private fun JsonElement?.asObj(): JsonObject? = this as? JsonObject
+private fun JsonElement?.asArr(): JsonArray? = this as? JsonArray
+private fun JsonElement?.asStr(): String? = (this?.takeIf { it !is JsonNull } as? JsonPrimitive)?.contentOrNull
 
 /** Single track metadata extracted from a Spotify playlist. */
 data class SpotifyImportTrack(
@@ -126,42 +131,44 @@ object SpotifyImporter {
                 ?: error("Could not parse Spotify playlist metadata. Make sure the playlist is public.")
 
             val jsonString = match.groupValues[1]
-            val root = json.parseToJsonElement(jsonString).jsonObject
+            val root = json.parseToJsonElement(jsonString).asObj()
+                ?: error("Could not parse Spotify playlist JSON")
 
-            val props = root["props"]?.jsonObject
-                ?.get("pageProps")?.jsonObject
-            val stateData = props?.get("state")?.jsonObject
-                ?.get("data")?.jsonObject
-                ?.get("entity")?.jsonObject
-                ?: props?.get("entity")?.jsonObject
+            val props = root["props"].asObj()
+                ?.get("pageProps").asObj()
+            val stateData = props?.get("state").asObj()
+                ?.get("data").asObj()
+                ?.get("entity").asObj()
+                ?: props?.get("entity").asObj()
                 ?: error("Spotify playlist entity missing or private")
 
-            val playlistTitle = stateData["name"]?.jsonPrimitive?.content
-                ?: stateData["title"]?.jsonPrimitive?.content
+            val playlistTitle = stateData["name"].asStr()
+                ?: stateData["title"].asStr()
                 ?: "Imported Spotify Playlist"
 
-            val coverUrl = stateData["coverArt"]?.jsonObject?.get("sources")?.jsonArray
-                ?.firstOrNull()?.jsonObject?.get("url")?.jsonPrimitive?.content
-                ?: stateData["visualIdentity"]?.jsonObject?.get("image")?.jsonArray
-                    ?.lastOrNull()?.jsonObject?.get("url")?.jsonPrimitive?.content
-                ?: stateData["images"]?.jsonArray?.firstOrNull()?.jsonObject?.get("url")?.jsonPrimitive?.content
+            val coverUrl = stateData["coverArt"].asObj()?.get("sources").asArr()
+                ?.firstOrNull().asObj()?.get("url").asStr()
+                ?: stateData["visualIdentity"].asObj()?.get("image").asArr()
+                    ?.lastOrNull().asObj()?.get("url").asStr()
+                ?: stateData["images"].asArr()?.firstOrNull().asObj()?.get("url").asStr()
 
-            val trackListJson = stateData["trackList"]?.jsonArray
-                ?: stateData["tracks"]?.jsonArray
-                ?: stateData["trackList"]?.jsonObject?.get("items")?.jsonArray
-                ?: stateData["tracks"]?.jsonObject?.get("items")?.jsonArray
+            val trackListJson = stateData["trackList"].asArr()
+                ?: stateData["tracks"].asArr()
+                ?: stateData["trackList"].asObj()?.get("items").asArr()
+                ?: stateData["tracks"].asObj()?.get("items").asArr()
                 ?: JsonArray(emptyList())
 
             val tracks = mutableListOf<SpotifyImportTrack>()
             for (element in trackListJson) {
-                val obj = element.jsonObject["track"]?.jsonObject ?: element.jsonObject
-                val title = obj["title"]?.jsonPrimitive?.content
-                    ?: obj["name"]?.jsonPrimitive?.content
+                val elemObj = element.asObj() ?: continue
+                val obj = elemObj["track"].asObj() ?: elemObj
+                val title = obj["title"].asStr()
+                    ?: obj["name"].asStr()
                     ?: continue
-                val subtitle = obj["subtitle"]?.jsonPrimitive?.content
-                    ?: obj["artists"]?.jsonArray?.joinToString(", ") {
-                        it.jsonObject["name"]?.jsonPrimitive?.content.orEmpty()
-                    }
+                val subtitle = obj["subtitle"].asStr()
+                    ?: obj["artists"].asArr()?.mapNotNull {
+                        it.asObj()?.get("name").asStr()?.takeIf { s -> s.isNotBlank() }
+                    }?.joinToString(", ")
                     ?: ""
                 if (title.isNotBlank()) {
                     tracks.add(SpotifyImportTrack(title = title.trim(), artist = subtitle.trim()))
@@ -173,10 +180,10 @@ object SpotifyImporter {
             }
 
             if (tracks.size >= EMBED_TRACK_LIMIT) {
-                val token = props?.get("state")?.jsonObject
-                    ?.get("settings")?.jsonObject
-                    ?.get("session")?.jsonObject
-                    ?.get("accessToken")?.jsonPrimitive?.content
+                val token = props?.get("state").asObj()
+                    ?.get("settings").asObj()
+                    ?.get("session").asObj()
+                    ?.get("accessToken").asStr()
                 if (token != null) {
                     runCatching { fetchRemainingTracks(playlistId, token, tracks.size) }
                         .getOrNull()
@@ -240,21 +247,21 @@ object SpotifyImporter {
                 if (!response.isSuccessful) error("HTTP ${response.code}")
                 response.body?.string().orEmpty()
             }
-            val content = json.parseToJsonElement(body).jsonObject["data"]?.jsonObject
-                ?.get("playlistV2")?.jsonObject?.get("content")?.jsonObject
+            val content = json.parseToJsonElement(body).asObj()?.get("data").asObj()
+                ?.get("playlistV2").asObj()?.get("content").asObj()
                 ?: break
-            val items = content["items"]?.jsonArray ?: break
+            val items = content["items"].asArr() ?: break
             for (item in items) {
-                val data = item.jsonObject["itemV2"]?.jsonObject?.get("data")?.jsonObject ?: continue
-                val title = data["name"]?.jsonPrimitive?.content?.trim().orEmpty()
+                val data = item.asObj()?.get("itemV2").asObj()?.get("data").asObj() ?: continue
+                val title = data["name"].asStr()?.trim().orEmpty()
                 if (title.isEmpty()) continue
-                val artist = data["artists"]?.jsonObject?.get("items")?.jsonArray
-                    ?.mapNotNull { it.jsonObject["profile"]?.jsonObject?.get("name")?.jsonPrimitive?.content }
+                val artist = data["artists"].asObj()?.get("items").asArr()
+                    ?.mapNotNull { it.asObj()?.get("profile").asObj()?.get("name").asStr() }
                     ?.joinToString(", ")
                     .orEmpty()
                 out.add(SpotifyImportTrack(title = title, artist = artist))
             }
-            val total = content["totalCount"]?.jsonPrimitive?.content?.toIntOrNull() ?: break
+            val total = content["totalCount"].asStr()?.toIntOrNull() ?: break
             offset += items.size
             if (items.isEmpty() || offset >= total) break
         }

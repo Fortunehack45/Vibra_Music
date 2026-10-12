@@ -1,7 +1,8 @@
-﻿package com.fortune.vibramusic.auth
+package com.fortune.vibramusic.auth
 
 import android.annotation.SuppressLint
 import android.webkit.CookieManager
+import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.layout.fillMaxSize
@@ -104,6 +105,15 @@ fun YtMusicLoginScreen(
                         // Capturing automatically here is the race that used to
                         // create a fake "Personal" profile and close too soon.
                         currentOnPageReady(url?.startsWith(MUSIC_ORIGIN) == true)
+                    }
+
+                    override fun onRenderProcessGone(
+                        view: WebView?,
+                        detail: RenderProcessGoneDetail?,
+                    ): Boolean {
+                        webView = null
+                        currentOnPageReady(false)
+                        return true
                     }
                 }
 

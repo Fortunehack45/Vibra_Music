@@ -154,7 +154,8 @@ fun LiquidGlassSectionTabs(
             modifier = Modifier
                 .fillMaxWidth()
                 .onSizeChanged { rowSize = it }
-                .pointerInput(Unit) {
+                .pointerInput(n, tabStepPx) {
+                    if (tabStepPx <= 0f || tabs.isEmpty()) return@pointerInput
                     var totalDrag = 0f
                     detectHorizontalDragGestures(
                         onDragStart = { totalDrag = 0f },
@@ -162,10 +163,14 @@ fun LiquidGlassSectionTabs(
                         onDragEnd = {
                             if (tabStepPx > 0f) {
                                 val ratio = totalDrag / tabStepPx
-                                val shift = when {
-                                    ratio > 0.35f -> kotlin.math.max(1, ratio.roundToInt())
-                                    ratio < -0.35f -> kotlin.math.min(-1, ratio.roundToInt())
-                                    else -> 0
+                                val shift = if (!ratio.isFinite()) {
+                                    0
+                                } else {
+                                    when {
+                                        ratio > 0.35f -> kotlin.math.max(1, ratio.roundToInt())
+                                        ratio < -0.35f -> kotlin.math.min(-1, ratio.roundToInt())
+                                        else -> 0
+                                    }
                                 }
                                 val newIndex = (currentSelectedIndex + shift).coerceIn(0, tabs.lastIndex)
                                 if (newIndex != currentSelectedIndex) {
@@ -175,6 +180,7 @@ fun LiquidGlassSectionTabs(
                             dragOffset = 0f
                         },
                         onHorizontalDrag = { _, delta ->
+                            if (tabStepPx <= 0f) return@detectHorizontalDragGestures
                             totalDrag += delta
                             val rawPx = when {
                                 totalDrag > 0 && currentSelectedIndex == tabs.lastIndex ->
@@ -185,13 +191,15 @@ fun LiquidGlassSectionTabs(
                             }
                             dragOffset = rawPx
 
-                            val approxTab =
-                                (currentSelectedIndex + dragOffset / tabStepPx)
+                            val rawApprox = currentSelectedIndex + dragOffset / tabStepPx
+                            if (rawApprox.isFinite()) {
+                                val approxTab = rawApprox
                                     .coerceIn(0f, tabs.lastIndex.toFloat())
                                     .roundToInt()
-                            if (approxTab != lastHapticTab) {
-                                haptics.play(Haptic.Tick)
-                                lastHapticTab = approxTab
+                                if (approxTab != lastHapticTab) {
+                                    haptics.play(Haptic.Tick)
+                                    lastHapticTab = approxTab
+                                }
                             }
                         },
                     )

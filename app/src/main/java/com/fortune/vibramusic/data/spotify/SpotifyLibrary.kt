@@ -9,13 +9,11 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
@@ -198,8 +196,9 @@ object SpotifyLibrary {
             }
             payload
         }
-        val root = json.parseToJsonElement(text).jsonObject
-        val error = root.arr("errors")?.firstOrNull()?.jsonObject?.str("message")
+        val root = json.parseToJsonElement(text) as? JsonObject
+            ?: throw IllegalStateException("Spotify $operation returned invalid JSON")
+        val error = (root.arr("errors")?.firstOrNull() as? JsonObject)?.str("message")
         if (!error.isNullOrBlank()) throw IllegalStateException(error)
         return root
     }
@@ -211,7 +210,7 @@ internal fun parsePlaylistPage(root: JsonObject): Triple<List<SpotifyPlaylist>, 
         ?: throw IllegalStateException("Spotify library response was empty")
     val rawItems = library.arr("items").orEmpty()
     val items = rawItems.mapNotNull { element ->
-        val wrapper = element.jsonObject.obj("item") ?: return@mapNotNull null
+        val wrapper = (element as? JsonObject)?.obj("item") ?: return@mapNotNull null
         val typeName = wrapper.str("__typename").orEmpty()
         if (!typeName.contains("Playlist", ignoreCase = true)) return@mapNotNull null
         val data = wrapper.obj("data") ?: return@mapNotNull null
@@ -235,12 +234,12 @@ internal fun parseTrackPage(root: JsonObject): Triple<List<SpotifyTrack>, Int, I
         ?: throw IllegalStateException("Spotify playlist response was empty")
     val rawItems = content.arr("items").orEmpty()
     val items = rawItems.mapNotNull { element ->
-        val data = element.jsonObject.obj("itemV2")?.obj("data") ?: return@mapNotNull null
+        val data = (element as? JsonObject)?.obj("itemV2")?.obj("data") ?: return@mapNotNull null
         val title = data.str("name").orEmpty()
         if (title.isBlank()) return@mapNotNull null
         val uri = data.str("uri") ?: data.str("_uri") ?: return@mapNotNull null
         val artist = data.obj("artists")?.arr("items").orEmpty().mapNotNull { artist ->
-            artist.jsonObject.obj("profile")?.str("name")?.takeIf { it.isNotBlank() }
+            (artist as? JsonObject)?.obj("profile")?.str("name")?.takeIf { it.isNotBlank() }
         }.joinToString(", ")
         val album = data.obj("albumOfTrack")
         SpotifyTrack(
@@ -261,7 +260,7 @@ internal fun parseLikedPage(root: JsonObject): Triple<List<SpotifyTrack>, Int, I
         ?: throw IllegalStateException("Spotify liked songs response was empty")
     val rawItems = tracks.arr("items").orEmpty()
     val items = rawItems.mapNotNull { element ->
-        val wrapper = element.jsonObject.obj("track") ?: return@mapNotNull null
+        val wrapper = (element as? JsonObject)?.obj("track") ?: return@mapNotNull null
         val data = wrapper.obj("data") ?: return@mapNotNull null
         val title = data.str("name").orEmpty()
         if (title.isBlank()) return@mapNotNull null
@@ -271,7 +270,7 @@ internal fun parseLikedPage(root: JsonObject): Triple<List<SpotifyTrack>, Int, I
             id = uri.substringAfterLast(":"),
             title = title,
             artist = data.obj("artists")?.arr("items").orEmpty().mapNotNull { artist ->
-                artist.jsonObject.obj("profile")?.str("name")?.takeIf { it.isNotBlank() }
+                (artist as? JsonObject)?.obj("profile")?.str("name")?.takeIf { it.isNotBlank() }
             }.joinToString(", "),
             album = album?.str("name"),
             durationMs = (data.obj("trackDuration") ?: data.obj("duration"))?.int("totalMilliseconds") ?: 0,
@@ -287,10 +286,11 @@ internal fun parseLikedPage(root: JsonObject): Triple<List<SpotifyTrack>, Int, I
  * read by width rather than by position.
  */
 private fun largestSource(images: JsonObject?): String? =
-    images?.arr("items")?.firstOrNull()?.jsonObject?.arr("sources")
+    (images?.arr("items")?.firstOrNull() as? JsonObject)?.arr("sources")
         ?.mapNotNull { source ->
-            val url = source.jsonObject.str("url") ?: return@mapNotNull null
-            url to (source.jsonObject.int("width") ?: 0)
+            val srcObj = source as? JsonObject ?: return@mapNotNull null
+            val url = srcObj.str("url") ?: return@mapNotNull null
+            url to (srcObj.int("width") ?: 0)
         }
         ?.maxByOrNull { it.second }
         ?.first
@@ -298,16 +298,16 @@ private fun largestSource(images: JsonObject?): String? =
 private fun coverUrl(images: JsonObject?): String? = largestSource(images)
 
 private fun JsonArray.lastUrl(): String? =
-    mapNotNull { it.jsonObject.str("url") }.lastOrNull()
+    mapNotNull { (it as? JsonObject)?.str("url") }.lastOrNull()
 
 private fun JsonObject.obj(key: String): JsonObject? =
-    this[key]?.takeIf { it !is JsonNull }?.let { runCatching { it.jsonObject }.getOrNull() }
+    this[key] as? JsonObject
 
 private fun JsonObject.arr(key: String): JsonArray? =
-    this[key]?.takeIf { it !is JsonNull }?.let { runCatching { it.jsonArray }.getOrNull() }
+    this[key] as? JsonArray
 
 private fun JsonObject.str(key: String): String? =
-    this[key]?.takeIf { it !is JsonNull }?.jsonPrimitive?.contentOrNull
+    (this[key]?.takeIf { it !is JsonNull } as? JsonPrimitive)?.contentOrNull
 
 private fun JsonObject.int(key: String): Int? =
-    this[key]?.takeIf { it !is JsonNull }?.jsonPrimitive?.intOrNull
+    (this[key]?.takeIf { it !is JsonNull } as? JsonPrimitive)?.intOrNull

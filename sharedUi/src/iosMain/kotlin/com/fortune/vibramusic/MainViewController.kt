@@ -342,11 +342,10 @@ fun VibraMusicIosApp() {
                         Spacer(Modifier.height(20.dp))
 
                         if (showLyricsShareCard) {
-                            // Full-bleed Spotify-style 3:4 Lyrics Card with optional Darkened Cover Background
+                            // Full-bleed Spotify-style Lyrics Card with tight vertical spacing
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth(0.86f)
-                                    .aspectRatio(3f / 4f)
                                     .clip(RoundedCornerShape(24.dp))
                                     .background(
                                         if (useCoverBackground) {
@@ -367,8 +366,8 @@ fun VibraMusicIosApp() {
                                     .padding(24.dp),
                             ) {
                                 Column(
-                                    modifier = Modifier.fillMaxSize(),
-                                    verticalArrangement = Arrangement.SpaceBetween,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalArrangement = Arrangement.spacedBy(16.dp),
                                 ) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Box(

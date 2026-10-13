@@ -38,8 +38,19 @@ object LyricPosterRenderer {
         context: Context,
         config: LyricShareConfig,
     ): Bitmap = withContext(Dispatchers.IO) {
+        // Resolve typography font first so full-bleed lyrics cards can size their height to the text
+        val mainTypeface = resolveTypeface(context, config.font)
+
+        val isFullBleedLyrics =
+            config.cardStyle == LyricCardStyle.LYRICS_CARD && config.ratio == LyricCardRatio.CARD_3_4
+
         val posterWidth = config.ratio.width
-        val posterHeight = config.ratio.height
+        val posterHeight = if (isFullBleedLyrics) {
+            measureFullBleedLyricsHeight(config, mainTypeface, posterWidth)
+        } else {
+            config.ratio.height
+        }
+
         val bitmap = Bitmap.createBitmap(posterWidth, posterHeight, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
 
@@ -49,9 +60,6 @@ object LyricPosterRenderer {
 
         // Determine theme colors from palette or population-weighted album cover theme
         val (topColor, bottomColor) = resolveColors(config.palette, coverArt)
-
-        val isFullBleedLyrics =
-            config.cardStyle == LyricCardStyle.LYRICS_CARD && config.ratio == LyricCardRatio.CARD_3_4
 
         if (isFullBleedLyrics && config.useCoverBackground && coverArt != null) {
             drawDarkenedCoverSurface(
@@ -86,19 +94,17 @@ object LyricPosterRenderer {
             canvas.drawRect(0f, 0f, posterWidth.toFloat(), posterHeight.toFloat(), bgPaint)
 
             // Subtle specular glow on top
+            val glowHeight = (posterHeight * 0.35f).coerceAtMost(440f)
             val glowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 shader = LinearGradient(
-                    0f, 0f, 0f, 440f,
+                    0f, 0f, 0f, glowHeight,
                     Color.argb(26, 255, 255, 255),
                     Color.TRANSPARENT,
                     Shader.TileMode.CLAMP,
                 )
             }
-            canvas.drawRect(0f, 0f, posterWidth.toFloat(), 440f, glowPaint)
+            canvas.drawRect(0f, 0f, posterWidth.toFloat(), glowHeight, glowPaint)
         }
-
-        // Resolve typography font
-        val mainTypeface = resolveTypeface(context, config.font)
 
         when (config.cardStyle) {
             LyricCardStyle.LYRICS_CARD -> drawLyricsCard(
@@ -282,9 +288,9 @@ object LyricPosterRenderer {
             .setIncludePad(false)
             .build()
 
-        val gapBeforeLyrics = 52f
-        val gapAfterLyrics = 48f
-        val footerHeight = 40f
+        val gapBeforeLyrics = 38f
+        val gapAfterLyrics = 40f
+        val footerHeight = 38f
         val maxCardHeight = posterHeight - 240f
         val maxLyricsHeight = maxCardHeight - (cardPadding * 2f + headerHeight + gapBeforeLyrics + gapAfterLyrics + footerHeight)
         var currentFontSize = baseFontSize
@@ -301,11 +307,7 @@ object LyricPosterRenderer {
         }
 
         val contentHeight = cardPadding + headerHeight + gapBeforeLyrics + textLayout.height + gapAfterLyrics + footerHeight + cardPadding
-        val minCardHeight = 560f
-        val cardHeight = contentHeight.coerceIn(minCardHeight, maxCardHeight)
-        val extraSpacing = (cardHeight - contentHeight).coerceAtLeast(0f)
-        val actualGapBefore = gapBeforeLyrics + (extraSpacing * 0.5f)
-        val actualGapAfter = gapAfterLyrics + (extraSpacing * 0.5f)
+        val cardHeight = contentHeight.coerceAtMost(maxCardHeight)
 
         val cardTop = (posterHeight - cardHeight) / 2f
         val cardRect = RectF(cardLeft, cardTop, cardLeft + cardWidth, cardTop + cardHeight)
@@ -374,19 +376,108 @@ object LyricPosterRenderer {
             headerBottom = headerY + 88f
         }
 
-        val lyricsTop = headerBottom + actualGapBefore
+        val lyricsTop = headerBottom + gapBeforeLyrics
         canvas.save()
         canvas.translate(cardLeft + cardPadding, lyricsTop)
         textLayout.draw(canvas)
         canvas.restore()
 
-        val footerY = lyricsTop + textLayout.height + actualGapAfter
+        val footerY = lyricsTop + textLayout.height + gapAfterLyrics
         drawBrandBadge(context, canvas, typeface, cardLeft + cardPadding, footerY, iconSize = 38f, textSize = 27f, alpha = 235)
     }
 
+    private const val FULL_BLEED_PAD = 64f
+    private const val FULL_BLEED_THUMB_SIZE = 112f
+    private const val FULL_BLEED_HEADER_NO_ART = 92f
+    private const val FULL_BLEED_GAP_BEFORE_LYRICS = 38f
+    private const val FULL_BLEED_GAP_AFTER_LYRICS = 40f
+    private const val FULL_BLEED_FOOTER_ICON = 40f
+
+    private fun buildFullBleedLyricsLayout(
+        config: LyricShareConfig,
+        lines: List<String>,
+        typeface: Typeface,
+        innerWidth: Float,
+        withShadow: Boolean,
+    ): StaticLayout {
+        val (initialFontSize, lineSpacingMult) = when (lines.size) {
+            1 -> Pair(74f, 1.14f)
+            2 -> Pair(66f, 1.14f)
+            3 -> Pair(58f, 1.13f)
+            4 -> Pair(52f, 1.12f)
+            else -> Pair(48f, 1.12f)
+        }
+
+        val fullLyricsText = lines.joinToString("\n")
+        val staticAlignment = when (config.alignment) {
+            LyricCardAlignment.LEFT -> Layout.Alignment.ALIGN_NORMAL
+            LyricCardAlignment.CENTER -> Layout.Alignment.ALIGN_CENTER
+            LyricCardAlignment.RIGHT -> Layout.Alignment.ALIGN_OPPOSITE
+        }
+
+        val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+            this.typeface = typeface
+            textSize = initialFontSize
+            color = Color.WHITE
+            letterSpacing = -0.015f
+            if (withShadow) {
+                setShadowLayer(16f, 0f, 4f, Color.argb(145, 0, 0, 0))
+            }
+        }
+
+        var fontSize = initialFontSize
+        var textLayout = StaticLayout.Builder.obtain(
+            fullLyricsText, 0, fullLyricsText.length, textPaint, innerWidth.toInt()
+        )
+            .setAlignment(staticAlignment)
+            .setLineSpacing(0f, lineSpacingMult)
+            .setIncludePad(false)
+            .build()
+
+        val maxLyricsHeight = 960f
+        while (textLayout.height > maxLyricsHeight && fontSize > 34f) {
+            fontSize -= 3f
+            textPaint.textSize = fontSize
+            textLayout = StaticLayout.Builder.obtain(
+                fullLyricsText, 0, fullLyricsText.length, textPaint, innerWidth.toInt()
+            )
+                .setAlignment(staticAlignment)
+                .setLineSpacing(0f, lineSpacingMult)
+                .setIncludePad(false)
+                .build()
+        }
+        return textLayout
+    }
+
+    private fun measureFullBleedLyricsHeight(
+        config: LyricShareConfig,
+        typeface: Typeface,
+        posterWidth: Int,
+    ): Int {
+        val lines = config.selectedLines.take(5).ifEmpty { listOf(config.song.title) }
+        val innerWidth = posterWidth - (FULL_BLEED_PAD * 2f)
+        val headerHeight = if (config.showArtwork) FULL_BLEED_THUMB_SIZE else FULL_BLEED_HEADER_NO_ART
+        val textLayout = buildFullBleedLyricsLayout(
+            config = config,
+            lines = lines,
+            typeface = typeface,
+            innerWidth = innerWidth,
+            withShadow = false,
+        )
+        val total = FULL_BLEED_PAD +
+            headerHeight +
+            FULL_BLEED_GAP_BEFORE_LYRICS +
+            textLayout.height +
+            FULL_BLEED_GAP_AFTER_LYRICS +
+            FULL_BLEED_FOOTER_ICON +
+            FULL_BLEED_PAD
+        return total.toInt().coerceAtLeast(420)
+    }
+
     /**
-     * Spotify-style full-bleed 3:4 Lyrics Card:
-     * The card fills the entire 1080x1440 canvas edge-to-edge (no floating inner box).
+     * Spotify-style full-bleed Lyrics Card:
+     * The card fills the entire canvas edge-to-edge and wraps the header, lyrics, and footer
+     * tightly with no excess blank space above or below the lyrics.
      */
     private fun drawFullBleedLyricsCard(
         context: Context,
@@ -398,12 +489,12 @@ object LyricPosterRenderer {
         posterWidth: Int,
         posterHeight: Int,
     ) {
-        val pad = 76f
+        val pad = FULL_BLEED_PAD
         val innerWidth = posterWidth - (pad * 2f)
 
         // 1. Header at top-left: cover art thumbnail + bold Song Title + Artist
         val headerY = pad
-        val thumbSize = 116f
+        val thumbSize = FULL_BLEED_THUMB_SIZE
         val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             this.typeface = typeface
             textSize = 42f
@@ -428,91 +519,46 @@ object LyricPosterRenderer {
             } else {
                 drawFallbackArtwork(canvas, config.song.title, pad, headerY, thumbSize, cornerRadius = 22f)
             }
-            val textLeft = pad + thumbSize + 28f
-            val maxTextWidth = innerWidth - thumbSize - 28f
+            val textLeft = pad + thumbSize + 26f
+            val maxTextWidth = innerWidth - thumbSize - 26f
 
-            canvas.drawText(ellipsised(config.song.title, titlePaint, maxTextWidth), textLeft, headerY + 50f, titlePaint)
-            canvas.drawText(ellipsised(config.song.artist, artistPaint, maxTextWidth), textLeft, headerY + 92f, artistPaint)
+            canvas.drawText(ellipsised(config.song.title, titlePaint, maxTextWidth), textLeft, headerY + 48f, titlePaint)
+            canvas.drawText(ellipsised(config.song.artist, artistPaint, maxTextWidth), textLeft, headerY + 90f, artistPaint)
             headerBottom = headerY + thumbSize
         } else {
-            canvas.drawText(ellipsised(config.song.title, titlePaint, innerWidth), pad, headerY + 44f, titlePaint)
-            canvas.drawText(ellipsised(config.song.artist, artistPaint, innerWidth), pad, headerY + 86f, artistPaint)
-            headerBottom = headerY + 96f
+            canvas.drawText(ellipsised(config.song.title, titlePaint, innerWidth), pad, headerY + 42f, titlePaint)
+            canvas.drawText(ellipsised(config.song.artist, artistPaint, innerWidth), pad, headerY + 84f, artistPaint)
+            headerBottom = headerY + FULL_BLEED_HEADER_NO_ART
         }
 
-        // 2. Footer at bottom-left: Vibra Music logo + wordmark
-        val footerIconSize = 42f
-        val footerY = posterHeight - pad - footerIconSize
+        // 2. Lyrics placed directly below header with a clean 38px gap
+        val textLayout = buildFullBleedLyricsLayout(
+            config = config,
+            lines = lines,
+            typeface = typeface,
+            innerWidth = innerWidth,
+            withShadow = config.useCoverBackground && coverArt != null,
+        )
+        val lyricsTop = headerBottom + FULL_BLEED_GAP_BEFORE_LYRICS
+
+        canvas.save()
+        canvas.translate(pad, lyricsTop)
+        textLayout.draw(canvas)
+        canvas.restore()
+
+        // 3. Footer placed directly below lyrics with a clean 40px gap
+        val footerY = (lyricsTop + textLayout.height + FULL_BLEED_GAP_AFTER_LYRICS)
+            .coerceAtMost(posterHeight - pad - FULL_BLEED_FOOTER_ICON)
         drawBrandBadge(
             context = context,
             canvas = canvas,
             typeface = typeface,
             x = pad,
             y = footerY,
-            iconSize = footerIconSize,
-            textSize = 29f,
+            iconSize = FULL_BLEED_FOOTER_ICON,
+            textSize = 28f,
             alpha = 238,
         )
-
-        // 3. Large bold lyrics vertically balanced between header and footer
-        val topBound = headerBottom + 56f
-        val bottomBound = footerY - 56f
-        val availableHeight = (bottomBound - topBound).coerceAtLeast(320f)
-
-        val (initialFontSize, lineSpacingMult) = when (lines.size) {
-            1 -> Pair(78f, 1.15f)
-            2 -> Pair(68f, 1.15f)
-            3 -> Pair(60f, 1.14f)
-            4 -> Pair(54f, 1.13f)
-            else -> Pair(48f, 1.12f)
-        }
-
-        val fullLyricsText = lines.joinToString("\n")
-        val staticAlignment = when (config.alignment) {
-            LyricCardAlignment.LEFT -> Layout.Alignment.ALIGN_NORMAL
-            LyricCardAlignment.CENTER -> Layout.Alignment.ALIGN_CENTER
-            LyricCardAlignment.RIGHT -> Layout.Alignment.ALIGN_OPPOSITE
-        }
-
-        val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-            this.typeface = typeface
-            textSize = initialFontSize
-            color = Color.WHITE
-            letterSpacing = -0.015f
-            if (config.useCoverBackground && coverArt != null) {
-                setShadowLayer(16f, 0f, 4f, Color.argb(145, 0, 0, 0))
-            }
-        }
-
-        var fontSize = initialFontSize
-        var textLayout = StaticLayout.Builder.obtain(
-            fullLyricsText, 0, fullLyricsText.length, textPaint, innerWidth.toInt()
-        )
-            .setAlignment(staticAlignment)
-            .setLineSpacing(0f, lineSpacingMult)
-            .setIncludePad(false)
-            .build()
-
-        while (textLayout.height > availableHeight && fontSize > 34f) {
-            fontSize -= 3f
-            textPaint.textSize = fontSize
-            textLayout = StaticLayout.Builder.obtain(
-                fullLyricsText, 0, fullLyricsText.length, textPaint, innerWidth.toInt()
-            )
-                .setAlignment(staticAlignment)
-                .setLineSpacing(0f, lineSpacingMult)
-                .setIncludePad(false)
-                .build()
-        }
-
-        // Position lyrics slightly above geometric center (42% of remaining slack) for natural Spotify reading balance
-        val verticalSlack = (availableHeight - textLayout.height).coerceAtLeast(0f)
-        val lyricsTop = topBound + (verticalSlack * 0.42f)
-
-        canvas.save()
-        canvas.translate(pad, lyricsTop)
-        textLayout.draw(canvas)
-        canvas.restore()
     }
 
     private fun drawSongCard(

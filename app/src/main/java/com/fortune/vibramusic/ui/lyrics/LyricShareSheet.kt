@@ -241,11 +241,21 @@ fun LyricShareSheet(
                 Spacer(Modifier.height(14.dp))
 
                 // Dynamic Live Card Preview
+                val isFullBleedLyrics =
+                    cardStyle == LyricCardStyle.LYRICS_CARD && ratio == LyricCardRatio.CARD_3_4
+                val previewRatio = poster?.let {
+                    it.width.toFloat() / it.height.toFloat().coerceAtLeast(1f)
+                } ?: if (isFullBleedLyrics) 1.25f else ratio.ratio
+                val previewWidthFraction = when {
+                    isFullBleedLyrics -> 0.84f
+                    ratio == LyricCardRatio.CARD_3_4 -> 0.64f
+                    else -> 0.50f
+                }
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth(if (ratio == LyricCardRatio.CARD_3_4) 0.64f else 0.50f)
+                        .fillMaxWidth(previewWidthFraction)
                         .align(Alignment.CenterHorizontally)
-                        .aspectRatio(ratio.ratio)
+                        .aspectRatio(previewRatio)
                         .clip(RoundedCornerShape(20.dp))
                         .border(
                             1.dp,
@@ -260,8 +270,8 @@ fun LyricShareSheet(
                         Image(
                             bitmap = image.asImageBitmap(),
                             contentDescription = stringResource(R.string.share_lyrics),
-                            contentScale = ContentScale.Fit,
-                            modifier = Modifier.fillMaxWidth(),
+                            contentScale = ContentScale.FillBounds,
+                            modifier = Modifier.fillMaxSize(),
                         )
                     }
                     if (isRendering) {

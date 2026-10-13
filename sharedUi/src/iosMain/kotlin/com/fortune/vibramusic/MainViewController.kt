@@ -104,22 +104,25 @@ fun VibraMusicIosApp() {
                 videoId = "vibra_1",
                 title = "Midnight Horizon",
                 artist = "Vibra Studio",
+                thumbnailUrl = null,
+                durationText = "3:34",
                 albumName = "Nightfall Sessions",
-                durationSeconds = 214,
             ),
             Song(
                 videoId = "vibra_2",
                 title = "Velvet Echoes",
                 artist = "Siren Collective",
+                thumbnailUrl = null,
+                durationText = "3:18",
                 albumName = "Liquid Glass",
-                durationSeconds = 198,
             ),
             Song(
                 videoId = "vibra_3",
                 title = "Golden Hour Drift",
                 artist = "Aether & Pulse",
+                thumbnailUrl = null,
+                durationText = "4:02",
                 albumName = "Solaris",
-                durationSeconds = 242,
             ),
         )
     }

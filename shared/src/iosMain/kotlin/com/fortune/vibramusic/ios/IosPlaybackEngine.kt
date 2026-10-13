@@ -2,7 +2,7 @@
 
 package com.fortune.vibramusic.ios
 
-import com.fortune.vibramusic.data.listentogether.PartyState
+import com.fortune.vibramusic.data.listentogether.PartySnapshot
 import com.fortune.vibramusic.data.model.Song
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -36,8 +36,8 @@ object IosPlaybackEngine {
     private val _durationMs = MutableStateFlow(0L)
     val durationMs: StateFlow<Long> = _durationMs.asStateFlow()
 
-    private val _partyState = MutableStateFlow<PartyState?>(null)
-    val partyState: StateFlow<PartyState?> = _partyState.asStateFlow()
+    private val _partyState = MutableStateFlow<PartySnapshot?>(null)
+    val partyState: StateFlow<PartySnapshot?> = _partyState.asStateFlow()
 
     init {
         configureAudioSession()
@@ -82,9 +82,19 @@ object IosPlaybackEngine {
         loadCurrentSong(songs[safeIndex], startPositionMs, autoPlay)
     }
 
+    private fun parseDurationMs(durationText: String?): Long {
+        if (durationText.isNullOrBlank()) return 210_000L
+        val parts = durationText.trim().split(':').mapNotNull { it.toLongOrNull() }
+        return when (parts.size) {
+            2 -> (parts[0] * 60L + parts[1]) * 1000L
+            3 -> (parts[0] * 3600L + parts[1] * 60L + parts[2]) * 1000L
+            else -> 210_000L
+        }.coerceAtLeast(1_000L)
+    }
+
     private fun loadCurrentSong(song: Song, startPositionMs: Long, autoPlay: Boolean) {
         _positionMs.value = startPositionMs
-        _durationMs.value = (song.durationSeconds?.toLong() ?: 210L) * 1000L
+        _durationMs.value = parseDurationMs(song.durationText)
         val streamUrl = song.localUri ?: return
         val nsUrl = NSURL.URLWithString(streamUrl) ?: return
         val item = AVPlayerItem.playerItemWithURL(nsUrl)
@@ -144,12 +154,20 @@ object IosPlaybackEngine {
         loadCurrentSong(list[prev], 0L, _isPlaying.value)
     }
 
-    fun onPartyStateChanged(state: PartyState?) {
+    fun onPartyStateChanged(state: PartySnapshot?) {
         _partyState.value = state
         if (state == null) return
-        if (state.queue.isNotEmpty()) {
-            _queue.value = state.queue
-            _currentIndex.value = state.queueIndex.coerceIn(0, state.queue.lastIndex)
+        if (state.queue.items.isNotEmpty()) {
+            val mapped = state.queue.items.map { track ->
+                Song(
+                    videoId = track.videoId,
+                    title = track.title,
+                    artist = track.artist,
+                    thumbnailUrl = track.thumbnailUrl,
+                )
+            }
+            _queue.value = mapped
+            _currentIndex.value = state.queue.index.coerceIn(0, mapped.lastIndex)
         }
     }
 

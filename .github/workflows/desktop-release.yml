@@ -50,9 +50,12 @@ jobs:
           Set-Content -Path "local.properties" -Value "LASTFM_API_KEY=4ea1e882eb80524d4ed3a250f47cefe5`nLASTFM_SECRET=00f3857fc1d79480e51242b3720a140a`nLISTEN_TOGETHER_SERVER=https://party.vibramusic.store"
 
       - name: Build Windows Distributable & Packages
+        shell: pwsh
         run: |
-          ./gradlew :desktopApp:packageMsi :desktopApp:createDistributable -Pvibramusic.version="${{ env.VIBRA_VERSION_NAME }}" -Pvibramusic.desktopVersionCode="${{ env.VIBRA_DESKTOP_VERSION_CODE }}" --no-daemon
-          ./gradlew :desktopApp:packageExe -Pvibramusic.version="${{ env.VIBRA_VERSION_NAME }}" -Pvibramusic.desktopVersionCode="${{ env.VIBRA_DESKTOP_VERSION_CODE }}" --no-daemon || exit 0
+          ./gradlew :desktopApp:packageMsi :desktopApp:createDistributable --no-daemon
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./gradlew :desktopApp:packageExe --no-daemon
+          $global:LASTEXITCODE = 0
 
       - name: Prepare Windows Distribution Archives
         shell: pwsh

@@ -169,7 +169,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build Signed Release APKs & Bundle
-        run: ./gradlew assembleProdRelease bundleProdRelease -Pvibramusic.version="${VIBRA_VERSION_NAME}" -Pvibramusic.versionCode="${VIBRA_VERSION_CODE}" --stacktrace
+        run: ./gradlew assembleProdRelease bundleProdRelease --stacktrace
 
       - name: Prepare and Rename Release Artifacts
         run: |

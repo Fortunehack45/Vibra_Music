@@ -17,6 +17,25 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve Auto Version
+        shell: pwsh
+        run: |
+          $commitCount = [int](git rev-list --count HEAD)
+          $patch = [Math]::Max(37, $commitCount - 571)
+          if ($env:GITHUB_REF -like "refs/tags/v*") {
+            $tag = $env:GITHUB_REF -replace "refs/tags/", ""
+            $verName = $tag -replace "^v", ""
+          } else {
+            $verName = "1.8.$patch"
+            $tag = "v$verName"
+          }
+          "RELEASE_TAG=$tag" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "VIBRA_VERSION_NAME=$verName" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "VIBRA_DESKTOP_VERSION_CODE=$patch" | Out-File -FilePath $env:GITHUB_ENV -Append
+          Write-Host "Resolved desktop auto version: $tag (desktopVersionCode=$patch)"
 
       - name: Set up Java 21
         uses: actions/setup-java@v5
@@ -32,13 +51,13 @@ jobs:
 
       - name: Build Windows Distributable & Packages
         run: |
-          ./gradlew :desktopApp:packageMsi :desktopApp:createDistributable --no-daemon
-          ./gradlew :desktopApp:packageExe --no-daemon || exit 0
+          ./gradlew :desktopApp:packageMsi :desktopApp:createDistributable -Pvibramusic.version="${{ env.VIBRA_VERSION_NAME }}" -Pvibramusic.desktopVersionCode="${{ env.VIBRA_DESKTOP_VERSION_CODE }}" --no-daemon
+          ./gradlew :desktopApp:packageExe -Pvibramusic.version="${{ env.VIBRA_VERSION_NAME }}" -Pvibramusic.desktopVersionCode="${{ env.VIBRA_DESKTOP_VERSION_CODE }}" --no-daemon || exit 0
 
       - name: Prepare Windows Distribution Archives
         shell: pwsh
         run: |
-          $tag = if ($env:GITHUB_REF -like "refs/tags/*") { $env:GITHUB_REF -replace "refs/tags/", "" } else { "v1.8.37" }
+          $tag = $env:RELEASE_TAG
           New-Item -ItemType Directory -Force -Path "desktopApp/dist" | Out-Null
           
           # Copy and rename MSI
@@ -76,9 +95,11 @@ jobs:
           path: desktopApp/dist/*
 
       - name: Publish Windows Release to Source Repo
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: Vibra Music ${{ env.RELEASE_TAG }}
           files: |
             desktopApp/dist/VibraMusic-*-Windows-Installer.msi
             desktopApp/dist/VibraMusic-*-Windows-*.exe
@@ -87,14 +108,15 @@ jobs:
           prerelease: false
 
       - name: Publish Windows Release to Public Releases Repo
-        if: startsWith(github.ref, 'refs/tags/v') && env.HAS_RELEASES_TOKEN == 'true'
+        if: (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main') && env.HAS_RELEASES_TOKEN == 'true'
         env:
           HAS_RELEASES_TOKEN: ${{ secrets.RELEASES_TOKEN != '' }}
         uses: softprops/action-gh-release@v2
         with:
           repository: Fortunehack45/Vibra_Music_Releases
           token: ${{ secrets.RELEASES_TOKEN }}
-          tag_name: ${{ github.ref_name }}
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: Vibra Music ${{ env.RELEASE_TAG }}
           files: |
             desktopApp/dist/VibraMusic-*-Windows-Installer.msi
             desktopApp/dist/VibraMusic-*-Windows-*.exe

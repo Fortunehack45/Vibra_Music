@@ -79,6 +79,26 @@ val listenTogetherServer: String = if (
  */
 val betaSuffix = ""
 
+val gitCommitCount: Int = runCatching {
+    val proc = ProcessBuilder("git", "rev-list", "--count", "HEAD")
+        .directory(rootProject.projectDir)
+        .redirectErrorStream(true)
+        .start()
+    val output = proc.inputStream.bufferedReader().readText().trim()
+    proc.waitFor()
+    output.toIntOrNull()
+}.getOrNull()?.takeIf { it >= 608 } ?: 608
+
+val autoPatch: Int = (gitCommitCount - 571).coerceAtLeast(37)
+val resolvedVersionName: String = providers.gradleProperty("vibramusic.version").orNull
+    ?.removePrefix("v")
+    ?.takeIf { it.isNotBlank() }
+    ?: System.getenv("VIBRA_VERSION_NAME")?.removePrefix("v")?.takeIf { it.isNotBlank() }
+    ?: "1.8.$autoPatch"
+val resolvedVersionCode: Int = providers.gradleProperty("vibramusic.versionCode").orNull?.toIntOrNull()
+    ?: System.getenv("VIBRA_VERSION_CODE")?.toIntOrNull()
+    ?: (30 + autoPatch)
+
 android {
     namespace = "com.fortune.vibramusic"
     // InnerTubeX's AAR requires compiling against 37; targetSdk (runtime behaviour) stays 36.
@@ -109,8 +129,8 @@ android {
         // Real-time blur kicks in on API 31+, Haze falls back to a translucent scrim below that.
         minSdk = 23
         targetSdk = 36
-        versionCode = 67
-        versionName = "1.8.37"
+        versionCode = resolvedVersionCode
+        versionName = resolvedVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         externalNativeBuild {

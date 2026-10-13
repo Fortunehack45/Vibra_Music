@@ -4,10 +4,22 @@ import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 /** What the packages, the launcher and the settings footer all say. */
+val gitCommitCount: Int = runCatching {
+    val proc = ProcessBuilder("git", "rev-list", "--count", "HEAD")
+        .directory(rootProject.projectDir)
+        .redirectErrorStream(true)
+        .start()
+    val output = proc.inputStream.bufferedReader().readText().trim()
+    proc.waitFor()
+    output.toIntOrNull()
+}.getOrNull()?.takeIf { it >= 608 } ?: 608
+
+val autoPatch: Int = (gitCommitCount - 571).coerceAtLeast(37)
 val appVersion: String = providers.gradleProperty("vibramusic.version").orNull
     ?.removePrefix("v")
     ?.takeIf { it.isNotBlank() }
-    ?: "1.8.37"
+    ?: System.getenv("VIBRA_VERSION_NAME")?.removePrefix("v")?.takeIf { it.isNotBlank() }
+    ?: "1.8.$autoPatch"
 
 /** Which platform this build is *for*, which is the host unless told otherwise. */
 val hostIsWindows = System.getProperty("os.name").contains("Windows", ignoreCase = true)
@@ -21,7 +33,9 @@ val targetOs: String = (providers.gradleProperty("vibramusic.target").orNull ?: 
 // Windows installer metadata requires MAJOR.MINOR.BUILD even though the app's public version is
 // intentionally displayed without a patch number (1.7 rather than 1.7.0).
 // The build number is the desktop version code; it also keeps "-beta1" out of the numeric installer version.
-val desktopVersionCode = 37
+val desktopVersionCode = providers.gradleProperty("vibramusic.desktopVersionCode").orNull?.toIntOrNull()
+    ?: System.getenv("VIBRA_DESKTOP_VERSION_CODE")?.toIntOrNull()
+    ?: autoPatch
 val nativePackageVersion = appVersion.substringBefore('-').split('.').take(2).joinToString(".") + ".$desktopVersionCode"
 
 // FFmpeg decodes audio; see DesktopAudioDecoder.

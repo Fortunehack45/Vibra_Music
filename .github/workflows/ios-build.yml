@@ -50,7 +50,7 @@ jobs:
         run: |
           TAG="${{ github.ref_name }}"
           if [ -z "$TAG" ] || [ "$TAG" = "main" ]; then
-            TAG="v1.8.36"
+            TAG="v1.8.37"
           fi
           command -v xcodegen >/dev/null 2>&1 || brew install xcodegen
           xcodegen generate

@@ -50,14 +50,19 @@ kotlin {
         }
     }
 
-    listOf(
-        iosX64(),
-        iosArm64(),
-        iosSimulatorArm64(),
-    ).forEach { iosTarget ->
-        iosTarget.binaries.framework {
-            baseName = "SharedUi"
-            isStatic = true
+    val enableIos = System.getProperty("os.name").contains("Mac", ignoreCase = true) ||
+        providers.gradleProperty("iosOnly").orNull == "true" ||
+        providers.gradleProperty("enableIos").orNull == "true"
+    if (enableIos) {
+        listOf(
+            iosX64(),
+            iosArm64(),
+            iosSimulatorArm64(),
+        ).forEach { iosTarget ->
+            iosTarget.binaries.framework {
+                baseName = "SharedUi"
+                isStatic = true
+            }
         }
     }
 
@@ -72,6 +77,12 @@ kotlin {
         // rather than in commonMain.
         val jvmSharedMain by creating {
             dependsOn(commonMain.get())
+            dependencies {
+                api("org.jetbrains.androidx.lifecycle:lifecycle-runtime-compose:2.8.4")
+                api("io.coil-kt.coil3:coil-compose:3.0.4")
+                api("dev.chrisbanes.haze:haze:1.3.1")
+                api("dev.chrisbanes.haze:haze-materials:1.3.1")
+            }
         }
         androidMain.get().dependsOn(jvmSharedMain)
         jvmMain.get().dependsOn(jvmSharedMain)
@@ -85,10 +96,6 @@ kotlin {
             api("org.jetbrains.compose.material3:material3:1.7.3")
             api("org.jetbrains.compose.material:material-icons-extended:1.7.3")
             api("org.jetbrains.compose.components:components-resources:$cmp")
-            api("org.jetbrains.androidx.lifecycle:lifecycle-runtime-compose:2.8.4")
-            api("io.coil-kt.coil3:coil-compose:3.0.4")
-            api("dev.chrisbanes.haze:haze:1.3.1")
-            api("dev.chrisbanes.haze:haze-materials:1.3.1")
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
             implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
         }

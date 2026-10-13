@@ -1,5 +1,7 @@
-﻿package com.fortune.vibramusic.data.listentogether
+package com.fortune.vibramusic.data.listentogether
 
+import kotlin.concurrent.Volatile
+import kotlin.time.TimeSource
 
 /**
  * This device's offset from the party server's clock.
@@ -36,16 +38,17 @@
 class ServerClock(
     /**
      * This device's monotonic milliseconds. Injected because the right source differs per platform:
-     * Android wants `SystemClock.elapsedRealtime`, which counts through deep sleep, and a desktop
-     * has `System.nanoTime`. Both are monotonic, which is the whole requirement — see the note on
-     * the wall clock above.
+     * Android wants `SystemClock.elapsedRealtime`, which counts through deep sleep, and other
+     * targets use [TimeSource.Monotonic]. Both are monotonic, which is the whole requirement — see
+     * the note on the wall clock above.
      */
-    private val localNowMs: () -> Long = { System.nanoTime() / 1_000_000L },
+    private val localNowMs: () -> Long = { monotonicOrigin.elapsedNow().inWholeMilliseconds },
 ) {
 
     private data class Sample(val offsetMs: Long, val roundTripMs: Long, val takenAtMs: Long)
 
-    private val samples = ArrayDeque<Sample>()
+    @Volatile
+    private var samples: List<Sample> = emptyList()
 
     @Volatile
     var offsetMs: Long? = null
@@ -58,18 +61,17 @@ class ServerClock(
     /** True once at least one round trip has completed. */
     val synced: Boolean get() = offsetMs != null
 
-    @Synchronized
     fun record(sentAtLocalMs: Long, serverMs: Long, receivedAtLocalMs: Long) {
         val roundTrip = (receivedAtLocalMs - sentAtLocalMs).coerceAtLeast(0)
         val midpoint = sentAtLocalMs + roundTrip / 2
-        samples.addLast(Sample(serverMs - midpoint, roundTrip, receivedAtLocalMs))
-        while (samples.size > WINDOW) samples.removeFirst()
+        val updated = (samples + Sample(serverMs - midpoint, roundTrip, receivedAtLocalMs)).takeLast(WINDOW)
+        samples = updated
 
         // Stale samples are dropped before choosing, or one lucky round trip
         // early in a session would pin the offset for the whole of it — and
         // clocks do drift, on a phone by milliseconds per minute.
         val cutoff = receivedAtLocalMs - SAMPLE_TTL_MS
-        val usable = samples.filter { it.takenAtMs >= cutoff }.ifEmpty { samples.toList() }
+        val usable = updated.filter { it.takenAtMs >= cutoff }.ifEmpty { updated }
         val best = usable.minBy { it.roundTripMs }
         offsetMs = best.offsetMs
         roundTripMs = best.roundTripMs
@@ -78,9 +80,8 @@ class ServerClock(
     /** The server's clock, read from here. Null until the first pong lands. */
     fun serverNowMs(): Long? = offsetMs?.let { localNowMs() + it }
 
-    @Synchronized
     fun reset() {
-        samples.clear()
+        samples = emptyList()
         offsetMs = null
         roundTripMs = 0
     }
@@ -91,5 +92,6 @@ class ServerClock(
     companion object {
         private const val WINDOW = 12
         private const val SAMPLE_TTL_MS = 120_000L
+        private val monotonicOrigin = TimeSource.Monotonic.markNow()
     }
 }

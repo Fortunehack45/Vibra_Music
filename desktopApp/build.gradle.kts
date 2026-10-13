@@ -15,7 +15,7 @@ val hostIsLinux = System.getProperty("os.name").contains("Linux", ignoreCase = t
 val targetOs: String = (providers.gradleProperty("vibramusic.target").orNull ?: when {
     hostIsWindows -> "windows"
     hostIsLinux -> "linux"
-    else -> error("Vibra Music desktop supports Linux and Windows only")
+    else -> "linux"
 }).lowercase()
 
 // Windows installer metadata requires MAJOR.MINOR.BUILD even though the app's public version is

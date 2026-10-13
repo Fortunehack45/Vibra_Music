@@ -16,8 +16,12 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "vibramusic"
+val iosOnly = providers.gradleProperty("iosOnly").orNull == "true" ||
+    providers.gradleProperty("vibramusic.iosOnly").orNull == "true"
 include(":shared")
 include(":sharedUi")
-include(":desktopApp")
-include(":app")
+if (!iosOnly) {
+    include(":desktopApp")
+    include(":app")
+}
  

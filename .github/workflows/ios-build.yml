@@ -24,16 +24,26 @@ jobs:
           java-version: '21'
           cache: 'gradle'
 
-      - name: Setup local.properties
+      - name: Setup Android SDK & local.properties
         run: |
-          echo "LASTFM_API_KEY=${{ secrets.LASTFM_API_KEY || '4ea1e882eb80524d4ed3a250f47cefe5' }}" > local.properties
+          export ANDROID_HOME="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
+          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
+          mkdir -p "$ANDROID_HOME/platforms"
+          HIGHEST_PLATFORM=$(ls -d "$ANDROID_HOME"/platforms/android-* 2>/dev/null | sort -V | tail -n 1 || true)
+          for VER in 36 37; do
+            if [ ! -d "$ANDROID_HOME/platforms/android-$VER" ] && [ -n "$HIGHEST_PLATFORM" ]; then
+              ln -s "$HIGHEST_PLATFORM" "$ANDROID_HOME/platforms/android-$VER"
+            fi
+          done
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          echo "LASTFM_API_KEY=${{ secrets.LASTFM_API_KEY || '4ea1e882eb80524d4ed3a250f47cefe5' }}" >> local.properties
           echo "LASTFM_SECRET=${{ secrets.LASTFM_SECRET || '00f3857fc1d79480e51242b3720a140a' }}" >> local.properties
           echo "LISTEN_TOGETHER_SERVER=https://party.vibramusic.store" >> local.properties
 
       - name: Build SharedUi iOS Framework (Arm64)
         run: |
           chmod +x gradlew
-          ./gradlew :sharedUi:linkReleaseFrameworkIosArm64 --no-daemon
+          ./gradlew :sharedUi:linkReleaseFrameworkIosArm64 -PiosOnly=true --no-daemon
 
       - name: Generate Xcode Project & Build Unsigned iOS App
         working-directory: iosApp
@@ -42,7 +52,7 @@ jobs:
           if [ -z "$TAG" ] || [ "$TAG" = "main" ]; then
             TAG="v1.8.36"
           fi
-          brew install xcodegen
+          command -v xcodegen >/dev/null 2>&1 || brew install xcodegen
           xcodegen generate
           xcodebuild \
             -project VibraMusic.xcodeproj \
@@ -50,6 +60,8 @@ jobs:
             -configuration Release \
             -sdk iphoneos \
             -derivedDataPath build \
+            ARCHS=arm64 \
+            ONLY_ACTIVE_ARCH=NO \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \

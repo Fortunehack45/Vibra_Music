@@ -9,13 +9,18 @@ targets:
     platform: iOS
     sources:
       - path: iosApp
+        excludes:
+          - Info.plist
     info:
       path: iosApp/Info.plist
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.fortune.vibramusic
         PRODUCT_NAME: VibraMusic
+        GENERATE_INFOPLIST_FILE: NO
         SWIFT_VERSION: "5.9"
+        ARCHS: arm64
+        ONLY_ACTIVE_ARCH: NO
         OTHER_LDFLAGS:
           - "$(inherited)"
           - "-framework"

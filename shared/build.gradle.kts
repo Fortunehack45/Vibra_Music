@@ -19,9 +19,14 @@ kotlin {
         }
     }
 
-    iosX64()
-    iosArm64()
-    iosSimulatorArm64()
+    val enableIos = System.getProperty("os.name").contains("Mac", ignoreCase = true) ||
+        providers.gradleProperty("iosOnly").orNull == "true" ||
+        providers.gradleProperty("enableIos").orNull == "true"
+    if (enableIos) {
+        iosX64()
+        iosArm64()
+        iosSimulatorArm64()
+    }
 
     // Android and desktop are both JVM, but the default hierarchy gives them no source set in
     // common.

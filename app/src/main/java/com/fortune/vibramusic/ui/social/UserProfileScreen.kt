@@ -25,6 +25,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PersonAdd
 import androidx.compose.material.icons.rounded.Share
@@ -76,6 +77,7 @@ fun UserProfileScreen(
     val favoriteArtists by viewModel.favoriteArtists.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var selectedSubTab by remember { mutableStateOf("Posts") }
+    var showEditProfile by remember { mutableStateOf(false) }
 
     Box(
         modifier = modifier
@@ -258,6 +260,22 @@ fun UserProfileScreen(
                                 }
                             }
 
+                            if (isSelf) {
+                                OutlinedButton(
+                                    onClick = { showEditProfile = true },
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.weight(1f),
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Edit,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp),
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("Edit Profile")
+                                }
+                            }
+
                             // Share Profile Button
                             OutlinedButton(
                                 onClick = {
@@ -271,7 +289,7 @@ fun UserProfileScreen(
                                     context.startActivity(Intent.createChooser(sendIntent, "Share Profile"))
                                 },
                                 shape = RoundedCornerShape(12.dp),
-                                modifier = if (isSelf) Modifier.fillMaxWidth() else Modifier,
+                                modifier = if (isSelf) Modifier.weight(1f) else Modifier,
                             ) {
                                 Icon(
                                     imageVector = Icons.Rounded.Share,
@@ -416,6 +434,16 @@ fun UserProfileScreen(
                     }
                 }
             }
+        }
+
+        if (showEditProfile) {
+            EditProfileSheet(
+                profile = profile,
+                onDismiss = { showEditProfile = false },
+                onSaveProfile = { name, handle, bio, avatar ->
+                    viewModel.updateUserProfile(name, handle, bio, avatar)
+                },
+            )
         }
     }
 }

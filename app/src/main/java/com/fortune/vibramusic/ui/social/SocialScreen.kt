@@ -13,8 +13,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -24,10 +26,13 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ChatBubbleOutline
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.GraphicEq
@@ -43,7 +48,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -91,8 +99,11 @@ fun SocialScreen(
     val selectedPostForComments by viewModel.selectedPostForComments.collectAsStateWithLifecycle()
     val comments by viewModel.comments.collectAsStateWithLifecycle()
     val isPosting by viewModel.isCreatingPost.collectAsStateWithLifecycle()
+    val quotingPost by viewModel.quotingPost.collectAsStateWithLifecycle()
 
     var showCreatePostSheet by remember { mutableStateOf(false) }
+    var repostActionTarget by remember { mutableStateOf<SocialPost?>(null) }
+    var previewImageUrl by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
 
     Box(
@@ -191,7 +202,8 @@ fun SocialScreen(
                         post = post,
                         onLikeClick = { viewModel.toggleLike(post) },
                         onCommentClick = { viewModel.openComments(post) },
-                        onRepostClick = { viewModel.repost(post) },
+                        onRepostClick = { repostActionTarget = post },
+                        onImageClick = { previewImageUrl = it },
                         onShareClick = {
                             val sendIntent = Intent(Intent.ACTION_SEND).apply {
                                 putExtra(
@@ -242,15 +254,26 @@ fun SocialScreen(
         }
     }
 
-    // Create Post Sheet
-    if (showCreatePostSheet) {
+    // Create / Quote Post Sheet
+    if (showCreatePostSheet || quotingPost != null) {
         CreatePostSheet(
             currentlyPlayingSong = currentlyPlayingSong,
+            quotedPost = quotingPost,
             isPosting = isPosting,
-            onDismiss = { showCreatePostSheet = false },
-            onSubmitPost = { content, track, poll ->
-                viewModel.createPost(content, track, poll) {
+            onDismiss = {
+                showCreatePostSheet = false
+                viewModel.clearQuotePost()
+            },
+            onSubmitPost = { content, imageUrls, track, poll, quoteOfId ->
+                viewModel.createPost(
+                    content = content,
+                    imageUrls = imageUrls,
+                    musicAttachment = track,
+                    poll = poll,
+                    quoteOfId = quoteOfId,
+                ) {
                     showCreatePostSheet = false
+                    viewModel.clearQuotePost()
                 }
             },
         )
@@ -265,6 +288,31 @@ fun SocialScreen(
             onAddComment = { content, parentId ->
                 viewModel.addComment(post.id, content, parentId)
             },
+            onToggleLikeComment = { viewModel.toggleLikeComment(it) },
+        )
+    }
+
+    // Repost / Quote Post Bottom Sheet
+    repostActionTarget?.let { target ->
+        RepostOptionsSheet(
+            targetPost = target,
+            onDismiss = { repostActionTarget = null },
+            onRepost = {
+                viewModel.repost(target)
+                repostActionTarget = null
+            },
+            onQuote = {
+                viewModel.openQuotePost(target)
+                repostActionTarget = null
+            },
+        )
+    }
+
+    // Fullscreen Image Preview Dialog
+    previewImageUrl?.let { url ->
+        FullscreenImageDialog(
+            imageUrl = url,
+            onDismiss = { previewImageUrl = null },
         )
     }
 }
@@ -411,6 +459,7 @@ fun SocialPostCard(
     onLikeClick: () -> Unit,
     onCommentClick: () -> Unit,
     onRepostClick: () -> Unit,
+    onImageClick: (String) -> Unit = {},
     onShareClick: () -> Unit,
     onPlayTrack: (MusicTrackAttachment) -> Unit,
     onVotePoll: (Int) -> Unit,
@@ -504,6 +553,17 @@ fun SocialPostCard(
                 Spacer(Modifier.height(12.dp))
             }
 
+            // Attached Images Grid
+            val images = post.effectiveImages
+            if (images.isNotEmpty()) {
+                PostImageGrid(
+                    images = images,
+                    onImageClick = onImageClick,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(12.dp))
+            }
+
             // Attached Track Card (Liquid Glass with Play Preview)
             post.musicTrack?.let { track ->
                 PlayableTrackCard(
@@ -519,6 +579,17 @@ fun SocialPostCard(
                 PollCard(
                     poll = poll,
                     onVote = onVotePoll,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(12.dp))
+            }
+
+            // Embedded Quoted Post
+            if (post.quoteOf != null || post.quoteOfId != null) {
+                QuotedPostCard(
+                    quotedPost = post.quoteOf,
+                    quotedId = post.quoteOfId,
+                    onPlayTrack = onPlayTrack,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(Modifier.height(12.dp))
@@ -799,3 +870,437 @@ fun PollCard(
         )
     }
 }
+
+@Composable
+fun PostImageGrid(
+    images: List<String>,
+    onImageClick: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    if (images.isEmpty()) return
+
+    when (images.size) {
+        1 -> {
+            Box(
+                modifier = modifier
+                    .fillMaxWidth()
+                    .height(220.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                    .clickable { onImageClick(images[0]) },
+            ) {
+                AsyncImage(
+                    model = images[0],
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
+        2 -> {
+            Row(
+                modifier = modifier
+                    .fillMaxWidth()
+                    .height(180.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                images.forEach { url ->
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                            .clickable { onImageClick(url) },
+                    ) {
+                        AsyncImage(
+                            model = url,
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
+                }
+            }
+        }
+        3 -> {
+            Row(
+                modifier = modifier
+                    .fillMaxWidth()
+                    .height(200.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .weight(1.2f)
+                        .fillMaxHeight()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                        .clickable { onImageClick(images[0]) },
+                ) {
+                    AsyncImage(
+                        model = images[0],
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    for (i in 1..2) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                                .clickable { onImageClick(images[i]) },
+                        ) {
+                            AsyncImage(
+                                model = images[i],
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        else -> {
+            // 4 or more
+            Column(
+                modifier = modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    for (i in 0..1) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                                .clickable { onImageClick(images[i]) },
+                        ) {
+                            AsyncImage(
+                                model = images[i],
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
+                    }
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    for (i in 2..3) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                                .clickable { onImageClick(images[i]) },
+                        ) {
+                            AsyncImage(
+                                model = images[i],
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun QuotedPostCard(
+    quotedPost: SocialPost?,
+    quotedId: String?,
+    onPlayTrack: (MusicTrackAttachment) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.45f))
+            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(14.dp))
+            .padding(12.dp),
+    ) {
+        if (quotedPost == null) {
+            Text(
+                text = "Quoted post ($quotedId)",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+            )
+        } else {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (quotedPost.authorAvatar != null) {
+                            AsyncImage(
+                                model = quotedPost.authorAvatar,
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Rounded.Person,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(14.dp),
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.width(8.dp))
+
+                    Text(
+                        text = quotedPost.authorName,
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+
+                    Spacer(Modifier.width(4.dp))
+
+                    Text(
+                        text = "@${quotedPost.authorHandle}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+
+                if (quotedPost.content.isNotBlank()) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = quotedPost.content,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis,
+                        lineHeight = 18.sp,
+                    )
+                }
+
+                val images = quotedPost.effectiveImages
+                if (images.isNotEmpty()) {
+                    Spacer(Modifier.height(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(100.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+                    ) {
+                        AsyncImage(
+                            model = images.first(),
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
+                }
+
+                quotedPost.musicTrack?.let { track ->
+                    Spacer(Modifier.height(8.dp))
+                    PlayableTrackCard(
+                        track = track,
+                        onPlay = { onPlayTrack(track) },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun RepostOptionsSheet(
+    targetPost: SocialPost,
+    onDismiss: () -> Unit,
+    onRepost: () -> Unit,
+    onQuote: () -> Unit,
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surface,
+        dragHandle = null,
+        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 24.dp),
+        ) {
+            Text(
+                text = "Share Post",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+
+            Spacer(Modifier.height(16.dp))
+
+            // Instant Repost
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable(onClick = onRepost)
+                    .padding(vertical = 12.dp, horizontal = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Repeat,
+                        contentDescription = "Repost",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+
+                Spacer(Modifier.width(14.dp))
+
+                Column {
+                    Text(
+                        text = "Repost",
+                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Text(
+                        text = "Instantly share this post with your followers",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            // Quote Post
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable(onClick = onQuote)
+                    .padding(vertical = 12.dp, horizontal = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Edit,
+                        contentDescription = "Quote Post",
+                        tint = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+
+                Spacer(Modifier.width(14.dp))
+
+                Column {
+                    Text(
+                        text = "Quote Post",
+                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Text(
+                        text = "Add your own commentary or music to this post",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+        }
+    }
+}
+
+@Composable
+fun FullscreenImageDialog(
+    imageUrl: String,
+    onDismiss: () -> Unit,
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.95f)),
+        ) {
+            AsyncImage(
+                model = imageUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp)
+                    .clickable(onClick = onDismiss),
+            )
+
+            IconButton(
+                onClick = onDismiss,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(24.dp)
+                    .size(42.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.6f)),
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Close,
+                    contentDescription = "Close",
+                    tint = Color.White,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+        }
+    }
+}
+

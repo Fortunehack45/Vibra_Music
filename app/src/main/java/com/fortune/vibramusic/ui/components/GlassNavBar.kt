@@ -119,7 +119,7 @@ fun GlassNavBar(
     // Search is the odd one out in the iOS 26 layout: a circle of its own beside
     // the pill rather than a quarter of it. It is the last tab in Siren Music's
     // order, which is where the shape wants it anyway.
-    val standaloneIndex = tabs.lastIndex
+    val standaloneIndex = if (tabs.size > 4) tabs.lastIndex else -1
 
     // A factory, not a value — see the note in FloatingTabBar's header. Each of
     // the three surfaces gets its own glass modifier and so its own shape cache.

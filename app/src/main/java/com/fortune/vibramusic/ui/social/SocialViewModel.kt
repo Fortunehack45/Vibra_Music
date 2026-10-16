@@ -80,6 +80,9 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
     private val _isCreatingPost = MutableStateFlow(false)
     val isCreatingPost: StateFlow<Boolean> = _isCreatingPost.asStateFlow()
 
+    private val _quotingPost = MutableStateFlow<SocialPost?>(null)
+    val quotingPost: StateFlow<SocialPost?> = _quotingPost.asStateFlow()
+
     init {
         initUserProfile()
         loadFeed()
@@ -177,8 +180,10 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
 
     fun createPost(
         content: String,
+        imageUrls: List<String> = emptyList(),
         musicAttachment: MusicTrackAttachment? = null,
         poll: PollData? = null,
+        quoteOfId: String? = null,
         onSuccess: () -> Unit = {},
     ) {
         val user = _currentProfile.value ?: return
@@ -187,17 +192,28 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
             SupabaseService.createPost(
                 author = user,
                 content = content,
+                imageUrls = imageUrls,
                 musicAttachment = musicAttachment,
                 poll = poll,
+                quoteOfId = quoteOfId,
             ).onSuccess { newPost ->
                 _posts.value = listOf(newPost) + _posts.value
                 _isCreatingPost.value = false
+                _quotingPost.value = null
                 onSuccess()
             }.onFailure { err ->
                 Log.e("SocialViewModel", "Failed to create post", err)
                 _isCreatingPost.value = false
             }
         }
+    }
+
+    fun openQuotePost(post: SocialPost) {
+        _quotingPost.value = post
+    }
+
+    fun clearQuotePost() {
+        _quotingPost.value = null
     }
 
     fun toggleLike(post: SocialPost) {
@@ -274,11 +290,69 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
     fun openComments(post: SocialPost) {
         _selectedPostForComments.value = post
         _comments.value = emptyList()
+        val userId = _currentProfile.value?.id
         viewModelScope.launch {
-            SupabaseService.fetchComments(post.id)
+            SupabaseService.fetchComments(post.id, currentUserId = userId)
                 .onSuccess { list ->
                     _comments.value = list
                 }
+        }
+    }
+
+    fun toggleLikeComment(comment: PostComment) {
+        val userId = _currentProfile.value?.id ?: return
+        val currentlyLiked = comment.isLikedByMe
+        val newCount = if (currentlyLiked) (comment.likesCount - 1).coerceAtLeast(0) else comment.likesCount + 1
+
+        _comments.value = _comments.value.map {
+            if (it.id == comment.id) it.copy(isLikedByMe = !currentlyLiked, likesCount = newCount) else it
+        }
+
+        viewModelScope.launch {
+            SupabaseService.toggleLikeComment(comment.id, userId, !currentlyLiked)
+                .onFailure {
+                    _comments.value = _comments.value.map {
+                        if (it.id == comment.id) it.copy(isLikedByMe = currentlyLiked, likesCount = comment.likesCount) else it
+                    }
+                }
+        }
+    }
+
+    fun updateUserProfile(
+        displayName: String,
+        handle: String,
+        bio: String,
+        avatarUrl: String?,
+        onComplete: (Boolean) -> Unit = {},
+    ) {
+        val current = _currentProfile.value ?: return
+        val cleanHandle = handle.trim().trimStart('@')
+        val cleanName = displayName.trim()
+        val updated = current.copy(
+            displayName = cleanName.ifBlank { current.displayName },
+            handle = cleanHandle.ifBlank { current.handle },
+            bio = bio.trim(),
+            avatarUrl = avatarUrl ?: current.avatarUrl,
+        )
+
+        _currentProfile.value = updated
+        if (_viewingProfile.value?.id == current.id) {
+            _viewingProfile.value = updated
+        }
+
+        viewModelScope.launch {
+            SupabaseService.updateUserProfile(
+                userId = current.id,
+                displayName = updated.displayName,
+                handle = updated.handle,
+                bio = updated.bio,
+                avatarUrl = updated.avatarUrl,
+            ).onSuccess {
+                onComplete(true)
+            }.onFailure {
+                Log.w("SocialViewModel", "Failed to update profile", it)
+                onComplete(false)
+            }
         }
     }
 

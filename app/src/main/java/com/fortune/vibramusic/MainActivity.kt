@@ -273,6 +273,7 @@ import com.fortune.vibramusic.ui.quiz.ActiveQuizScreen
 import com.fortune.vibramusic.ui.quiz.QuizResultSheet
 import com.fortune.vibramusic.ui.quiz.QuizLivesDialog
 import com.fortune.vibramusic.ui.quiz.ArtistLeaderboardScreen
+import com.fortune.vibramusic.ui.onboarding.VibraOnboardingFlow
 import com.fortune.vibramusic.data.quiz.QuizGameState
 import com.fortune.vibramusic.data.quiz.QuizArtist
 import com.fortune.vibramusic.data.social.SocialProfile
@@ -482,6 +483,7 @@ private fun VibraMusicApp(
     val quizGameState by quizViewModel.gameState.collectAsStateWithLifecycle()
     val quizLastResult by quizViewModel.lastResult.collectAsStateWithLifecycle()
     val quizLivesState by quizViewModel.livesState.collectAsStateWithLifecycle()
+    val hasCompletedOnboarding by AppSettings.hasCompletedOnboarding.collectAsStateWithLifecycle()
     /**
      * Whether the player's sheet is up. The player is always a full-screen
      * take-over raised over the page, on every window size — the library
@@ -1035,6 +1037,15 @@ private fun VibraMusicApp(
             BottomTab(podcastsLabel, VibraMusicIcons.Podcasts),
             BottomTab(libraryLabel, VibraMusicIcons.TabLibrary),
             BottomTab(searchLabel, VibraMusicIcons.TabSearch),
+        )
+    }
+
+    val socialTabs = remember {
+        listOf(
+            BottomTab(SocialTab.FEED.label, SocialTab.FEED.icon),
+            BottomTab(SocialTab.QUIZ.label, SocialTab.QUIZ.icon),
+            BottomTab(SocialTab.MESSAGES.label, SocialTab.MESSAGES.icon),
+            BottomTab(SocialTab.PROFILE.label, SocialTab.PROFILE.icon),
         )
     }
 
@@ -2433,12 +2444,19 @@ private fun VibraMusicApp(
             currentRealm = AppRealm.MUSIC
         }
 
-        // On a tablet the page and the player stand side by side rather than
-        // one over the other: everything a phone stacks in a single column —
-        // the feed, the frosted bars, the tab row — becomes the left half of
-        // a row, and the player is the right. Off a tablet the row has the
-        // one child it always had and changes nothing.
-        Row(Modifier.fillMaxSize()) {
+        if (!hasCompletedOnboarding) {
+            VibraOnboardingFlow(
+                onLaunchSignIn = { webSession = WebSessionMode.SIGN_IN },
+                onComplete = {},
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else {
+            // On a tablet the page and the player stand side by side rather than
+            // one over the other: everything a phone stacks in a single column —
+            // the feed, the frosted bars, the tab row — becomes the left half of
+            // a row, and the player is the right. Off a tablet the row has the
+            // one child it always had and changes nothing.
+            Row(Modifier.fillMaxSize()) {
             Box(Modifier.weight(1f).fillMaxHeight()) {
                 AnimatedContent(
                     targetState = when {
@@ -3623,10 +3641,31 @@ private fun VibraMusicApp(
                     // component they are stacked to imitate: the now playing
                     // controls dock into the tab bar rather than riding above it,
                     // and the pair folds together on scroll. See [GlassNavBar].
+                    val activeNavBarTabs = if (currentRealm == AppRealm.MUSIC) tabs else socialTabs
+                    val activeNavBarIndex = if (currentRealm == AppRealm.MUSIC) selectedTab else when (socialNavTab) {
+                        SocialTab.FEED -> 0
+                        SocialTab.QUIZ -> 1
+                        SocialTab.MESSAGES -> 2
+                        SocialTab.PROFILE -> 3
+                    }
+                    val onActiveNavBarTabSelected: (Int) -> Unit = if (currentRealm == AppRealm.MUSIC) {
+                        onTabSelected
+                    } else {
+                        { index ->
+                            val newTab = when (index) {
+                                0 -> SocialTab.FEED
+                                1 -> SocialTab.QUIZ
+                                2 -> SocialTab.MESSAGES
+                                3 -> SocialTab.PROFILE
+                                else -> SocialTab.FEED
+                            }
+                            socialViewModel.setNavTab(newTab)
+                        }
+                    }
                     GlassNavBar(
-                        tabs = tabs,
-                        selectedIndex = selectedTab,
-                        onTabSelected = onTabSelected,
+                        tabs = activeNavBarTabs,
+                        selectedIndex = activeNavBarIndex,
+                        onTabSelected = onActiveNavBarTabSelected,
                         scrollConnection = navBarScroll,
                         song = player.song,
                         isPlaying = player.isPlaying,
@@ -3696,6 +3735,7 @@ private fun VibraMusicApp(
             }
 
         }
+    }
 
         // ---- Active Music Quiz Overlay ----
         if (quizGameState == QuizGameState.COUNTDOWN ||

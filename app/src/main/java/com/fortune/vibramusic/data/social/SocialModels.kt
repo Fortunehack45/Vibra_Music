@@ -113,6 +113,7 @@ data class SocialPost(
     val author: SocialProfile? = null,
     val content: String,
     val imageUrl: String? = null,
+    val imageUrls: List<String> = emptyList(),
     val musicTrack: MusicTrackAttachment? = null,
     val pollData: PollData? = null,
     val quizResult: QuizResultAttachment? = null,
@@ -131,6 +132,8 @@ data class SocialPost(
     val authorAvatar: String? get() = author?.avatarUrl
     val authorVerified: Boolean get() = author?.verifiedBadge == true
     val poll: PollData? get() = pollData
+    val effectiveImages: List<String>
+        get() = if (imageUrls.isNotEmpty()) imageUrls else if (!imageUrl.isNullOrBlank()) listOf(imageUrl) else emptyList()
 }
 
 /**
@@ -209,4 +212,5 @@ data class UserListeningExperience(
     val autoSkipSilence: Boolean = false,
     val lyricsSource: String = "DEFAULT",
     val canvasEnabled: Boolean = true,
+    val preferredGenres: List<String> = emptyList(),
 )

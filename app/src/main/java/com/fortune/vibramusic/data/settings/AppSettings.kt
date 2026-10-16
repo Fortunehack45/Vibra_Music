@@ -662,6 +662,8 @@ object AppSettings {
     val listenBrainzToken = MutableStateFlow("")
     val listenBrainzPrimaryArtistOnly = MutableStateFlow(false)
     val spotifySpdcToken = MutableStateFlow("")
+    val hasCompletedOnboarding = MutableStateFlow(false)
+    val preferredGenres = MutableStateFlow<Set<String>>(emptySet())
 
     // -- Discord Rich Presence -------------------------------------------
 
@@ -929,6 +931,8 @@ object AppSettings {
         listenBrainzToken.value = prefs.getString(KEY_LISTENBRAINZ_TOKEN, "").orEmpty()
         listenBrainzPrimaryArtistOnly.value = prefs.getBoolean(KEY_LISTENBRAINZ_PRIMARY_ARTIST_ONLY, false)
         spotifySpdcToken.value = prefs.getString(KEY_SPOTIFY_SPDC_TOKEN, "").orEmpty()
+        hasCompletedOnboarding.value = prefs.getBoolean(KEY_ONBOARDING_COMPLETED, false)
+        preferredGenres.value = prefs.getStringSet(KEY_USER_PREFERRED_GENRES, emptySet()) ?: emptySet()
         replayGenres.value = prefs.getBoolean(KEY_REPLAY_GENRES, true)
         filterNonMusicAudio.value = prefs.getBoolean(KEY_FILTER_NON_MUSIC_AUDIO, true)
         localMusicSort.value = readLocalMusicSort(KEY_LOCAL_MUSIC_SORT)
@@ -1580,6 +1584,16 @@ object AppSettings {
         onSpotifySpdcTokenChanged?.invoke(value)
     }
 
+    fun setOnboardingCompleted(value: Boolean) {
+        hasCompletedOnboarding.value = value
+        prefs.edit().putBoolean(KEY_ONBOARDING_COMPLETED, value).apply()
+    }
+
+    fun setPreferredGenres(genres: Set<String>) {
+        preferredGenres.value = genres
+        prefs.edit().putStringSet(KEY_USER_PREFERRED_GENRES, genres).apply()
+    }
+
     fun setLastfmScrobbleEnabled(value: Boolean) {
         lastfmScrobbleEnabled.value = value
         if (!value) lastfmNowPlaying.value = false
@@ -2126,6 +2140,8 @@ object AppSettings {
     private const val KEY_LISTENBRAINZ_TOKEN = "listenbrainz_token"
     private const val KEY_LISTENBRAINZ_PRIMARY_ARTIST_ONLY = "listenbrainz_primary_artist_only"
     private const val KEY_SPOTIFY_SPDC_TOKEN = "spotify_spdc_token"
+    private const val KEY_ONBOARDING_COMPLETED = "vibra_onboarding_completed"
+    private const val KEY_USER_PREFERRED_GENRES = "vibra_user_preferred_genres"
 
     private const val KEY_DISCORD_USERNAME = "discord_username"
     private const val KEY_DISCORD_NAME = "discord_name"

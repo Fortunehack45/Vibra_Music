@@ -54,6 +54,9 @@ object UserCloudSyncManager {
                             }
                             AppSettings.setLoudnessNormalization(exp.volumeNormalization)
                             AppSettings.setAnimatedCanvas(exp.canvasEnabled)
+                            if (exp.preferredGenres.isNotEmpty()) {
+                                AppSettings.setPreferredGenres(exp.preferredGenres.toSet())
+                            }
                         }
                     }
                 }
@@ -118,6 +121,7 @@ object UserCloudSyncManager {
                 autoSkipSilence = false,
                 lyricsSource = "DEFAULT",
                 canvasEnabled = canvas,
+                preferredGenres = AppSettings.preferredGenres.value.toList(),
             )
         }
     }

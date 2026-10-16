@@ -935,6 +935,34 @@ object YtMusicRepository {
         }
     }
 
+    private val artistThumbCache = java.util.concurrent.ConcurrentHashMap<String, String>()
+
+    suspend fun getArtistThumbnail(artistId: String, artistName: String? = null): String? {
+        val key = artistId.ifBlank { artistName.orEmpty() }
+        if (key.isBlank()) return null
+        artistThumbCache[key]?.let { return it }
+
+        if (artistId.startsWith("UC")) {
+            val thumb = artistPage(artistId).getOrNull()?.thumbnailUrl
+            if (!thumb.isNullOrBlank()) {
+                artistThumbCache[key] = thumb
+                return thumb
+            }
+        }
+
+        val query = artistName?.takeIf { it.isNotBlank() } ?: artistId
+        val results = search(query, SearchFilter.ARTISTS).getOrNull().orEmpty()
+        val foundThumb = results.filterIsInstance<SearchResult.Browse>()
+            .firstOrNull { it.item.type == com.fortune.vibramusic.data.model.BrowseType.ARTIST }
+            ?.item?.thumbnailUrl
+
+        if (!foundThumb.isNullOrBlank()) {
+            artistThumbCache[key] = foundThumb
+            return foundThumb
+        }
+        return null
+    }
+
     private suspend fun <T> call(label: String, block: suspend () -> T): Result<T> =
         withContext(Dispatchers.IO) {
             runCatching { block() }.recoverCatching { failure ->

@@ -373,12 +373,13 @@ fun VibraOnboardingFlow(
 
                                     // 4. Save Favorite Artists in Supabase
                                     selectedArtists.forEach { artist ->
+                                        val thumb = artist.imageUrl ?: com.fortune.vibramusic.data.YtMusicRepository.getArtistThumbnail(artist.id, artist.name)
                                         SupabaseService.addFavoriteArtist(
                                             userId = userId,
                                             artist = QuizArtist(
                                                 id = artist.id,
                                                 name = artist.name,
-                                                artworkUrl = artist.imageUrl,
+                                                artworkUrl = thumb,
                                             ),
                                         )
                                     }

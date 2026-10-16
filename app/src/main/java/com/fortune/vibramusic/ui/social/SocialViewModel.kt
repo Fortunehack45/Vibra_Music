@@ -14,6 +14,7 @@ import com.fortune.vibramusic.data.social.SocialPost
 import com.fortune.vibramusic.data.social.SocialProfile
 import com.fortune.vibramusic.data.supabase.SupabaseService
 import com.fortune.vibramusic.data.supabase.UserCloudSyncManager
+import com.fortune.vibramusic.data.YtMusicRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -540,12 +541,26 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             SupabaseService.fetchFavoriteArtists(userId)
                 .onSuccess { list ->
-                    _favoriteArtists.value = list.map {
+                    val loaded = list.map {
                         QuizArtist(
                             id = it.artistId,
                             name = it.artistName,
                             artworkUrl = it.artworkUrl,
                         )
+                    }
+                    _favoriteArtists.value = loaded
+
+                    // Asynchronously resolve any missing thumbnails from YouTube Music
+                    loaded.filter { it.artworkUrl.isNullOrBlank() }.forEach { artist ->
+                        launch {
+                            val resolvedThumb = YtMusicRepository.getArtistThumbnail(artist.id, artist.name)
+                            if (!resolvedThumb.isNullOrBlank()) {
+                                _favoriteArtists.value = _favoriteArtists.value.map {
+                                    if (it.id == artist.id) it.copy(artworkUrl = resolvedThumb) else it
+                                }
+                                SupabaseService.addFavoriteArtist(userId, artist.copy(artworkUrl = resolvedThumb))
+                            }
+                        }
                     }
                 }
         }
@@ -557,7 +572,17 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
 
         _favoriteArtists.value = _favoriteArtists.value + artist
         viewModelScope.launch {
-            SupabaseService.addFavoriteArtist(userId, artist)
+            var toSave = artist
+            if (toSave.artworkUrl.isNullOrBlank()) {
+                val thumb = YtMusicRepository.getArtistThumbnail(artist.id, artist.name)
+                if (!thumb.isNullOrBlank()) {
+                    toSave = artist.copy(artworkUrl = thumb)
+                    _favoriteArtists.value = _favoriteArtists.value.map {
+                        if (it.id == artist.id) toSave else it
+                    }
+                }
+            }
+            SupabaseService.addFavoriteArtist(userId, toSave)
         }
     }
 

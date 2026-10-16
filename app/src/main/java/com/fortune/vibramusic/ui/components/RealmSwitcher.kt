@@ -128,7 +128,8 @@ fun RealmSwitcher(
 
     BoxWithConstraints(
         modifier = containerModifier
-            .height(40.dp)
+            .width(180.dp)
+            .height(38.dp)
             .padding(3.dp),
         contentAlignment = Alignment.CenterStart,
     ) {

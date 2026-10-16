@@ -3570,18 +3570,24 @@ private fun VibraMusicApp(
                             // itself rather than being told.
                             TopBarDownloadButton(onClick = { showDownloadManager = true })
 
-                            val activeAvatar = googleAccounts
-                                .firstOrNull { it.accountId == activeAccountId }
-                                ?.profiles
-                                ?.firstOrNull { it.profileId == activeProfileId }
-                                ?.avatar
-                                ?: googleAccounts.firstOrNull()?.profiles?.firstOrNull { !it.avatar.isNullOrBlank() }?.avatar
+                            val activeAvatar = if (currentRealm == AppRealm.SOCIAL && !socialProfile?.avatarUrl.isNullOrBlank()) {
+                                socialProfile?.avatarUrl
+                            } else {
+                                googleAccounts
+                                    .firstOrNull { it.accountId == activeAccountId }
+                                    ?.profiles
+                                    ?.firstOrNull { it.profileId == activeProfileId }
+                                    ?.avatar
+                                    ?: googleAccounts.firstOrNull()?.profiles?.firstOrNull { !it.avatar.isNullOrBlank() }?.avatar
+                            }
 
                             TopBarAccountButton(
                                 account = account,
                                 avatarUrl = activeAvatar,
                                 onClick = {
-                                    if (signedIn) {
+                                    if (currentRealm == AppRealm.SOCIAL) {
+                                        socialViewModel.setNavTab(SocialTab.PROFILE)
+                                    } else if (signedIn) {
                                         viewModel.loadChannels()
                                         showAccountSelector = true
                                     } else showSettings = true

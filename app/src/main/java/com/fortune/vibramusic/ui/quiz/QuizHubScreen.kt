@@ -35,6 +35,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -42,16 +43,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import coil3.compose.AsyncImage
 import com.fortune.vibramusic.data.YtMusicRepository
 import com.fortune.vibramusic.data.model.SearchFilter
 import com.fortune.vibramusic.data.model.SearchResult
@@ -63,6 +63,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+/**
+ * Premium Liquid-Glass Music Quiz Hub.
+ * Features glowing vinyl artist cards, real-time artist thumbnail auto-resolution,
+ * frosted lives pills, and elegant step cards.
+ */
 @Composable
 fun QuizHubScreen(
     viewModel: QuizViewModel,
@@ -81,25 +86,40 @@ fun QuizHubScreen(
     var isSearching by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
-    // Default Popular / Trending Quiz Artists with verified browse IDs and vibrant radiant fallback
+    // Default Popular / Trending Quiz Artists with automatic thumbnail resolution
     val trendingArtists = remember {
-        listOf(
+        mutableStateListOf(
             QuizArtist("UC0C-w0YjGpqDXGB8Tr0GGyA", "Drake", null),
-            QuizArtist("UCqECaJ8Gagnn7YCbPEzWH6g", "Taylor Swift", null),
-            QuizArtist("UC0WP5P-ufpRfjbNrmOWwLBQ", "The Weeknd", null),
+            QuizArtist("UCqECaJ8Gagnn7YCbPEzWH6g", "Taylor Swift", "https://yt3.googleusercontent.com/ZpWD37EEQE_LVuQ_O03cRmz5mZA7jG0gKGLt-49uHNDX6DycysijGGSOX9woU-OfQR5jyahz3aEdmBmm3A=w540-h540-l90-rj"),
+            QuizArtist("UCOmHUn--16B90oW2L6FRR3A", "Burna Boy", "https://yt3.googleusercontent.com/9h5EMc3LktccxFy-3bznozFCwYSU1YnU0agJZssvGqDj3UDrtFC7FgPHjDrtUG3dGAP45uEPBxDYLBg=w540-h540-l90-rj"),
+            QuizArtist("UC0WP5P-ufpRfjbNrmOWwLBQ", "The Weeknd", "https://yt3.googleusercontent.com/mxqDOrw4zbfDBdd4kOnD2qBUtMklnAucEfrQUbr30pRLie0P3JIhJhBJ9wJq3NEeg2yVrT9lgrYid-w=w540-h540-l90-rj"),
             QuizArtist("UCiGm_E4DwYcU-gEyZv29eJA", "Billie Eilish", null),
-            QuizArtist("UCOmHUn--16B90oW2L6FRR3A", "Burna Boy", null),
             QuizArtist("UCCgsKDzkjI6kHjG22r7Lq2w", "Kendrick Lamar", null),
         )
     }
 
+    // Auto-resolve any missing artist thumbnails in the background
+    LaunchedEffect(Unit) {
+        trendingArtists.forEachIndexed { index, artist ->
+            if (artist.artworkUrl.isNullOrBlank()) {
+                launch {
+                    val thumb = YtMusicRepository.getArtistThumbnail(artist.id, artist.name)
+                    if (!thumb.isNullOrBlank() && index < trendingArtists.size) {
+                        trendingArtists[index] = trendingArtists[index].copy(artworkUrl = thumb)
+                    }
+                }
+            }
+        }
+    }
+
     LaunchedEffect(searchQuery) {
-        if (searchQuery.length >= 2) {
+        val query = searchQuery.trim()
+        if (query.length >= 2) {
             isSearching = true
             scope.launch {
                 runCatching {
                     val searchItems = withContext(Dispatchers.IO) {
-                        YtMusicRepository.search(searchQuery.trim(), SearchFilter.ARTISTS).getOrNull().orEmpty()
+                        YtMusicRepository.search(query, SearchFilter.ARTISTS).getOrNull().orEmpty()
                     }
                     val artists = searchItems.mapNotNull { result ->
                         when (result) {
@@ -134,27 +154,31 @@ fun QuizHubScreen(
                 top = contentPadding.calculateTopPadding() + 8.dp,
                 bottom = contentPadding.calculateBottomPadding() + 80.dp,
             ),
-            verticalArrangement = Arrangement.spacedBy(20.dp),
+            verticalArrangement = Arrangement.spacedBy(22.dp),
         ) {
             // Header Bar with Lives Indicator
             item(key = "hub_header") {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp),
+                        .padding(horizontal = 20.dp, vertical = 4.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column {
                         Text(
                             text = "Music Quiz",
-                            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold),
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontWeight = FontWeight.ExtraBold,
+                                letterSpacing = (-0.5).sp,
+                            ),
                             color = MaterialTheme.colorScheme.onSurface,
                         )
+                        Spacer(Modifier.height(2.dp))
                         Text(
                             text = "Do You Know The Song?",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
                         )
                     }
 
@@ -162,16 +186,32 @@ fun QuizHubScreen(
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                            .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(20.dp))
+                            .clip(RoundedCornerShape(percent = 50))
+                            .background(
+                                Brush.verticalGradient(
+                                    listOf(
+                                        Color.White.copy(alpha = 0.12f),
+                                        Color.White.copy(alpha = 0.04f),
+                                    )
+                                )
+                            )
+                            .border(
+                                width = 1.dp,
+                                brush = Brush.verticalGradient(
+                                    listOf(
+                                        Color.White.copy(alpha = 0.30f),
+                                        Color.White.copy(alpha = 0.08f),
+                                    )
+                                ),
+                                shape = RoundedCornerShape(percent = 50),
+                            )
                             .clickable { showLivesDialog = true }
-                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                            .padding(horizontal = 14.dp, vertical = 7.dp),
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.Favorite,
                             contentDescription = "Lives",
-                            tint = MaterialTheme.colorScheme.error,
+                            tint = Color(0xFFFF453A),
                             modifier = Modifier.size(16.dp),
                         )
                         Spacer(Modifier.width(6.dp))
@@ -190,9 +230,25 @@ fun QuizHubScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 20.dp)
-                        .clip(RoundedCornerShape(24.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
-                        .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(24.dp))
+                        .clip(RoundedCornerShape(22.dp))
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(
+                                    Color.White.copy(alpha = 0.08f),
+                                    Color.White.copy(alpha = 0.03f),
+                                )
+                            )
+                        )
+                        .border(
+                            1.dp,
+                            Brush.verticalGradient(
+                                listOf(
+                                    Color.White.copy(alpha = 0.18f),
+                                    Color.White.copy(alpha = 0.04f),
+                                )
+                            ),
+                            RoundedCornerShape(22.dp),
+                        )
                         .padding(horizontal = 16.dp, vertical = 12.dp),
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -243,12 +299,12 @@ fun QuizHubScreen(
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(100.dp),
+                                .height(120.dp),
                             contentAlignment = Alignment.Center,
                         ) {
                             CircularProgressIndicator(
                                 color = MaterialTheme.colorScheme.primary,
-                                strokeWidth = 2.dp,
+                                strokeWidth = 2.5.dp,
                             )
                         }
                     }
@@ -278,7 +334,7 @@ fun QuizHubScreen(
                     }
                 }
             } else {
-                // Trending Artists Section
+                // Trending Challenges Section
                 item(key = "trending_artists_title") {
                     Text(
                         text = "Trending Challenges",
@@ -308,31 +364,65 @@ fun QuizHubScreen(
                     }
                 }
 
-                // How to Play Banner (Liquid Glass)
+                // How to Play Banner (Liquid Glass Step Cards)
                 item(key = "how_to_play") {
-                    Box(
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 20.dp)
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
-                            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(20.dp))
+                            .clip(RoundedCornerShape(22.dp))
+                            .background(
+                                Brush.verticalGradient(
+                                    listOf(
+                                        Color.White.copy(alpha = 0.06f),
+                                        Color.White.copy(alpha = 0.02f),
+                                    )
+                                )
+                            )
+                            .border(
+                                1.dp,
+                                Brush.verticalGradient(
+                                    listOf(
+                                        Color.White.copy(alpha = 0.18f),
+                                        Color.White.copy(alpha = 0.04f),
+                                    )
+                                ),
+                                RoundedCornerShape(22.dp),
+                            )
                             .padding(18.dp),
                     ) {
-                        Column {
-                            Text(
-                                text = "How to Play",
-                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.primary,
-                            )
-                            Spacer(Modifier.height(6.dp))
-                            Text(
-                                text = "1. Pick any artist from your favorites or search YouTube Music.\n2. Listen to 15s mystery audio snippets.\n3. Answer all 10 questions as fast as possible to climb the Leaderboard!",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                lineHeight = 20.sp,
-                            )
-                        }
+                        Text(
+                            text = "HOW TO PLAY",
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                fontWeight = FontWeight.ExtraBold,
+                                letterSpacing = 1.sp,
+                            ),
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+
+                        Spacer(Modifier.height(14.dp))
+
+                        QuizStepRow(
+                            stepNumber = "1",
+                            title = "Select Any Artist",
+                            description = "Choose from trending icons or search any artist in the world.",
+                        )
+
+                        Spacer(Modifier.height(12.dp))
+
+                        QuizStepRow(
+                            stepNumber = "2",
+                            title = "Hear Mystery Snippets",
+                            description = "15-second mystery audio snippets play instantly with 0ms delay.",
+                        )
+
+                        Spacer(Modifier.height(12.dp))
+
+                        QuizStepRow(
+                            stepNumber = "3",
+                            title = "Climb The Leaderboard",
+                            description = "Answer all 10 questions fast to claim the top global rank.",
+                        )
                     }
                 }
             }
@@ -343,7 +433,7 @@ fun QuizHubScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.7f)),
+                    .background(Color.Black.copy(alpha = 0.72f)),
                 contentAlignment = Alignment.Center,
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -380,21 +470,48 @@ private fun TrendingArtistCard(
 ) {
     Box(
         modifier = Modifier
-            .width(160.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
-            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(20.dp))
+            .width(168.dp)
+            .clip(RoundedCornerShape(24.dp))
+            .background(
+                Brush.verticalGradient(
+                    listOf(
+                        Color.White.copy(alpha = 0.09f),
+                        Color.White.copy(alpha = 0.02f),
+                    )
+                )
+            )
+            .border(
+                1.dp,
+                Brush.verticalGradient(
+                    listOf(
+                        Color.White.copy(alpha = 0.28f),
+                        Color.White.copy(alpha = 0.06f),
+                    )
+                ),
+                RoundedCornerShape(24.dp),
+            )
             .padding(14.dp),
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            ArtistAvatar(
-                artistName = artist.name,
-                artworkUrl = artist.artworkUrl,
-                size = 80.dp,
-            )
+            // Vinyl Record Ring Motif framing the artist portrait
+            Box(
+                modifier = Modifier
+                    .size(92.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.45f))
+                    .border(2.dp, Color.White.copy(alpha = 0.14f), CircleShape)
+                    .padding(4.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                ArtistAvatar(
+                    artistName = artist.name,
+                    artworkUrl = artist.artworkUrl,
+                    size = 84.dp,
+                )
+            }
 
             Spacer(Modifier.height(10.dp))
 
@@ -406,21 +523,30 @@ private fun TrendingArtistCard(
                 overflow = TextOverflow.Ellipsis,
             )
 
+            Text(
+                text = "10 Audio Snippets",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                maxLines = 1,
+            )
+
             Spacer(Modifier.height(12.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 // Play Button
-                Box(
+                Row(
                     modifier = Modifier
                         .weight(1f)
+                        .height(36.dp)
                         .clip(RoundedCornerShape(12.dp))
                         .background(MaterialTheme.colorScheme.primary)
-                        .clickable(onClick = onPlay)
-                        .padding(vertical = 8.dp),
-                    contentAlignment = Alignment.Center,
+                        .clickable(onClick = onPlay),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.PlayArrow,
@@ -428,14 +554,21 @@ private fun TrendingArtistCard(
                         tint = MaterialTheme.colorScheme.onPrimary,
                         modifier = Modifier.size(18.dp),
                     )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        text = "Play",
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onPrimary,
+                    )
                 }
 
                 // Leaderboard Button
                 Box(
                     modifier = Modifier
-                        .size(34.dp)
+                        .size(36.dp)
                         .clip(RoundedCornerShape(12.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .background(Color.White.copy(alpha = 0.08f))
+                        .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(12.dp))
                         .clickable(onClick = onLeaderboard),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -452,6 +585,50 @@ private fun TrendingArtistCard(
 }
 
 @Composable
+private fun QuizStepRow(
+    stepNumber: String,
+    title: String,
+    description: String,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(24.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.18f))
+                .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f), CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = stepNumber,
+                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
+
+        Spacer(Modifier.width(12.dp))
+
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                lineHeight = 16.sp,
+            )
+        }
+    }
+}
+
+@Composable
 private fun ArtistQuizRow(
     artist: QuizArtist,
     onPlay: () -> Unit,
@@ -460,9 +637,25 @@ private fun ArtistQuizRow(
 ) {
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
-            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(18.dp))
+            .background(
+                Brush.verticalGradient(
+                    listOf(
+                        Color.White.copy(alpha = 0.08f),
+                        Color.White.copy(alpha = 0.02f),
+                    )
+                )
+            )
+            .border(
+                1.dp,
+                Brush.verticalGradient(
+                    listOf(
+                        Color.White.copy(alpha = 0.18f),
+                        Color.White.copy(alpha = 0.04f),
+                    )
+                ),
+                RoundedCornerShape(18.dp),
+            )
             .padding(12.dp),
     ) {
         Row(
@@ -486,9 +679,9 @@ private fun ArtistQuizRow(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = "10 Questions Challenge",
+                    text = "10 Audio Snippets Challenge",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
                 )
             }
 

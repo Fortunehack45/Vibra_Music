@@ -3312,26 +3312,26 @@ private fun VibraMusicApp(
                     MaterialTheme.colorScheme.background
                 }
                 // This is the bottom floor itself turned upside down, not a
-                // separately maintained approximation. Both edges therefore
-                // share the same curve, height and page-aware colour — including
-                // the white theme background in light mode.
-                BottomFadeScrim(
-                    pageColor = chromePageColor,
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .rotate(180f),
-                )
+                val isSocialChatActive = currentRealm == AppRealm.SOCIAL && socialActiveChatFriend != null
 
-                // With Liquid Glass enabled, every page uses separated floating
-                // controls and therefore has no full-width pane underneath.
-                if (!glassActive && !isReplayVisible && !isDetailVisible) {
-                    TopBarBlur(
-                        hazeState = hazeState,
-                        modifier = Modifier.align(Alignment.TopCenter),
+                if (!isSocialChatActive) {
+                    BottomFadeScrim(
+                        pageColor = chromePageColor,
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .rotate(180f),
                     )
-                }
 
-                FrostedTopBar(
+                    // With Liquid Glass enabled, every page uses separated floating
+                    // controls and therefore has no full-width pane underneath.
+                    if (!glassActive && !isReplayVisible && !isDetailVisible) {
+                        TopBarBlur(
+                            hazeState = hazeState,
+                            modifier = Modifier.align(Alignment.TopCenter),
+                        )
+                    }
+
+                    FrostedTopBar(
                     title = when {
                         showSpotifyLibrary && detail == null -> stringResource(R.string.spotify)
                         showDiscord -> "Discord"
@@ -3591,7 +3591,9 @@ private fun VibraMusicApp(
                         }
                     },
                 )
+                }
 
+                if (!isSocialChatActive) {
                 // Drawn before the bars so their own glass reads on top of it.
                 BottomFadeScrim(
                     withMiniPlayer = player.song != null,
@@ -3731,6 +3733,7 @@ private fun VibraMusicApp(
                             hazeState = hazeState,
                         )
                     }
+                }
                 }
             }
 

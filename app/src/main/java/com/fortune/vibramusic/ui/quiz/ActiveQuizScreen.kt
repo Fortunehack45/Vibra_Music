@@ -62,6 +62,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.fortune.vibramusic.data.quiz.QuizGameState
 import com.fortune.vibramusic.data.quiz.QuizQuestion
+import com.fortune.vibramusic.ui.components.ArtistAvatar
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 
@@ -199,6 +200,7 @@ fun ActiveQuizScreen(
                         // Spinning Mystery Vinyl Disc with Sound Waves
                         MysteryVinylPlayer(
                             isPlaying = gameState == QuizGameState.QUESTION_ACTIVE,
+                            artistName = currentArtist?.name ?: "Artist",
                             artistArtworkUrl = currentArtist?.artworkUrl,
                         )
 
@@ -281,6 +283,7 @@ private fun CountdownPhase(countdownNumber: Int) {
 @Composable
 private fun MysteryVinylPlayer(
     isPlaying: Boolean,
+    artistName: String,
     artistArtworkUrl: String?,
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "vinylSpin")
@@ -312,29 +315,12 @@ private fun MysteryVinylPlayer(
         )
 
         // Center Album Art
-        Box(
-            modifier = Modifier
-                .size(76.dp)
-                .clip(CircleShape)
-                .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (artistArtworkUrl != null) {
-                AsyncImage(
-                    model = artistArtworkUrl,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            } else {
-                Icon(
-                    imageVector = Icons.Rounded.MusicNote,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(32.dp),
-                )
-            }
-        }
+        ArtistAvatar(
+            artistName = artistName,
+            artworkUrl = artistArtworkUrl,
+            size = 76.dp,
+            modifier = Modifier.border(2.dp, MaterialTheme.colorScheme.primary, CircleShape),
+        )
     }
 }
 

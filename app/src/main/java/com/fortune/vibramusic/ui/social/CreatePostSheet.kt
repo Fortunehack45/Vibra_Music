@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -36,6 +37,7 @@ import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Poll
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.SwapHoriz
+import androidx.compose.material.icons.rounded.Videocam
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedButton
@@ -90,6 +92,7 @@ fun CreatePostSheet(
     onSubmitPost: (
         content: String,
         imageUrls: List<String>,
+        videoUrl: String?,
         track: MusicTrackAttachment?,
         poll: PollData?,
         quoteOfId: String?,
@@ -101,6 +104,7 @@ fun CreatePostSheet(
 
     var textContent by remember { mutableStateOf("") }
     val selectedImageUris = remember { mutableStateListOf<Uri>() }
+    var selectedVideoUri by remember { mutableStateOf<Uri?>(null) }
     var attachedTrack by remember {
         mutableStateOf(
             currentlyPlayingSong?.let {
@@ -135,7 +139,18 @@ fun CreatePostSheet(
         uris.forEach { uri ->
             if (selectedImageUris.size < 4 && !selectedImageUris.contains(uri)) {
                 selectedImageUris.add(uri)
+                selectedVideoUri = null
             }
+        }
+    }
+
+    // Video picker launcher
+    val videoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            selectedVideoUri = uri
+            selectedImageUris.clear()
         }
     }
 
@@ -218,6 +233,23 @@ fun CreatePostSheet(
                                     }
                                 }
                             }
+
+                            // Upload selected video to Supabase Storage
+                            var uploadedVideoUrl: String? = null
+                            selectedVideoUri?.let { uri ->
+                                runCatching {
+                                    val bytes = withContext(Dispatchers.IO) {
+                                        context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                                    }
+                                    if (bytes != null) {
+                                        val uploadResult = SupabaseService.uploadMedia(
+                                            bytes = bytes,
+                                            mimeType = "video/mp4",
+                                        )
+                                        uploadedVideoUrl = uploadResult.getOrNull()
+                                    }
+                                }
+                            }
                             isUploadingMedia = false
 
                             val finalPoll = if (showPollBuilder && pollQuestion.isNotBlank() && pollOptions.size >= 2) {
@@ -230,6 +262,7 @@ fun CreatePostSheet(
                             onSubmitPost(
                                 textContent.trim(),
                                 uploadedUrls,
+                                uploadedVideoUrl,
                                 attachedTrack,
                                 finalPoll,
                                 quotedPost?.id,
@@ -237,7 +270,7 @@ fun CreatePostSheet(
                         }
                     },
                     enabled = !isPosting && !isUploadingMedia && (
-                        textContent.isNotBlank() || selectedImageUris.isNotEmpty() || attachedTrack != null || showPollBuilder || quotedPost != null
+                        textContent.isNotBlank() || selectedImageUris.isNotEmpty() || selectedVideoUri != null || attachedTrack != null || showPollBuilder || quotedPost != null
                     ),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.elevatedButtonColors(
@@ -267,20 +300,12 @@ fun CreatePostSheet(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(110.dp)
+                    .height(115.dp)
                     .clip(RoundedCornerShape(16.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
-                    .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(16.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(16.dp))
                     .padding(14.dp),
             ) {
-                if (textContent.isEmpty()) {
-                    Text(
-                        text = if (quotedPost != null) "Add your commentary..."
-                        else "Share what you're listening to, ask for music recs, or drop your thoughts...",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                    )
-                }
                 BasicTextField(
                     value = textContent,
                     onValueChange = { textContent = it },
@@ -289,7 +314,18 @@ fun CreatePostSheet(
                         fontSize = 15.sp,
                     ),
                     cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxSize(),
+                    decorationBox = { innerTextField ->
+                        if (textContent.isEmpty()) {
+                            Text(
+                                text = if (quotedPost != null) "Add your commentary..."
+                                else "Share what you're listening to, ask for music recs, or drop your thoughts...",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                            )
+                        }
+                        innerTextField()
+                    },
                 )
             }
 
@@ -414,6 +450,67 @@ fun CreatePostSheet(
                                     modifier = Modifier.size(14.dp),
                                 )
                             }
+                        }
+                    }
+                }
+            }
+
+            // Video Selection Indicator Preview
+            if (selectedVideoUri != null) {
+                Spacer(Modifier.height(12.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                        .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
+                        .padding(12.dp),
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Videocam,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp),
+                                )
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = "Video Selected",
+                                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                )
+                                Text(
+                                    text = "Ready to upload with post",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+
+                        IconButton(
+                            onClick = { selectedVideoUri = null },
+                            modifier = Modifier.size(28.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Close,
+                                contentDescription = "Remove video",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(16.dp),
+                            )
                         }
                     }
                 }
@@ -796,9 +893,45 @@ fun CreatePostSheet(
                     )
                     Spacer(Modifier.width(6.dp))
                     Text(
-                        text = if (selectedImageUris.isNotEmpty()) "${selectedImageUris.size}/4 Images" else "Images",
+                        text = if (selectedImageUris.isNotEmpty()) "${selectedImageUris.size}/4" else "Photo",
                         style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
                         color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+
+                // Add Video Button
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(
+                            if (selectedVideoUri != null) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                        )
+                        .border(
+                            1.dp,
+                            if (selectedVideoUri != null) MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
+                            else Color.White.copy(alpha = 0.08f),
+                            RoundedCornerShape(20.dp)
+                        )
+                        .clickable {
+                            videoPickerLauncher.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)
+                            )
+                        }
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Videocam,
+                        contentDescription = "Add Video",
+                        tint = if (selectedVideoUri != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = if (selectedVideoUri != null) "Video added" else "Video",
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
+                        color = if (selectedVideoUri != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                     )
                 }
 

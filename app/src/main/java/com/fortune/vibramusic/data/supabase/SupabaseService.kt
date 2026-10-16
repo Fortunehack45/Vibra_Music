@@ -16,6 +16,7 @@ import com.fortune.vibramusic.data.social.MusicTrackAttachment
 import com.fortune.vibramusic.data.social.PollData
 import com.fortune.vibramusic.data.social.PollOption
 import com.fortune.vibramusic.data.social.PostComment
+import com.fortune.vibramusic.data.social.SharedPlaylistAttachment
 import com.fortune.vibramusic.data.social.SocialPost
 import com.fortune.vibramusic.data.social.SocialProfile
 import com.fortune.vibramusic.data.social.UserListeningExperience
@@ -175,6 +176,7 @@ object SupabaseService {
         author: SocialProfile,
         content: String,
         imageUrls: List<String> = emptyList(),
+        videoUrl: String? = null,
         musicAttachment: MusicTrackAttachment? = null,
         poll: PollData? = null,
         quoteOfId: String? = null,
@@ -202,6 +204,7 @@ object SupabaseService {
                 append("\"author_id\":\"${author.id}\",")
                 append("\"content\":${jsonQuote(content)}")
                 if (imageUrlsJson != null) append(",\"image_urls\":$imageUrlsJson")
+                if (videoUrl != null) append(",\"video_url\":${jsonQuote(videoUrl)}")
                 if (musicTrackJson != null) append(",\"music_track\":$musicTrackJson")
                 if (pollJson != null) append(",\"poll_data\":$pollJson")
                 if (quoteOfId != null) append(",\"quote_of_id\":\"$quoteOfId\"")
@@ -223,6 +226,7 @@ object SupabaseService {
                 content = content,
                 imageUrl = imageUrls.firstOrNull(),
                 imageUrls = imageUrls,
+                videoUrl = videoUrl,
                 musicTrack = musicAttachment,
                 pollData = poll,
                 quoteOfId = quoteOfId,
@@ -400,6 +404,7 @@ object SupabaseService {
 
     /**
      * Updates editable fields of a user's social profile.
+     * Uses POST with merge-duplicates so the profile is always created if it did not exist yet.
      */
     suspend fun updateUserProfile(
         userId: String,
@@ -411,16 +416,18 @@ object SupabaseService {
         runCatching {
             val body = buildString {
                 append("{")
+                append("\"id\":\"$userId\",")
                 append("\"display_name\":${jsonQuote(displayName)},")
                 append("\"handle\":${jsonQuote(handle)},")
                 append("\"bio\":${jsonQuote(bio)}")
                 if (avatarUrl != null) append(",\"avatar_url\":${jsonQuote(avatarUrl)}")
+                append(",\"referral_code\":\"vibra_${userId.takeLast(6)}\"")
                 append("}")
             }
-            val response = client.patch(baseUrl("profiles")) {
+            val response = client.post(baseUrl("profiles")) {
                 header("apikey", SupabaseConfig.anonKey)
                 header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
-                parameter("id", "eq.$userId")
+                header("Prefer", "resolution=merge-duplicates")
                 contentType(ContentType.Application.Json)
                 setBody(body)
             }
@@ -433,13 +440,13 @@ object SupabaseService {
     }
 
     /**
-     * Uploads an image byte array to Supabase Storage bucket 'vibra_social'.
-     * Returns the publicly accessible URL of the uploaded image.
+     * Uploads media (images or videos) to Supabase Storage bucket 'vibra_social'.
+     * Returns the publicly accessible URL of the uploaded media file.
      */
-    suspend fun uploadImage(
+    suspend fun uploadMedia(
         bytes: ByteArray,
         mimeType: String = "image/jpeg",
-        fileName: String = "${UUID.randomUUID()}.jpg",
+        fileName: String = "${UUID.randomUUID()}.${if (mimeType.contains("video")) "mp4" else "jpg"}",
     ): Result<String> = withContext(Dispatchers.IO) {
         runCatching {
             val uploadUrl = "${SupabaseConfig.url.trimEnd('/')}/storage/v1/object/vibra_social/$fileName"
@@ -451,11 +458,21 @@ object SupabaseService {
             }
             if (!response.status.isSuccess()) {
                 val errorText = response.bodyAsText()
-                Log.w(TAG, "uploadImage returned status ${response.status}: $errorText")
+                Log.w(TAG, "uploadMedia returned status ${response.status}: $errorText")
             }
             "${SupabaseConfig.url.trimEnd('/')}/storage/v1/object/public/vibra_social/$fileName"
         }
     }
+
+    /**
+     * Uploads an image byte array to Supabase Storage bucket 'vibra_social'.
+     * Delegates to [uploadMedia].
+     */
+    suspend fun uploadImage(
+        bytes: ByteArray,
+        mimeType: String = "image/jpeg",
+        fileName: String = "${UUID.randomUUID()}.jpg",
+    ): Result<String> = uploadMedia(bytes, mimeType, fileName)
 
     /**
      * Fetches friends list and active conversations for the user.
@@ -494,18 +511,22 @@ object SupabaseService {
     }
 
     /**
-     * Sends a direct message with optional attached music card.
+     * Sends a direct message with optional attached music card or playlist card.
      */
     suspend fun sendDirectMessage(
         senderId: String,
         recipientId: String,
         message: String,
         trackAttachment: MusicTrackAttachment? = null,
+        playlistAttachment: SharedPlaylistAttachment? = null,
     ): Result<DirectMessage> = withContext(Dispatchers.IO) {
         runCatching {
             val messageId = UUID.randomUUID().toString()
             val sharedMusicJson = trackAttachment?.let {
                 "{\"video_id\":\"${it.videoId}\",\"title\":${jsonQuote(it.title)},\"artist\":${jsonQuote(it.artist)},\"thumbnail_url\":${jsonQuote(it.thumbnailUrl ?: "")},\"duration_text\":${jsonQuote(it.durationText ?: "")}}"
+            }
+            val sharedPlaylistJson = playlistAttachment?.let {
+                "{\"playlist_id\":${jsonQuote(it.playlistId)},\"title\":${jsonQuote(it.title)},\"author\":${jsonQuote(it.author)},\"thumbnail_url\":${jsonQuote(it.thumbnailUrl ?: "")},\"track_count\":${it.trackCount}}"
             }
 
             val body = buildString {
@@ -515,13 +536,17 @@ object SupabaseService {
                 append("\"receiver_id\":\"$recipientId\",")
                 append("\"content\":${jsonQuote(message)}")
                 if (sharedMusicJson != null) append(",\"shared_music\":$sharedMusicJson")
+                if (sharedPlaylistJson != null) append(",\"shared_playlist\":$sharedPlaylistJson")
                 append("}")
             }
-            client.post(baseUrl("direct_messages")) {
+            val res = client.post(baseUrl("direct_messages")) {
                 header("apikey", SupabaseConfig.anonKey)
                 header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
                 contentType(ContentType.Application.Json)
                 setBody(body)
+            }
+            if (!res.status.isSuccess()) {
+                Log.w(TAG, "sendDirectMessage returned ${res.status}: ${res.bodyAsText()}")
             }
 
             DirectMessage(
@@ -530,6 +555,7 @@ object SupabaseService {
                 receiverId = recipientId,
                 content = message,
                 sharedMusic = trackAttachment,
+                sharedPlaylist = playlistAttachment,
             )
         }
     }
@@ -612,11 +638,15 @@ object SupabaseService {
                     if (artwork != null) append(",\"artist_artwork\":${jsonQuote(artwork)}")
                     append("}")
                 }
-                client.post(baseUrl("favorite_artists")) {
+                val res = client.post(baseUrl("favorite_artists")) {
                     header("apikey", SupabaseConfig.anonKey)
                     header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                    header("Prefer", "resolution=merge-duplicates")
                     contentType(ContentType.Application.Json)
                     setBody(body)
+                }
+                if (!res.status.isSuccess()) {
+                    Log.w(TAG, "addFavoriteArtist returned ${res.status}: ${res.bodyAsText()}")
                 }
                 Unit
             }
@@ -1023,6 +1053,7 @@ object SupabaseService {
             val content = obj["content"]?.jsonPrimitive?.content ?: ""
             val imageUrl = obj["image_url"]?.jsonPrimitive?.content
             val imageUrls = obj["image_urls"]?.jsonArray?.mapNotNull { it.jsonPrimitive.content } ?: emptyList()
+            val videoUrl = obj["video_url"]?.jsonPrimitive?.content
             val quoteOfId = obj["quote_of_id"]?.jsonPrimitive?.content
             val repostOfId = obj["repost_of_id"]?.jsonPrimitive?.content
             val createdAt = obj["created_at"]?.jsonPrimitive?.content ?: ""
@@ -1072,6 +1103,7 @@ object SupabaseService {
                 content = content,
                 imageUrl = imageUrl,
                 imageUrls = imageUrls,
+                videoUrl = videoUrl,
                 musicTrack = musicTrack,
                 pollData = poll,
                 likesCount = likesCount,
@@ -1140,17 +1172,64 @@ object SupabaseService {
                 )
             }
 
+            val sharedPlaylist = obj["shared_playlist"]?.jsonObject?.let { p ->
+                SharedPlaylistAttachment(
+                    playlistId = p["playlist_id"]?.jsonPrimitive?.content ?: "",
+                    title = p["title"]?.jsonPrimitive?.content ?: "",
+                    author = p["author"]?.jsonPrimitive?.content ?: "",
+                    thumbnailUrl = p["thumbnail_url"]?.jsonPrimitive?.content,
+                    trackCount = p["track_count"]?.jsonPrimitive?.intOrNull ?: 0,
+                )
+            }
+
             DirectMessage(
                 id = id,
                 senderId = senderId,
                 receiverId = receiverId,
                 content = content,
                 sharedMusic = sharedMusic,
+                sharedPlaylist = sharedPlaylist,
                 isRead = isRead,
                 createdAt = createdAt,
             )
         }
     }.getOrDefault(emptyList())
+
+    /**
+     * Searches both profiles and posts across the Vibra Social database.
+     */
+    suspend fun searchPostsAndUsers(
+        query: String,
+        currentUserId: String = "",
+        limit: Int = 20,
+    ): Result<Pair<List<SocialProfile>, List<SocialPost>>> = withContext(Dispatchers.IO) {
+        runCatching {
+            val q = query.trim()
+            if (q.isBlank()) return@runCatching (emptyList<SocialProfile>() to emptyList<SocialPost>())
+
+            val encodedQ = "*$q*"
+
+            val profilesResp = client.get(baseUrl("profiles")) {
+                header("apikey", SupabaseConfig.anonKey)
+                header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                parameter("or", "(display_name.ilike.$encodedQ,handle.ilike.$encodedQ)")
+                parameter("limit", limit)
+            }
+            val matchedProfiles = parseProfiles(profilesResp.bodyAsText())
+
+            val postsResp = client.get(baseUrl("posts")) {
+                header("apikey", SupabaseConfig.anonKey)
+                header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                parameter("select", "*,profiles:author_id(*)")
+                parameter("or", "(content.ilike.$encodedQ,music_track->>title.ilike.$encodedQ,music_track->>artist.ilike.$encodedQ)")
+                parameter("order", "created_at.desc")
+                parameter("limit", limit)
+            }
+            val matchedPosts = parsePosts(postsResp.bodyAsText(), currentUserId)
+
+            matchedProfiles to matchedPosts
+        }
+    }
 
     private fun parseLeaderboard(raw: String, currentUserId: String): List<LeaderboardEntry> =
         runCatching {

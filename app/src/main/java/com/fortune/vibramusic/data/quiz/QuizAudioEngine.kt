@@ -31,10 +31,52 @@ class QuizAudioEngine(private val context: Context) {
         }
     }
 
+    private var preparedUrl: String? = null
+
     /**
-     * Plays an audio snippet with a smooth 300ms volume fade-in.
+     * Pre-buffers an audio snippet during the countdown or question transitions
+     * with playWhenReady = false so it's ready for 0ms instantaneous playback.
      */
-    fun playSnippet(streamUrl: String, startPositionMs: Long = 20_000L) {
+    fun prepareSnippet(streamUrl: String, startPositionMs: Long = 25_000L) {
+        val p = player ?: return
+        fadeAnimator?.cancel()
+        p.stop()
+        p.playWhenReady = false
+        p.volume = 0f
+
+        val mediaItem = MediaItem.fromUri(streamUrl)
+        p.setMediaItem(mediaItem)
+        p.prepare()
+        p.seekTo(startPositionMs)
+        preparedUrl = streamUrl
+        Log.d(TAG, "Pre-buffering quiz snippet from $streamUrl at ${startPositionMs}ms")
+    }
+
+    /**
+     * Instantly triggers playback of the pre-buffered snippet with a 250ms smooth fade-in.
+     */
+    fun startPreparedSnippet() {
+        val p = player ?: return
+        p.playWhenReady = true
+        p.play()
+
+        fadeAnimator?.cancel()
+        fadeAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 250L
+            addUpdateListener { anim ->
+                p.volume = anim.animatedValue as Float
+            }
+            start()
+        }
+        Log.d(TAG, "Instant starting pre-buffered quiz snippet")
+    }
+
+    fun isSnippetPrepared(): Boolean = preparedUrl != null && player != null
+
+    /**
+     * Plays an audio snippet with a smooth 250ms volume fade-in.
+     */
+    fun playSnippet(streamUrl: String, startPositionMs: Long = 25_000L) {
         val p = player ?: return
         fadeAnimator?.cancel()
         p.stop()
@@ -44,11 +86,13 @@ class QuizAudioEngine(private val context: Context) {
         p.setMediaItem(mediaItem)
         p.prepare()
         p.seekTo(startPositionMs)
+        p.playWhenReady = true
         p.play()
+        preparedUrl = streamUrl
 
-        // 300ms volume fade-in to avoid popping or loudness shock
+        // 250ms volume fade-in to avoid popping or loudness shock
         fadeAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
-            duration = 300L
+            duration = 250L
             addUpdateListener { anim ->
                 p.volume = anim.animatedValue as Float
             }
@@ -61,6 +105,7 @@ class QuizAudioEngine(private val context: Context) {
      * Stops current playback immediately.
      */
     fun stop() {
+        preparedUrl = null
         fadeAnimator?.cancel()
         player?.stop()
         player?.volume = 0f
@@ -70,6 +115,7 @@ class QuizAudioEngine(private val context: Context) {
      * Releases player when quiz session ends.
      */
     fun release() {
+        preparedUrl = null
         fadeAnimator?.cancel()
         player?.stop()
         player?.release()

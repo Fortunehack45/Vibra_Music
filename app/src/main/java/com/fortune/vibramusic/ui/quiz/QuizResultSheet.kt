@@ -47,6 +47,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.fortune.vibramusic.data.quiz.QuizScoreResult
+import com.fortune.vibramusic.data.social.formatHandle
+import com.fortune.vibramusic.ui.components.ArtistAvatar
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -133,21 +135,12 @@ fun QuizResultSheet(
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     // Artist Avatar
-                    Box(
-                        modifier = Modifier
-                            .size(72.dp)
-                            .clip(CircleShape)
-                            .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape),
-                    ) {
-                        if (result.artistArtworkUrl != null) {
-                            AsyncImage(
-                                model = result.artistArtworkUrl,
-                                contentDescription = null,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                        }
-                    }
+                    ArtistAvatar(
+                        artistName = result.artistName,
+                        artworkUrl = result.artistArtworkUrl,
+                        size = 72.dp,
+                        modifier = Modifier.border(2.dp, MaterialTheme.colorScheme.primary, CircleShape),
+                    )
 
                     Spacer(Modifier.height(10.dp))
 
@@ -226,7 +219,7 @@ fun QuizResultSheet(
                     Spacer(Modifier.height(10.dp))
 
                     Text(
-                        text = "@$userHandle • Vibra Music",
+                        text = "${formatHandle(userHandle)} • Vibra Music",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                     )

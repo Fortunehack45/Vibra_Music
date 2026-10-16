@@ -38,6 +38,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -58,6 +59,8 @@ import coil3.compose.AsyncImage
 import com.fortune.vibramusic.data.quiz.QuizArtist
 import com.fortune.vibramusic.data.social.MusicTrackAttachment
 import com.fortune.vibramusic.data.social.SocialProfile
+import com.fortune.vibramusic.data.social.formatHandle
+import com.fortune.vibramusic.ui.components.ArtistAvatar
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 
@@ -78,6 +81,10 @@ fun UserProfileScreen(
     val context = LocalContext.current
     var selectedSubTab by remember { mutableStateOf("Posts") }
     var showEditProfile by remember { mutableStateOf(false) }
+
+    LaunchedEffect(profile.id) {
+        viewModel.loadProfileData(profile.id)
+    }
 
     Box(
         modifier = modifier
@@ -193,7 +200,7 @@ fun UserProfileScreen(
                         }
 
                         Text(
-                            text = "@${profile.handle}",
+                            text = formatHandle(profile.handle),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
                         )
@@ -238,10 +245,13 @@ fun UserProfileScreen(
                                         else MaterialTheme.colorScheme.onPrimary,
                                     ),
                                     modifier = Modifier.weight(1f),
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp),
                                 ) {
                                     Text(
                                         text = if (profile.isFollowing) "Following" else "Follow",
                                         fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp,
+                                        maxLines = 1,
                                     )
                                 }
 
@@ -249,14 +259,19 @@ fun UserProfileScreen(
                                     onClick = { viewModel.sendFriendRequest(profile.id) },
                                     shape = RoundedCornerShape(12.dp),
                                     modifier = Modifier.weight(1f),
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp),
                                 ) {
                                     Icon(
                                         imageVector = Icons.Rounded.PersonAdd,
                                         contentDescription = null,
                                         modifier = Modifier.size(16.dp),
                                     )
-                                    Spacer(Modifier.width(6.dp))
-                                    Text("Add Friend")
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(
+                                        text = "Add Friend",
+                                        fontSize = 13.sp,
+                                        maxLines = 1,
+                                    )
                                 }
                             }
 
@@ -265,6 +280,7 @@ fun UserProfileScreen(
                                     onClick = { showEditProfile = true },
                                     shape = RoundedCornerShape(12.dp),
                                     modifier = Modifier.weight(1f),
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp),
                                 ) {
                                     Icon(
                                         imageVector = Icons.Rounded.Edit,
@@ -272,7 +288,11 @@ fun UserProfileScreen(
                                         modifier = Modifier.size(16.dp),
                                     )
                                     Spacer(Modifier.width(6.dp))
-                                    Text("Edit Profile")
+                                    Text(
+                                        text = "Edit Profile",
+                                        fontSize = 13.sp,
+                                        maxLines = 1,
+                                    )
                                 }
                             }
 
@@ -282,14 +302,15 @@ fun UserProfileScreen(
                                     val sendIntent = Intent(Intent.ACTION_SEND).apply {
                                         putExtra(
                                             Intent.EXTRA_TEXT,
-                                            "Check out @${profile.handle}'s music profile on Vibra:\nhttps://vibramusic.app/u/${profile.handle}",
+                                            "Check out ${formatHandle(profile.handle)}'s music profile on Vibra:\nhttps://vibramusic.app/u/${profile.handle.removePrefix("@")}",
                                         )
                                         type = "text/plain"
                                     }
                                     context.startActivity(Intent.createChooser(sendIntent, "Share Profile"))
                                 },
                                 shape = RoundedCornerShape(12.dp),
-                                modifier = if (isSelf) Modifier.weight(1f) else Modifier,
+                                modifier = Modifier.weight(1f),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp),
                             ) {
                                 Icon(
                                     imageVector = Icons.Rounded.Share,
@@ -297,7 +318,11 @@ fun UserProfileScreen(
                                     modifier = Modifier.size(16.dp),
                                 )
                                 Spacer(Modifier.width(6.dp))
-                                Text("Share Profile")
+                                Text(
+                                    text = "Share",
+                                    fontSize = 13.sp,
+                                    maxLines = 1,
+                                )
                             }
                         }
                     }
@@ -480,29 +505,11 @@ private fun FavoriteArtistCard(
             .clickable(onClick = onClick)
             .padding(6.dp),
     ) {
-        Box(
-            modifier = Modifier
-                .size(68.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.surfaceVariant),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (artist.artworkUrl != null) {
-                AsyncImage(
-                    model = artist.artworkUrl,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            } else {
-                Icon(
-                    imageVector = Icons.Rounded.Person,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(32.dp),
-                )
-            }
-        }
+        ArtistAvatar(
+            artistName = artist.name,
+            artworkUrl = artist.artworkUrl,
+            size = 68.dp,
+        )
 
         Spacer(Modifier.height(6.dp))
 

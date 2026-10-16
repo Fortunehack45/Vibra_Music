@@ -59,7 +59,9 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.fortune.vibramusic.data.quiz.LeaderboardEntry
 import com.fortune.vibramusic.data.quiz.QuizArtist
+import com.fortune.vibramusic.data.social.formatHandle
 import com.fortune.vibramusic.data.supabase.SupabaseService
+import com.fortune.vibramusic.ui.components.ArtistAvatar
 import com.fortune.vibramusic.ui.components.ArtworkWash
 import com.fortune.vibramusic.ui.theme.rememberArtworkPalette
 import dev.chrisbanes.haze.HazeState
@@ -147,9 +149,18 @@ fun ArtistLeaderboardScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = artHeight - 60.dp, start = 20.dp, end = 20.dp),
+                        .padding(top = artHeight - 70.dp, start = 20.dp, end = 20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
+                    ArtistAvatar(
+                        artistName = artist.name,
+                        artworkUrl = artist.artworkUrl,
+                        size = 96.dp,
+                        modifier = Modifier
+                            .padding(bottom = 12.dp)
+                            .border(3.dp, Color.White.copy(alpha = 0.25f), CircleShape),
+                    )
+
                     Text(
                         text = artist.name,
                         style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.ExtraBold),
@@ -495,7 +506,7 @@ private fun LeaderboardRow(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = "@${entry.userHandle}",
+                    text = formatHandle(entry.userHandle),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                 )

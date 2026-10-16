@@ -98,11 +98,51 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    private var forYouPostsCache: List<SocialPost> = emptyList()
+    private var friendsPostsCache: List<SocialPost> = emptyList()
+
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
+
+    private val _searchResults = MutableStateFlow<Pair<List<SocialProfile>, List<SocialPost>>?>(null)
+    val searchResults: StateFlow<Pair<List<SocialProfile>, List<SocialPost>>?> = _searchResults.asStateFlow()
+
+    private val _isSearching = MutableStateFlow(false)
+    val isSearching: StateFlow<Boolean> = _isSearching.asStateFlow()
+
     fun setFeedTab(tab: FeedTab) {
         if (_feedTab.value != tab) {
             _feedTab.value = tab
+            // Seamless instant swap to cached posts
+            _posts.value = if (tab == FeedTab.FOR_YOU) forYouPostsCache else friendsPostsCache
             loadFeed()
         }
+    }
+
+    fun setSearchQuery(query: String) {
+        _searchQuery.value = query
+        val q = query.trim()
+        if (q.isBlank()) {
+            _searchResults.value = null
+            _isSearching.value = false
+            return
+        }
+        viewModelScope.launch {
+            _isSearching.value = true
+            SupabaseService.searchPostsAndUsers(q, currentUserId = _currentProfile.value?.id ?: "")
+                .onSuccess { result ->
+                    if (_searchQuery.value.trim() == q) {
+                        _searchResults.value = result
+                    }
+                }
+            _isSearching.value = false
+        }
+    }
+
+    fun clearSearch() {
+        _searchQuery.value = ""
+        _searchResults.value = null
+        _isSearching.value = false
     }
 
     fun initUserProfile() {
@@ -115,7 +155,7 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
                 SupabaseService.syncUserProfile(session, profile)
                     .onSuccess { syncedProfile ->
                         _currentProfile.value = syncedProfile
-                        loadFavoriteArtists(syncedProfile.id)
+                        loadProfileData(syncedProfile.id)
                         UserCloudSyncManager.restoreUserData(syncedProfile.id)
                     }
                     .onFailure { error ->
@@ -131,6 +171,7 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
                             referralCode = "vibra_${(profile?.profileId ?: session.accountId).takeLast(6)}",
                         )
                         _currentProfile.value = fallback
+                        loadProfileData(fallback.id)
                     }
             } else {
                 // Guest profile
@@ -143,6 +184,7 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
                     referralCode = "vibra_guest",
                 )
                 _currentProfile.value = guestProfile
+                loadProfileData(guestId)
             }
         }
     }
@@ -155,6 +197,11 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
 
             SupabaseService.fetchPosts(forUserId = userId, friendsOnly = isFriendsOnly)
                 .onSuccess { loadedPosts ->
+                    if (_feedTab.value == FeedTab.FOR_YOU) {
+                        forYouPostsCache = loadedPosts
+                    } else {
+                        friendsPostsCache = loadedPosts
+                    }
                     _posts.value = loadedPosts
                 }
                 .onFailure { e ->
@@ -172,6 +219,11 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
 
             SupabaseService.fetchPosts(forUserId = userId, friendsOnly = isFriendsOnly)
                 .onSuccess { loadedPosts ->
+                    if (_feedTab.value == FeedTab.FOR_YOU) {
+                        forYouPostsCache = loadedPosts
+                    } else {
+                        friendsPostsCache = loadedPosts
+                    }
                     _posts.value = loadedPosts
                 }
             _isRefreshing.value = false
@@ -181,6 +233,7 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
     fun createPost(
         content: String,
         imageUrls: List<String> = emptyList(),
+        videoUrl: String? = null,
         musicAttachment: MusicTrackAttachment? = null,
         poll: PollData? = null,
         quoteOfId: String? = null,
@@ -193,11 +246,16 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
                 author = user,
                 content = content,
                 imageUrls = imageUrls,
+                videoUrl = videoUrl,
                 musicAttachment = musicAttachment,
                 poll = poll,
                 quoteOfId = quoteOfId,
             ).onSuccess { newPost ->
                 _posts.value = listOf(newPost) + _posts.value
+                forYouPostsCache = listOf(newPost) + forYouPostsCache
+                if (_viewingProfile.value?.id == user.id || _currentProfile.value?.id == user.id) {
+                    _viewingProfilePosts.value = listOf(newPost) + _viewingProfilePosts.value
+                }
                 _isCreatingPost.value = false
                 _quotingPost.value = null
                 onSuccess()
@@ -412,10 +470,11 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
     fun sendDirectMessage(
         text: String,
         musicAttachment: MusicTrackAttachment? = null,
+        playlistAttachment: com.fortune.vibramusic.data.social.SharedPlaylistAttachment? = null,
     ) {
         val user = _currentProfile.value ?: return
         val recipient = _activeChatFriend.value ?: return
-        if (text.isBlank() && musicAttachment == null) return
+        if (text.isBlank() && musicAttachment == null && playlistAttachment == null) return
 
         viewModelScope.launch {
             SupabaseService.sendDirectMessage(
@@ -423,6 +482,7 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
                 recipientId = recipient.id,
                 message = text,
                 trackAttachment = musicAttachment,
+                playlistAttachment = playlistAttachment,
             ).onSuccess { newMsg ->
                 _chatMessages.value = _chatMessages.value + newMsg
             }
@@ -431,7 +491,7 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
 
     fun openUserProfile(profile: SocialProfile) {
         _viewingProfile.value = profile
-        loadProfilePosts(profile.id)
+        loadProfileData(profile.id)
     }
 
     fun closeUserProfile() {
@@ -439,7 +499,12 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
         _viewingProfilePosts.value = emptyList()
     }
 
-    private fun loadProfilePosts(userId: String) {
+    fun loadProfileData(userId: String) {
+        loadProfilePosts(userId)
+        loadFavoriteArtists(userId)
+    }
+
+    fun loadProfilePosts(userId: String) {
         viewModelScope.launch {
             SupabaseService.fetchUserPosts(userId)
                 .onSuccess { list ->
@@ -471,7 +536,7 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    private fun loadFavoriteArtists(userId: String) {
+    fun loadFavoriteArtists(userId: String) {
         viewModelScope.launch {
             SupabaseService.fetchFavoriteArtists(userId)
                 .onSuccess { list ->

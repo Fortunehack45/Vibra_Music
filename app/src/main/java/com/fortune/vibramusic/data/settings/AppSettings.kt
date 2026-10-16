@@ -1594,6 +1594,16 @@ object AppSettings {
         prefs.edit().putStringSet(KEY_USER_PREFERRED_GENRES, genres).apply()
     }
 
+    val deviceUserId: String
+        get() {
+            var id = prefs.getString("vibra_device_user_id", null)
+            if (id.isNullOrBlank()) {
+                id = "guest_" + java.util.UUID.randomUUID().toString().replace("-", "").take(12)
+                prefs.edit().putString("vibra_device_user_id", id).apply()
+            }
+            return id
+        }
+
     fun setLastfmScrobbleEnabled(value: Boolean) {
         lastfmScrobbleEnabled.value = value
         if (!value) lastfmNowPlaying.value = false

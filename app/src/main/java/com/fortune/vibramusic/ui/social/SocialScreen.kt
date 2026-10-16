@@ -40,6 +40,7 @@ import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Repeat
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -61,10 +62,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -76,6 +80,8 @@ import com.fortune.vibramusic.data.social.MusicTrackAttachment
 import com.fortune.vibramusic.data.social.PollData
 import com.fortune.vibramusic.data.social.SocialPost
 import com.fortune.vibramusic.data.social.SocialProfile
+import com.fortune.vibramusic.data.social.formatHandle
+import com.fortune.vibramusic.ui.components.ArtistAvatar
 import com.fortune.vibramusic.ui.components.lightweightLiquidGlass
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
@@ -101,6 +107,11 @@ fun SocialScreen(
     val isPosting by viewModel.isCreatingPost.collectAsStateWithLifecycle()
     val quotingPost by viewModel.quotingPost.collectAsStateWithLifecycle()
 
+    val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
+    val searchResults by viewModel.searchResults.collectAsStateWithLifecycle()
+    val isSearching by viewModel.isSearching.collectAsStateWithLifecycle()
+    var isSearchExpanded by remember { mutableStateOf(false) }
+
     var showCreatePostSheet by remember { mutableStateOf(false) }
     var repostActionTarget by remember { mutableStateOf<SocialPost?>(null) }
     var previewImageUrl by remember { mutableStateOf<String?>(null) }
@@ -124,113 +135,337 @@ fun SocialScreen(
                 ),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                // Feed Tab Selector: "For You" | "Friends"
-                item(key = "feed_switcher") {
-                    FeedTabSwitcher(
-                        selectedTab = feedTab,
-                        onTabSelect = { viewModel.setFeedTab(it) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 20.dp),
-                    )
+                // Header Bar: Feed Tab Selector + Search Button OR Search Input
+                item(key = "feed_header") {
+                    if (!isSearchExpanded) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            FeedTabSwitcher(
+                                selectedTab = feedTab,
+                                onTabSelect = { viewModel.setFeedTab(it) },
+                                modifier = Modifier.weight(1f),
+                            )
+
+                            // Search Toggle Button
+                            Box(
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
+                                    .border(1.dp, Color.White.copy(alpha = 0.08f), CircleShape)
+                                    .clickable { isSearchExpanded = true },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Search,
+                                    contentDescription = "Search",
+                                    tint = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.size(20.dp),
+                                )
+                            }
+                        }
+                    } else {
+                        // Expanded Liquid-Glass Search Bar
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(44.dp)
+                                    .clip(RoundedCornerShape(22.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                    .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f), RoundedCornerShape(22.dp))
+                                    .padding(horizontal = 14.dp),
+                                contentAlignment = Alignment.CenterStart,
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Search,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(18.dp),
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    BasicTextField(
+                                        value = searchQuery,
+                                        onValueChange = { viewModel.setSearchQuery(it) },
+                                        textStyle = TextStyle(
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            fontSize = 14.sp,
+                                        ),
+                                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                                        singleLine = true,
+                                        modifier = Modifier.weight(1f),
+                                        decorationBox = { inner ->
+                                            if (searchQuery.isEmpty()) {
+                                                Text(
+                                                    text = "Search posts and users...",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                                )
+                                            }
+                                            inner()
+                                        },
+                                    )
+                                    if (searchQuery.isNotEmpty()) {
+                                        IconButton(
+                                            onClick = { viewModel.clearSearch() },
+                                            modifier = Modifier.size(24.dp),
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.Close,
+                                                contentDescription = "Clear",
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(16.dp),
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Close Search Button
+                            Box(
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
+                                    .border(1.dp, Color.White.copy(alpha = 0.08f), CircleShape)
+                                    .clickable {
+                                        isSearchExpanded = false
+                                        viewModel.clearSearch()
+                                    },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Close,
+                                    contentDescription = "Close Search",
+                                    tint = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            }
+                        }
+                    }
                 }
 
-                // Stories / Favorite Artists Row
-                if (stories.isNotEmpty()) {
-                    item(key = "stories_row") {
-                        SocialStoriesRow(
-                            profiles = stories,
-                            onProfileClick = onOpenProfile,
-                            modifier = Modifier.fillMaxWidth(),
+                if (isSearchExpanded && searchQuery.isNotBlank()) {
+                    // Search Mode
+                    if (isSearching) {
+                        item(key = "search_loading") {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(150.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                CircularProgressIndicator(
+                                    color = MaterialTheme.colorScheme.primary,
+                                    strokeWidth = 2.dp,
+                                )
+                            }
+                        }
+                    } else {
+                        searchResults?.let { (matchedUsers, matchedPosts) ->
+                            if (matchedUsers.isNotEmpty()) {
+                                item(key = "search_users_header") {
+                                    Text(
+                                        text = "People & Artists",
+                                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.padding(horizontal = 20.dp),
+                                    )
+                                }
+                                item(key = "search_users_row") {
+                                    LazyRow(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        contentPadding = PaddingValues(horizontal = 20.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    ) {
+                                        items(matchedUsers, key = { it.id }) { user ->
+                                            SearchUserChip(
+                                                user = user,
+                                                onClick = { onOpenProfile(user) },
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            if (matchedPosts.isNotEmpty()) {
+                                item(key = "search_posts_header") {
+                                    Text(
+                                        text = "Posts",
+                                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.padding(horizontal = 20.dp),
+                                    )
+                                }
+                                items(matchedPosts, key = { "search_${it.id}" }) { post ->
+                                    SocialPostCard(
+                                        post = post,
+                                        onLikeClick = { viewModel.toggleLike(post) },
+                                        onCommentClick = { viewModel.openComments(post) },
+                                        onRepostClick = { repostActionTarget = post },
+                                        onImageClick = { previewImageUrl = it },
+                                        onShareClick = {
+                                            val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                                putExtra(
+                                                    Intent.EXTRA_TEXT,
+                                                    "Check out @${post.authorHandle}'s music post on Vibra:\n\n${post.content}",
+                                                )
+                                                type = "text/plain"
+                                            }
+                                            context.startActivity(Intent.createChooser(sendIntent, "Share Post"))
+                                        },
+                                        onPlayTrack = onPlayTrack,
+                                        onVotePoll = { optionIdx -> viewModel.votePoll(post, optionIdx) },
+                                        onAuthorClick = {
+                                            onOpenProfile(
+                                                SocialProfile(
+                                                    id = post.authorId,
+                                                    handle = post.authorHandle,
+                                                    displayName = post.authorName,
+                                                    avatarUrl = post.authorAvatar,
+                                                    verifiedBadge = post.authorVerified,
+                                                ),
+                                            )
+                                        },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 16.dp),
+                                    )
+                                }
+                            }
+
+                            if (matchedUsers.isEmpty() && matchedPosts.isEmpty()) {
+                                item(key = "no_search_results") {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(top = 40.dp),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Text(
+                                            text = "No users or posts found for \"$searchQuery\"",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    // Regular Feed Mode
+                    // Stories / Favorite Artists Row
+                    if (stories.isNotEmpty()) {
+                        item(key = "stories_row") {
+                            SocialStoriesRow(
+                                profiles = stories,
+                                onProfileClick = onOpenProfile,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                    }
+
+                    // Loading State
+                    if (isLoading && posts.isEmpty()) {
+                        item(key = "loading_indicator") {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(200.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                CircularProgressIndicator(
+                                    color = MaterialTheme.colorScheme.primary,
+                                    strokeWidth = 2.dp,
+                                )
+                            }
+                        }
+                    }
+
+                    // Empty State
+                    if (!isLoading && posts.isEmpty()) {
+                        item(key = "empty_feed") {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 60.dp, start = 32.dp, end = 32.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.GraphicEq,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
+                                        modifier = Modifier.size(48.dp),
+                                    )
+                                    Spacer(Modifier.height(14.dp))
+                                    Text(
+                                        text = if (feedTab == FeedTab.FRIENDS) "No posts from friends yet" else "No posts in the community yet",
+                                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                    )
+                                    Spacer(Modifier.height(6.dp))
+                                    Text(
+                                        text = "Be the first to share your music vibe or ask a question!",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Posts Feed
+                    items(posts, key = { it.id }) { post ->
+                        SocialPostCard(
+                            post = post,
+                            onLikeClick = { viewModel.toggleLike(post) },
+                            onCommentClick = { viewModel.openComments(post) },
+                            onRepostClick = { repostActionTarget = post },
+                            onImageClick = { previewImageUrl = it },
+                            onShareClick = {
+                                val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                    putExtra(
+                                        Intent.EXTRA_TEXT,
+                                        "Check out @${post.authorHandle}'s music post on Vibra:\n\n${post.content}",
+                                    )
+                                    type = "text/plain"
+                                }
+                                context.startActivity(Intent.createChooser(sendIntent, "Share Post"))
+                            },
+                            onPlayTrack = onPlayTrack,
+                            onVotePoll = { optionIdx -> viewModel.votePoll(post, optionIdx) },
+                            onAuthorClick = {
+                                onOpenProfile(
+                                    SocialProfile(
+                                        id = post.authorId,
+                                        handle = post.authorHandle,
+                                        displayName = post.authorName,
+                                        avatarUrl = post.authorAvatar,
+                                        verifiedBadge = post.authorVerified,
+                                    ),
+                                )
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp),
                         )
                     }
-                }
-
-                // Loading State
-                if (isLoading && posts.isEmpty()) {
-                    item(key = "loading_indicator") {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(200.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            CircularProgressIndicator(
-                                color = MaterialTheme.colorScheme.primary,
-                                strokeWidth = 2.dp,
-                            )
-                        }
-                    }
-                }
-
-                // Empty State
-                if (!isLoading && posts.isEmpty()) {
-                    item(key = "empty_feed") {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 60.dp, start = 32.dp, end = 32.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Icon(
-                                    imageVector = Icons.Rounded.GraphicEq,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
-                                    modifier = Modifier.size(48.dp),
-                                )
-                                Spacer(Modifier.height(14.dp))
-                                Text(
-                                    text = if (feedTab == FeedTab.FRIENDS) "No posts from friends yet" else "No posts in the community yet",
-                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                )
-                                Spacer(Modifier.height(6.dp))
-                                Text(
-                                    text = "Be the first to share your music vibe or ask a question!",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // Posts Feed
-                items(posts, key = { it.id }) { post ->
-                    SocialPostCard(
-                        post = post,
-                        onLikeClick = { viewModel.toggleLike(post) },
-                        onCommentClick = { viewModel.openComments(post) },
-                        onRepostClick = { repostActionTarget = post },
-                        onImageClick = { previewImageUrl = it },
-                        onShareClick = {
-                            val sendIntent = Intent(Intent.ACTION_SEND).apply {
-                                putExtra(
-                                    Intent.EXTRA_TEXT,
-                                    "Check out @${post.authorHandle}'s music post on Vibra:\n\n${post.content}",
-                                )
-                                type = "text/plain"
-                            }
-                            context.startActivity(Intent.createChooser(sendIntent, "Share Post"))
-                        },
-                        onPlayTrack = onPlayTrack,
-                        onVotePoll = { optionIdx -> viewModel.votePoll(post, optionIdx) },
-                        onAuthorClick = {
-                            onOpenProfile(
-                                SocialProfile(
-                                    id = post.authorId,
-                                    handle = post.authorHandle,
-                                    displayName = post.authorName,
-                                    avatarUrl = post.authorAvatar,
-                                    verifiedBadge = post.authorVerified,
-                                ),
-                            )
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp),
-                    )
                 }
             }
         }
@@ -243,7 +478,7 @@ fun SocialScreen(
             shape = CircleShape,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(end = 20.dp, bottom = contentPadding.calculateBottomPadding() + 20.dp)
+                .padding(end = 20.dp, bottom = contentPadding.calculateBottomPadding() + 4.dp)
                 .size(54.dp),
         ) {
             Icon(
@@ -264,10 +499,11 @@ fun SocialScreen(
                 showCreatePostSheet = false
                 viewModel.clearQuotePost()
             },
-            onSubmitPost = { content, imageUrls, track, poll, quoteOfId ->
+            onSubmitPost = { content, imageUrls, videoUrl, track, poll, quoteOfId ->
                 viewModel.createPost(
                     content = content,
                     imageUrls = imageUrls,
+                    videoUrl = videoUrl,
                     musicAttachment = track,
                     poll = poll,
                     quoteOfId = quoteOfId,
@@ -314,6 +550,44 @@ fun SocialScreen(
             imageUrl = url,
             onDismiss = { previewImageUrl = null },
         )
+    }
+}
+
+@Composable
+private fun SearchUserChip(
+    user: SocialProfile,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+            .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(20.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+    ) {
+        ArtistAvatar(
+            name = user.displayName,
+            artworkUrl = user.avatarUrl,
+            size = 32.dp,
+        )
+        Spacer(Modifier.width(8.dp))
+        Column {
+            Text(
+                text = user.displayName,
+                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+            )
+            Text(
+                text = formatHandle(user.handle),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+            )
+        }
     }
 }
 
@@ -416,26 +690,14 @@ fun SocialStoriesRow(
                             ),
                             CircleShape,
                         )
-                        .padding(3.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                        .padding(3.dp),
                     contentAlignment = Alignment.Center,
                 ) {
-                    if (user.avatarUrl != null) {
-                        AsyncImage(
-                            model = user.avatarUrl,
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize(),
-                        )
-                    } else {
-                        Icon(
-                            imageVector = Icons.Rounded.Person,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(28.dp),
-                        )
-                    }
+                    ArtistAvatar(
+                        name = user.displayName,
+                        artworkUrl = user.avatarUrl,
+                        size = 52.dp,
+                    )
                 }
 
                 Spacer(Modifier.height(6.dp))
@@ -483,25 +745,14 @@ fun SocialPostCard(
                     modifier = Modifier
                         .size(42.dp)
                         .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
                         .clickable(onClick = onAuthorClick),
                     contentAlignment = Alignment.Center,
                 ) {
-                    if (post.authorAvatar != null) {
-                        AsyncImage(
-                            model = post.authorAvatar,
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize(),
-                        )
-                    } else {
-                        Icon(
-                            imageVector = Icons.Rounded.Person,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(22.dp),
-                        )
-                    }
+                    ArtistAvatar(
+                        name = post.authorName,
+                        artworkUrl = post.authorAvatar,
+                        size = 42.dp,
+                    )
                 }
 
                 Spacer(Modifier.width(12.dp))
@@ -533,7 +784,7 @@ fun SocialPostCard(
                     }
 
                     Text(
-                        text = "@${post.authorHandle}",
+                        text = formatHandle(post.authorHandle),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                     )
@@ -560,6 +811,17 @@ fun SocialPostCard(
                     images = images,
                     onImageClick = onImageClick,
                     modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(12.dp))
+            }
+
+            // Attached Video Player
+            post.videoUrl?.let { videoUrl ->
+                PostVideoPlayer(
+                    videoUrl = videoUrl,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(16f / 9f),
                 )
                 Spacer(Modifier.height(12.dp))
             }
@@ -1060,25 +1322,14 @@ fun QuotedPostCard(
                     Box(
                         modifier = Modifier
                             .size(24.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                            .clip(CircleShape),
                         contentAlignment = Alignment.Center,
                     ) {
-                        if (quotedPost.authorAvatar != null) {
-                            AsyncImage(
-                                model = quotedPost.authorAvatar,
-                                contentDescription = null,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize(),
-                            )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Rounded.Person,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(14.dp),
-                            )
-                        }
+                        ArtistAvatar(
+                            name = quotedPost.authorName,
+                            artworkUrl = quotedPost.authorAvatar,
+                            size = 24.dp,
+                        )
                     }
 
                     Spacer(Modifier.width(8.dp))
@@ -1094,7 +1345,7 @@ fun QuotedPostCard(
                     Spacer(Modifier.width(4.dp))
 
                     Text(
-                        text = "@${quotedPost.authorHandle}",
+                        text = formatHandle(quotedPost.authorHandle),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                         maxLines = 1,

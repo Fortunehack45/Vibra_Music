@@ -100,6 +100,7 @@ import com.fortune.vibramusic.data.settings.AppSettings
 import com.fortune.vibramusic.data.quiz.QuizArtist
 import com.fortune.vibramusic.data.supabase.SupabaseService
 import com.fortune.vibramusic.data.supabase.UserCloudSyncManager
+import com.fortune.vibramusic.ui.components.ArtistAvatar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -343,7 +344,7 @@ fun VibraOnboardingFlow(
                                     isSubmitting = true
                                     val userId = activeProfile?.profileId
                                         ?: activeSession?.accountId
-                                        ?: "user_${System.currentTimeMillis()}"
+                                        ?: AppSettings.deviceUserId
 
                                     // 1. Upload custom avatar if picked
                                     var finalAvatarUrl = existingAvatarUrl
@@ -361,7 +362,7 @@ fun VibraOnboardingFlow(
                                     AppSettings.setOnboardingCompleted(true)
                                     AppSettings.setPreferredGenres(selectedGenres.toSet())
 
-                                    // 3. Update Supabase profile
+                                    // 3. Update Supabase profile (creates or merges profile row first)
                                     SupabaseService.updateUserProfile(
                                         userId = userId,
                                         displayName = displayName.trim(),
@@ -1036,29 +1037,11 @@ private fun ArtistPickerRow(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                contentAlignment = Alignment.Center,
-            ) {
-                if (avatarUrl != null) {
-                    AsyncImage(
-                        model = avatarUrl,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                } else {
-                    Icon(
-                        imageVector = Icons.Rounded.Person,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(24.dp),
-                    )
-                }
-            }
+            ArtistAvatar(
+                artistName = name,
+                artworkUrl = avatarUrl,
+                size = 44.dp,
+            )
 
             Spacer(Modifier.width(14.dp))
 

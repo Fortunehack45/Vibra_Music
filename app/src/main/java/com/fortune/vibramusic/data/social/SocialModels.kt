@@ -103,6 +103,20 @@ data class QuizResultAttachment(
     val percentile: Int,
 )
 
+fun formatHandle(handle: String?): String {
+    val clean = handle?.trim()?.removePrefix("@")?.ifBlank { null } ?: "listener"
+    return "@$clean"
+}
+
+@Serializable
+data class SharedPlaylistAttachment(
+    val playlistId: String,
+    val title: String,
+    val author: String = "",
+    val thumbnailUrl: String? = null,
+    val trackCount: Int = 0,
+)
+
 /**
  * A post in the Vibra Social feed (For You or Friends).
  */
@@ -114,6 +128,7 @@ data class SocialPost(
     val content: String,
     val imageUrl: String? = null,
     val imageUrls: List<String> = emptyList(),
+    val videoUrl: String? = null,
     val musicTrack: MusicTrackAttachment? = null,
     val pollData: PollData? = null,
     val quizResult: QuizResultAttachment? = null,
@@ -128,7 +143,7 @@ data class SocialPost(
     val createdAt: String = "",
 ) {
     val authorName: String get() = author?.displayName ?: "Listener"
-    val authorHandle: String get() = author?.handle ?: "listener"
+    val authorHandle: String get() = formatHandle(author?.handle)
     val authorAvatar: String? get() = author?.avatarUrl
     val authorVerified: Boolean get() = author?.verifiedBadge == true
     val poll: PollData? get() = pollData
@@ -152,7 +167,7 @@ data class PostComment(
     val createdAt: String = "",
 ) {
     val authorName: String get() = author?.displayName ?: "Listener"
-    val authorHandle: String get() = author?.handle ?: "listener"
+    val authorHandle: String get() = formatHandle(author?.handle)
     val authorAvatar: String? get() = author?.avatarUrl
 }
 
@@ -166,11 +181,13 @@ data class DirectMessage(
     val receiverId: String,
     val content: String,
     val sharedMusic: MusicTrackAttachment? = null,
+    val sharedPlaylist: SharedPlaylistAttachment? = null,
     val isRead: Boolean = false,
     val createdAt: String = "",
 ) {
     val message: String get() = content
     val trackAttachment: MusicTrackAttachment? get() = sharedMusic
+    val playlistAttachment: SharedPlaylistAttachment? get() = sharedPlaylist
 }
 
 /**

@@ -77,6 +77,8 @@ class QuizViewModel(application: Application) : AndroidViewModel(application) {
     private var totalStartTimestamp = 0L
     private var correctAnswersCount = 0
 
+    private val streamCache = java.util.concurrent.ConcurrentHashMap<String, String>()
+
     fun startQuizForArtist(
         artist: QuizArtist,
         onInsufficientLives: () -> Unit,
@@ -100,6 +102,7 @@ class QuizViewModel(application: Application) : AndroidViewModel(application) {
         _isCorrect.value = null
         _lastResult.value = null
         correctAnswersCount = 0
+        streamCache.clear()
 
         viewModelScope.launch {
             // Fetch artist tracks
@@ -129,8 +132,23 @@ class QuizViewModel(application: Application) : AndroidViewModel(application) {
             currentQuestion.value = questionList.firstOrNull()
             _isPreparingQuiz.value = false
 
-            // Countdown Phase
+            // Countdown Phase - Pre-buffer Question 0 during countdown so playback is 0ms instant!
             _gameState.value = QuizGameState.COUNTDOWN
+            val firstQuestion = questionList.firstOrNull()
+            launch(Dispatchers.IO) {
+                if (firstQuestion != null) {
+                    val url = runCatching { StreamResolver.resolve(firstQuestion.targetSong.videoId) }.getOrNull()
+                    if (url != null) {
+                        streamCache[firstQuestion.targetSong.videoId] = url
+                        withContext(Dispatchers.Main) {
+                            if (_gameState.value == QuizGameState.COUNTDOWN) {
+                                audioEngine.prepareSnippet(url, startPositionMs = 25_000L)
+                            }
+                        }
+                    }
+                }
+            }
+
             for (c in 3 downTo 1) {
                 _countdownNumber.value = c
                 delay(800)
@@ -159,13 +177,36 @@ class QuizViewModel(application: Application) : AndroidViewModel(application) {
         questionStartTimestamp = SystemClock.elapsedRealtime()
         startLiveTimer()
 
-        // Stream mystery 15s audio snippet
-        viewModelScope.launch {
-            val resolvedUrl = withContext(Dispatchers.IO) {
-                runCatching { StreamResolver.resolve(q.targetSong.videoId) }.getOrNull()
+        // 1. Play mystery 15s audio snippet immediately
+        if (index == 0 && audioEngine.isSnippetPrepared()) {
+            audioEngine.startPreparedSnippet()
+        } else {
+            val cachedUrl = streamCache[q.targetSong.videoId]
+            if (cachedUrl != null) {
+                audioEngine.playSnippet(cachedUrl, startPositionMs = 25_000L)
+            } else {
+                viewModelScope.launch {
+                    val resolvedUrl = withContext(Dispatchers.IO) {
+                        runCatching { StreamResolver.resolve(q.targetSong.videoId) }.getOrNull()
+                    }
+                    if (resolvedUrl != null) {
+                        streamCache[q.targetSong.videoId] = resolvedUrl
+                        if (_gameState.value == QuizGameState.QUESTION_ACTIVE && _currentQuestionIndex.value == index) {
+                            audioEngine.playSnippet(resolvedUrl, startPositionMs = 25_000L)
+                        }
+                    }
+                }
             }
-            if (resolvedUrl != null && _gameState.value == QuizGameState.QUESTION_ACTIVE) {
-                audioEngine.playSnippet(resolvedUrl, startPositionMs = 25_000L)
+        }
+
+        // 2. Pre-fetch the NEXT question's audio stream in background so question N+1 is instant
+        val nextQ = _questions.value.getOrNull(index + 1)
+        if (nextQ != null && !streamCache.containsKey(nextQ.targetSong.videoId)) {
+            viewModelScope.launch(Dispatchers.IO) {
+                val nextUrl = runCatching { StreamResolver.resolve(nextQ.targetSong.videoId) }.getOrNull()
+                if (nextUrl != null) {
+                    streamCache[nextQ.targetSong.videoId] = nextUrl
+                }
             }
         }
     }
@@ -225,6 +266,7 @@ class QuizViewModel(application: Application) : AndroidViewModel(application) {
     fun abandonQuiz() {
         stopLiveTimer()
         audioEngine.stop()
+        streamCache.clear()
         _gameState.value = QuizGameState.IDLE
         _lastResult.value = null
         _currentArtist.value = null

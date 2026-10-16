@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -98,7 +99,8 @@ fun PostCommentsSheet(
                 .fillMaxWidth()
                 .fillMaxHeight(0.85f)
                 .background(SolidSheetBackground)
-                .navigationBarsPadding(),
+                .navigationBarsPadding()
+                .imePadding(),
         ) {
             // Header Bar
             Row(
@@ -242,13 +244,6 @@ fun PostCommentsSheet(
                         .border(1.dp, SolidInputBorder, RoundedCornerShape(22.dp))
                         .padding(horizontal = 16.dp, vertical = 11.dp),
                 ) {
-                    if (commentText.isEmpty()) {
-                        Text(
-                            text = if (replyingTo != null) "Reply to @${replyingTo?.authorHandle}..." else "Add a comment...",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Color(0xFF7A7A85),
-                        )
-                    }
                     BasicTextField(
                         value = commentText,
                         onValueChange = { commentText = it },
@@ -258,6 +253,17 @@ fun PostCommentsSheet(
                         ),
                         cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                         modifier = Modifier.fillMaxWidth(),
+                        maxLines = 4,
+                        decorationBox = { innerTextField ->
+                            if (commentText.isEmpty()) {
+                                Text(
+                                    text = if (replyingTo != null) "Reply to @${replyingTo?.authorHandle}..." else "Add a comment...",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = Color(0xFF7A7A85),
+                                )
+                            }
+                            innerTextField()
+                        },
                     )
                 }
 

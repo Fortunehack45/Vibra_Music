@@ -56,6 +56,7 @@ import com.fortune.vibramusic.data.YtMusicRepository
 import com.fortune.vibramusic.data.model.SearchFilter
 import com.fortune.vibramusic.data.model.SearchResult
 import com.fortune.vibramusic.data.quiz.QuizArtist
+import com.fortune.vibramusic.ui.components.ArtistAvatar
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 import kotlinx.coroutines.Dispatchers
@@ -80,15 +81,15 @@ fun QuizHubScreen(
     var isSearching by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
-    // Default Popular / Trending Quiz Artists
+    // Default Popular / Trending Quiz Artists with verified browse IDs and vibrant radiant fallback
     val trendingArtists = remember {
         listOf(
-            QuizArtist("UC0C-w0YjGpqDXGB8Uqc614A", "Drake", "https://lh3.googleusercontent.com/yU4E_e7kXG_lYy8fF980=w512-h512"),
-            QuizArtist("UCqECaJ8Gagnn7YCbPEzWH6g", "Taylor Swift", "https://lh3.googleusercontent.com/a-/ALV-UjW-w512=w512-h512"),
-            QuizArtist("UCpDJl2EmP7Oh90Vylx0dZtA", "The Weeknd", "https://lh3.googleusercontent.com/a-/ALV-UjV-w512=w512-h512"),
-            QuizArtist("UC2XdaAVUannpujzv32jcouQ", "Billie Eilish", "https://lh3.googleusercontent.com/a-/ALV-UjT-w512=w512-h512"),
-            QuizArtist("UC3lBX8t-dEa0k0aI_F7CsgQ", "Burna Boy", "https://lh3.googleusercontent.com/a-/ALV-UjR-w512=w512-h512"),
-            QuizArtist("UCCfmKz4rB0-s0A5gC7d_w7w", "Kendrick Lamar", "https://lh3.googleusercontent.com/a-/ALV-UjQ-w512=w512-h512"),
+            QuizArtist("UC0C-w0YjGpqDXGB8Tr0GGyA", "Drake", null),
+            QuizArtist("UCqECaJ8Gagnn7YCbPEzWH6g", "Taylor Swift", null),
+            QuizArtist("UC0WP5P-ufpRfjbNrmOWwLBQ", "The Weeknd", null),
+            QuizArtist("UCiGm_E4DwYcU-gEyZv29eJA", "Billie Eilish", null),
+            QuizArtist("UCOmHUn--16B90oW2L6FRR3A", "Burna Boy", null),
+            QuizArtist("UCCgsKDzkjI6kHjG22r7Lq2w", "Kendrick Lamar", null),
         )
     }
 
@@ -385,24 +386,15 @@ private fun TrendingArtistCard(
             .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(20.dp))
             .padding(14.dp),
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Box(
-                modifier = Modifier
-                    .size(80.dp)
-                    .clip(CircleShape)
-                    .border(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f), CircleShape)
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                contentAlignment = Alignment.Center,
-            ) {
-                if (artist.artworkUrl != null) {
-                    AsyncImage(
-                        model = artist.artworkUrl,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                }
-            }
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            ArtistAvatar(
+                artistName = artist.name,
+                artworkUrl = artist.artworkUrl,
+                size = 80.dp,
+            )
 
             Spacer(Modifier.height(10.dp))
 
@@ -477,21 +469,11 @@ private fun ArtistQuizRow(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-            ) {
-                if (artist.artworkUrl != null) {
-                    AsyncImage(
-                        model = artist.artworkUrl,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                }
-            }
+            ArtistAvatar(
+                artistName = artist.name,
+                artworkUrl = artist.artworkUrl,
+                size = 48.dp,
+            )
 
             Spacer(Modifier.width(14.dp))
 

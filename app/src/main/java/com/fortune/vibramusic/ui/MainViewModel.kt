@@ -16,6 +16,7 @@ import com.fortune.vibramusic.data.LocalMediaRepository
 import com.fortune.vibramusic.data.LocalPlaylistsStore
 import com.fortune.vibramusic.data.LikeState
 import com.fortune.vibramusic.data.YtMusicRepository
+import com.fortune.vibramusic.data.supabase.UserCloudSyncManager
 import com.fortune.vibramusic.data.lyrics.CustomLyricsStore
 import com.fortune.vibramusic.data.lyrics.EmbeddedLyrics
 import com.fortune.vibramusic.data.lyrics.LyricLine
@@ -620,6 +621,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * registered, and people tap again.
      */
     fun setLike(videoId: String, status: LikeStatus, song: Song? = null) {
+        val currentUserId = _activeProfileId.value ?: _activeAccountId.value
+        if (currentUserId != null) {
+            UserCloudSyncManager.syncLikeChange(currentUserId, videoId, status, song)
+        }
         if (!_signedIn.value) {
             val previous = likeStatusOf(videoId)
             if (previous == status) return
@@ -950,6 +955,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             } else {
                 appendToOpenPlaylist(playlist.browseId, song, null)
                 loadPlaylists()
+                val currentUserId = _activeProfileId.value ?: _activeAccountId.value
+                if (currentUserId != null) {
+                    val songs = LocalPlaylistsStore.getSongs(playlist.playlistId)
+                    UserCloudSyncManager.syncPlaylist(currentUserId, playlist, songs)
+                }
                 onResult(false)
             }
             return
@@ -987,6 +997,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val name = title.trim().ifBlank { text(R.string.new_playlist) }
         if (!_signedIn.value) {
             val created = LocalPlaylistsStore.createPlaylist(name, song)
+            val currentUserId = _activeProfileId.value ?: _activeAccountId.value
+            if (currentUserId != null) {
+                UserCloudSyncManager.syncPlaylist(currentUserId, created, if (song != null) listOf(song) else emptyList())
+            }
             setPlaylistOwned(created.browseId, true)
             libraryStale = true
             _playlists.value = listOf(created) +
@@ -1296,6 +1310,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun deletePlaylist(playlist: UserPlaylist) {
         if (playlist.playlistId.startsWith("local_")) {
             LocalPlaylistsStore.deletePlaylist(playlist.playlistId)
+            val currentUserId = _activeProfileId.value ?: _activeAccountId.value
+            if (currentUserId != null) {
+                UserCloudSyncManager.deletePlaylist(currentUserId, playlist.playlistId)
+            }
             _playlists.value = _playlists.value
                 .filterNot { it.playlistId == playlist.playlistId }
             editPlaylistShelf { items ->
@@ -1450,6 +1468,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 loadLibrary()
                 loadAccount()
                 loadPlaylists()
+                val currentUserId = _activeProfileId.value ?: _activeAccountId.value
+                if (currentUserId != null) {
+                    UserCloudSyncManager.restoreUserData(currentUserId)
+                }
+            }
+        }
+        AppSettings.onSpotifySpdcTokenChanged = {
+            val currentUserId = _activeProfileId.value ?: _activeAccountId.value
+            if (currentUserId != null) {
+                UserCloudSyncManager.backupListeningExperience(currentUserId)
             }
         }
         viewModelScope.launch {
@@ -3235,6 +3263,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             loadLibrary()
             loadAccount()
             loadPlaylists()
+
+            val userId = _activeProfileId.value ?: _activeAccountId.value
+            if (userId != null) {
+                UserCloudSyncManager.restoreUserData(userId)
+            }
         }
     }
 
@@ -3242,6 +3275,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         // In a multi-account install, sign out removes only the current Google
         // session and restores another one. A legacy single-account install
         // retains the familiar full sign-out behaviour.
+        UserCloudSyncManager.clearLocalUserData()
         val current = _activeAccountId.value
         if (current != null && authStore.sessions.size > 1) {
             removeAccount(current)

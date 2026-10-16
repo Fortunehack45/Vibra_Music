@@ -95,4 +95,12 @@ object LocalLikesStore {
     }
 
     fun isLiked(videoId: String): Boolean = videoId in getLikedIds()
+
+    @Synchronized
+    fun clear() {
+        if (!::prefs.isInitialized) return
+        prefs.edit().remove(KEY_LIKED_IDS).apply()
+        songs.clear()
+        saveSongs()
+    }
 }

@@ -189,3 +189,24 @@ enum class FriendshipStatus {
     DECLINED,
     BLOCKED,
 }
+
+/**
+ * Cloud-synchronized listening experience preferences and connected third-party integrations (e.g. Spotify).
+ */
+@Serializable
+data class UserListeningExperience(
+    val userId: String,
+    val spotifySpdcToken: String? = null,
+    val spotifyConnected: Boolean = false,
+    val audioQuality: String = "HIGH",
+    val equalizerEnabled: Boolean = false,
+    val equalizerPreset: String = "FLAT",
+    val volumeNormalization: Boolean = true,
+    val bassBoostPercent: Int = 0,
+    val virtualizerPercent: Int = 0,
+    val pitchCents: Int = 0,
+    val tempoMultiplier: Float = 1.0f,
+    val autoSkipSilence: Boolean = false,
+    val lyricsSource: String = "DEFAULT",
+    val canvasEnabled: Boolean = true,
+)

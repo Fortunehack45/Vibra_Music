@@ -178,4 +178,11 @@ object LocalPlaylistsStore {
         playlists.removeAll { it.id == cleanId }
         save()
     }
+
+    @Synchronized
+    fun clear() {
+        if (!::file.isInitialized) return
+        playlists.clear()
+        save()
+    }
 }

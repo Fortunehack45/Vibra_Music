@@ -1572,9 +1572,12 @@ object AppSettings {
         prefs.edit().putString(KEY_LASTFM_ENDPOINT, value).apply()
     }
 
+    var onSpotifySpdcTokenChanged: ((String) -> Unit)? = null
+
     fun setSpotifySpdcToken(value: String) {
         spotifySpdcToken.value = value
         prefs.edit().putString(KEY_SPOTIFY_SPDC_TOKEN, value).apply()
+        onSpotifySpdcTokenChanged?.invoke(value)
     }
 
     fun setLastfmScrobbleEnabled(value: Boolean) {

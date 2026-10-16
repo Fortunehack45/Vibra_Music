@@ -13,6 +13,7 @@ import com.fortune.vibramusic.data.social.PostComment
 import com.fortune.vibramusic.data.social.SocialPost
 import com.fortune.vibramusic.data.social.SocialProfile
 import com.fortune.vibramusic.data.supabase.SupabaseService
+import com.fortune.vibramusic.data.supabase.UserCloudSyncManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -112,6 +113,7 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
                     .onSuccess { syncedProfile ->
                         _currentProfile.value = syncedProfile
                         loadFavoriteArtists(syncedProfile.id)
+                        UserCloudSyncManager.restoreUserData(syncedProfile.id)
                     }
                     .onFailure { error ->
                         Log.w("SocialViewModel", "Failed to sync profile: ${error.message}")

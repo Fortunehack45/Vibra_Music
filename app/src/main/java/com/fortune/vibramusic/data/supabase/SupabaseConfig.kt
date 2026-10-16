@@ -27,9 +27,9 @@ object SupabaseConfig {
             DEFAULT_KEY
         }
 
-    const val DEFAULT_URL = "https://vibramusic-social.supabase.co"
-    const val DEFAULT_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.anon"
+    const val DEFAULT_URL = "https://yinaxpgnnadhbkplokvl.supabase.co"
+    const val DEFAULT_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlpbmF4cGdubmFkaGJrcGxva3ZsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIxNTYxNDQsImV4cCI6MjEwNzczMjE0NH0.PtGQ_Yy4X-bKEPaukfydrlABsZKiYrzSfQ_Awz5075g"
 
     val isConfigured: Boolean
-        get() = url.isNotBlank() && url != "https://vibramusic-social.supabase.co" || anonKey.length > 20
+        get() = url.isNotBlank() && anonKey.isNotBlank()
 }

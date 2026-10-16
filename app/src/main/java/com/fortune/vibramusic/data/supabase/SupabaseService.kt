@@ -6,6 +6,8 @@ import com.fortune.vibramusic.data.DebugLog as Log
 import com.fortune.vibramusic.data.quiz.LeaderboardEntry
 import com.fortune.vibramusic.data.quiz.QuizArtist
 import com.fortune.vibramusic.data.quiz.QuizScoreResult
+import com.fortune.vibramusic.data.model.Song
+import com.fortune.vibramusic.data.model.UserPlaylist
 import com.fortune.vibramusic.data.social.DirectMessage
 import com.fortune.vibramusic.data.social.FavoriteArtist
 import com.fortune.vibramusic.data.social.Friendship
@@ -16,6 +18,7 @@ import com.fortune.vibramusic.data.social.PollOption
 import com.fortune.vibramusic.data.social.PostComment
 import com.fortune.vibramusic.data.social.SocialPost
 import com.fortune.vibramusic.data.social.SocialProfile
+import com.fortune.vibramusic.data.social.UserListeningExperience
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
@@ -563,6 +566,303 @@ object SupabaseService {
                 parameter("limit", limit)
             }
             parseLeaderboard(response.bodyAsText(), currentUserId)
+        }
+    }
+
+    /**
+     * Synchronizes listening experience preferences and connected Spotify session.
+     */
+    suspend fun syncListeningExperience(
+        userId: String,
+        spotifySpdcToken: String?,
+        spotifyConnected: Boolean,
+        audioQuality: String,
+        equalizerEnabled: Boolean,
+        equalizerPreset: String,
+        volumeNormalization: Boolean,
+        bassBoostPercent: Int,
+        virtualizerPercent: Int,
+        pitchCents: Int,
+        tempoMultiplier: Float,
+        autoSkipSilence: Boolean,
+        lyricsSource: String,
+        canvasEnabled: Boolean,
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            val body = buildString {
+                append("{")
+                append("\"user_id\":\"$userId\",")
+                if (spotifySpdcToken != null) append("\"spotify_spdc_token\":${jsonQuote(spotifySpdcToken)},")
+                append("\"spotify_connected\":$spotifyConnected,")
+                append("\"audio_quality\":${jsonQuote(audioQuality)},")
+                append("\"equalizer_enabled\":$equalizerEnabled,")
+                append("\"equalizer_preset\":${jsonQuote(equalizerPreset)},")
+                append("\"volume_normalization\":$volumeNormalization,")
+                append("\"bass_boost_percent\":$bassBoostPercent,")
+                append("\"virtualizer_percent\":$virtualizerPercent,")
+                append("\"pitch_cents\":$pitchCents,")
+                append("\"tempo_multiplier\":$tempoMultiplier,")
+                append("\"auto_skip_silence\":$autoSkipSilence,")
+                append("\"lyrics_source\":${jsonQuote(lyricsSource)},")
+                append("\"canvas_enabled\":$canvasEnabled")
+                append("}")
+            }
+            client.post(baseUrl("user_listening_experience")) {
+                header("apikey", SupabaseConfig.anonKey)
+                header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                header("Prefer", "resolution=merge-duplicates")
+                contentType(ContentType.Application.Json)
+                setBody(body)
+            }
+            Unit
+        }
+    }
+
+    /**
+     * Fetches saved listening experience and connected Spotify session for a user.
+     */
+    suspend fun fetchListeningExperience(userId: String): Result<UserListeningExperience?> = withContext(Dispatchers.IO) {
+        runCatching {
+            val response = client.get(baseUrl("user_listening_experience")) {
+                header("apikey", SupabaseConfig.anonKey)
+                header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                parameter("user_id", "eq.$userId")
+            }
+            val array = json.parseToJsonElement(response.bodyAsText()).jsonArray
+            val obj = array.firstOrNull()?.jsonObject ?: return@runCatching null
+            UserListeningExperience(
+                userId = userId,
+                spotifySpdcToken = obj["spotify_spdc_token"]?.jsonPrimitive?.content,
+                spotifyConnected = obj["spotify_connected"]?.jsonPrimitive?.booleanOrNull ?: false,
+                audioQuality = obj["audio_quality"]?.jsonPrimitive?.content ?: "HIGH",
+                equalizerEnabled = obj["equalizer_enabled"]?.jsonPrimitive?.booleanOrNull ?: false,
+                equalizerPreset = obj["equalizer_preset"]?.jsonPrimitive?.content ?: "FLAT",
+                volumeNormalization = obj["volume_normalization"]?.jsonPrimitive?.booleanOrNull ?: true,
+                bassBoostPercent = obj["bass_boost_percent"]?.jsonPrimitive?.intOrNull ?: 0,
+                virtualizerPercent = obj["virtualizer_percent"]?.jsonPrimitive?.intOrNull ?: 0,
+                pitchCents = obj["pitch_cents"]?.jsonPrimitive?.intOrNull ?: 0,
+                tempoMultiplier = obj["tempo_multiplier"]?.jsonPrimitive?.doubleOrNull?.toFloat() ?: 1.0f,
+                autoSkipSilence = obj["auto_skip_silence"]?.jsonPrimitive?.booleanOrNull ?: false,
+                lyricsSource = obj["lyrics_source"]?.jsonPrimitive?.content ?: "DEFAULT",
+                canvasEnabled = obj["canvas_enabled"]?.jsonPrimitive?.booleanOrNull ?: true,
+            )
+        }
+    }
+
+    /**
+     * Records a liked music track (metadata only, no audio bytes).
+     */
+    suspend fun syncLikedTrack(userId: String, song: Song): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            val body = buildString {
+                append("{")
+                append("\"user_id\":\"$userId\",")
+                append("\"video_id\":\"${song.videoId}\",")
+                append("\"title\":${jsonQuote(song.title)},")
+                append("\"artist\":${jsonQuote(song.artist)}")
+                if (song.thumbnailUrl != null) append(",\"thumbnail_url\":${jsonQuote(song.thumbnailUrl)}")
+                if (song.durationText != null) append(",\"duration_text\":${jsonQuote(song.durationText)}")
+                append("}")
+            }
+            client.post(baseUrl("user_liked_tracks")) {
+                header("apikey", SupabaseConfig.anonKey)
+                header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                header("Prefer", "resolution=merge-duplicates")
+                contentType(ContentType.Application.Json)
+                setBody(body)
+            }
+            Unit
+        }
+    }
+
+    /**
+     * Removes a liked track from the user's cloud library.
+     */
+    suspend fun removeLikedTrack(userId: String, videoId: String): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            client.delete(baseUrl("user_liked_tracks")) {
+                header("apikey", SupabaseConfig.anonKey)
+                header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                parameter("user_id", "eq.$userId")
+                parameter("video_id", "eq.$videoId")
+            }
+            Unit
+        }
+    }
+
+    /**
+     * Fetches all liked tracks for a user from Supabase.
+     */
+    suspend fun fetchLikedTracks(userId: String): Result<List<Song>> = withContext(Dispatchers.IO) {
+        runCatching {
+            val response = client.get(baseUrl("user_liked_tracks")) {
+                header("apikey", SupabaseConfig.anonKey)
+                header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                parameter("user_id", "eq.$userId")
+                parameter("order", "liked_at.desc")
+            }
+            val array = json.parseToJsonElement(response.bodyAsText()).jsonArray
+            array.mapNotNull {
+                val obj = it.jsonObject
+                val videoId = obj["video_id"]?.jsonPrimitive?.content ?: return@mapNotNull null
+                val title = obj["title"]?.jsonPrimitive?.content ?: return@mapNotNull null
+                val artist = obj["artist"]?.jsonPrimitive?.content ?: ""
+                val thumb = obj["thumbnail_url"]?.jsonPrimitive?.content
+                val duration = obj["duration_text"]?.jsonPrimitive?.content
+                Song(
+                    videoId = videoId,
+                    title = title,
+                    artist = artist,
+                    thumbnailUrl = thumb,
+                    durationText = duration,
+                )
+            }
+        }
+    }
+
+    /**
+     * Synchronizes a user playlist metadata to the cloud.
+     */
+    suspend fun syncPlaylist(
+        userId: String,
+        playlistId: String,
+        title: String,
+        description: String = "",
+        thumbnailUrl: String? = null,
+        trackCount: Int = 0,
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            val body = buildString {
+                append("{")
+                append("\"id\":\"$playlistId\",")
+                append("\"user_id\":\"$userId\",")
+                append("\"title\":${jsonQuote(title)},")
+                append("\"description\":${jsonQuote(description)},")
+                if (thumbnailUrl != null) append("\"thumbnail_url\":${jsonQuote(thumbnailUrl)},")
+                append("\"track_count\":$trackCount")
+                append("}")
+            }
+            client.post(baseUrl("user_playlists")) {
+                header("apikey", SupabaseConfig.anonKey)
+                header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                header("Prefer", "resolution=merge-duplicates")
+                contentType(ContentType.Application.Json)
+                setBody(body)
+            }
+            Unit
+        }
+    }
+
+    /**
+     * Deletes a user playlist and its tracks from the cloud.
+     */
+    suspend fun deletePlaylist(userId: String, playlistId: String): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            client.delete(baseUrl("user_playlists")) {
+                header("apikey", SupabaseConfig.anonKey)
+                header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                parameter("id", "eq.$playlistId")
+                parameter("user_id", "eq.$userId")
+            }
+            Unit
+        }
+    }
+
+    /**
+     * Synchronizes the tracks of a playlist (metadata only, no audio bytes).
+     */
+    suspend fun syncPlaylistTracks(
+        userId: String,
+        playlistId: String,
+        tracks: List<Song>,
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            client.delete(baseUrl("user_playlist_tracks")) {
+                header("apikey", SupabaseConfig.anonKey)
+                header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                parameter("playlist_id", "eq.$playlistId")
+            }
+            if (tracks.isNotEmpty()) {
+                val tracksJson = tracks.mapIndexed { idx, song ->
+                    buildString {
+                        append("{")
+                        append("\"playlist_id\":\"$playlistId\",")
+                        append("\"user_id\":\"$userId\",")
+                        append("\"video_id\":\"${song.videoId}\",")
+                        append("\"title\":${jsonQuote(song.title)},")
+                        append("\"artist\":${jsonQuote(song.artist)},")
+                        if (song.thumbnailUrl != null) append("\"thumbnail_url\":${jsonQuote(song.thumbnailUrl)},")
+                        if (song.durationText != null) append("\"duration_text\":${jsonQuote(song.durationText)},")
+                        append("\"position\":$idx")
+                        append("}")
+                    }
+                }.joinToString(",", "[", "]")
+
+                client.post(baseUrl("user_playlist_tracks")) {
+                    header("apikey", SupabaseConfig.anonKey)
+                    header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                    contentType(ContentType.Application.Json)
+                    setBody(tracksJson)
+                }
+            }
+            Unit
+        }
+    }
+
+    /**
+     * Fetches all user playlists along with their track items from the cloud.
+     */
+    suspend fun fetchUserPlaylistsWithTracks(
+        userId: String,
+    ): Result<List<Pair<UserPlaylist, List<Song>>>> = withContext(Dispatchers.IO) {
+        runCatching {
+            val response = client.get(baseUrl("user_playlists")) {
+                header("apikey", SupabaseConfig.anonKey)
+                header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                parameter("user_id", "eq.$userId")
+                parameter("order", "created_at.desc")
+            }
+            val playlistsArray = json.parseToJsonElement(response.bodyAsText()).jsonArray
+            val result = mutableListOf<Pair<UserPlaylist, List<Song>>>()
+
+            for (item in playlistsArray) {
+                val pObj = item.jsonObject
+                val pId = pObj["id"]?.jsonPrimitive?.content ?: continue
+                val pTitle = pObj["title"]?.jsonPrimitive?.content ?: "Playlist"
+                val pThumb = pObj["thumbnail_url"]?.jsonPrimitive?.content
+
+                val tracksResp = client.get(baseUrl("user_playlist_tracks")) {
+                    header("apikey", SupabaseConfig.anonKey)
+                    header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                    parameter("playlist_id", "eq.$pId")
+                    parameter("order", "position.asc")
+                }
+                val tracksArray = json.parseToJsonElement(tracksResp.bodyAsText()).jsonArray
+                val songs = tracksArray.mapNotNull { tItem ->
+                    val tObj = tItem.jsonObject
+                    val vId = tObj["video_id"]?.jsonPrimitive?.content ?: return@mapNotNull null
+                    val title = tObj["title"]?.jsonPrimitive?.content ?: return@mapNotNull null
+                    val artist = tObj["artist"]?.jsonPrimitive?.content ?: ""
+                    val thumb = tObj["thumbnail_url"]?.jsonPrimitive?.content
+                    val duration = tObj["duration_text"]?.jsonPrimitive?.content
+                    Song(
+                        videoId = vId,
+                        title = title,
+                        artist = artist,
+                        thumbnailUrl = thumb,
+                        durationText = duration,
+                    )
+                }
+
+                val userPlaylist = UserPlaylist(
+                    playlistId = pId,
+                    title = pTitle,
+                    subtitle = "${songs.size} " + if (songs.size == 1) "song" else "songs",
+                    thumbnailUrl = pThumb ?: songs.firstOrNull()?.thumbnailUrl,
+                )
+                result.add(userPlaylist to songs)
+            }
+            result
         }
     }
 

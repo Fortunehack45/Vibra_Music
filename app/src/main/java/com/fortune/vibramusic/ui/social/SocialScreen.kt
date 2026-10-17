@@ -104,49 +104,7 @@ import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 import com.fortune.vibramusic.data.social.PostMediaItem
 import com.fortune.vibramusic.data.social.PostMediaType
-import java.time.Duration
-import java.time.Instant
-
-fun formatRelativeTime(raw: String): String {
-    if (raw.isBlank()) return ""
-    return try {
-        val trimmed = raw.trim()
-        val normalized = trimmed.replace(' ', 'T')
-        val instant = runCatching { Instant.parse(normalized) }.getOrNull()
-            ?: runCatching { java.time.OffsetDateTime.parse(normalized).toInstant() }.getOrNull()
-            ?: runCatching { java.time.ZonedDateTime.parse(normalized).toInstant() }.getOrNull()
-            ?: runCatching {
-                val withZ = if (!normalized.endsWith("Z") && !normalized.contains("+") && !normalized.substringAfter('T', "").contains("-")) {
-                    "${normalized}Z"
-                } else normalized
-                Instant.parse(withZ)
-            }.getOrNull()
-            ?: runCatching {
-                java.time.LocalDateTime.parse(normalized.substringBefore('+').substringBefore('Z'))
-                    .atZone(java.time.ZoneOffset.UTC)
-                    .toInstant()
-            }.getOrNull()
-
-        if (instant != null) {
-            val now = Instant.now()
-            val duration = Duration.between(instant, now)
-            val seconds = duration.seconds.coerceAtLeast(0)
-            when {
-                seconds < 10 -> "Just now"
-                seconds < 60 -> "${seconds}s"
-                seconds < 3600 -> "${seconds / 60}m"
-                seconds < 86400 -> "${seconds / 3600}h"
-                seconds < 604800 -> "${seconds / 86400}d"
-                seconds < 2592000 -> "${seconds / 604800}w"
-                else -> "${seconds / 2592000}mo"
-            }
-        } else {
-            raw.take(10)
-        }
-    } catch (_: Exception) {
-        raw.take(10)
-    }
-}
+import com.fortune.vibramusic.data.social.formatRelativeTime
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

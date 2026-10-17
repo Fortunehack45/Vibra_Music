@@ -92,6 +92,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.fortune.vibramusic.auth.AuthStore
+import com.fortune.vibramusic.auth.GoogleAccountSession
 import com.fortune.vibramusic.data.YtMusicRepository
 import com.fortune.vibramusic.data.model.BrowseItem
 import com.fortune.vibramusic.data.model.SearchFilter
@@ -122,6 +123,8 @@ data class SelectedArtist(
 fun VibraOnboardingFlow(
     onLaunchSignIn: () -> Unit,
     onComplete: () -> Unit,
+    googleAccounts: List<GoogleAccountSession> = emptyList(),
+    activeAccountId: String? = null,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -131,11 +134,13 @@ fun VibraOnboardingFlow(
     var currentStep by remember { mutableIntStateOf(1) } // 1: Auth, 2: Genres, 3: Artists, 4: Identity
     var isSubmitting by remember { mutableStateOf(false) }
 
-    // Detected session
-    val activeSession = authStore.activeSession
+    // Detected session reactively
+    val activeSession = googleAccounts.firstOrNull { it.accountId == activeAccountId }
+        ?: googleAccounts.firstOrNull()
+        ?: authStore.activeSession
     val activeProfile = activeSession?.profiles?.firstOrNull { it.profileId == activeSession.activeProfileId }
         ?: activeSession?.profiles?.firstOrNull()
-    val isSignedIn = authStore.isSignedIn && activeSession != null
+    val isSignedIn = (activeSession?.cookie?.let { AuthStore.hasApiSid(it) } == true) || (authStore.isSignedIn && activeSession != null)
 
     // Preferences states
     val selectedGenres = remember { mutableStateListOf<String>() }
@@ -152,6 +157,26 @@ fun VibraOnboardingFlow(
     var bio by remember { mutableStateOf("Music enthusiast exploring new vibes on Vibra.") }
     var selectedAvatarUri by remember { mutableStateOf<Uri?>(null) }
     var existingAvatarUrl by remember { mutableStateOf(activeProfile?.avatar) }
+
+    LaunchedEffect(isSignedIn, activeProfile?.name) {
+        if (isSignedIn) {
+            val name = activeProfile?.name ?: activeSession?.name?.ifBlank { null }
+            if (!name.isNullOrBlank() && displayName == "Music Listener") {
+                displayName = name
+            }
+            val rawHandle = activeProfile?.handle?.ifBlank { null }
+                ?: name?.lowercase()?.replace("[^a-z0-9_]".toRegex(), "")?.take(16)
+            if (!rawHandle.isNullOrBlank() && (handle == "vibra_user" || handle.isBlank())) {
+                handle = rawHandle
+            }
+            if (existingAvatarUrl.isNullOrBlank() && !activeProfile?.avatar.isNullOrBlank()) {
+                existingAvatarUrl = activeProfile?.avatar
+            }
+            if (currentStep == 1) {
+                currentStep = 2
+            }
+        }
+    }
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()

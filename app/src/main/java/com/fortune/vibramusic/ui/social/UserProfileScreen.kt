@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Edit
@@ -65,7 +66,9 @@ import com.fortune.vibramusic.data.social.PostMediaItem
 import com.fortune.vibramusic.data.social.SocialProfile
 import com.fortune.vibramusic.data.social.formatHandle
 import com.fortune.vibramusic.ui.components.ArtistAvatar
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.systemBarsPadding
+import com.fortune.vibramusic.ui.components.SocialTab
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.AlertDialog
 import androidx.compose.runtime.rememberCoroutineScope
@@ -115,13 +118,15 @@ fun UserProfileScreen(
             .fillMaxSize()
             .hazeSource(hazeState),
     ) {
+        val topPadding = if (onBack != null) 0.dp else (contentPadding.calculateTopPadding() + 8.dp)
+
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
-                top = contentPadding.calculateTopPadding() + 8.dp,
+                top = topPadding,
                 bottom = contentPadding.calculateBottomPadding() + 80.dp,
             ),
-            verticalArrangement = Arrangement.spacedBy(18.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             // Header Bar (Back button if not self)
             if (onBack != null) {
@@ -129,22 +134,39 @@ fun UserProfileScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp),
+                            .statusBarsPadding()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        IconButton(onClick = onBack) {
+                        IconButton(
+                            onClick = onBack,
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                        ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                                 contentDescription = "Back",
                                 tint = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(20.dp),
                             )
                         }
-                        Text(
-                            text = activeProfile.displayName,
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.padding(start = 8.dp),
-                        )
+                        Spacer(Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = activeProfile.displayName,
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                text = formatHandle(activeProfile.handle),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 }
             }
@@ -349,18 +371,61 @@ fun UserProfileScreen(
                                         else MaterialTheme.colorScheme.onPrimary,
                                     ),
                                     modifier = Modifier.weight(1f),
-                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp),
+                                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 10.dp),
                                 ) {
                                     Text(
                                         text = if (activeProfile.isFollowing) "Following" else "Follow",
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp,
+                                        fontSize = 12.sp,
+                                        maxLines = 1,
+                                    )
+                                }
+
+                                val isFriend = activeProfile.isFriend || activeProfile.friendshipStatus.equals("ACCEPTED", ignoreCase = true)
+                                val isRequested = activeProfile.friendshipStatus.equals("PENDING", ignoreCase = true)
+                                val friendText = when {
+                                    isFriend -> "Friends"
+                                    isRequested -> "Requested"
+                                    else -> "Add Friend"
+                                }
+
+                                Button(
+                                    onClick = {
+                                        if (!isFriend && !isRequested) {
+                                            viewModel.sendFriendRequest(activeProfile.id)
+                                        }
+                                    },
+                                    shape = RoundedCornerShape(12.dp),
+                                    border = null,
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (isFriend) MaterialTheme.colorScheme.surfaceVariant
+                                        else MaterialTheme.colorScheme.surface,
+                                        contentColor = if (isFriend) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.onSurface,
+                                    ),
+                                    modifier = Modifier.weight(1f),
+                                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 10.dp),
+                                ) {
+                                    Icon(
+                                        imageVector = if (isFriend) Icons.Rounded.CheckCircle else Icons.Rounded.PersonAdd,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(15.dp),
+                                    )
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(
+                                        text = friendText,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold,
                                         maxLines = 1,
                                     )
                                 }
 
                                 Button(
-                                    onClick = { viewModel.sendFriendRequest(activeProfile.id) },
+                                    onClick = {
+                                        viewModel.openChat(activeProfile)
+                                        viewModel.setNavTab(SocialTab.MESSAGES)
+                                        onBack?.invoke()
+                                    },
                                     shape = RoundedCornerShape(12.dp),
                                     border = null,
                                     colors = ButtonDefaults.buttonColors(
@@ -368,17 +433,18 @@ fun UserProfileScreen(
                                         contentColor = MaterialTheme.colorScheme.onSurface,
                                     ),
                                     modifier = Modifier.weight(1f),
-                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp),
+                                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 10.dp),
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Rounded.PersonAdd,
+                                        imageVector = Icons.AutoMirrored.Rounded.Send,
                                         contentDescription = null,
-                                        modifier = Modifier.size(16.dp),
+                                        modifier = Modifier.size(15.dp),
                                     )
                                     Spacer(Modifier.width(4.dp))
                                     Text(
-                                        text = "Add Friend",
-                                        fontSize = 13.sp,
+                                        text = "Message",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold,
                                         maxLines = 1,
                                     )
                                 }

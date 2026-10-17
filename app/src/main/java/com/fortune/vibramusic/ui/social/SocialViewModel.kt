@@ -7,6 +7,7 @@ import com.fortune.vibramusic.auth.AuthStore
 import com.fortune.vibramusic.data.DebugLog as Log
 import com.fortune.vibramusic.data.quiz.QuizArtist
 import com.fortune.vibramusic.data.settings.AppSettings
+import com.fortune.vibramusic.data.social.ConversationSummary
 import com.fortune.vibramusic.data.social.DirectMessage
 import com.fortune.vibramusic.data.social.MusicTrackAttachment
 import com.fortune.vibramusic.data.social.NotificationType
@@ -65,8 +66,17 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
     private val _stories = MutableStateFlow<List<SocialProfile>>(emptyList())
     val stories: StateFlow<List<SocialProfile>> = _stories.asStateFlow()
 
-    private val _conversations = MutableStateFlow<List<SocialProfile>>(emptyList())
-    val conversations: StateFlow<List<SocialProfile>> = _conversations.asStateFlow()
+    private val _conversations = MutableStateFlow<List<ConversationSummary>>(emptyList())
+    val conversations: StateFlow<List<ConversationSummary>> = _conversations.asStateFlow()
+
+    private fun updatePostAcrossAllLists(postId: String, transform: (SocialPost) -> SocialPost) {
+        _posts.value = _posts.value.map { if (it.id == postId) transform(it) else it }
+        _viewingProfilePosts.value = _viewingProfilePosts.value.map { if (it.id == postId) transform(it) else it }
+        val selected = _selectedPostForComments.value
+        if (selected?.id == postId) {
+            _selectedPostForComments.value = transform(selected)
+        }
+    }
 
     private val _activeChatFriend = MutableStateFlow<SocialProfile?>(null)
     val activeChatFriend: StateFlow<SocialProfile?> = _activeChatFriend.asStateFlow()
@@ -111,6 +121,15 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
         }
         initUserProfile()
         loadFeed()
+
+        // Background polling for notifications & conversations
+        viewModelScope.launch {
+            while (true) {
+                kotlinx.coroutines.delay(25_000)
+                loadNotifications()
+                loadConversations()
+            }
+        }
     }
 
     fun setNavTab(tab: SocialTab) {
@@ -394,11 +413,9 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
         val currentlyLiked = post.isLikedByMe
         val newCount = if (currentlyLiked) (post.likesCount - 1).coerceAtLeast(0) else post.likesCount + 1
 
-        // Optimistic UI update
-        _posts.value = _posts.value.map {
-            if (it.id == post.id) {
-                it.copy(isLikedByMe = !currentlyLiked, likesCount = newCount)
-            } else it
+        // Optimistic UI update across feed and profile lists
+        updatePostAcrossAllLists(post.id) {
+            it.copy(isLikedByMe = !currentlyLiked, likesCount = newCount)
         }
 
         viewModelScope.launch {
@@ -417,10 +434,8 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
                 }
                 .onFailure {
                     // Revert on failure
-                    _posts.value = _posts.value.map {
-                        if (it.id == post.id) {
-                            it.copy(isLikedByMe = currentlyLiked, likesCount = post.likesCount)
-                        } else it
+                    updatePostAcrossAllLists(post.id) {
+                        it.copy(isLikedByMe = currentlyLiked, likesCount = post.likesCount)
                     }
                 }
         }
@@ -434,15 +449,15 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
         val newRepostCount = if (currentlyReposted) (post.repostsCount - 1).coerceAtLeast(0) else post.repostsCount + 1
 
         // Single repost rule: toggle between reposted and not reposted
-        _posts.value = _posts.value.map {
-            if (it.id == post.id) it.copy(isRepostedByMe = !currentlyReposted, repostsCount = newRepostCount) else it
+        updatePostAcrossAllLists(post.id) {
+            it.copy(isRepostedByMe = !currentlyReposted, repostsCount = newRepostCount)
         }
 
         viewModelScope.launch {
             SupabaseService.toggleRepost(postId = post.id, user = user, currentlyReposted = currentlyReposted)
                 .onSuccess { isNowReposted ->
-                    _posts.value = _posts.value.map {
-                        if (it.id == post.id) it.copy(isRepostedByMe = isNowReposted) else it
+                    updatePostAcrossAllLists(post.id) {
+                        it.copy(isRepostedByMe = isNowReposted)
                     }
                     cacheStore.savePosts(_posts.value)
                     if (isNowReposted && post.authorId.isNotBlank() && post.authorId != user.id) {
@@ -456,8 +471,8 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
                     }
                 }
                 .onFailure {
-                    _posts.value = _posts.value.map {
-                        if (it.id == post.id) it.copy(isRepostedByMe = currentlyReposted, repostsCount = post.repostsCount) else it
+                    updatePostAcrossAllLists(post.id) {
+                        it.copy(isRepostedByMe = currentlyReposted, repostsCount = post.repostsCount)
                     }
                 }
         }
@@ -609,8 +624,8 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
         )
         val updatedComments = _comments.value + optimisticComment
         _comments.value = updatedComments
-        _posts.value = _posts.value.map {
-            if (it.id == postId) it.copy(commentsCount = it.commentsCount + 1) else it
+        updatePostAcrossAllLists(postId) {
+            it.copy(commentsCount = it.commentsCount + 1)
         }
 
         viewModelScope.launch {
@@ -661,7 +676,12 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
         _chatMessages.value = emptyList()
         val userId = _currentProfile.value?.id ?: return
 
+        _conversations.value = _conversations.value.map {
+            if (it.friend.id == friend.id) it.copy(unreadCount = 0) else it
+        }
+
         viewModelScope.launch {
+            SupabaseService.markMessagesAsRead(senderId = friend.id, receiverId = userId)
             SupabaseService.fetchDirectMessages(userId, friend.id)
                 .onSuccess { msgs ->
                     _chatMessages.value = msgs
@@ -693,6 +713,7 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
                 senderId = user.id,
                 recipientId = recipient.id,
                 message = text,
+                senderProfile = user,
                 trackAttachment = musicAttachment,
                 playlistAttachment = playlistAttachment,
                 imageUrl = imageUrl,
@@ -702,6 +723,7 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
                 replyTo = replyTo,
             ).onSuccess { newMsg ->
                 _chatMessages.value = (_chatMessages.value + newMsg).distinctBy { it.id }
+                loadConversations()
             }
         }
     }
@@ -777,12 +799,13 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun loadProfileData(userId: String) {
+        val currentUserId = _currentProfile.value?.id.orEmpty()
         viewModelScope.launch {
             val cached = cacheStore.loadProfile(userId)
             if (cached != null && _viewingProfile.value?.id == userId) {
                 _viewingProfile.value = cached
             }
-            SupabaseService.fetchUserProfile(userId).onSuccess { fresh ->
+            SupabaseService.fetchUserProfile(userId, currentUserId = currentUserId).onSuccess { fresh ->
                 if (fresh != null) {
                     _viewingProfile.value = fresh
                     cacheStore.saveProfile(fresh)
@@ -837,6 +860,10 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
 
     fun sendFriendRequest(targetUserId: String) {
         val myId = _currentProfile.value?.id ?: return
+        val viewing = _viewingProfile.value
+        if (viewing?.id == targetUserId) {
+            _viewingProfile.value = viewing.copy(friendshipStatus = "PENDING")
+        }
         viewModelScope.launch {
             SupabaseService.sendFriendRequest(myId, targetUserId)
                 .onSuccess {

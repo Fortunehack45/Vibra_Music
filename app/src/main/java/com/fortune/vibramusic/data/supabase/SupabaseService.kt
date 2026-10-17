@@ -8,6 +8,7 @@ import com.fortune.vibramusic.data.quiz.QuizArtist
 import com.fortune.vibramusic.data.quiz.QuizScoreResult
 import com.fortune.vibramusic.data.model.Song
 import com.fortune.vibramusic.data.model.UserPlaylist
+import com.fortune.vibramusic.data.social.ConversationSummary
 import com.fortune.vibramusic.data.social.DirectMessage
 import com.fortune.vibramusic.data.social.FavoriteArtist
 import com.fortune.vibramusic.data.social.Friendship
@@ -350,6 +351,25 @@ object SupabaseService {
                         Log.w(TAG, "toggleLikePost (like) ${response.status}: ${response.bodyAsText().take(300)}")
                     }
                 }
+                // Synchronize likes_count on posts table
+                runCatching {
+                    val countRes = client.get(baseUrl("post_likes")) {
+                        header("apikey", SupabaseConfig.anonKey)
+                        header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                        parameter("post_id", "eq.$postId")
+                        parameter("select", "user_id")
+                    }
+                    if (countRes.status.isSuccess()) {
+                        val count = (json.parseToJsonElement(countRes.bodyAsText()) as? JsonArray)?.size ?: 0
+                        client.patch(baseUrl("posts")) {
+                            header("apikey", SupabaseConfig.anonKey)
+                            header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                            contentType(ContentType.Application.Json)
+                            parameter("id", "eq.$postId")
+                            setBody("{\"likes_count\":$count}")
+                        }
+                    }
+                }
                 Unit
             }
         }
@@ -465,6 +485,26 @@ object SupabaseService {
             }
             if (!response.status.isSuccess()) {
                 Log.w(TAG, "addComment failed with status ${response.status}: ${response.bodyAsText().take(300)}")
+            } else {
+                // Synchronize comments_count on posts table
+                runCatching {
+                    val countRes = client.get(baseUrl("post_comments")) {
+                        header("apikey", SupabaseConfig.anonKey)
+                        header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                        parameter("post_id", "eq.$postId")
+                        parameter("select", "id")
+                    }
+                    if (countRes.status.isSuccess()) {
+                        val count = (json.parseToJsonElement(countRes.bodyAsText()) as? JsonArray)?.size ?: 0
+                        client.patch(baseUrl("posts")) {
+                            header("apikey", SupabaseConfig.anonKey)
+                            header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                            contentType(ContentType.Application.Json)
+                            parameter("id", "eq.$postId")
+                            setBody("{\"comments_count\":$count}")
+                        }
+                    }
+                }
             }
 
             PostComment(
@@ -629,9 +669,9 @@ object SupabaseService {
     }
 
     /**
-     * Fetches a single user's profile by ID.
+     * Fetches a single user's profile by ID with live counts and relationship status.
      */
-    suspend fun fetchUserProfile(userId: String): Result<SocialProfile?> = withContext(Dispatchers.IO) {
+    suspend fun fetchUserProfile(userId: String, currentUserId: String = ""): Result<SocialProfile?> = withContext(Dispatchers.IO) {
         runCatching {
             val response = client.get(baseUrl("profiles")) {
                 header("apikey", SupabaseConfig.anonKey)
@@ -642,10 +682,99 @@ object SupabaseService {
             if (!response.status.isSuccess()) {
                 val err = response.bodyAsText().take(300)
                 Log.w(TAG, "fetchUserProfile ${response.status}: $err")
-                null
-            } else {
-                parseProfiles(response.bodyAsText()).firstOrNull()
+                return@runCatching null
             }
+            val baseProfile = parseProfiles(response.bodyAsText()).firstOrNull() ?: return@runCatching null
+
+            // 1. Live Followers & Following
+            var realFollowers = baseProfile.followersCount
+            var realFollowing = baseProfile.followingCount
+            var isFollowing = false
+
+            runCatching {
+                val fRes = client.get(baseUrl("follows")) {
+                    header("apikey", SupabaseConfig.anonKey)
+                    header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                    parameter("following_id", "eq.$userId")
+                    parameter("select", "follower_id")
+                }
+                if (fRes.status.isSuccess()) {
+                    val arr = json.parseToJsonElement(fRes.bodyAsText()) as? JsonArray
+                    if (arr != null) {
+                        realFollowers = arr.size
+                        if (currentUserId.isNotBlank()) {
+                            isFollowing = arr.any { (it as? JsonObject)?.str("follower_id") == currentUserId }
+                        }
+                    }
+                }
+            }
+
+            runCatching {
+                val ingRes = client.get(baseUrl("follows")) {
+                    header("apikey", SupabaseConfig.anonKey)
+                    header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                    parameter("follower_id", "eq.$userId")
+                    parameter("select", "following_id")
+                }
+                if (ingRes.status.isSuccess()) {
+                    val arr = json.parseToJsonElement(ingRes.bodyAsText()) as? JsonArray
+                    if (arr != null) {
+                        realFollowing = arr.size
+                    }
+                }
+            }
+
+            // 2. Live Friends & Friendship Status
+            var realFriends = baseProfile.friendsCount
+            var isFriend = false
+            var friendshipStatus = "NONE"
+
+            runCatching {
+                val friendsRes = client.get(baseUrl("friendships")) {
+                    header("apikey", SupabaseConfig.anonKey)
+                    header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                    parameter("or", "(requester_id.eq.$userId,receiver_id.eq.$userId)")
+                    parameter("status", "eq.ACCEPTED")
+                    parameter("select", "id")
+                }
+                if (friendsRes.status.isSuccess()) {
+                    val arr = json.parseToJsonElement(friendsRes.bodyAsText()) as? JsonArray
+                    if (arr != null) {
+                        realFriends = arr.size
+                    }
+                }
+            }
+
+            if (currentUserId.isNotBlank() && currentUserId != userId) {
+                runCatching {
+                    val relRes = client.get(baseUrl("friendships")) {
+                        header("apikey", SupabaseConfig.anonKey)
+                        header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                        parameter(
+                            "or",
+                            "(and(requester_id.eq.$currentUserId,receiver_id.eq.$userId),and(requester_id.eq.$userId,receiver_id.eq.$currentUserId))",
+                        )
+                        parameter("limit", "1")
+                    }
+                    if (relRes.status.isSuccess()) {
+                        val arr = json.parseToJsonElement(relRes.bodyAsText()) as? JsonArray
+                        val firstObj = arr?.firstOrNull() as? JsonObject
+                        if (firstObj != null) {
+                            friendshipStatus = firstObj.str("status") ?: "NONE"
+                            isFriend = friendshipStatus == "ACCEPTED"
+                        }
+                    }
+                }
+            }
+
+            baseProfile.copy(
+                followersCount = realFollowers,
+                followingCount = realFollowing,
+                friendsCount = realFriends,
+                isFollowing = isFollowing,
+                isFriend = isFriend,
+                friendshipStatus = friendshipStatus,
+            )
         }
     }
 
@@ -712,22 +841,132 @@ object SupabaseService {
     ): Result<String> = uploadMedia(bytes, mimeType, fileName)
 
     /**
-     * Fetches friends list and active conversations for the user.
+     * Fetches conversations for the user with last message preview and unread count.
      */
-    suspend fun fetchConversations(userId: String): Result<List<SocialProfile>> = withContext(Dispatchers.IO) {
+    suspend fun fetchConversations(userId: String): Result<List<ConversationSummary>> = withContext(Dispatchers.IO) {
         runCatching {
-            val response = client.get(baseUrl("profiles")) {
+            // 1. Fetch user's direct messages (sent and received) ordered by newest first
+            val dmsResponse = client.get(baseUrl("direct_messages")) {
                 header("apikey", SupabaseConfig.anonKey)
                 header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
-                parameter("id", "neq.$userId")
-                parameter("limit", "20")
+                parameter("or", "(sender_id.eq.$userId,receiver_id.eq.$userId)")
+                parameter("order", "created_at.desc")
+                parameter("limit", "150")
+            }
+            val allDms = if (dmsResponse.status.isSuccess()) {
+                parseDirectMessages(dmsResponse.bodyAsText())
+            } else emptyList()
+
+            // 2. Group messages by partner
+            val partnerMap = LinkedHashMap<String, MutableList<DirectMessage>>()
+            allDms.forEach { dm ->
+                val partnerId = if (dm.senderId == userId) dm.receiverId else dm.senderId
+                if (partnerId.isNotBlank() && partnerId != userId) {
+                    partnerMap.getOrPut(partnerId) { mutableListOf() }.add(dm)
+                }
+            }
+
+            // 3. Fetch profiles for partners, plus suggested friends
+            val partnerIds = partnerMap.keys.toList()
+            val profilesToFetch = if (partnerIds.isNotEmpty()) {
+                val filter = "in.(${partnerIds.joinToString(",")})"
+                val response = client.get(baseUrl("profiles")) {
+                    header("apikey", SupabaseConfig.anonKey)
+                    header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                    parameter("id", filter)
+                }
+                if (response.status.isSuccess()) parseProfiles(response.bodyAsText()) else emptyList()
+            } else emptyList()
+
+            val profilesMap = profilesToFetch.associateBy { it.id }.toMutableMap()
+
+            // If user has few conversations, also fetch popular profiles so user can discover people to chat with
+            if (profilesMap.size < 10) {
+                val extraResponse = client.get(baseUrl("profiles")) {
+                    header("apikey", SupabaseConfig.anonKey)
+                    header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                    parameter("id", "neq.$userId")
+                    parameter("limit", "${15 - profilesMap.size}")
+                }
+                if (extraResponse.status.isSuccess()) {
+                    parseProfiles(extraResponse.bodyAsText()).forEach { p ->
+                        if (!profilesMap.containsKey(p.id)) {
+                            profilesMap[p.id] = p
+                        }
+                    }
+                }
+            }
+
+            // 4. Construct ConversationSummary for each partner
+            val summaries = mutableListOf<ConversationSummary>()
+
+            // First, partners with message history in order of recency
+            partnerIds.forEach { partnerId ->
+                val profile = profilesMap[partnerId]
+                if (profile != null) {
+                    val msgs = partnerMap[partnerId].orEmpty()
+                    val last = msgs.firstOrNull()
+                    val unread = msgs.count { it.receiverId == userId && !it.isRead }
+                    val preview = when {
+                        last == null -> "Start a conversation"
+                        last.audioUrl != null -> "Voice note"
+                        last.imageUrl != null -> "Sent a photo"
+                        last.videoUrl != null -> "Sent a video"
+                        last.gifUrl != null -> "Sent a GIF"
+                        last.sharedMusic != null -> "Shared track: ${last.sharedMusic.title}"
+                        last.sharedPlaylist != null -> "Shared playlist: ${last.sharedPlaylist.title}"
+                        last.content.isNotBlank() -> last.content
+                        else -> "Sent an attachment"
+                    }
+                    summaries.add(
+                        ConversationSummary(
+                            friend = profile,
+                            lastMessage = last,
+                            lastMessagePreview = preview,
+                            lastMessageTime = last?.createdAt ?: "",
+                            unreadCount = unread,
+                        )
+                    )
+                }
+            }
+
+            // Next, profiles without message history yet
+            profilesMap.values.forEach { profile ->
+                if (!partnerMap.containsKey(profile.id)) {
+                    summaries.add(
+                        ConversationSummary(
+                            friend = profile,
+                            lastMessage = null,
+                            lastMessagePreview = "Say hello to start chatting",
+                            lastMessageTime = "",
+                            unreadCount = 0,
+                        )
+                    )
+                }
+            }
+
+            summaries
+        }
+    }
+
+    /**
+     * Marks all unread messages from senderId to receiverId as read.
+     */
+    suspend fun markMessagesAsRead(senderId: String, receiverId: String): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            val response = client.patch(baseUrl("direct_messages")) {
+                header("apikey", SupabaseConfig.anonKey)
+                header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                contentType(ContentType.Application.Json)
+                parameter("sender_id", "eq.$senderId")
+                parameter("receiver_id", "eq.$receiverId")
+                parameter("is_read", "eq.false")
+                setBody("{\"is_read\":true}")
             }
             if (!response.status.isSuccess()) {
-                val err = response.bodyAsText().take(300)
-                Log.w(TAG, "fetchConversations ${response.status}: $err")
-                return@runCatching emptyList()
+                Log.w(TAG, "markMessagesAsRead ${response.status}: ${response.bodyAsText().take(300)}")
             }
-            parseProfiles(response.bodyAsText())
+            Unit
         }
     }
 
@@ -764,6 +1003,7 @@ object SupabaseService {
         senderId: String,
         recipientId: String,
         message: String,
+        senderProfile: SocialProfile? = null,
         trackAttachment: MusicTrackAttachment? = null,
         playlistAttachment: SharedPlaylistAttachment? = null,
         imageUrl: String? = null,
@@ -844,6 +1084,23 @@ object SupabaseService {
             }
             if (!res.status.isSuccess()) {
                 Log.w(TAG, "sendDirectMessage returned ${res.status}: ${res.bodyAsText().take(300)}")
+            } else if (senderProfile != null && recipientId != senderId) {
+                val preview = when {
+                    !audioUrl.isNullOrBlank() -> "sent you a voice note"
+                    !imageUrl.isNullOrBlank() -> "sent you a photo"
+                    !videoUrl.isNullOrBlank() -> "sent you a video"
+                    !gifUrl.isNullOrBlank() -> "sent you a GIF"
+                    trackAttachment != null -> "shared a track with you: ${trackAttachment.title}"
+                    playlistAttachment != null -> "shared a playlist: ${playlistAttachment.title}"
+                    message.isNotBlank() -> message.take(80)
+                    else -> "sent you a message"
+                }
+                createNotification(
+                    recipientUserId = recipientId,
+                    actor = senderProfile,
+                    type = NotificationType.MESSAGE,
+                    message = preview,
+                )
             }
 
             DirectMessage(
@@ -939,6 +1196,43 @@ object SupabaseService {
                     }
                     if (!response.status.isSuccess()) {
                         Log.w(TAG, "toggleFollow (unfollow) ${response.status}: ${response.bodyAsText().take(300)}")
+                    }
+                }
+                // Synchronize followers and following counts on profiles table
+                runCatching {
+                    val followersRes = client.get(baseUrl("follows")) {
+                        header("apikey", SupabaseConfig.anonKey)
+                        header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                        parameter("following_id", "eq.$targetUserId")
+                        parameter("select", "follower_id")
+                    }
+                    if (followersRes.status.isSuccess()) {
+                        val count = (json.parseToJsonElement(followersRes.bodyAsText()) as? JsonArray)?.size ?: 0
+                        client.patch(baseUrl("profiles")) {
+                            header("apikey", SupabaseConfig.anonKey)
+                            header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                            contentType(ContentType.Application.Json)
+                            parameter("id", "eq.$targetUserId")
+                            setBody("{\"followers_count\":$count}")
+                        }
+                    }
+                }
+                runCatching {
+                    val followingRes = client.get(baseUrl("follows")) {
+                        header("apikey", SupabaseConfig.anonKey)
+                        header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                        parameter("follower_id", "eq.$followerId")
+                        parameter("select", "following_id")
+                    }
+                    if (followingRes.status.isSuccess()) {
+                        val count = (json.parseToJsonElement(followingRes.bodyAsText()) as? JsonArray)?.size ?: 0
+                        client.patch(baseUrl("profiles")) {
+                            header("apikey", SupabaseConfig.anonKey)
+                            header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                            contentType(ContentType.Application.Json)
+                            parameter("id", "eq.$followerId")
+                            setBody("{\"following_count\":$count}")
+                        }
                     }
                 }
                 Unit
@@ -1631,6 +1925,9 @@ object SupabaseService {
         val bannerPlaylists = obj.arr("banner_playlists")?.mapNotNull {
             (it as? JsonPrimitive)?.takeIf { p -> p !is JsonNull }?.content?.takeIf { s -> s.isNotBlank() }
         } ?: emptyList()
+        val followersCount = obj.int("followers_count") ?: 0
+        val followingCount = obj.int("following_count") ?: 0
+        val friendsCount = obj.int("friends_count") ?: 0
         val createdAt = obj.str("created_at") ?: ""
 
         return SocialProfile(
@@ -1644,6 +1941,9 @@ object SupabaseService {
             invitesCount = invitesCount,
             quizLives = quizLives,
             isUnlimitedLives = isUnlimitedLives,
+            followersCount = followersCount,
+            followingCount = followingCount,
+            friendsCount = friendsCount,
             country = country,
             age = age,
             statusBubble = statusBubble,
@@ -1997,10 +2297,14 @@ object SupabaseService {
             Log.w(TAG, "parseLeaderboard: expected array, got: ${raw.take(300)}")
             return emptyList()
         }
-        return root.mapIndexedNotNull { index, element ->
+        val allEntries = root.mapIndexedNotNull { index, element ->
             runCatching { parseLeaderboardRow(index, element as JsonObject, currentUserId) }
                 .onFailure { Log.w(TAG, "parseLeaderboard: skipping bad row: ${it.message}") }
                 .getOrNull()
+        }
+        val distinctByUser = allEntries.distinctBy { it.userId }
+        return distinctByUser.mapIndexed { index, entry ->
+            entry.copy(id = "$index", rank = index + 1)
         }
     }
 

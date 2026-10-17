@@ -282,6 +282,7 @@ import com.fortune.vibramusic.ui.onboarding.VibraOnboardingFlow
 import com.fortune.vibramusic.data.quiz.QuizGameState
 import com.fortune.vibramusic.data.quiz.QuizArtist
 import com.fortune.vibramusic.data.social.SocialProfile
+import com.fortune.vibramusic.data.social.NotificationType
 import com.fortune.vibramusic.data.social.MusicTrackAttachment
 import com.fortune.vibramusic.ui.screens.LocalMusicScreen
 import com.fortune.vibramusic.ui.screens.HomeScreen
@@ -2463,6 +2464,8 @@ private fun VibraMusicApp(
             VibraOnboardingFlow(
                 onLaunchSignIn = { webSession = WebSessionMode.SIGN_IN },
                 onComplete = {},
+                googleAccounts = googleAccounts,
+                activeAccountId = activeAccountId,
                 modifier = Modifier.fillMaxSize(),
             )
         } else {
@@ -3006,7 +3009,10 @@ private fun VibraMusicApp(
                                 onOpenArtistDetail = { id, name, artworkUrl ->
                                     viewModel.openDetail(id, name, "Artist", artworkUrl, BrowseType.ARTIST)
                                 },
-                                contentPadding = listPadding,
+                                contentPadding = PaddingValues(
+                                    top = 0.dp,
+                                    bottom = listPadding.calculateBottomPadding(),
+                                ),
                                 hazeState = hazeState,
                             )
                         }
@@ -3363,10 +3369,11 @@ private fun VibraMusicApp(
                 } else {
                     MaterialTheme.colorScheme.background
                 }
-                // This is the bottom floor itself turned upside down, not a
                 val isSocialChatActive = currentRealm == AppRealm.SOCIAL && socialActiveChatFriend != null
+                // Suppress global top chrome when in direct chat or inspecting another user's profile
+                val isSocialCustomTopActive = isSocialChatActive || (currentRealm == AppRealm.SOCIAL && viewingSocialProfile != null)
 
-                if (!isSocialChatActive) {
+                if (!isSocialCustomTopActive) {
                     BottomFadeScrim(
                         pageColor = chromePageColor,
                         modifier = Modifier
@@ -3872,8 +3879,19 @@ private fun VibraMusicApp(
                 onDismiss = { socialViewModel.closeNotifications() },
                 onNotificationClick = { notification ->
                     socialViewModel.markNotificationRead(notification.id)
-                    if (notification.targetPostId != null) {
+                    if (notification.type == NotificationType.MESSAGE) {
+                        val profile = SocialProfile(
+                            id = notification.actorId,
+                            handle = notification.actorHandle,
+                            displayName = notification.actorName,
+                            avatarUrl = notification.actorAvatar,
+                        )
+                        socialViewModel.openChat(profile)
+                        socialViewModel.setNavTab(SocialTab.MESSAGES)
+                        socialViewModel.closeNotifications()
+                    } else if (notification.targetPostId != null) {
                         socialViewModel.openCommentsForPostId(notification.targetPostId)
+                        socialViewModel.closeNotifications()
                     } else if (notification.actorId.isNotBlank()) {
                         val profile = SocialProfile(
                             id = notification.actorId,

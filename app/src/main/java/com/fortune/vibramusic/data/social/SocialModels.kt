@@ -19,6 +19,8 @@ data class SocialProfile(
     val followersCount: Int = 0,
     val friendsCount: Int = 0,
     val isFollowing: Boolean = false,
+    val isFriend: Boolean = false,
+    val friendshipStatus: String = "NONE",
     val favoriteArtists: List<FavoriteArtist> = emptyList(),
     val referralCode: String = "",
     val invitedBy: String? = null,
@@ -110,8 +112,57 @@ data class QuizResultAttachment(
 )
 
 fun formatHandle(handle: String?): String {
-    val clean = handle?.trim()?.removePrefix("@")?.ifBlank { null } ?: "listener"
+    val raw = handle?.trim()?.removePrefix("@")?.ifBlank { null } ?: "listener"
+    val clean = if (raw.contains("@")) raw.substringBefore("@") else raw
     return "@$clean"
+}
+
+fun formatRelativeTime(raw: String?): String {
+    if (raw.isNullOrBlank()) return ""
+    return try {
+        val trimmed = raw.trim()
+        val normalized = trimmed.replace(' ', 'T')
+        val instant = runCatching { java.time.Instant.parse(normalized) }.getOrNull()
+            ?: runCatching { java.time.OffsetDateTime.parse(normalized).toInstant() }.getOrNull()
+            ?: runCatching { java.time.ZonedDateTime.parse(normalized).toInstant() }.getOrNull()
+            ?: runCatching {
+                val withZ = if (!normalized.endsWith("Z") && !normalized.contains("+") && !normalized.substringAfter('T', "").contains("-")) {
+                    "${normalized}Z"
+                } else normalized
+                java.time.Instant.parse(withZ)
+            }.getOrNull()
+            ?: runCatching {
+                val cleanDate = normalized.substringBefore('+').substringBefore('Z')
+                val parsedLdt = if (cleanDate.contains('.')) {
+                    val dotIdx = cleanDate.indexOf('.')
+                    val nanos = cleanDate.substring(dotIdx + 1).take(9).padEnd(9, '0')
+                    java.time.LocalDateTime.parse(cleanDate.substring(0, dotIdx) + "." + nanos)
+                } else {
+                    java.time.LocalDateTime.parse(cleanDate)
+                }
+                parsedLdt.atZone(java.time.ZoneOffset.UTC).toInstant()
+            }.getOrNull()
+
+        if (instant != null) {
+            val now = java.time.Instant.now()
+            val duration = java.time.Duration.between(instant, now)
+            val seconds = duration.seconds.coerceAtLeast(0)
+            when {
+                seconds < 10 -> "Just now"
+                seconds < 60 -> "${seconds}s"
+                seconds < 3600 -> "${seconds / 60}m"
+                seconds < 86400 -> "${seconds / 3600}h"
+                seconds < 604800 -> "${seconds / 86400}d"
+                seconds < 2592000 -> "${seconds / 604800}w"
+                seconds < 31536000 -> "${seconds / 2592000}mo"
+                else -> "${seconds / 31536000}y"
+            }
+        } else {
+            "Recent"
+        }
+    } catch (_: Exception) {
+        "Recent"
+    }
 }
 
 @Serializable
@@ -250,7 +301,20 @@ enum class NotificationType {
     FOLLOW,
     FRIEND_REQUEST,
     QUIZ_CHALLENGE,
+    MESSAGE,
 }
+
+/**
+ * Direct message conversation summary for list items.
+ */
+@Serializable
+data class ConversationSummary(
+    val friend: SocialProfile,
+    val lastMessage: DirectMessage? = null,
+    val lastMessagePreview: String = "",
+    val lastMessageTime: String = "",
+    val unreadCount: Int = 0,
+)
 
 @Serializable
 data class SocialNotification(

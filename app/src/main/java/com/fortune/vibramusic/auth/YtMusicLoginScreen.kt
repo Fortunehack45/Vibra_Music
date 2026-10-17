@@ -96,6 +96,11 @@ fun YtMusicLoginScreen(
             WebView(context).apply {
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
+                // Strip WebView markers so Google OAuth does not block the embedded browser
+                val rawAgent = settings.userAgentString
+                settings.userAgentString = rawAgent
+                    .replace("; wv", "")
+                    .replace("Version/4.0 ", "")
 
                 webViewClient = object : WebViewClient() {
                     override fun onPageFinished(view: WebView?, url: String?) {

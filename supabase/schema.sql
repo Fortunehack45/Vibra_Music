@@ -23,9 +23,17 @@ create table if not exists public.profiles (
     age int,
     status_bubble text default '',
     banner_playlists jsonb default '[]'::jsonb,
+    followers_count int default 0,
+    following_count int default 0,
+    friends_count int default 0,
     created_at timestamptz default now(),
     updated_at timestamptz default now()
 );
+
+-- Idempotent column migrations for existing instances
+alter table public.profiles add column if not exists followers_count int default 0;
+alter table public.profiles add column if not exists following_count int default 0;
+alter table public.profiles add column if not exists friends_count int default 0;
 
 -- 2. User Listening Experience & Connected Spotify Settings
 create table if not exists public.user_listening_experience (

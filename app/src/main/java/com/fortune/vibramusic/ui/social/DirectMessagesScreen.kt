@@ -107,11 +107,13 @@ import com.fortune.vibramusic.data.YtMusicRepository
 import com.fortune.vibramusic.data.model.SearchFilter
 import com.fortune.vibramusic.data.model.SearchResult
 import com.fortune.vibramusic.data.model.Song
+import com.fortune.vibramusic.data.social.ConversationSummary
 import com.fortune.vibramusic.data.social.DirectMessage
 import com.fortune.vibramusic.data.social.MusicTrackAttachment
 import com.fortune.vibramusic.data.social.SharedPlaylistAttachment
 import com.fortune.vibramusic.data.social.SocialProfile
 import com.fortune.vibramusic.data.social.formatHandle
+import com.fortune.vibramusic.data.social.formatRelativeTime
 import com.fortune.vibramusic.data.supabase.SupabaseService
 import com.fortune.vibramusic.ui.components.ArtistAvatar
 import dev.chrisbanes.haze.HazeState
@@ -254,10 +256,10 @@ fun DirectMessagesScreen(
                             bottom = contentPadding.calculateBottomPadding() + 80.dp,
                         ),
                     ) {
-                        items(conversations, key = { it.id }) { friend ->
+                        items(conversations, key = { it.friend.id }) { summary ->
                             ConversationRow(
-                                friend = friend,
-                                onClick = { viewModel.openChat(friend) },
+                                summary = summary,
+                                onClick = { viewModel.openChat(summary.friend) },
                             )
                         }
                     }
@@ -1167,9 +1169,12 @@ fun DirectMessagesScreen(
 
 @Composable
 private fun ConversationRow(
-    friend: SocialProfile,
+    summary: ConversationSummary,
     onClick: () -> Unit,
 ) {
+    val friend = summary.friend
+    val hasUnread = summary.unreadCount > 0
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1180,25 +1185,79 @@ private fun ConversationRow(
         ArtistAvatar(
             artistName = friend.displayName,
             artworkUrl = friend.avatarUrl?.takeIf { it.isNotBlank() && it != "null" },
-            size = 50.dp,
+            size = 52.dp,
         )
 
         Spacer(Modifier.width(14.dp))
 
         Column(Modifier.weight(1f)) {
-            Text(
-                text = friend.displayName,
-                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.height(2.dp))
-            Text(
-                text = formatHandle(friend.handle),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = friend.displayName,
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+
+                val displayTime = if (summary.lastMessageTime.isNotBlank()) {
+                    formatRelativeTime(summary.lastMessageTime)
+                } else ""
+
+                if (displayTime.isNotBlank()) {
+                    Text(
+                        text = displayTime,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (hasUnread) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 8.dp),
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(3.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                val previewText = summary.lastMessagePreview.ifBlank { formatHandle(friend.handle) }
+
+                Text(
+                    text = previewText,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontWeight = if (hasUnread) FontWeight.SemiBold else FontWeight.Normal,
+                    ),
+                    color = if (hasUnread) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+
+                if (hasUnread) {
+                    Box(
+                        modifier = Modifier
+                            .padding(start = 8.dp)
+                            .background(MaterialTheme.colorScheme.primary, CircleShape)
+                            .padding(horizontal = 7.dp, vertical = 2.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = if (summary.unreadCount > 99) "99+" else summary.unreadCount.toString(),
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.sp,
+                            ),
+                            color = MaterialTheme.colorScheme.onPrimary,
+                        )
+                    }
+                }
+            }
         }
     }
 }

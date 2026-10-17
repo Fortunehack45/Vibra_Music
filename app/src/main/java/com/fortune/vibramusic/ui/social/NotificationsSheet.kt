@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.ChatBubbleOutline
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DoneAll
@@ -287,6 +288,7 @@ private fun notificationText(notification: SocialNotification): String {
         NotificationType.FOLLOW -> "started following you"
         NotificationType.FRIEND_REQUEST -> "sent you a friend request"
         NotificationType.QUIZ_CHALLENGE -> "challenged you to a quiz"
+        NotificationType.MESSAGE -> "sent you a direct message"
     }
 }
 
@@ -300,5 +302,6 @@ private fun notificationTypeDetails(type: NotificationType): Pair<ImageVector, C
         NotificationType.FOLLOW -> Icons.Rounded.PersonAdd to Color(0xFF10B981)
         NotificationType.FRIEND_REQUEST -> Icons.Rounded.PersonAdd to Color(0xFF6366F1)
         NotificationType.QUIZ_CHALLENGE -> Icons.Rounded.EmojiEvents to Color(0xFFF59E0B)
+        NotificationType.MESSAGE -> Icons.AutoMirrored.Rounded.Send to Color(0xFF3B82F6)
     }
 }

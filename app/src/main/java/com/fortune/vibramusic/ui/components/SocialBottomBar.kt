@@ -41,9 +41,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.fortune.vibramusic.ui.haptics.Haptic
 import com.fortune.vibramusic.ui.haptics.rememberHaptics
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.fortune.vibramusic.data.settings.AppSettings
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.HazeTint
-import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
 import dev.chrisbanes.haze.materials.HazeMaterials
 
@@ -67,32 +68,34 @@ fun SocialBottomBar(
     hazeState: HazeState? = null,
 ) {
     val haptics = rememberHaptics()
+    val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
+    val shape = remember { RoundedCornerShape(percent = 50) }
 
-    val containerModifier = if (hazeState != null) {
+    val containerModifier = if (hazeState != null && !reduceDynamicBlur) {
         modifier
-            .clip(RoundedCornerShape(percent = 50))
-            .hazeEffect(hazeState, HazeMaterials.thin()) {
-                tints = listOf(HazeTint(Color.Black.copy(alpha = 0.40f)))
-                blurRadius = 30.dp
+            .clip(shape)
+            .optimizedHazeEffect(hazeState, HazeMaterials.thin()) {
+                tints = listOf(HazeTint(Color.Black.copy(alpha = 0.50f)))
+                blurRadius = 24.dp
             }
             .border(
                 width = 1.dp,
                 brush = Brush.verticalGradient(
                     colors = listOf(
-                        Color.White.copy(alpha = 0.30f),
+                        Color.White.copy(alpha = 0.25f),
                         Color.White.copy(alpha = 0.08f),
                     )
                 ),
-                shape = RoundedCornerShape(percent = 50),
+                shape = shape,
             )
     } else {
         modifier
-            .clip(RoundedCornerShape(percent = 50))
-            .background(Color.Black.copy(alpha = 0.65f))
+            .clip(shape)
+            .background(Color(0xFF14171E))
             .border(
                 width = 1.dp,
-                color = Color.White.copy(alpha = 0.15f),
-                shape = RoundedCornerShape(percent = 50),
+                color = Color.White.copy(alpha = 0.14f),
+                shape = shape,
             )
     }
 

@@ -3731,106 +3731,38 @@ private fun VibraMusicApp(
                     }
                 }
 
-                if (glassActive) Column(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .widthIn(max = FLOATING_BAR_MAX_WIDTH)
-                        .fillMaxWidth(),
-                ) {
-                    OfflinePromptBanner(
-                        isOnline = isOnline,
-                        hasDownloads = savedDownloads.isNotEmpty() && detail?.browseId != "local:downloads",
-                        onOpenDownloads = { viewModel.openDetail("local:downloads", context.getString(R.string.downloads)) },
-                    )
-                    QueueActionNoticeHost(queueNotice)
-                    // Liquid glass replaces the two stacked bars with the single
-                    // component they are stacked to imitate: the now playing
-                    // controls dock into the tab bar rather than riding above it,
-                    // and the pair folds together on scroll. See [GlassNavBar].
-                    val activeNavBarTabs = if (currentRealm == AppRealm.MUSIC) tabs else socialTabs
-                    val activeNavBarIndex = if (currentRealm == AppRealm.MUSIC) selectedTab else when (socialNavTab) {
-                        SocialTab.FEED -> 0
-                        SocialTab.QUIZ -> 1
-                        SocialTab.MESSAGES -> 2
-                        SocialTab.PROFILE -> 3
-                    }
-                    val onActiveNavBarTabSelected: (Int) -> Unit = if (currentRealm == AppRealm.MUSIC) {
-                        onTabSelected
-                    } else {
-                        { index ->
-                            val newTab = when (index) {
-                                0 -> SocialTab.FEED
-                                1 -> SocialTab.QUIZ
-                                2 -> SocialTab.MESSAGES
-                                3 -> SocialTab.PROFILE
-                                else -> SocialTab.FEED
-                            }
-                            socialViewModel.setNavTab(newTab)
+                if (currentRealm == AppRealm.SOCIAL) {
+                    Column(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .widthIn(max = FLOATING_BAR_MAX_WIDTH)
+                            .fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        OfflinePromptBanner(
+                            isOnline = isOnline,
+                            hasDownloads = savedDownloads.isNotEmpty() && detail?.browseId != "local:downloads",
+                            onOpenDownloads = { viewModel.openDetail("local:downloads", context.getString(R.string.downloads)) },
+                        )
+                        QueueActionNoticeHost(queueNotice)
+                        player.song?.let { song ->
+                            MiniPlayer(
+                                song = song,
+                                isPlaying = player.isPlaying,
+                                isLoading = playPauseBusy,
+                                hazeState = hazeState,
+                                onPlayPause = {
+                                    togglePlayPause()
+                                },
+                                onNext = { controller?.seekToNextMediaItem() },
+                                onPrevious = { controller?.seekToPrevious() },
+                                onExpand = { showNowPlaying = true },
+                                controlsLocked = controlsLocked,
+                                onBlockedControl = showHostOnlyNotice,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            Spacer(Modifier.height(8.dp))
                         }
-                    }
-                    GlassNavBar(
-                        tabs = activeNavBarTabs,
-                        selectedIndex = activeNavBarIndex,
-                        onTabSelected = onActiveNavBarTabSelected,
-                        scrollConnection = navBarScroll,
-                        song = player.song,
-                        isPlaying = player.isPlaying,
-                        isLoading = playPauseBusy,
-                        onPlayPause = {
-                            togglePlayPause()
-                        },
-                        onNext = { controller?.seekToNextMediaItem() },
-                        onPrevious = { controller?.seekToPrevious() },
-                        onExpand = { showNowPlaying = true },
-                        controlsLocked = controlsLocked,
-                        onBlockedControl = showHostOnlyNotice,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                } else Column(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        // Capped and centred rather than run to the page's edges
-                        // — see [FLOATING_BAR_MAX_WIDTH]. It sits on the Column
-                        // rather than on each bar so the two are held to the same
-                        // width and keep the shared left and right edge they have
-                        // on a phone. Before fillMaxWidth, so the fill has
-                        // already been bounded by the time it is applied.
-                        .widthIn(max = FLOATING_BAR_MAX_WIDTH)
-                        .fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    OfflinePromptBanner(
-                        isOnline = isOnline,
-                        hasDownloads = savedDownloads.isNotEmpty() && detail?.browseId != "local:downloads",
-                        onOpenDownloads = { viewModel.openDetail("local:downloads", context.getString(R.string.downloads)) },
-                    )
-                    QueueActionNoticeHost(queueNotice)
-                    player.song?.let { song ->
-                        MiniPlayer(
-                            song = song,
-                            isPlaying = player.isPlaying,
-                            isLoading = playPauseBusy,
-                            hazeState = hazeState,
-                            onPlayPause = {
-                                togglePlayPause()
-                            },
-                            onNext = { controller?.seekToNextMediaItem() },
-                            onPrevious = { controller?.seekToPrevious() },
-                            onExpand = { showNowPlaying = true },
-                            controlsLocked = controlsLocked,
-                            onBlockedControl = showHostOnlyNotice,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        Spacer(Modifier.height(8.dp))
-                    }
-                    if (currentRealm == AppRealm.MUSIC) {
-                        FloatingBottomBar(
-                            tabs = tabs,
-                            selectedIndex = selectedTab,
-                            hazeState = hazeState,
-                            onTabSelected = onTabSelected,
-                        )
-                    } else {
                         SocialBottomBar(
                             selectedTab = socialNavTab,
                             onTabSelected = { tab ->
@@ -3844,6 +3776,77 @@ private fun VibraMusicApp(
                                 socialViewModel.setNavTab(tab)
                             },
                             hazeState = hazeState,
+                        )
+                    }
+                } else if (glassActive) {
+                    Column(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .widthIn(max = FLOATING_BAR_MAX_WIDTH)
+                            .fillMaxWidth(),
+                    ) {
+                        OfflinePromptBanner(
+                            isOnline = isOnline,
+                            hasDownloads = savedDownloads.isNotEmpty() && detail?.browseId != "local:downloads",
+                            onOpenDownloads = { viewModel.openDetail("local:downloads", context.getString(R.string.downloads)) },
+                        )
+                        QueueActionNoticeHost(queueNotice)
+                        GlassNavBar(
+                            tabs = tabs,
+                            selectedIndex = selectedTab,
+                            onTabSelected = onTabSelected,
+                            scrollConnection = navBarScroll,
+                            song = player.song,
+                            isPlaying = player.isPlaying,
+                            isLoading = playPauseBusy,
+                            onPlayPause = {
+                                togglePlayPause()
+                            },
+                            onNext = { controller?.seekToNextMediaItem() },
+                            onPrevious = { controller?.seekToPrevious() },
+                            onExpand = { showNowPlaying = true },
+                            controlsLocked = controlsLocked,
+                            onBlockedControl = showHostOnlyNotice,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                } else {
+                    Column(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .widthIn(max = FLOATING_BAR_MAX_WIDTH)
+                            .fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        OfflinePromptBanner(
+                            isOnline = isOnline,
+                            hasDownloads = savedDownloads.isNotEmpty() && detail?.browseId != "local:downloads",
+                            onOpenDownloads = { viewModel.openDetail("local:downloads", context.getString(R.string.downloads)) },
+                        )
+                        QueueActionNoticeHost(queueNotice)
+                        player.song?.let { song ->
+                            MiniPlayer(
+                                song = song,
+                                isPlaying = player.isPlaying,
+                                isLoading = playPauseBusy,
+                                hazeState = hazeState,
+                                onPlayPause = {
+                                    togglePlayPause()
+                                },
+                                onNext = { controller?.seekToNextMediaItem() },
+                                onPrevious = { controller?.seekToPrevious() },
+                                onExpand = { showNowPlaying = true },
+                                controlsLocked = controlsLocked,
+                                onBlockedControl = showHostOnlyNotice,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            Spacer(Modifier.height(8.dp))
+                        }
+                        FloatingBottomBar(
+                            tabs = tabs,
+                            selectedIndex = selectedTab,
+                            hazeState = hazeState,
+                            onTabSelected = onTabSelected,
                         )
                     }
                 }

@@ -662,7 +662,7 @@ private fun SharedTransitionScope.ExpandedBar(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(IntrinsicSize.Max)
+                .then(if (standaloneTab != null) Modifier.height(IntrinsicSize.Max) else Modifier)
         ) {
             if (hasTabGroup) {
                 ExpandedTabs(
@@ -674,7 +674,7 @@ private fun SharedTransitionScope.ExpandedBar(
                     elevations = elevations,
                     animatedVisibilityScope = animatedVisibilityScope,
                     tabBarContentModifier = tabBarContentModifier,
-                    modifier = Modifier.weight(1f)
+                    modifier = if (standaloneTab != null) Modifier.weight(1f) else Modifier.fillMaxWidth()
                 )
             }
 

@@ -38,6 +38,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -203,9 +204,7 @@ fun DirectMessagesScreen(
     }
 
     Box(
-        modifier = modifier
-            .fillMaxSize()
-            .hazeSource(hazeState),
+        modifier = modifier.fillMaxSize(),
     ) {
         if (activeChatFriend == null) {
             // Conversations List View
@@ -256,7 +255,10 @@ fun DirectMessagesScreen(
                             bottom = contentPadding.calculateBottomPadding() + 80.dp,
                         ),
                     ) {
-                        items(conversations, key = { it.friend.id }) { summary ->
+                        itemsIndexed(
+                            items = conversations.distinctBy { it.friend.id },
+                            key = { index, summary -> "conv_${summary.friend.id.ifBlank { index.toString() }}_$index" },
+                        ) { _, summary ->
                             ConversationRow(
                                 summary = summary,
                                 onClick = { viewModel.openChat(summary.friend) },
@@ -343,7 +345,10 @@ fun DirectMessagesScreen(
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                     contentPadding = PaddingValues(vertical = 12.dp),
                 ) {
-                    items(messages.reversed(), key = { it.id }) { msg ->
+                    itemsIndexed(
+                        items = messages.reversed().distinctBy { it.id },
+                        key = { index, msg -> "msg_${msg.id.ifBlank { index.toString() }}_$index" },
+                    ) { _, msg ->
                         val isMine = msg.senderId == myProfile?.id
                         MessageBubble(
                             message = msg,

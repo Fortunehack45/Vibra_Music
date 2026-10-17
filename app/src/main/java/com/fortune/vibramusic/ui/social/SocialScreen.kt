@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
@@ -146,9 +147,7 @@ fun SocialScreen(
     val context = LocalContext.current
 
     Box(
-        modifier = modifier
-            .fillMaxSize()
-            .hazeSource(hazeState),
+        modifier = modifier.fillMaxSize(),
     ) {
         PullToRefreshBox(
             isRefreshing = isRefreshing,
@@ -555,8 +554,11 @@ fun SocialScreen(
                     }
 
                     // Posts Feed
-                    items(posts, key = { it.id }) { post ->
-                        val targetPost = if (post.repostOf != null && post.content.isBlank()) post.repostOf!! else post
+                    itemsIndexed(
+                        items = posts.distinctBy { it.id },
+                        key = { index, post -> "post_${post.id.ifBlank { index.toString() }}_$index" },
+                    ) { _, post ->
+                        val targetPost = post.repostOf?.takeIf { post.content.isBlank() } ?: post
                         SocialPostCard(
                             post = post,
                             onLikeClick = { viewModel.toggleLike(targetPost) },
@@ -968,7 +970,10 @@ fun SocialStoriesRow(
         contentPadding = PaddingValues(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        items(profiles, key = { it.id }) { user ->
+        itemsIndexed(
+            items = profiles.distinctBy { it.id },
+            key = { index, user -> "story_${user.id.ifBlank { index.toString() }}_$index" },
+        ) { _, user ->
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
@@ -1024,7 +1029,7 @@ fun SocialPostCard(
     modifier: Modifier = Modifier,
 ) {
     val isPureRepost = (post.repostOf != null || post.repostOfId != null) && post.content.isBlank()
-    val displayPost = if (isPureRepost && post.repostOf != null) post.repostOf!! else post
+    val displayPost = post.repostOf ?: post
 
     val reposterProfile = post.author ?: SocialProfile(
         id = post.authorId,

@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -124,9 +125,7 @@ fun UserProfileScreen(
     }
 
     Box(
-        modifier = modifier
-            .fillMaxSize()
-            .hazeSource(hazeState),
+        modifier = modifier.fillMaxSize(),
     ) {
         val topPadding = if (onBack != null && !isSelf) 0.dp else (contentPadding.calculateTopPadding() + 8.dp)
 
@@ -201,7 +200,10 @@ fun UserProfileScreen(
                                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
                                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                             ) {
-                                items(activeProfile.bannerPlaylists.take(15)) { entry ->
+                                itemsIndexed(
+                                    items = activeProfile.bannerPlaylists.take(15),
+                                    key = { index, entry -> "banner_${entry.hashCode()}_$index" },
+                                ) { _, entry ->
                                     val parts = entry.split("|")
                                     val pId = if (parts.size >= 3) parts[0] else ""
                                     val pTitle = if (parts.size >= 3) parts[1] else "Playlist"
@@ -701,7 +703,10 @@ fun UserProfileScreen(
                                 }
                             }
 
-                            items(favoriteArtists, key = { it.id }) { artist ->
+                            itemsIndexed(
+                                items = favoriteArtists.distinctBy { it.id },
+                                key = { index, artist -> "fav_artist_${artist.id.ifBlank { index.toString() }}_$index" },
+                            ) { _, artist ->
                                 val resolvedId = if (artist.name.equals("Drake", ignoreCase = true) && (artist.id == "UC0C-w0YjGpqDXGB8Tr0GGyA" || artist.id.isBlank())) {
                                     "UCU6cE7pdJPc6DU2jSrKEsdQ"
                                 } else {
@@ -772,8 +777,11 @@ fun UserProfileScreen(
                         }
                     }
                 } else {
-                    items(filteredPosts, key = { it.id }) { post ->
-                        val targetPost = if (post.repostOf != null && post.content.isBlank()) post.repostOf!! else post
+                    itemsIndexed(
+                        items = filteredPosts.distinctBy { it.id },
+                        key = { index, post -> "user_post_${post.id.ifBlank { index.toString() }}_$index" },
+                    ) { _, post ->
+                        val targetPost = post.repostOf?.takeIf { post.content.isBlank() } ?: post
                         SocialPostCard(
                             post = post,
                             onLikeClick = { viewModel.toggleLike(targetPost) },
@@ -1248,7 +1256,10 @@ private fun AddFavoriteArtistDialog(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         contentPadding = PaddingValues(bottom = 32.dp),
                     ) {
-                        items(displayList, key = { it.id }) { artist ->
+                        itemsIndexed(
+                            items = displayList.distinctBy { it.id },
+                            key = { index, artist -> "search_artist_${artist.id.ifBlank { index.toString() }}_$index" },
+                        ) { _, artist ->
                             val isAdded = existingArtistIds.contains(artist.id)
 
                             Row(

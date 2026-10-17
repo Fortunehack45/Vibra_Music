@@ -89,7 +89,7 @@ fun QuizHubScreen(
     // Default Popular / Trending Quiz Artists with automatic thumbnail resolution
     val trendingArtists = remember {
         mutableStateListOf(
-            QuizArtist("UC0C-w0YjGpqDXGB8Tr0GGyA", "Drake", null),
+            QuizArtist("UCU6cE7pdJPc6DU2jSrKEsdQ", "Drake", null),
             QuizArtist("UCqECaJ8Gagnn7YCbPEzWH6g", "Taylor Swift", "https://yt3.googleusercontent.com/ZpWD37EEQE_LVuQ_O03cRmz5mZA7jG0gKGLt-49uHNDX6DycysijGGSOX9woU-OfQR5jyahz3aEdmBmm3A=w540-h540-l90-rj"),
             QuizArtist("UCOmHUn--16B90oW2L6FRR3A", "Burna Boy", "https://yt3.googleusercontent.com/9h5EMc3LktccxFy-3bznozFCwYSU1YnU0agJZssvGqDj3UDrtFC7FgPHjDrtUG3dGAP45uEPBxDYLBg=w540-h540-l90-rj"),
             QuizArtist("UC0WP5P-ufpRfjbNrmOWwLBQ", "The Weeknd", "https://yt3.googleusercontent.com/mxqDOrw4zbfDBdd4kOnD2qBUtMklnAucEfrQUbr30pRLie0P3JIhJhBJ9wJq3NEeg2yVrT9lgrYid-w=w540-h540-l90-rj"),

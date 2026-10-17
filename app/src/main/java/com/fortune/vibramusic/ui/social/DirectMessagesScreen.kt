@@ -1,13 +1,20 @@
 package com.fortune.vibramusic.ui.social
 
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,6 +29,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
@@ -35,10 +43,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.Reply
 import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Gif
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Image
@@ -49,7 +60,9 @@ import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Videocam
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -59,11 +72,13 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -73,13 +88,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.roundToInt
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
@@ -101,6 +121,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.UUID
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DirectMessagesScreen(
     viewModel: SocialViewModel,
@@ -129,6 +150,12 @@ fun DirectMessagesScreen(
     var showGifPicker by remember { mutableStateOf(false) }
     var showMediaMenu by remember { mutableStateOf(false) }
     var isUploadingMedia by remember { mutableStateOf(false) }
+
+    var replyingToMessage by remember { mutableStateOf<DirectMessage?>(null) }
+    var actionTargetMessage by remember { mutableStateOf<DirectMessage?>(null) }
+    var editingMessage by remember { mutableStateOf<DirectMessage?>(null) }
+    var editedMessageText by remember { mutableStateOf("") }
+    var messageToDelete by remember { mutableStateOf<DirectMessage?>(null) }
 
     // Audio recording & playback manager
     val voiceRecorderManager = remember { VoiceRecorderManager(context) }
@@ -281,7 +308,7 @@ fun DirectMessagesScreen(
                     ) {
                         ArtistAvatar(
                             artistName = friend.displayName,
-                            artworkUrl = friend.avatarUrl,
+                            artworkUrl = friend.avatarUrl?.takeIf { it.isNotBlank() && it != "null" },
                             size = 40.dp,
                         )
 
@@ -323,6 +350,8 @@ fun DirectMessagesScreen(
                             voiceRecorderManager = voiceRecorderManager,
                             currentlyPlayingAudioUrl = currentlyPlayingAudioUrl,
                             isAudioPlaying = isAudioPlaying,
+                            onReply = { replyingToMessage = it },
+                            onLongClick = { actionTargetMessage = it },
                         )
                     }
                 }
@@ -453,6 +482,69 @@ fun DirectMessagesScreen(
                     }
                 }
 
+                // Replying Preview Banner (docked directly above the chat controls)
+                if (replyingToMessage != null) {
+                    val rep = replyingToMessage!!
+                    val isRepMine = rep.senderId == myProfile?.id
+                    val repAuthor = if (isRepMine) "yourself" else friend.displayName
+                    val repSnippet = rep.content.ifBlank {
+                        when {
+                            rep.sharedMusic != null -> "Song: ${rep.sharedMusic.title}"
+                            rep.sharedPlaylist != null -> "Playlist: ${rep.sharedPlaylist.title}"
+                            !rep.imageUrl.isNullOrBlank() -> "Photo"
+                            !rep.videoUrl.isNullOrBlank() -> "Video"
+                            !rep.audioUrl.isNullOrBlank() -> "Voice note"
+                            !rep.gifUrl.isNullOrBlank() -> "GIF"
+                            else -> "Message"
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 4.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .width(3.dp)
+                                .height(32.dp)
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(MaterialTheme.colorScheme.primary),
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Replying to $repAuthor",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                text = repSnippet,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        IconButton(
+                            onClick = { replyingToMessage = null },
+                            modifier = Modifier.size(24.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Close,
+                                contentDescription = "Dismiss reply",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(16.dp),
+                            )
+                        }
+                    }
+                }
+
                 // Voice Recording State Banner (Active recording)
                 if (isRecording) {
                     Row(
@@ -526,7 +618,9 @@ fun DirectMessagesScreen(
                                             viewModel.sendDirectMessage(
                                                 text = "",
                                                 audioUrl = url,
+                                                replyTo = replyingToMessage,
                                             )
+                                            replyingToMessage = null
                                         }
                                         recordedFile.delete()
                                         isUploadingMedia = false
@@ -694,6 +788,7 @@ fun DirectMessagesScreen(
                                             imageUrl = finalImageUrl,
                                             videoUrl = finalVideoUrl,
                                             gifUrl = stagedGifUrl,
+                                            replyTo = replyingToMessage,
                                         )
 
                                         messageText = ""
@@ -702,6 +797,7 @@ fun DirectMessagesScreen(
                                         stagedImageUri = null
                                         stagedVideoUri = null
                                         stagedGifUrl = null
+                                        replyingToMessage = null
                                         isUploadingMedia = false
                                     }
                                 },
@@ -788,6 +884,282 @@ fun DirectMessagesScreen(
             },
         )
     }
+
+    // Message Actions Bottom Sheet (Long Press)
+    if (actionTargetMessage != null) {
+        val targetMsg = actionTargetMessage!!
+        val isMine = targetMsg.senderId == myProfile?.id
+        val clipboardManager = LocalClipboardManager.current
+
+        ModalBottomSheet(
+            onDismissRequest = { actionTargetMessage = null },
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+            shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .navigationBarsPadding(),
+            ) {
+                // Reply Option
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable {
+                            replyingToMessage = targetMsg
+                            actionTargetMessage = null
+                        }
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.Reply,
+                        contentDescription = "Reply",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(22.dp),
+                    )
+                    Spacer(Modifier.width(16.dp))
+                    Text(
+                        text = "Reply",
+                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+
+                // Copy Text Option
+                if (targetMsg.content.isNotBlank()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable {
+                                clipboardManager.setText(AnnotatedString(targetMsg.content))
+                                actionTargetMessage = null
+                            }
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.ContentCopy,
+                            contentDescription = "Copy text",
+                            tint = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(22.dp),
+                        )
+                        Spacer(Modifier.width(16.dp))
+                        Text(
+                            text = "Copy text",
+                            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
+                }
+
+                // Edit Message Option (only for messages authored by the current user)
+                if (isMine && targetMsg.content.isNotBlank()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable {
+                                editedMessageText = targetMsg.content
+                                editingMessage = targetMsg
+                                actionTargetMessage = null
+                            }
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Edit,
+                            contentDescription = "Edit message",
+                            tint = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(22.dp),
+                        )
+                        Spacer(Modifier.width(16.dp))
+                        Text(
+                            text = "Edit message",
+                            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
+                }
+
+                // Share Option
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable {
+                            val shareText = targetMsg.content.ifBlank {
+                                targetMsg.imageUrl ?: targetMsg.videoUrl ?: targetMsg.audioUrl ?: "Shared from Vibra Music"
+                            }
+                            val sendIntent = Intent().apply {
+                                action = Intent.ACTION_SEND
+                                putExtra(Intent.EXTRA_TEXT, shareText)
+                                type = "text/plain"
+                            }
+                            context.startActivity(Intent.createChooser(sendIntent, null))
+                            actionTargetMessage = null
+                        }
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Share,
+                        contentDescription = "Share",
+                        tint = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(22.dp),
+                    )
+                    Spacer(Modifier.width(16.dp))
+                    Text(
+                        text = "Share",
+                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+
+                // Delete Message Option (only for messages authored by the current user)
+                if (isMine) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable {
+                                messageToDelete = targetMsg
+                                actionTargetMessage = null
+                            }
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Delete,
+                            contentDescription = "Delete message",
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(22.dp),
+                        )
+                        Spacer(Modifier.width(16.dp))
+                        Text(
+                            text = "Delete message",
+                            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(12.dp))
+            }
+        }
+    }
+
+    // Edit Message Dialog
+    if (editingMessage != null) {
+        val msgToEdit = editingMessage!!
+        AlertDialog(
+            onDismissRequest = { editingMessage = null },
+            title = {
+                Text(
+                    text = "Edit message",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            },
+            text = {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .padding(12.dp),
+                ) {
+                    BasicTextField(
+                        value = editedMessageText,
+                        onValueChange = { editedMessageText = it },
+                        textStyle = TextStyle(
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontSize = 15.sp,
+                        ),
+                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val trimmed = editedMessageText.trim()
+                        if (trimmed.isNotBlank()) {
+                            viewModel.editDirectMessage(msgToEdit.id, trimmed)
+                        }
+                        editingMessage = null
+                    },
+                ) {
+                    Text(
+                        text = "Save",
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { editingMessage = null }) {
+                    Text(
+                        text = "Cancel",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            },
+            containerColor = MaterialTheme.colorScheme.surface,
+            shape = RoundedCornerShape(16.dp),
+        )
+    }
+
+    // Delete Message Confirmation Dialog
+    if (messageToDelete != null) {
+        val msgDel = messageToDelete!!
+        AlertDialog(
+            onDismissRequest = { messageToDelete = null },
+            title = {
+                Text(
+                    text = "Delete message",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            },
+            text = {
+                Text(
+                    text = "Are you sure you want to delete this message? It will be permanently removed for everyone.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.deleteDirectMessage(msgDel.id)
+                        messageToDelete = null
+                    },
+                ) {
+                    Text(
+                        text = "Delete",
+                        color = MaterialTheme.colorScheme.error,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { messageToDelete = null }) {
+                    Text(
+                        text = "Cancel",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            },
+            containerColor = MaterialTheme.colorScheme.surface,
+            shape = RoundedCornerShape(16.dp),
+        )
+    }
 }
 
 @Composable
@@ -804,7 +1176,7 @@ private fun ConversationRow(
     ) {
         ArtistAvatar(
             artistName = friend.displayName,
-            artworkUrl = friend.avatarUrl,
+            artworkUrl = friend.avatarUrl?.takeIf { it.isNotBlank() && it != "null" },
             size = 50.dp,
         )
 
@@ -828,6 +1200,7 @@ private fun ConversationRow(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun MessageBubble(
     message: DirectMessage,
@@ -836,13 +1209,63 @@ private fun MessageBubble(
     voiceRecorderManager: VoiceRecorderManager,
     currentlyPlayingAudioUrl: String?,
     isAudioPlaying: Boolean,
+    onReply: (DirectMessage) -> Unit,
+    onLongClick: (DirectMessage) -> Unit,
 ) {
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalAlignment = if (isMine) Alignment.End else Alignment.Start,
+    var dragOffset by remember { mutableFloatStateOf(0f) }
+    val animatedOffset by animateFloatAsState(
+        targetValue = dragOffset,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "swipeReplyOffset",
+    )
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .pointerInput(message.id) {
+                detectHorizontalDragGestures(
+                    onDragEnd = {
+                        if (dragOffset >= 80f) {
+                            onReply(message)
+                        }
+                        dragOffset = 0f
+                    },
+                    onDragCancel = {
+                        dragOffset = 0f
+                    },
+                    onHorizontalDrag = { change, dragAmount ->
+                        if (dragAmount > 0 || dragOffset > 0) {
+                            change.consume()
+                            dragOffset = (dragOffset + dragAmount).coerceIn(0f, 150f)
+                        }
+                    },
+                )
+            },
+        contentAlignment = if (isMine) Alignment.CenterEnd else Alignment.CenterStart,
     ) {
+        // Reply icon revealed on the left when dragged to the right
+        if (animatedOffset > 10f) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .padding(start = 6.dp)
+                    .size(34.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Rounded.Reply,
+                    contentDescription = "Reply",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        }
+
         Box(
             modifier = Modifier
+                .offset { IntOffset(animatedOffset.roundToInt(), 0) }
                 .clip(
                     RoundedCornerShape(
                         topStart = 16.dp,
@@ -855,11 +1278,55 @@ private fun MessageBubble(
                     if (isMine) MaterialTheme.colorScheme.primary
                     else MaterialTheme.colorScheme.surfaceVariant,
                 )
+                .combinedClickable(
+                    onClick = {},
+                    onLongClick = { onLongClick(message) },
+                )
                 .padding(horizontal = 14.dp, vertical = 10.dp),
         ) {
             Column {
+                // Quoted reply snippet if this message replies to another message
+                if (!message.replyToText.isNullOrBlank()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(
+                                if (isMine) Color(0xFF1E1E22)
+                                else MaterialTheme.colorScheme.surface,
+                            )
+                            .padding(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .width(3.dp)
+                                .height(28.dp)
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(MaterialTheme.colorScheme.primary),
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = message.replyToSender ?: "Reply",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                            Spacer(Modifier.height(1.dp))
+                            Text(
+                                text = message.replyToText,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (isMine) Color(0xFFE2E2E6) else MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                }
+
                 // GIF attachment
-                if (!message.gifUrl.isNullOrBlank()) {
+                if (!message.gifUrl.isNullOrBlank() && message.gifUrl != "null") {
                     AsyncImage(
                         model = message.gifUrl,
                         contentDescription = null,
@@ -873,7 +1340,7 @@ private fun MessageBubble(
                 }
 
                 // Image attachment
-                if (!message.imageUrl.isNullOrBlank()) {
+                if (!message.imageUrl.isNullOrBlank() && message.imageUrl != "null") {
                     AsyncImage(
                         model = message.imageUrl,
                         contentDescription = null,
@@ -887,7 +1354,7 @@ private fun MessageBubble(
                 }
 
                 // Video attachment
-                if (!message.videoUrl.isNullOrBlank()) {
+                if (!message.videoUrl.isNullOrBlank() && message.videoUrl != "null") {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -907,13 +1374,13 @@ private fun MessageBubble(
                 }
 
                 // Voice Note audio attachment
-                if (!message.audioUrl.isNullOrBlank()) {
+                if (!message.audioUrl.isNullOrBlank() && message.audioUrl != "null") {
                     val isPlayingThis = currentlyPlayingAudioUrl == message.audioUrl && isAudioPlaying
                     Row(
                         modifier = Modifier
                             .clip(RoundedCornerShape(12.dp))
                             .background(
-                                if (isMine) MaterialTheme.colorScheme.primaryContainer
+                                if (isMine) Color(0xFF242428)
                                 else MaterialTheme.colorScheme.surface,
                             )
                             .padding(horizontal = 10.dp, vertical = 8.dp),
@@ -951,7 +1418,7 @@ private fun MessageBubble(
                                         .height(h.dp)
                                         .clip(RoundedCornerShape(2.dp))
                                         .background(
-                                            if (isMine) MaterialTheme.colorScheme.onPrimaryContainer
+                                            if (isMine) Color.White
                                             else MaterialTheme.colorScheme.primary,
                                         ),
                                 )
@@ -963,7 +1430,7 @@ private fun MessageBubble(
                         Text(
                             text = "Voice Note",
                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                            color = if (isMine) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
+                            color = if (isMine) Color.White else MaterialTheme.colorScheme.onSurface,
                         )
                     }
                     if (message.message.isNotBlank()) Spacer(Modifier.height(8.dp))
@@ -980,7 +1447,7 @@ private fun MessageBubble(
 
                 // Track Attachment inside DM
                 message.trackAttachment?.let { track ->
-                    if (message.message.isNotBlank() || !message.gifUrl.isNullOrBlank() || !message.imageUrl.isNullOrBlank()) {
+                    if (message.message.isNotBlank() || (!message.gifUrl.isNullOrBlank() && message.gifUrl != "null") || (!message.imageUrl.isNullOrBlank() && message.imageUrl != "null")) {
                         Spacer(Modifier.height(8.dp))
                     }
                     PlayableTrackCard(
@@ -991,7 +1458,7 @@ private fun MessageBubble(
 
                 // Shared Playlist Attachment inside DM
                 message.sharedPlaylist?.let { playlist ->
-                    if (message.message.isNotBlank() || !message.gifUrl.isNullOrBlank() || !message.imageUrl.isNullOrBlank()) {
+                    if (message.message.isNotBlank() || (!message.gifUrl.isNullOrBlank() && message.gifUrl != "null") || (!message.imageUrl.isNullOrBlank() && message.imageUrl != "null")) {
                         Spacer(Modifier.height(8.dp))
                     }
                     SharedPlaylistCard(playlist = playlist)

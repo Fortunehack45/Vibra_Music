@@ -3003,6 +3003,9 @@ private fun VibraMusicApp(
                                     currentlyPlayingSong = player.song,
                                     onPlayTrack = playTrackAttachment,
                                     onOpenProfile = { profile -> viewingSocialProfile = profile },
+                                    onOpenArtistDetail = { id, name, artworkUrl ->
+                                        viewModel.openDetail(id, name, "Artist", artworkUrl, BrowseType.ARTIST)
+                                    },
                                     contentPadding = listPadding,
                                     hazeState = hazeState,
                                 )

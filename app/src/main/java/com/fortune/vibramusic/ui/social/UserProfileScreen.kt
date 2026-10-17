@@ -61,6 +61,15 @@ import com.fortune.vibramusic.data.social.MusicTrackAttachment
 import com.fortune.vibramusic.data.social.SocialProfile
 import com.fortune.vibramusic.data.social.formatHandle
 import com.fortune.vibramusic.ui.components.ArtistAvatar
+import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material3.AlertDialog
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import com.fortune.vibramusic.data.YtMusicRepository
+import com.fortune.vibramusic.data.social.SocialPost
+import kotlinx.coroutines.launch
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 
@@ -77,11 +86,18 @@ fun UserProfileScreen(
     hazeState: HazeState,
     modifier: Modifier = Modifier,
 ) {
+    val coroutineScope = rememberCoroutineScope()
+    val currentProfile by viewModel.currentProfile.collectAsStateWithLifecycle()
+    val viewingProfile by viewModel.viewingProfile.collectAsStateWithLifecycle()
+    val activeProfile = if (isSelf) (currentProfile ?: profile) else (viewingProfile ?: profile)
+
     val posts by viewModel.viewingProfilePosts.collectAsStateWithLifecycle()
     val favoriteArtists by viewModel.favoriteArtists.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var selectedSubTab by remember { mutableStateOf("Posts") }
     var showEditProfile by remember { mutableStateOf(false) }
+    var postToDelete by remember { mutableStateOf<SocialPost?>(null) }
+    var inspectedQuotedPost by remember { mutableStateOf<SocialPost?>(null) }
 
     LaunchedEffect(profile.id) {
         viewModel.loadProfileData(profile.id)
@@ -117,7 +133,7 @@ fun UserProfileScreen(
                             )
                         }
                         Text(
-                            text = profile.displayName,
+                            text = activeProfile.displayName,
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                             color = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.padding(start = 8.dp),
@@ -148,9 +164,9 @@ fun UserProfileScreen(
                                 .background(MaterialTheme.colorScheme.surface),
                             contentAlignment = Alignment.Center,
                         ) {
-                            if (profile.avatarUrl != null) {
+                            if (!activeProfile.avatarUrl.isNullOrBlank() && activeProfile.avatarUrl != "null") {
                                 AsyncImage(
-                                    model = profile.avatarUrl,
+                                    model = activeProfile.avatarUrl,
                                     contentDescription = null,
                                     contentScale = ContentScale.Crop,
                                     modifier = Modifier.fillMaxSize(),
@@ -172,11 +188,11 @@ fun UserProfileScreen(
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                         ) {
                             Text(
-                                text = profile.displayName,
+                                text = activeProfile.displayName,
                                 style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
                                 color = MaterialTheme.colorScheme.onSurface,
                             )
-                            if (profile.verifiedBadge) {
+                            if (activeProfile.verifiedBadge) {
                                 Icon(
                                     imageVector = Icons.Rounded.CheckCircle,
                                     contentDescription = "Verified",
@@ -187,15 +203,15 @@ fun UserProfileScreen(
                         }
 
                         Text(
-                            text = formatHandle(profile.handle),
+                            text = formatHandle(activeProfile.handle),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
 
-                        if (!profile.bio.isNullOrBlank()) {
+                        if (!activeProfile.bio.isNullOrBlank()) {
                             Spacer(Modifier.height(8.dp))
                             Text(
-                                text = profile.bio,
+                                text = activeProfile.bio,
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurface,
                                 maxLines = 3,
@@ -209,9 +225,9 @@ fun UserProfileScreen(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceEvenly,
                         ) {
-                            ProfileStatItem(count = profile.followingCount, label = "Following")
-                            ProfileStatItem(count = profile.followersCount, label = "Followers")
-                            ProfileStatItem(count = profile.friendsCount, label = "Friends")
+                            ProfileStatItem(count = activeProfile.followingCount, label = "Following")
+                            ProfileStatItem(count = activeProfile.followersCount, label = "Followers")
+                            ProfileStatItem(count = activeProfile.friendsCount, label = "Friends")
                         }
 
                         Spacer(Modifier.height(18.dp))
@@ -223,20 +239,20 @@ fun UserProfileScreen(
                         ) {
                             if (!isSelf) {
                                 Button(
-                                    onClick = { viewModel.toggleFollowUser(profile.id) },
+                                    onClick = { viewModel.toggleFollowUser(activeProfile.id) },
                                     shape = RoundedCornerShape(12.dp),
                                     border = null,
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = if (profile.isFollowing) MaterialTheme.colorScheme.surface
+                                        containerColor = if (activeProfile.isFollowing) MaterialTheme.colorScheme.surface
                                         else MaterialTheme.colorScheme.primary,
-                                        contentColor = if (profile.isFollowing) MaterialTheme.colorScheme.onSurface
+                                        contentColor = if (activeProfile.isFollowing) MaterialTheme.colorScheme.onSurface
                                         else MaterialTheme.colorScheme.onPrimary,
                                     ),
                                     modifier = Modifier.weight(1f),
                                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp),
                                 ) {
                                     Text(
-                                        text = if (profile.isFollowing) "Following" else "Follow",
+                                        text = if (activeProfile.isFollowing) "Following" else "Follow",
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 13.sp,
                                         maxLines = 1,
@@ -244,7 +260,7 @@ fun UserProfileScreen(
                                 }
 
                                 Button(
-                                    onClick = { viewModel.sendFriendRequest(profile.id) },
+                                    onClick = { viewModel.sendFriendRequest(activeProfile.id) },
                                     shape = RoundedCornerShape(12.dp),
                                     border = null,
                                     colors = ButtonDefaults.buttonColors(
@@ -300,7 +316,7 @@ fun UserProfileScreen(
                                     val sendIntent = Intent(Intent.ACTION_SEND).apply {
                                         putExtra(
                                             Intent.EXTRA_TEXT,
-                                            "Check out ${formatHandle(profile.handle)}'s music profile on Vibra:\nhttps://vibramusic.app/u/${profile.handle.removePrefix("@")}",
+                                            "Check out ${formatHandle(activeProfile.handle)}'s music profile on Vibra:\nhttps://vibramusic.app/u/${activeProfile.handle.removePrefix("@")}",
                                         )
                                         type = "text/plain"
                                     }
@@ -423,10 +439,33 @@ fun UserProfileScreen(
                             onLikeClick = { viewModel.toggleLike(post) },
                             onCommentClick = { viewModel.openComments(post) },
                             onRepostClick = { viewModel.repost(post) },
-                            onShareClick = {},
+                            onShareClick = {
+                                val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                    putExtra(
+                                        Intent.EXTRA_TEXT,
+                                        "Check out @${post.authorHandle}'s music post on Vibra:\n\n${post.content}",
+                                    )
+                                    type = "text/plain"
+                                }
+                                context.startActivity(Intent.createChooser(sendIntent, "Share Post"))
+                            },
                             onPlayTrack = onPlayTrack,
                             onVotePoll = { viewModel.votePoll(post, it) },
                             onAuthorClick = {},
+                            onTaggedArtistClick = { artistName ->
+                                coroutineScope.launch {
+                                    val resolved = YtMusicRepository.resolveArtist(artistName)
+                                    val browseId = resolved?.first ?: artistName
+                                    val artwork = resolved?.second
+                                    onOpenArtistDetail?.invoke(browseId, artistName, artwork)
+                                }
+                            },
+                            onDeleteClick = if (isSelf) {
+                                { postToDelete = post }
+                            } else null,
+                            onQuoteClick = { quoted ->
+                                inspectedQuotedPost = quoted
+                            },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 16.dp),
@@ -472,12 +511,139 @@ fun UserProfileScreen(
 
         if (showEditProfile) {
             EditProfileSheet(
-                profile = profile,
+                profile = activeProfile,
                 onDismiss = { showEditProfile = false },
                 onSaveProfile = { name, handle, bio, avatar ->
                     viewModel.updateUserProfile(name, handle, bio, avatar)
                 },
             )
+        }
+
+        // Delete Post Confirmation Dialog
+        postToDelete?.let { target ->
+            AlertDialog(
+                onDismissRequest = { postToDelete = null },
+                containerColor = MaterialTheme.colorScheme.surface,
+                title = {
+                    Text(
+                        text = "Delete post",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                },
+                text = {
+                    Text(
+                        text = "Are you sure you want to delete this post? This action cannot be undone.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                },
+                confirmButton = {
+                    ElevatedButton(
+                        onClick = {
+                            viewModel.deletePost(target)
+                            postToDelete = null
+                        },
+                        colors = ButtonDefaults.elevatedButtonColors(
+                            containerColor = MaterialTheme.colorScheme.error,
+                            contentColor = MaterialTheme.colorScheme.onError,
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                    ) {
+                        Text("Delete", fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    ElevatedButton(
+                        onClick = { postToDelete = null },
+                        colors = ButtonDefaults.elevatedButtonColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                    ) {
+                        Text("Cancel")
+                    }
+                },
+            )
+        }
+
+        // Inspected Quoted Post Modal Dialog
+        inspectedQuotedPost?.let { quoted ->
+            Dialog(
+                onDismissRequest = { inspectedQuotedPost = null },
+                properties = DialogProperties(usePlatformDefaultWidth = false),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.surface)
+                        .systemBarsPadding(),
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = "Quoted Post",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                            IconButton(onClick = { inspectedQuotedPost = null }) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Close,
+                                    contentDescription = "Close",
+                                    tint = MaterialTheme.colorScheme.onSurface,
+                                )
+                            }
+                        }
+
+                        SocialPostCard(
+                            post = quoted,
+                            onLikeClick = { viewModel.toggleLike(quoted) },
+                            onCommentClick = {
+                                inspectedQuotedPost = null
+                                viewModel.openComments(quoted)
+                            },
+                            onRepostClick = {
+                                inspectedQuotedPost = null
+                                viewModel.repost(quoted)
+                            },
+                            onShareClick = {
+                                val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                    putExtra(
+                                        Intent.EXTRA_TEXT,
+                                        "Check out @${quoted.authorHandle}'s post on Vibra:\n\n${quoted.content}",
+                                    )
+                                    type = "text/plain"
+                                }
+                                context.startActivity(Intent.createChooser(sendIntent, "Share Post"))
+                            },
+                            onPlayTrack = onPlayTrack,
+                            onVotePoll = { viewModel.votePoll(quoted, it) },
+                            onAuthorClick = {},
+                            onTaggedArtistClick = { artistName ->
+                                inspectedQuotedPost = null
+                                coroutineScope.launch {
+                                    val resolved = YtMusicRepository.resolveArtist(artistName)
+                                    val browseId = resolved?.first ?: artistName
+                                    val artwork = resolved?.second
+                                    onOpenArtistDetail?.invoke(browseId, artistName, artwork)
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
+            }
         }
     }
 }

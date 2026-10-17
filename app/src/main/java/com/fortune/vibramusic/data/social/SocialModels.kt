@@ -151,11 +151,13 @@ data class SocialPost(
 ) {
     val authorName: String get() = author?.displayName ?: "Listener"
     val authorHandle: String get() = formatHandle(author?.handle)
-    val authorAvatar: String? get() = author?.avatarUrl
+    val authorAvatar: String? get() = author?.avatarUrl?.takeIf { it.isNotBlank() && it != "null" }
     val authorVerified: Boolean get() = author?.verifiedBadge == true
     val poll: PollData? get() = pollData
     val effectiveImages: List<String>
-        get() = if (imageUrls.isNotEmpty()) imageUrls else if (!imageUrl.isNullOrBlank()) listOf(imageUrl) else emptyList()
+        get() = imageUrls.filter { it.isNotBlank() && it != "null" }.ifEmpty {
+            listOfNotNull(imageUrl?.takeIf { it.isNotBlank() && it != "null" })
+        }
 }
 
 /**
@@ -176,7 +178,7 @@ data class PostComment(
 ) {
     val authorName: String get() = author?.displayName ?: "Listener"
     val authorHandle: String get() = formatHandle(author?.handle)
-    val authorAvatar: String? get() = author?.avatarUrl
+    val authorAvatar: String? get() = author?.avatarUrl?.takeIf { it.isNotBlank() && it != "null" }
 }
 
 /**
@@ -195,6 +197,9 @@ data class DirectMessage(
     val sharedMusic: MusicTrackAttachment? = null,
     val sharedPlaylist: SharedPlaylistAttachment? = null,
     val isRead: Boolean = false,
+    val replyToId: String? = null,
+    val replyToSender: String? = null,
+    val replyToText: String? = null,
     val createdAt: String = "",
 ) {
     val message: String get() = content

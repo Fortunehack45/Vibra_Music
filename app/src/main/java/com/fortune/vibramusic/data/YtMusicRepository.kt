@@ -963,6 +963,21 @@ object YtMusicRepository {
         return null
     }
 
+    suspend fun resolveArtist(artistName: String): Pair<String, String?>? {
+        if (artistName.isBlank()) return null
+        val results = search(artistName, SearchFilter.ARTISTS).getOrNull().orEmpty()
+        val found = results.filterIsInstance<SearchResult.Browse>()
+            .firstOrNull { it.item.type == com.fortune.vibramusic.data.model.BrowseType.ARTIST }
+        return found?.let {
+            val thumb = it.item.thumbnailUrl
+            if (!thumb.isNullOrBlank()) {
+                artistThumbCache[artistName] = thumb
+                artistThumbCache[it.item.browseId] = thumb
+            }
+            Pair(it.item.browseId, thumb)
+        }
+    }
+
     private suspend fun <T> call(label: String, block: suspend () -> T): Result<T> =
         withContext(Dispatchers.IO) {
             runCatching { block() }.recoverCatching { failure ->

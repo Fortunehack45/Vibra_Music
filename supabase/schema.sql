@@ -42,6 +42,7 @@ create table if not exists public.user_listening_experience (
     canvas_enabled boolean default true,
     repeat_mode int default 0,
     shuffle_enabled boolean default false,
+    preferred_genres jsonb default '[]'::jsonb,
     updated_at timestamptz default now()
 );
 
@@ -101,6 +102,13 @@ create table if not exists public.posts (
     author_id text not null references public.profiles(id) on delete cascade,
     content text not null default '',
     image_url text,
+    image_urls jsonb default '[]'::jsonb,
+    video_url text,
+    audio_url text,
+    gif_url text,
+    is_review boolean default false,
+    rating int default 0,
+    tagged_artist text,
     music_track jsonb, -- {videoId, title, artist, thumbnailUrl, durationText}
     poll_data jsonb, -- {question, options: [{id, text, votes}]}
     quiz_result jsonb, -- {artistId, artistName, artistAvatar, score, totalQuestions, timeSeconds, percentile}
@@ -127,6 +135,7 @@ create table if not exists public.post_comments (
     author_id text not null references public.profiles(id) on delete cascade,
     parent_id text references public.post_comments(id) on delete cascade,
     content text not null,
+    gif_url text,
     likes_count int default 0,
     created_at timestamptz default now()
 );
@@ -148,6 +157,11 @@ create table if not exists public.direct_messages (
     receiver_id text not null references public.profiles(id) on delete cascade,
     content text not null default '',
     shared_music jsonb,
+    shared_playlist jsonb,
+    image_url text,
+    video_url text,
+    audio_url text,
+    gif_url text,
     is_read boolean default false,
     created_at timestamptz default now()
 );
@@ -185,6 +199,21 @@ create table if not exists public.quiz_leaderboards (
     created_at timestamptz default now()
 );
 
+-- 15. Notifications
+create table if not exists public.notifications (
+    id text primary key,
+    user_id text not null references public.profiles(id) on delete cascade,
+    actor_id text not null references public.profiles(id) on delete cascade,
+    actor_name text not null default 'A listener',
+    actor_avatar text,
+    actor_handle text not null default '',
+    type text not null default 'LIKE',
+    target_post_id text references public.posts(id) on delete cascade,
+    message text not null default '',
+    is_read boolean default false,
+    created_at timestamptz default now()
+);
+
 -- Performance Indexes
 create index if not exists idx_posts_created_at on public.posts (created_at desc);
 create index if not exists idx_posts_author on public.posts (author_id);
@@ -194,6 +223,7 @@ create index if not exists idx_playlist_tracks on public.user_playlist_tracks (p
 create index if not exists idx_dms_conversation on public.direct_messages (sender_id, receiver_id, created_at desc);
 create index if not exists idx_leaderboard_artist on public.quiz_leaderboards (artist_id, score desc, time_seconds asc);
 create index if not exists idx_friendships_lookup on public.friendships (requester_id, receiver_id, status);
+create index if not exists idx_notifications_user on public.notifications (user_id, created_at desc);
 
 -- Enable Row Level Security (RLS) on all tables
 alter table public.profiles enable row level security;
@@ -210,6 +240,7 @@ alter table public.direct_messages enable row level security;
 alter table public.friendships enable row level security;
 alter table public.follows enable row level security;
 alter table public.quiz_leaderboards enable row level security;
+alter table public.notifications enable row level security;
 
 -- Client-side access policies using service anon key
 create policy "Allow all on profiles" on public.profiles for all using (true) with check (true);
@@ -226,6 +257,7 @@ create policy "Allow all on direct_messages" on public.direct_messages for all u
 create policy "Allow all on friendships" on public.friendships for all using (true) with check (true);
 create policy "Allow all on follows" on public.follows for all using (true) with check (true);
 create policy "Allow all on quiz_leaderboards" on public.quiz_leaderboards for all using (true) with check (true);
+create policy "Allow all on notifications" on public.notifications for all using (true) with check (true);
 
 -- Enable Realtime replication on public tables
 alter publication supabase_realtime add table public.posts;
@@ -233,3 +265,4 @@ alter publication supabase_realtime add table public.post_comments;
 alter publication supabase_realtime add table public.direct_messages;
 alter publication supabase_realtime add table public.quiz_leaderboards;
 alter publication supabase_realtime add table public.user_listening_experience;
+alter publication supabase_realtime add table public.notifications;

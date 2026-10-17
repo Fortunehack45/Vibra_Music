@@ -34,6 +34,16 @@ val lastfmSecret: String = (
         ?: System.getenv("LASTFM_SECRET")
         ?: ""
     ).trim()
+val supabaseUrl: String = (
+    localProps.getProperty("SUPABASE_URL")
+        ?: System.getenv("SUPABASE_URL")
+        ?: ""
+    ).trim()
+val supabaseAnonKey: String = (
+    localProps.getProperty("SUPABASE_ANON_KEY")
+        ?: System.getenv("SUPABASE_ANON_KEY")
+        ?: ""
+    ).trim()
 
 /*
  * Where Listen Together's party server lives. Not a credential — it is a public
@@ -147,6 +157,8 @@ android {
             "LISTEN_TOGETHER_SERVER",
             "\"${listenTogetherServer.replace("\\", "\\\\").replace("\"", "\\\"")}\"",
         )
+        buildConfigField("String", "SUPABASE_URL", "\"${supabaseUrl.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
+        buildConfigField("String", "SUPABASE_ANON_KEY", "\"${supabaseAnonKey.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
     }
 
     splits {

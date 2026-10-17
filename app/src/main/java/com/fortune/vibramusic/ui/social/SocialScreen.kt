@@ -91,6 +91,14 @@ import com.fortune.vibramusic.data.social.SocialProfile
 import com.fortune.vibramusic.data.social.formatHandle
 import com.fortune.vibramusic.ui.components.ArtistAvatar
 import com.fortune.vibramusic.ui.components.lightweightLiquidGlass
+import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.material.icons.rounded.DeleteOutline
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ElevatedButton
+import androidx.compose.runtime.rememberCoroutineScope
+import com.fortune.vibramusic.data.YtMusicRepository
+import kotlinx.coroutines.launch
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 
@@ -101,14 +109,21 @@ fun SocialScreen(
     currentlyPlayingSong: Song?,
     onPlayTrack: (MusicTrackAttachment) -> Unit,
     onOpenProfile: (SocialProfile) -> Unit,
+    onOpenArtistDetail: ((id: String, name: String, artworkUrl: String?) -> Unit)? = null,
     contentPadding: PaddingValues,
     hazeState: HazeState,
     modifier: Modifier = Modifier,
 ) {
+    val coroutineScope = rememberCoroutineScope()
+    val currentProfile by viewModel.currentProfile.collectAsStateWithLifecycle()
+    var postToDelete by remember { mutableStateOf<SocialPost?>(null) }
+    var inspectedQuotedPost by remember { mutableStateOf<SocialPost?>(null) }
+
     val posts by viewModel.posts.collectAsStateWithLifecycle()
     val feedTab by viewModel.feedTab.collectAsStateWithLifecycle()
     val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoadingFeed.collectAsStateWithLifecycle()
+    val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
     val stories by viewModel.stories.collectAsStateWithLifecycle()
     val selectedPostForComments by viewModel.selectedPostForComments.collectAsStateWithLifecycle()
     val comments by viewModel.comments.collectAsStateWithLifecycle()
@@ -338,7 +353,7 @@ fun SocialScreen(
                                         onVotePoll = { optionIdx -> viewModel.votePoll(post, optionIdx) },
                                         onAuthorClick = {
                                             onOpenProfile(
-                                                SocialProfile(
+                                                post.author ?: SocialProfile(
                                                     id = post.authorId,
                                                     handle = post.authorHandle,
                                                     displayName = post.authorName,
@@ -346,6 +361,20 @@ fun SocialScreen(
                                                     verifiedBadge = post.authorVerified,
                                                 ),
                                             )
+                                        },
+                                        onTaggedArtistClick = { artistName ->
+                                            coroutineScope.launch {
+                                                val resolved = YtMusicRepository.resolveArtist(artistName)
+                                                val browseId = resolved?.first ?: artistName
+                                                val artwork = resolved?.second
+                                                onOpenArtistDetail?.invoke(browseId, artistName, artwork)
+                                            }
+                                        },
+                                        onDeleteClick = if (post.authorId == currentProfile?.id) {
+                                            { postToDelete = post }
+                                        } else null,
+                                        onQuoteClick = { quoted ->
+                                            inspectedQuotedPost = quoted
                                         },
                                         modifier = Modifier
                                             .fillMaxWidth()
@@ -385,6 +414,39 @@ fun SocialScreen(
                         }
                     }
 
+                    // Error Banner when posts are already cached
+                    if (errorMessage != null && posts.isNotEmpty()) {
+                        item(key = "feed_error_banner") {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 20.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(MaterialTheme.colorScheme.errorContainer)
+                                    .clickable { viewModel.loadFeed() }
+                                    .padding(14.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Close,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onErrorContainer,
+                                        modifier = Modifier.size(16.dp),
+                                    )
+                                    Text(
+                                        text = errorMessage ?: "Couldn't load feed, tap to retry",
+                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                                        color = MaterialTheme.colorScheme.onErrorContainer,
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     // Loading State
                     if (isLoading && posts.isEmpty()) {
                         item(key = "loading_indicator") {
@@ -402,7 +464,7 @@ fun SocialScreen(
                         }
                     }
 
-                    // Empty State
+                    // Empty or Error State
                     if (!isLoading && posts.isEmpty()) {
                         item(key = "empty_feed") {
                             Box(
@@ -420,16 +482,43 @@ fun SocialScreen(
                                     )
                                     Spacer(Modifier.height(14.dp))
                                     Text(
-                                        text = if (feedTab == FeedTab.FRIENDS) "No posts from friends yet" else "No posts in the community yet",
+                                        text = if (errorMessage != null) {
+                                            errorMessage ?: "Couldn't load feed"
+                                        } else if (feedTab == FeedTab.FRIENDS) {
+                                            "No posts from friends yet"
+                                        } else {
+                                            "No posts in the community yet"
+                                        },
                                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                         color = MaterialTheme.colorScheme.onSurface,
                                     )
                                     Spacer(Modifier.height(6.dp))
                                     Text(
-                                        text = "Be the first to share your music vibe or ask a question!",
+                                        text = if (errorMessage != null) {
+                                            "Tap below to retry connecting to the feed"
+                                        } else {
+                                            "Be the first to share your music vibe or ask a question!"
+                                        },
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
+                                    if (errorMessage != null) {
+                                        Spacer(Modifier.height(14.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(20.dp))
+                                                .background(MaterialTheme.colorScheme.primary)
+                                                .clickable { viewModel.loadFeed() }
+                                                .padding(horizontal = 20.dp, vertical = 10.dp),
+                                            contentAlignment = Alignment.Center,
+                                        ) {
+                                            Text(
+                                                text = "Tap to retry",
+                                                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                                                color = MaterialTheme.colorScheme.onPrimary,
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -457,7 +546,7 @@ fun SocialScreen(
                             onVotePoll = { optionIdx -> viewModel.votePoll(post, optionIdx) },
                             onAuthorClick = {
                                 onOpenProfile(
-                                    SocialProfile(
+                                    post.author ?: SocialProfile(
                                         id = post.authorId,
                                         handle = post.authorHandle,
                                         displayName = post.authorName,
@@ -465,6 +554,20 @@ fun SocialScreen(
                                         verifiedBadge = post.authorVerified,
                                     ),
                                 )
+                            },
+                            onTaggedArtistClick = { artistName ->
+                                coroutineScope.launch {
+                                    val resolved = YtMusicRepository.resolveArtist(artistName)
+                                    val browseId = resolved?.first ?: artistName
+                                    val artwork = resolved?.second
+                                    onOpenArtistDetail?.invoke(browseId, artistName, artwork)
+                                }
+                            },
+                            onDeleteClick = if (post.authorId == currentProfile?.id) {
+                                { postToDelete = post }
+                            } else null,
+                            onQuoteClick = { quoted ->
+                                inspectedQuotedPost = quoted
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -535,6 +638,10 @@ fun SocialScreen(
                 viewModel.addComment(post.id, content, parentId, gifUrl)
             },
             onToggleLikeComment = { viewModel.toggleLikeComment(it) },
+            onAuthorClick = { profile ->
+                viewModel.closeComments()
+                onOpenProfile(profile)
+            },
         )
     }
 
@@ -560,6 +667,145 @@ fun SocialScreen(
             imageUrl = url,
             onDismiss = { previewImageUrl = null },
         )
+    }
+
+    // Delete Post Confirmation Dialog
+    postToDelete?.let { target ->
+        AlertDialog(
+            onDismissRequest = { postToDelete = null },
+            containerColor = MaterialTheme.colorScheme.surface,
+            title = {
+                Text(
+                    text = "Delete post",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            },
+            text = {
+                Text(
+                    text = "Are you sure you want to delete this post? This action cannot be undone.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            },
+            confirmButton = {
+                ElevatedButton(
+                    onClick = {
+                        viewModel.deletePost(target)
+                        postToDelete = null
+                    },
+                    colors = ButtonDefaults.elevatedButtonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError,
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                ) {
+                    Text("Delete", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                ElevatedButton(
+                    onClick = { postToDelete = null },
+                    colors = ButtonDefaults.elevatedButtonColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                ) {
+                    Text("Cancel")
+                }
+            },
+        )
+    }
+
+    // Inspected Quoted Post Modal Dialog
+    inspectedQuotedPost?.let { quoted ->
+        Dialog(
+            onDismissRequest = { inspectedQuotedPost = null },
+            properties = DialogProperties(usePlatformDefaultWidth = false),
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.surface)
+                    .systemBarsPadding(),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = "Quoted Post",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        IconButton(onClick = { inspectedQuotedPost = null }) {
+                            Icon(
+                                imageVector = Icons.Rounded.Close,
+                                contentDescription = "Close",
+                                tint = MaterialTheme.colorScheme.onSurface,
+                            )
+                        }
+                    }
+
+                    SocialPostCard(
+                        post = quoted,
+                        onLikeClick = { viewModel.toggleLike(quoted) },
+                        onCommentClick = {
+                            inspectedQuotedPost = null
+                            viewModel.openComments(quoted)
+                        },
+                        onRepostClick = {
+                            inspectedQuotedPost = null
+                            repostActionTarget = quoted
+                        },
+                        onImageClick = { previewImageUrl = it },
+                        onShareClick = {
+                            val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                putExtra(
+                                    Intent.EXTRA_TEXT,
+                                    "Check out @${quoted.authorHandle}'s post on Vibra:\n\n${quoted.content}",
+                                )
+                                type = "text/plain"
+                            }
+                            context.startActivity(Intent.createChooser(sendIntent, "Share Post"))
+                        },
+                        onPlayTrack = onPlayTrack,
+                        onVotePoll = { viewModel.votePoll(quoted, it) },
+                        onAuthorClick = {
+                            inspectedQuotedPost = null
+                            onOpenProfile(
+                                quoted.author ?: SocialProfile(
+                                    id = quoted.authorId,
+                                    handle = quoted.authorHandle,
+                                    displayName = quoted.authorName,
+                                    avatarUrl = quoted.authorAvatar,
+                                    verifiedBadge = quoted.authorVerified,
+                                ),
+                            )
+                        },
+                        onTaggedArtistClick = { artistName ->
+                            inspectedQuotedPost = null
+                            coroutineScope.launch {
+                                val resolved = YtMusicRepository.resolveArtist(artistName)
+                                val browseId = resolved?.first ?: artistName
+                                val artwork = resolved?.second
+                                onOpenArtistDetail?.invoke(browseId, artistName, artwork)
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -723,6 +969,9 @@ fun SocialPostCard(
     onPlayTrack: (MusicTrackAttachment) -> Unit,
     onVotePoll: (Int) -> Unit,
     onAuthorClick: () -> Unit,
+    onTaggedArtistClick: ((String) -> Unit)? = null,
+    onDeleteClick: (() -> Unit)? = null,
+    onQuoteClick: ((SocialPost) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     Box(
@@ -799,19 +1048,28 @@ fun SocialPostCard(
                             )
                         }
                         post.taggedArtist?.let { artist ->
-                            Icon(
-                                imageVector = Icons.Rounded.ChevronRight,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(14.dp),
-                            )
-                            Text(
-                                text = artist,
-                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .clickable { onTaggedArtistClick?.invoke(artist) }
+                                    .padding(horizontal = 2.dp, vertical = 1.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.ChevronRight,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(14.dp),
+                                )
+                                Spacer(Modifier.width(2.dp))
+                                Text(
+                                    text = artist,
+                                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.primary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
                         }
                         if (post.createdAt.isNotBlank()) {
                             Text(
@@ -827,6 +1085,20 @@ fun SocialPostCard(
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                }
+
+                if (onDeleteClick != null) {
+                    IconButton(
+                        onClick = onDeleteClick,
+                        modifier = Modifier.size(32.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.DeleteOutline,
+                            contentDescription = "Delete Post",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
                 }
             }
 
@@ -873,7 +1145,7 @@ fun SocialPostCard(
             }
 
             // Attached GIF
-            post.gifUrl?.let { gifUrl ->
+            post.gifUrl?.takeIf { it.isNotBlank() && it != "null" }?.let { gifUrl ->
                 if (!images.contains(gifUrl)) {
                     Box(
                         modifier = Modifier
@@ -894,7 +1166,7 @@ fun SocialPostCard(
             }
 
             // Attached Video Player
-            post.videoUrl?.let { videoUrl ->
+            post.videoUrl?.takeIf { it.isNotBlank() && it != "null" }?.let { videoUrl ->
                 PostVideoPlayer(
                     videoUrl = videoUrl,
                     modifier = Modifier
@@ -905,7 +1177,7 @@ fun SocialPostCard(
             }
 
             // Attached Voice Note Player
-            post.audioUrl?.let { audioUrl ->
+            post.audioUrl?.takeIf { it.isNotBlank() && it != "null" }?.let { audioUrl ->
                 VoiceNotePlayerWidget(
                     audioUrl = audioUrl,
                     modifier = Modifier.fillMaxWidth(),
@@ -940,7 +1212,7 @@ fun SocialPostCard(
                     quotedId = post.quoteOfId,
                     onPlayTrack = onPlayTrack,
                     onClick = {
-                        post.quoteOf?.let { onCommentClick() }
+                        post.quoteOf?.let { onQuoteClick?.invoke(it) }
                     },
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -1317,9 +1589,9 @@ fun PollCard(
             ) {
                 if (hasVoted) {
                     val progressFillColor = if (isMyVote) {
-                        MaterialTheme.colorScheme.primaryContainer
+                        MaterialTheme.colorScheme.primary
                     } else {
-                        MaterialTheme.colorScheme.surface
+                        Color(0xFF38383D)
                     }
                     Box(
                         modifier = Modifier

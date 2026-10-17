@@ -84,14 +84,30 @@ fun ArtistLeaderboardScreen(
     hazeState: HazeState,
     modifier: Modifier = Modifier,
 ) {
+    var resolvedArtwork by remember(artist.name) { mutableStateOf(artist.artworkUrl) }
+    var resolvedBrowseId by remember(artist.id) { mutableStateOf(artist.id) }
+
     val listState = rememberLazyListState()
-    val highResArtwork = artist.artworkUrl?.artworkAt(1080) ?: artist.artworkUrl
+    val highResArtwork = (resolvedArtwork ?: artist.artworkUrl)?.artworkAt(1080) ?: (resolvedArtwork ?: artist.artworkUrl)
     val palette = rememberArtworkPalette(highResArtwork)
     val artHeight = 320.dp
 
     var leaderboardEntries by remember { mutableStateOf<List<LeaderboardEntry>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
-    var topSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
+
+    LaunchedEffect(artist.name) {
+        if (resolvedArtwork.isNullOrBlank() || !resolvedBrowseId.startsWith("UC")) {
+            runCatching {
+                val resolved = YtMusicRepository.resolveArtist(artist.name)
+                if (resolved != null) {
+                    resolvedBrowseId = resolved.first
+                    if (!resolved.second.isNullOrBlank()) {
+                        resolvedArtwork = resolved.second
+                    }
+                }
+            }
+        }
+    }
 
     LaunchedEffect(artist.id) {
         isLoading = true
@@ -100,30 +116,6 @@ fun ArtistLeaderboardScreen(
                 leaderboardEntries = entries
             }
         isLoading = false
-
-        // Fetch actual artist songs from music catalogue
-        runCatching {
-            var songs = if (artist.id.startsWith("UC")) {
-                YtMusicRepository.artistPage(artist.id).getOrNull()?.songs.orEmpty()
-            } else {
-                emptyList()
-            }
-            if (songs.isEmpty()) {
-                val searchResults = YtMusicRepository.search("${artist.name} songs", SearchFilter.SONGS).getOrNull().orEmpty()
-                songs = searchResults.mapNotNull { result ->
-                    when (result) {
-                        is SearchResult.Track -> result.song
-                        is SearchResult.TopTrack -> result.song
-                        else -> null
-                    }
-                }
-            }
-            songs
-        }.onSuccess { songs ->
-            if (songs.isNotEmpty()) {
-                topSongs = songs.take(8)
-            }
-        }
     }
 
     Box(
@@ -174,9 +166,25 @@ fun ArtistLeaderboardScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = artHeight - 40.dp, start = 20.dp, end = 20.dp),
+                        .padding(top = artHeight - 50.dp, start = 20.dp, end = 20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
+                    // Circular HD Artist Profile Avatar
+                    Box(
+                        modifier = Modifier
+                            .size(96.dp)
+                            .clip(CircleShape)
+                            .background(palette.elevated),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        ArtistAvatar(
+                            name = artist.name,
+                            artworkUrl = highResArtwork,
+                            size = 96.dp,
+                        )
+                    }
+
+                    Spacer(Modifier.height(14.dp))
 
                     Text(
                         text = artist.name,
@@ -229,7 +237,7 @@ fun ArtistLeaderboardScreen(
 
                         if (onOpenArtistDetail != null) {
                             ElevatedButton(
-                                onClick = { onOpenArtistDetail(artist.id, artist.name, highResArtwork) },
+                                onClick = { onOpenArtistDetail(resolvedBrowseId, artist.name, highResArtwork) },
                                 shape = RoundedCornerShape(16.dp),
                                 colors = ButtonDefaults.elevatedButtonColors(
                                     containerColor = palette.elevated,
@@ -245,66 +253,6 @@ fun ArtistLeaderboardScreen(
                                     fontSize = 13.sp,
                                 )
                             }
-                        }
-                    }
-                }
-            }
-
-            // Popular Songs from Artist Catalogue
-            if (topSongs.isNotEmpty()) {
-                item(key = "popular_songs_header") {
-                    Spacer(Modifier.height(18.dp))
-                    Text(
-                        text = "Popular Songs",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = palette.onBackground,
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
-                    )
-                }
-
-                items(topSongs, key = { it.videoId }) { song ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 5.dp)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(palette.elevated)
-                            .clickable { onPlaySong?.invoke(song) }
-                            .padding(10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        AsyncImage(
-                            model = song.thumbnailUrl,
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .size(42.dp)
-                                .clip(RoundedCornerShape(8.dp)),
-                        )
-                        Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                text = song.title,
-                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                                color = palette.onBackground,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            Text(
-                                text = song.artist,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = palette.onBackgroundVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                        IconButton(onClick = { onPlaySong?.invoke(song) }, modifier = Modifier.size(32.dp)) {
-                            Icon(
-                                imageVector = Icons.Rounded.PlayArrow,
-                                contentDescription = "Play",
-                                tint = palette.accent,
-                                modifier = Modifier.size(20.dp),
-                            )
                         }
                     }
                 }

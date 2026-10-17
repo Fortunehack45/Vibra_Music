@@ -357,6 +357,9 @@ fun SettingsScreen(
     }
     var showListenBrainzTokenDialog by remember { mutableStateOf(false) }
     var showLastfmLoginDialog by remember { mutableStateOf(false) }
+    val crashLogFile = remember { java.io.File(context.filesDir, "last_crash.log") }
+    var hasCrashLog by remember { mutableStateOf(crashLogFile.exists()) }
+    var showCrashReportDialog by remember { mutableStateOf(false) }
     val scrobbleScope = rememberCoroutineScope()
 
     val version = remember(context) {
@@ -1406,6 +1409,17 @@ fun SettingsScreen(
                     subtitle = stringResource(R.string.support_vibra_subtitle),
                     onClick = { showingSupportSheet = true },
                 )
+            }
+            if (hasCrashLog) {
+                val crashReportTitle = "Last crash report"
+                row(crashReportTitle, "crash", "log", "error", "stacktrace", "report") {
+                    SettingsRow(
+                        icon = Icons.Rounded.BarChart,
+                        title = crashReportTitle,
+                        subtitle = "View diagnostic report from previous crash",
+                        onClick = { showCrashReportDialog = true },
+                    )
+                }
             }
         }
 

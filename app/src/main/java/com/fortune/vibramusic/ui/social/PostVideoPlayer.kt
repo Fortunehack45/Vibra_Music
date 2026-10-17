@@ -1,5 +1,6 @@
 package com.fortune.vibramusic.ui.social
 
+import android.content.Context
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.annotation.OptIn
@@ -44,8 +45,57 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
+
+@OptIn(UnstableApi::class)
+object FeedVideoController {
+    private var exoPlayer: ExoPlayer? = null
+    var activeUrl by mutableStateOf<String?>(null)
+        private set
+
+    fun getOrCreatePlayer(context: Context): ExoPlayer {
+        val existing = exoPlayer
+        if (existing != null) return existing
+
+        val loadControl = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(
+                2000,
+                5000,
+                1000,
+                1500,
+            )
+            .build()
+
+        return ExoPlayer.Builder(context.applicationContext)
+            .setLoadControl(loadControl)
+            .build().apply {
+                repeatMode = Player.REPEAT_MODE_ALL
+                volume = 0f
+            }.also { exoPlayer = it }
+    }
+
+    fun play(context: Context, url: String) {
+        val player = getOrCreatePlayer(context)
+        if (activeUrl != url) {
+            activeUrl = url
+            player.setMediaItem(MediaItem.fromUri(url))
+            player.prepare()
+        }
+        player.play()
+    }
+
+    fun pause() {
+        exoPlayer?.pause()
+    }
+
+    fun release() {
+        activeUrl = null
+        exoPlayer?.release()
+        exoPlayer = null
+    }
+}
 
 @OptIn(UnstableApi::class)
 @Composable
@@ -56,43 +106,42 @@ fun PostVideoPlayer(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
+    val isActive = FeedVideoController.activeUrl == videoUrl
+    var isBuffering by remember { mutableStateOf(false) }
     var isPlaying by remember { mutableStateOf(false) }
-    var isBuffering by remember { mutableStateOf(true) }
     var isMuted by remember { mutableStateOf(true) }
     var showControls by remember { mutableStateOf(false) }
 
-    val exoPlayer = remember(videoUrl) {
-        ExoPlayer.Builder(context).build().apply {
-            setMediaItem(MediaItem.fromUri(videoUrl))
-            repeatMode = Player.REPEAT_MODE_ALL
-            volume = 0f // Start muted by default
-            prepare()
-        }
-    }
+    val exoPlayer = remember { FeedVideoController.getOrCreatePlayer(context) }
 
-    DisposableEffect(exoPlayer) {
+    DisposableEffect(videoUrl) {
         val listener = object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
-                isBuffering = playbackState == Player.STATE_BUFFERING
+                if (FeedVideoController.activeUrl == videoUrl) {
+                    isBuffering = playbackState == Player.STATE_BUFFERING
+                }
             }
 
             override fun onIsPlayingChanged(playing: Boolean) {
-                isPlaying = playing
+                if (FeedVideoController.activeUrl == videoUrl) {
+                    isPlaying = playing
+                }
             }
         }
         exoPlayer.addListener(listener)
 
         onDispose {
             exoPlayer.removeListener(listener)
-            exoPlayer.release()
+            if (FeedVideoController.activeUrl == videoUrl) {
+                FeedVideoController.pause()
+            }
         }
     }
 
-    // Pause when app goes to background
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_PAUSE) {
-                exoPlayer.pause()
+                FeedVideoController.pause()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -101,7 +150,6 @@ fun PostVideoPlayer(
         }
     }
 
-    // Auto-hide play/pause indicator
     LaunchedEffect(showControls) {
         if (showControls) {
             kotlinx.coroutines.delay(2000)
@@ -117,31 +165,39 @@ fun PostVideoPlayer(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
             ) {
-                if (exoPlayer.isPlaying) {
-                    exoPlayer.pause()
+                if (isActive && isPlaying) {
+                    FeedVideoController.pause()
+                    isPlaying = false
                 } else {
-                    exoPlayer.play()
+                    FeedVideoController.play(context, videoUrl)
+                    isPlaying = true
                 }
                 showControls = true
             },
         contentAlignment = Alignment.Center,
     ) {
-        AndroidView(
-            factory = { ctx ->
-                PlayerView(ctx).apply {
-                    player = exoPlayer
-                    useController = false
-                    layoutParams = FrameLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                    )
-                }
-            },
-            modifier = Modifier.fillMaxSize(),
-        )
+        if (isActive) {
+            AndroidView(
+                factory = { ctx ->
+                    PlayerView(ctx).apply {
+                        player = exoPlayer
+                        useController = false
+                        layoutParams = FrameLayout.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                        )
+                    }
+                },
+                update = { view ->
+                    if (view.player != exoPlayer) {
+                        view.player = exoPlayer
+                    }
+                },
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
 
-        // Buffering Indicator
-        if (isBuffering) {
+        if (isActive && isBuffering) {
             CircularProgressIndicator(
                 modifier = Modifier.size(36.dp),
                 color = MaterialTheme.colorScheme.primary,
@@ -149,9 +205,8 @@ fun PostVideoPlayer(
             )
         }
 
-        // Center Play / Pause Indicator Overlay
         AnimatedVisibility(
-            visible = showControls || !isPlaying,
+            visible = showControls || !isActive || !isPlaying,
             enter = fadeIn(),
             exit = fadeOut(),
         ) {
@@ -163,34 +218,35 @@ fun PostVideoPlayer(
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                    imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                    contentDescription = if (isPlaying) "Pause" else "Play",
+                    imageVector = if (isActive && isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                    contentDescription = if (isActive && isPlaying) "Pause" else "Play",
                     tint = Color.White,
                     modifier = Modifier.size(28.dp),
                 )
             }
         }
 
-        // Mute / Unmute Button (Bottom End)
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(10.dp)
-                .size(34.dp)
-                .clip(CircleShape)
-                .background(Color.Black)
-                .clickable {
-                    isMuted = !isMuted
-                    exoPlayer.volume = if (isMuted) 0f else 1f
-                },
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = if (isMuted) Icons.Rounded.VolumeOff else Icons.Rounded.VolumeUp,
-                contentDescription = if (isMuted) "Unmute" else "Mute",
-                tint = Color.White,
-                modifier = Modifier.size(18.dp),
-            )
+        if (isActive) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(10.dp)
+                    .size(34.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black)
+                    .clickable {
+                        isMuted = !isMuted
+                        exoPlayer.volume = if (isMuted) 0f else 1f
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = if (isMuted) Icons.Rounded.VolumeOff else Icons.Rounded.VolumeUp,
+                    contentDescription = if (isMuted) "Unmute" else "Mute",
+                    tint = Color.White,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
         }
     }
 }

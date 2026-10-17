@@ -56,6 +56,8 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.fortune.vibramusic.data.social.PostComment
 import com.fortune.vibramusic.data.social.SocialPost
+import com.fortune.vibramusic.data.social.SocialProfile
+import androidx.compose.foundation.lazy.itemsIndexed
 
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.ui.graphics.luminance
@@ -68,6 +70,7 @@ fun PostCommentsSheet(
     onDismiss: () -> Unit,
     onAddComment: (content: String, parentId: String?, gifUrl: String?) -> Unit,
     onToggleLikeComment: (PostComment) -> Unit,
+    onAuthorClick: ((SocialProfile) -> Unit)? = null,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var commentText by remember { mutableStateOf("") }
@@ -170,7 +173,7 @@ fun PostCommentsSheet(
                         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp),
                     ) {
-                        items(rootComments, key = { it.id }) { rootComment ->
+                        itemsIndexed(rootComments, key = { index, rootComment -> "${rootComment.id}_$index" }) { _, rootComment ->
                             val childReplies = repliesByParent[rootComment.id].orEmpty()
                             ThreadedCommentItem(
                                 comment = rootComment,
@@ -178,6 +181,7 @@ fun PostCommentsSheet(
                                 allRepliesByParent = repliesByParent,
                                 onReply = { replyingTo = it },
                                 onToggleLike = onToggleLikeComment,
+                                onAuthorClick = onAuthorClick,
                             )
                         }
                     }
@@ -376,6 +380,7 @@ private fun ThreadedCommentItem(
     allRepliesByParent: Map<String, List<PostComment>>,
     onReply: (PostComment) -> Unit,
     onToggleLike: (PostComment) -> Unit,
+    onAuthorClick: ((SocialProfile) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val threadLineColor = MaterialTheme.colorScheme.surfaceVariant
@@ -386,6 +391,7 @@ private fun ThreadedCommentItem(
             comment = comment,
             onReply = { onReply(comment) },
             onToggleLike = { onToggleLike(comment) },
+            onAuthorClick = onAuthorClick,
         )
 
         // Indented Nested Replies
@@ -421,6 +427,7 @@ private fun ThreadedCommentItem(
                                 isReply = true,
                                 onReply = { onReply(reply) },
                                 onToggleLike = { onToggleLike(reply) },
+                                onAuthorClick = onAuthorClick,
                             )
 
                             // Handle deeper nesting (replies to replies)
@@ -437,6 +444,7 @@ private fun ThreadedCommentItem(
                                             isReply = true,
                                             onReply = { onReply(subReply) },
                                             onToggleLike = { onToggleLike(subReply) },
+                                            onAuthorClick = onAuthorClick,
                                         )
                                         Spacer(Modifier.height(6.dp))
                                     }
@@ -459,6 +467,7 @@ private fun SingleCommentRow(
     comment: PostComment,
     onReply: () -> Unit,
     onToggleLike: () -> Unit,
+    onAuthorClick: ((SocialProfile) -> Unit)? = null,
     isReply: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
@@ -466,6 +475,15 @@ private fun SingleCommentRow(
     val onSurfaceVariantColor = MaterialTheme.colorScheme.onSurfaceVariant
     val primaryColor = MaterialTheme.colorScheme.primary
     val avatarBg = MaterialTheme.colorScheme.surfaceVariant
+
+    val authorProfile = remember(comment) {
+        comment.author ?: SocialProfile(
+            id = comment.authorId,
+            handle = comment.authorHandle.removePrefix("@"),
+            displayName = comment.authorName,
+            avatarUrl = comment.authorAvatar,
+        )
+    }
 
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -476,10 +494,11 @@ private fun SingleCommentRow(
             modifier = Modifier
                 .size(if (isReply) 28.dp else 36.dp)
                 .clip(CircleShape)
-                .background(avatarBg),
+                .background(avatarBg)
+                .clickable(enabled = onAuthorClick != null) { onAuthorClick?.invoke(authorProfile) },
             contentAlignment = Alignment.Center,
         ) {
-            if (comment.authorAvatar != null) {
+            if (!comment.authorAvatar.isNullOrBlank() && comment.authorAvatar != "null") {
                 AsyncImage(
                     model = comment.authorAvatar,
                     contentDescription = null,
@@ -504,6 +523,9 @@ private fun SingleCommentRow(
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .clickable(enabled = onAuthorClick != null) { onAuthorClick?.invoke(authorProfile) },
             ) {
                 Text(
                     text = comment.authorName,
@@ -531,7 +553,7 @@ private fun SingleCommentRow(
             }
 
             // GIF attachment if present
-            if (!comment.gifUrl.isNullOrBlank()) {
+            if (!comment.gifUrl.isNullOrBlank() && comment.gifUrl != "null") {
                 Spacer(Modifier.height(6.dp))
                 AsyncImage(
                     model = comment.gifUrl,

@@ -166,6 +166,9 @@ fun CreatePostSheet(
     var showPollBuilder by remember { mutableStateOf(false) }
     var pollQuestion by remember { mutableStateOf("") }
     val pollOptions = remember { mutableStateListOf("Option 1", "Option 2") }
+    val pollOptionTracks = remember { androidx.compose.runtime.mutableStateMapOf<Int, MusicTrackAttachment?>() }
+    var pollDurationDays by remember { mutableIntStateOf(1) }
+    var pickingSongForOptionIndex by remember { mutableStateOf<Int?>(null) }
 
     // Voice note recording
     val voiceRecorder = remember { VoiceRecorderManager(context) }
@@ -205,8 +208,15 @@ fun CreatePostSheet(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri ->
         if (uri != null) {
-            selectedVideoUri = uri
-            selectedImageUris.clear()
+            val pfd = runCatching { context.contentResolver.openFileDescriptor(uri, "r") }.getOrNull()
+            val size = pfd?.statSize ?: 0L
+            pfd?.close()
+            if (size > 50L * 1024 * 1024) {
+                android.widget.Toast.makeText(context, "Video exceeds 50MB limit", android.widget.Toast.LENGTH_SHORT).show()
+            } else {
+                selectedVideoUri = uri
+                selectedImageUris.clear()
+            }
         }
     }
 
@@ -829,19 +839,45 @@ fun CreatePostSheet(
                                             decorationBox = { innerTextField ->
                                                 if (option.isEmpty()) {
                                                     Text(
-                                                        text = "Option ${index + 1}",
+                                                        text = pollOptionTracks[index]?.let { "${it.title} - ${it.artist}" } ?: "Option ${index + 1}",
                                                         style = MaterialTheme.typography.bodyMedium,
                                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis,
                                                     )
                                                 }
                                                 innerTextField()
                                             },
                                         )
 
+                                        Spacer(Modifier.width(6.dp))
+
+                                        // Music attachment button for option
+                                        IconButton(
+                                            onClick = {
+                                                if (pollOptionTracks[index] != null) {
+                                                    pollOptionTracks.remove(index)
+                                                } else {
+                                                    pickingSongForOptionIndex = index
+                                                }
+                                            },
+                                            modifier = Modifier.size(32.dp),
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.MusicNote,
+                                                contentDescription = "Attach song to option",
+                                                tint = if (pollOptionTracks[index] != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(18.dp),
+                                            )
+                                        }
+
                                         if (pollOptions.size > 2) {
-                                            Spacer(Modifier.width(8.dp))
+                                            Spacer(Modifier.width(4.dp))
                                             IconButton(
-                                                onClick = { pollOptions.removeAt(index) },
+                                                onClick = {
+                                                    pollOptions.removeAt(index)
+                                                    pollOptionTracks.remove(index)
+                                                },
                                                 modifier = Modifier.size(24.dp),
                                             ) {
                                                 Icon(
@@ -872,6 +908,38 @@ fun CreatePostSheet(
                                             style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                                             color = MaterialTheme.colorScheme.primary,
                                         )
+                                    }
+                                }
+
+                                // Poll Duration Selector
+                                Spacer(Modifier.height(10.dp))
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    Text(
+                                        text = "Duration:",
+                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                    listOf(1 to "24h", 3 to "3d", 7 to "7d", 14 to "14d", 30 to "30d").forEach { (days, label) ->
+                                        val isSelected = pollDurationDays == days
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface)
+                                                .clickable { pollDurationDays = days }
+                                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                                            contentAlignment = Alignment.Center,
+                                        ) {
+                                            Text(
+                                                text = label,
+                                                style = MaterialTheme.typography.labelSmall.copy(
+                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                                ),
+                                                color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -948,6 +1016,20 @@ fun CreatePostSheet(
                                     .clickable {
                                         photoPickerLauncher.launch(
                                             PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                        )
+                                    },
+                            )
+
+                            // Video
+                            Icon(
+                                imageVector = Icons.Rounded.Videocam,
+                                contentDescription = "Add Video",
+                                tint = if (selectedVideoUri != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .clickable {
+                                        videoPickerLauncher.launch(
+                                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)
                                         )
                                     },
                             )
@@ -1063,7 +1145,12 @@ fun CreatePostSheet(
                                     val finalPoll = if (showPollBuilder && pollQuestion.isNotBlank() && pollOptions.size >= 2) {
                                         PollData(
                                             question = pollQuestion.trim(),
-                                            options = pollOptions.filter { it.isNotBlank() }.map { PollOption(text = it.trim()) },
+                                            options = pollOptions.mapIndexedNotNull { idx, text ->
+                                                val track = pollOptionTracks[idx]
+                                                val effectiveText = text.trim().ifEmpty { track?.let { "${it.title} - ${it.artist}" } }
+                                                if (effectiveText.isNullOrBlank() && track == null) null
+                                                else PollOption(text = effectiveText ?: "Option ${idx + 1}", songAttachment = track)
+                                            },
                                         )
                                     } else null
 
@@ -1135,6 +1222,26 @@ fun CreatePostSheet(
                     durationText = song.durationText,
                 )
                 showMusicSearch = false
+            },
+        )
+    }
+
+    if (pickingSongForOptionIndex != null) {
+        val optionIdx = pickingSongForOptionIndex!!
+        SongSearchDialog(
+            onDismiss = { pickingSongForOptionIndex = null },
+            onSongSelected = { song ->
+                pollOptionTracks[optionIdx] = MusicTrackAttachment(
+                    videoId = song.videoId,
+                    title = song.title,
+                    artist = song.artist,
+                    artworkUrl = song.thumbnailUrl,
+                    durationText = song.durationText,
+                )
+                if (pollOptions.getOrNull(optionIdx)?.isBlank() == true) {
+                    pollOptions[optionIdx] = "${song.title} - ${song.artist}"
+                }
+                pickingSongForOptionIndex = null
             },
         )
     }

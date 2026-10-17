@@ -82,12 +82,19 @@ class VibraMusicApplication : Application(), SingletonImageLoader.Factory {
                 val runtime = Runtime.getRuntime()
                 val usedMemMb = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)
                 val maxMemMb = runtime.maxMemory() / (1024 * 1024)
+                val isOom = throwable is OutOfMemoryError
+                val topThreads = runCatching {
+                    Thread.getAllStackTraces().keys.take(5).joinToString("\n") { "  - ${it.name} (${it.state})" }
+                }.getOrDefault("  - ${thread.name} (${thread.state})")
                 val crashFile = File(filesDir, "last_crash.log")
                 crashFile.writeText(
                     "Timestamp: ${System.currentTimeMillis()}\n" +
                     "Version: ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})\n" +
+                    "Device: ${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL} (Android ${android.os.Build.VERSION.RELEASE}, API ${android.os.Build.VERSION.SDK_INT})\n" +
                     "Thread: ${thread.name}\n" +
                     "Memory: ${usedMemMb}MB / ${maxMemMb}MB\n" +
+                    "OOM: $isOom\n" +
+                    "Top Live Threads:\n$topThreads\n" +
                     "Exception: ${throwable.javaClass.name}: ${throwable.message}\n\n" +
                     Log.getStackTraceString(throwable)
                 )

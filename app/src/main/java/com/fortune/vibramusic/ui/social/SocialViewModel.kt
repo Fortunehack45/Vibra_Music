@@ -54,6 +54,13 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
     private val _isLoadingFeed = MutableStateFlow(false)
     val isLoadingFeed: StateFlow<Boolean> = _isLoadingFeed.asStateFlow()
 
+    private val _errorMessage = MutableStateFlow<String?>(null)
+    val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
+
+    fun clearErrorMessage() {
+        _errorMessage.value = null
+    }
+
     private val _stories = MutableStateFlow<List<SocialProfile>>(emptyList())
     val stories: StateFlow<List<SocialProfile>> = _stories.asStateFlow()
 
@@ -226,9 +233,10 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
 
             SupabaseService.fetchPosts(forUserId = userId, friendsOnly = isFriendsOnly)
                 .onSuccess { loadedPosts ->
+                    _errorMessage.value = null
                     val cached = if (_feedTab.value == FeedTab.FOR_YOU) forYouPostsCache else friendsPostsCache
-                    val localUnsynced = cached.filter { c -> loadedPosts.none { it.id == c.id } }
-                    val merged = localUnsynced + loadedPosts
+                    val localUnsynced = cached.filter { c -> c.createdAt == "Just now" && loadedPosts.none { it.id == c.id } }
+                    val merged = (localUnsynced + loadedPosts).distinctBy { it.id }
                     if (_feedTab.value == FeedTab.FOR_YOU) {
                         forYouPostsCache = merged
                     } else {
@@ -239,6 +247,7 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
                 }
                 .onFailure { e ->
                     Log.w("SocialViewModel", "Failed to load posts: ${e.message}")
+                    _errorMessage.value = "Couldn't load feed, tap to retry"
                 }
             _isLoadingFeed.value = false
         }
@@ -252,9 +261,10 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
 
             SupabaseService.fetchPosts(forUserId = userId, friendsOnly = isFriendsOnly)
                 .onSuccess { loadedPosts ->
+                    _errorMessage.value = null
                     val cached = if (_feedTab.value == FeedTab.FOR_YOU) forYouPostsCache else friendsPostsCache
-                    val localUnsynced = cached.filter { c -> loadedPosts.none { it.id == c.id } }
-                    val merged = localUnsynced + loadedPosts
+                    val localUnsynced = cached.filter { c -> c.createdAt == "Just now" && loadedPosts.none { it.id == c.id } }
+                    val merged = (localUnsynced + loadedPosts).distinctBy { it.id }
                     if (_feedTab.value == FeedTab.FOR_YOU) {
                         forYouPostsCache = merged
                     } else {
@@ -262,6 +272,10 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
                     }
                     _posts.value = merged
                     cacheStore.savePosts(merged)
+                }
+                .onFailure { e ->
+                    Log.w("SocialViewModel", "Failed to refresh posts: ${e.message}")
+                    _errorMessage.value = "Couldn't load feed, tap to retry"
                 }
             _isRefreshing.value = false
         }
@@ -303,11 +317,11 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
                 quoteOf = _quotingPost.value,
                 createdAt = "Just now",
             )
-            val updatedFeed = listOf(optimisticPost) + _posts.value
+            val updatedFeed = (listOf(optimisticPost) + _posts.value).distinctBy { it.id }
             _posts.value = updatedFeed
-            forYouPostsCache = listOf(optimisticPost) + forYouPostsCache
+            forYouPostsCache = (listOf(optimisticPost) + forYouPostsCache).distinctBy { it.id }
             if (_viewingProfile.value?.id == user.id || _currentProfile.value?.id == user.id) {
-                _viewingProfilePosts.value = listOf(optimisticPost) + _viewingProfilePosts.value
+                _viewingProfilePosts.value = (listOf(optimisticPost) + _viewingProfilePosts.value).distinctBy { it.id }
             }
             cacheStore.savePosts(updatedFeed)
 
@@ -325,16 +339,43 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
                 poll = poll,
                 quoteOfId = quoteOfId,
             ).onSuccess { newPost ->
-                val finalFeed = _posts.value.map { if (it.id == optimisticPost.id) newPost.copy(quoteOf = optimisticPost.quoteOf) else it }
+                val reconciled = newPost.copy(quoteOf = optimisticPost.quoteOf)
+                val finalFeed = _posts.value.map { if (it.id == optimisticPost.id) reconciled else it }.distinctBy { it.id }
                 _posts.value = finalFeed
-                forYouPostsCache = finalFeed
+                forYouPostsCache = forYouPostsCache.map { if (it.id == optimisticPost.id) reconciled else it }.distinctBy { it.id }
+                _viewingProfilePosts.value = _viewingProfilePosts.value.map { if (it.id == optimisticPost.id) reconciled else it }.distinctBy { it.id }
                 cacheStore.savePosts(finalFeed)
                 _isCreatingPost.value = false
                 _quotingPost.value = null
                 onSuccess()
             }.onFailure { err ->
                 Log.e("SocialViewModel", "Failed to create post", err)
+                // Roll back optimistic post from all collections on failure
+                _posts.value = _posts.value.filterNot { it.id == optimisticPost.id }.distinctBy { it.id }
+                forYouPostsCache = forYouPostsCache.filterNot { it.id == optimisticPost.id }.distinctBy { it.id }
+                _viewingProfilePosts.value = _viewingProfilePosts.value.filterNot { it.id == optimisticPost.id }.distinctBy { it.id }
+                _errorMessage.value = "Failed to create post: ${err.message ?: "Please try again"}"
                 _isCreatingPost.value = false
+            }
+        }
+    }
+
+    fun deletePost(post: SocialPost) {
+        val user = _currentProfile.value ?: return
+        if (post.authorId != user.id) return
+
+        // Optimistically remove from feeds and profile
+        _posts.value = _posts.value.filterNot { it.id == post.id }.distinctBy { it.id }
+        forYouPostsCache = forYouPostsCache.filterNot { it.id == post.id }.distinctBy { it.id }
+        friendsPostsCache = friendsPostsCache.filterNot { it.id == post.id }.distinctBy { it.id }
+        _viewingProfilePosts.value = _viewingProfilePosts.value.filterNot { it.id == post.id }.distinctBy { it.id }
+
+        viewModelScope.launch {
+            cacheStore.savePosts(_posts.value)
+            SupabaseService.deletePost(post.id, user.id).onFailure { error ->
+                Log.w("SocialViewModel", "Failed to delete post: ${error.message}")
+                _errorMessage.value = "Failed to delete post. Please try again."
+                loadFeed()
             }
         }
     }
@@ -589,6 +630,7 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
         videoUrl: String? = null,
         audioUrl: String? = null,
         gifUrl: String? = null,
+        replyTo: DirectMessage? = null,
     ) {
         val user = _currentProfile.value ?: return
         val recipient = _activeChatFriend.value ?: return
@@ -605,8 +647,69 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
                 videoUrl = videoUrl,
                 audioUrl = audioUrl,
                 gifUrl = gifUrl,
+                replyTo = replyTo,
             ).onSuccess { newMsg ->
-                _chatMessages.value = _chatMessages.value + newMsg
+                _chatMessages.value = (_chatMessages.value + newMsg).distinctBy { it.id }
+            }
+        }
+    }
+
+    fun editDirectMessage(messageId: String, newText: String) {
+        val user = _currentProfile.value ?: return
+        if (newText.isBlank()) return
+        val originalMessages = _chatMessages.value
+        val msgToEdit = originalMessages.firstOrNull { it.id == messageId } ?: return
+        if (msgToEdit.senderId != user.id) return
+
+        // Optimistic update
+        _chatMessages.value = originalMessages.map {
+            if (it.id == messageId) it.copy(content = newText) else it
+        }
+
+        viewModelScope.launch {
+            val preservedContent = buildString {
+                if (msgToEdit.replyToText != null) {
+                    val snippet = msgToEdit.replyToText.take(80).replace("\n", " ")
+                    val encoded = runCatching {
+                        android.util.Base64.encodeToString(snippet.toByteArray(Charsets.UTF_8), android.util.Base64.NO_WRAP)
+                    }.getOrDefault(snippet)
+                    val senderLabel = msgToEdit.replyToSender ?: "Friend"
+                    append("[reply:${msgToEdit.replyToId ?: ""}:$senderLabel:$encoded] ")
+                }
+                if (!msgToEdit.imageUrl.isNullOrBlank()) append("[image:${msgToEdit.imageUrl}] ")
+                if (!msgToEdit.videoUrl.isNullOrBlank()) append("[video:${msgToEdit.videoUrl}] ")
+                if (!msgToEdit.audioUrl.isNullOrBlank()) append("[audio:${msgToEdit.audioUrl}] ")
+                if (!msgToEdit.gifUrl.isNullOrBlank()) append("[gif:${msgToEdit.gifUrl}] ")
+                append(newText)
+            }.trim()
+
+            SupabaseService.updateDirectMessage(
+                messageId = messageId,
+                senderId = user.id,
+                newContent = preservedContent,
+            ).onFailure {
+                Log.w("SocialViewModel", "Failed to edit direct message: ${it.message}")
+                _chatMessages.value = originalMessages
+            }
+        }
+    }
+
+    fun deleteDirectMessage(messageId: String) {
+        val user = _currentProfile.value ?: return
+        val originalMessages = _chatMessages.value
+        val msgToDelete = originalMessages.firstOrNull { it.id == messageId } ?: return
+        if (msgToDelete.senderId != user.id) return
+
+        // Optimistic deletion
+        _chatMessages.value = originalMessages.filter { it.id != messageId }
+
+        viewModelScope.launch {
+            SupabaseService.deleteDirectMessage(
+                messageId = messageId,
+                senderId = user.id,
+            ).onFailure {
+                Log.w("SocialViewModel", "Failed to delete direct message: ${it.message}")
+                _chatMessages.value = originalMessages
             }
         }
     }
@@ -622,6 +725,16 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun loadProfileData(userId: String) {
+        viewModelScope.launch {
+            SupabaseService.fetchUserProfile(userId).onSuccess { fresh ->
+                if (fresh != null) {
+                    _viewingProfile.value = fresh
+                    if (_currentProfile.value?.id == userId) {
+                        _currentProfile.value = fresh
+                    }
+                }
+            }
+        }
         loadProfilePosts(userId)
         loadFavoriteArtists(userId)
     }
@@ -630,7 +743,7 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             SupabaseService.fetchUserPosts(userId)
                 .onSuccess { list ->
-                    _viewingProfilePosts.value = list
+                    _viewingProfilePosts.value = list.distinctBy { it.id }
                 }
         }
     }

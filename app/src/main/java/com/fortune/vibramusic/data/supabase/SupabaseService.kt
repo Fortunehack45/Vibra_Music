@@ -41,13 +41,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.intOrNull
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import java.util.UUID
 
 /**
@@ -70,6 +69,26 @@ object SupabaseService {
     }
 
     private fun baseUrl(table: String): String = "${SupabaseConfig.url.trimEnd('/')}/rest/v1/$table"
+
+    // ---- Null-safe JSON Accessors --------------------------------------------
+
+    private fun JsonObject.str(key: String): String? =
+        (this[key] as? JsonPrimitive)?.takeIf { it !is JsonNull }?.content
+
+    private fun JsonObject.int(key: String): Int? =
+        (this[key] as? JsonPrimitive)?.takeIf { it !is JsonNull }?.intOrNull
+
+    private fun JsonObject.bool(key: String): Boolean? =
+        (this[key] as? JsonPrimitive)?.takeIf { it !is JsonNull }?.booleanOrNull
+
+    private fun JsonObject.double(key: String): Double? =
+        (this[key] as? JsonPrimitive)?.takeIf { it !is JsonNull }?.doubleOrNull
+
+    private fun JsonObject.obj(key: String): JsonObject? = this[key] as? JsonObject
+    private fun JsonObject.arr(key: String): JsonArray? = this[key] as? JsonArray
+
+    private fun JsonObject.embeddedProfile(key: String = "profiles"): JsonObject? =
+        (this[key] as? JsonObject) ?: (this[key] as? JsonArray)?.firstOrNull() as? JsonObject
 
     /**
      * Synchronizes the user's active YouTube identity into Supabase profiles table.
@@ -112,7 +131,7 @@ object SupabaseService {
             }
 
             if (!response.status.isSuccess()) {
-                val errorText = response.bodyAsText()
+                val errorText = response.bodyAsText().take(300)
                 Log.w(TAG, "syncUserProfile returned status ${response.status}: $errorText")
             }
 
@@ -147,8 +166,9 @@ object SupabaseService {
             }
 
             if (!response.status.isSuccess()) {
-                Log.w(TAG, "fetchPosts failed with ${response.status}")
-                return@runCatching emptyList()
+                val errorText = response.bodyAsText().take(300)
+                Log.w(TAG, "fetchPosts failed with ${response.status}: $errorText")
+                throw RuntimeException("HTTP ${response.status.value}: $errorText")
             }
 
             parsePosts(response.bodyAsText(), forUserId ?: "")
@@ -166,6 +186,11 @@ object SupabaseService {
                 parameter("author_id", "eq.$userId")
                 parameter("select", "*,profiles:author_id(*)")
                 parameter("order", "created_at.desc")
+            }
+            if (!response.status.isSuccess()) {
+                val errorText = response.bodyAsText().take(300)
+                Log.w(TAG, "fetchUserPosts ${response.status}: $errorText")
+                return@runCatching emptyList()
             }
             parsePosts(response.bodyAsText(), userId)
         }
@@ -234,7 +259,7 @@ object SupabaseService {
                 setBody(body)
             }
             if (!response.status.isSuccess()) {
-                val err = response.bodyAsText()
+                val err = response.bodyAsText().take(300)
                 Log.w(TAG, "createPost failed with ${response.status}: $err")
             }
 
@@ -265,18 +290,24 @@ object SupabaseService {
         withContext(Dispatchers.IO) {
             runCatching {
                 if (!liked) {
-                    client.delete(baseUrl("post_likes")) {
+                    val response = client.delete(baseUrl("post_likes")) {
                         header("apikey", SupabaseConfig.anonKey)
                         header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
                         parameter("post_id", "eq.$postId")
                         parameter("user_id", "eq.$userId")
                     }
+                    if (!response.status.isSuccess()) {
+                        Log.w(TAG, "toggleLikePost (unlike) ${response.status}: ${response.bodyAsText().take(300)}")
+                    }
                 } else {
-                    client.post(baseUrl("post_likes")) {
+                    val response = client.post(baseUrl("post_likes")) {
                         header("apikey", SupabaseConfig.anonKey)
                         header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
                         contentType(ContentType.Application.Json)
                         setBody("{\"post_id\":\"$postId\",\"user_id\":\"$userId\"}")
+                    }
+                    if (!response.status.isSuccess()) {
+                        Log.w(TAG, "toggleLikePost (like) ${response.status}: ${response.bodyAsText().take(300)}")
                     }
                 }
                 Unit
@@ -289,11 +320,14 @@ object SupabaseService {
     suspend fun repost(postId: String, user: SocialProfile): Result<SocialPost> = withContext(Dispatchers.IO) {
         runCatching {
             val newPostId = UUID.randomUUID().toString()
-            client.post(baseUrl("posts")) {
+            val response = client.post(baseUrl("posts")) {
                 header("apikey", SupabaseConfig.anonKey)
                 header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
                 contentType(ContentType.Application.Json)
                 setBody("{\"id\":\"$newPostId\",\"author_id\":\"${user.id}\",\"repost_of_id\":\"$postId\",\"content\":\"\"}")
+            }
+            if (!response.status.isSuccess()) {
+                Log.w(TAG, "repost ${response.status}: ${response.bodyAsText().take(300)}")
             }
             SocialPost(
                 id = newPostId,
@@ -312,20 +346,26 @@ object SupabaseService {
         withContext(Dispatchers.IO) {
             runCatching {
                 if (currentlyReposted) {
-                    client.delete(baseUrl("posts")) {
+                    val response = client.delete(baseUrl("posts")) {
                         header("apikey", SupabaseConfig.anonKey)
                         header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
                         parameter("author_id", "eq.${user.id}")
                         parameter("repost_of_id", "eq.$postId")
                     }
+                    if (!response.status.isSuccess()) {
+                        Log.w(TAG, "toggleRepost (delete) ${response.status}: ${response.bodyAsText().take(300)}")
+                    }
                     false
                 } else {
                     val newPostId = UUID.randomUUID().toString()
-                    client.post(baseUrl("posts")) {
+                    val response = client.post(baseUrl("posts")) {
                         header("apikey", SupabaseConfig.anonKey)
                         header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
                         contentType(ContentType.Application.Json)
                         setBody("{\"id\":\"$newPostId\",\"author_id\":\"${user.id}\",\"repost_of_id\":\"$postId\",\"content\":\"\"}")
+                    }
+                    if (!response.status.isSuccess()) {
+                        Log.w(TAG, "toggleRepost (create) ${response.status}: ${response.bodyAsText().take(300)}")
                     }
                     true
                 }
@@ -338,12 +378,14 @@ object SupabaseService {
     suspend fun votePoll(postId: String, optionIndex: Int, userId: String): Result<Unit> =
         withContext(Dispatchers.IO) {
             runCatching {
-                // Submit poll vote event
-                client.post(baseUrl("poll_votes")) {
+                val response = client.post(baseUrl("poll_votes")) {
                     header("apikey", SupabaseConfig.anonKey)
                     header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
                     contentType(ContentType.Application.Json)
                     setBody("{\"post_id\":\"$postId\",\"option_index\":$optionIndex,\"user_id\":\"$userId\"}")
+                }
+                if (!response.status.isSuccess()) {
+                    Log.w(TAG, "votePoll ${response.status}: ${response.bodyAsText().take(300)}")
                 }
                 Unit
             }
@@ -382,7 +424,7 @@ object SupabaseService {
                 setBody(body)
             }
             if (!response.status.isSuccess()) {
-                Log.w(TAG, "addComment failed with status ${response.status}: ${response.bodyAsText()}")
+                Log.w(TAG, "addComment failed with status ${response.status}: ${response.bodyAsText().take(300)}")
             }
 
             PostComment(
@@ -410,6 +452,11 @@ object SupabaseService {
                     parameter("select", "*,profiles:author_id(*)")
                     parameter("order", "created_at.asc")
                 }
+                if (!response.status.isSuccess()) {
+                    val err = response.bodyAsText().take(300)
+                    Log.w(TAG, "fetchComments ${response.status}: $err")
+                    return@runCatching emptyList()
+                }
                 val rawComments = parseComments(response.bodyAsText())
                 val likedCommentIds = if (!currentUserId.isNullOrBlank()) {
                     fetchLikedCommentIds(currentUserId).getOrDefault(emptySet())
@@ -432,8 +479,16 @@ object SupabaseService {
                 parameter("user_id", "eq.$userId")
                 parameter("select", "comment_id")
             }
-            val element = json.parseToJsonElement(response.bodyAsText()).jsonArray
-            element.mapNotNull { it.jsonObject["comment_id"]?.jsonPrimitive?.content }.toSet()
+            if (!response.status.isSuccess()) {
+                val err = response.bodyAsText().take(300)
+                Log.w(TAG, "fetchLikedCommentIds ${response.status}: $err")
+                return@runCatching emptySet()
+            }
+            val root = json.parseToJsonElement(response.bodyAsText())
+            if (root !is JsonArray) {
+                return@runCatching emptySet()
+            }
+            root.mapNotNull { (it as? JsonObject)?.str("comment_id") }.toSet()
         }
     }
 
@@ -444,18 +499,24 @@ object SupabaseService {
         withContext(Dispatchers.IO) {
             runCatching {
                 if (!liked) {
-                    client.delete(baseUrl("comment_likes")) {
+                    val response = client.delete(baseUrl("comment_likes")) {
                         header("apikey", SupabaseConfig.anonKey)
                         header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
                         parameter("comment_id", "eq.$commentId")
                         parameter("user_id", "eq.$userId")
                     }
+                    if (!response.status.isSuccess()) {
+                        Log.w(TAG, "toggleLikeComment (unlike) ${response.status}: ${response.bodyAsText().take(300)}")
+                    }
                 } else {
-                    client.post(baseUrl("comment_likes")) {
+                    val response = client.post(baseUrl("comment_likes")) {
                         header("apikey", SupabaseConfig.anonKey)
                         header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
                         contentType(ContentType.Application.Json)
                         setBody("{\"comment_id\":\"$commentId\",\"user_id\":\"$userId\"}")
+                    }
+                    if (!response.status.isSuccess()) {
+                        Log.w(TAG, "toggleLikeComment (like) ${response.status}: ${response.bodyAsText().take(300)}")
                     }
                 }
                 Unit
@@ -492,7 +553,7 @@ object SupabaseService {
                 setBody(body)
             }
             if (!response.status.isSuccess()) {
-                val errorText = response.bodyAsText()
+                val errorText = response.bodyAsText().take(300)
                 Log.w(TAG, "updateUserProfile returned status ${response.status}: $errorText")
             }
             Unit
@@ -511,6 +572,8 @@ object SupabaseService {
                 parameter("limit", "1")
             }
             if (!response.status.isSuccess()) {
+                val err = response.bodyAsText().take(300)
+                Log.w(TAG, "fetchUserProfile ${response.status}: $err")
                 null
             } else {
                 parseProfiles(response.bodyAsText()).firstOrNull()
@@ -519,8 +582,29 @@ object SupabaseService {
     }
 
     /**
+     * Deletes a post authored by authorId.
+     */
+    suspend fun deletePost(postId: String, authorId: String): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            val response = client.delete(baseUrl("posts")) {
+                header("apikey", SupabaseConfig.anonKey)
+                header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                parameter("id", "eq.$postId")
+                parameter("author_id", "eq.$authorId")
+            }
+            if (!response.status.isSuccess()) {
+                val errorText = response.bodyAsText().take(300)
+                Log.w(TAG, "deletePost returned status ${response.status}: $errorText")
+                throw RuntimeException("Failed to delete post: HTTP ${response.status.value}")
+            }
+            Unit
+        }
+    }
+
+    /**
      * Uploads media (images or videos) to Supabase Storage bucket 'vibra_social'.
      * Returns the publicly accessible URL of the uploaded media file.
+     * Enforces 50MB max for video and 10MB max for images/audio.
      */
     suspend fun uploadMedia(
         bytes: ByteArray,
@@ -528,6 +612,11 @@ object SupabaseService {
         fileName: String = "${UUID.randomUUID()}.${if (mimeType.contains("video")) "mp4" else "jpg"}",
     ): Result<String> = withContext(Dispatchers.IO) {
         runCatching {
+            val maxBytes = if (mimeType.contains("video")) 50L * 1024 * 1024 else 10L * 1024 * 1024
+            if (bytes.size > maxBytes) {
+                val limitMb = maxBytes / (1024 * 1024)
+                throw IllegalArgumentException("File size exceeds maximum allowed limit of ${limitMb}MB")
+            }
             val uploadUrl = "${SupabaseConfig.url.trimEnd('/')}/storage/v1/object/vibra_social/$fileName"
             val response = client.post(uploadUrl) {
                 header("apikey", SupabaseConfig.anonKey)
@@ -536,8 +625,9 @@ object SupabaseService {
                 setBody(bytes)
             }
             if (!response.status.isSuccess()) {
-                val errorText = response.bodyAsText()
+                val errorText = response.bodyAsText().take(300)
                 Log.w(TAG, "uploadMedia returned status ${response.status}: $errorText")
+                throw RuntimeException("Upload failed: HTTP ${response.status.value} - $errorText")
             }
             "${SupabaseConfig.url.trimEnd('/')}/storage/v1/object/public/vibra_social/$fileName"
         }
@@ -564,6 +654,11 @@ object SupabaseService {
                 parameter("id", "neq.$userId")
                 parameter("limit", "20")
             }
+            if (!response.status.isSuccess()) {
+                val err = response.bodyAsText().take(300)
+                Log.w(TAG, "fetchConversations ${response.status}: $err")
+                return@runCatching emptyList()
+            }
             parseProfiles(response.bodyAsText())
         }
     }
@@ -585,6 +680,11 @@ object SupabaseService {
                 )
                 parameter("order", "created_at.asc")
             }
+            if (!response.status.isSuccess()) {
+                val err = response.bodyAsText().take(300)
+                Log.w(TAG, "fetchDirectMessages ${response.status}: $err")
+                return@runCatching emptyList()
+            }
             parseDirectMessages(response.bodyAsText())
         }
     }
@@ -602,6 +702,7 @@ object SupabaseService {
         videoUrl: String? = null,
         audioUrl: String? = null,
         gifUrl: String? = null,
+        replyTo: DirectMessage? = null,
     ): Result<DirectMessage> = withContext(Dispatchers.IO) {
         runCatching {
             val messageId = UUID.randomUUID().toString()
@@ -612,7 +713,30 @@ object SupabaseService {
                 "{\"playlist_id\":${jsonQuote(it.playlistId)},\"title\":${jsonQuote(it.title)},\"author\":${jsonQuote(it.author)},\"thumbnail_url\":${jsonQuote(it.thumbnailUrl ?: "")},\"track_count\":${it.trackCount}}"
             }
 
+            val replySnippet = replyTo?.let { rep ->
+                rep.content.ifBlank {
+                    when {
+                        rep.sharedMusic != null -> "Song: ${rep.sharedMusic.title}"
+                        rep.sharedPlaylist != null -> "Playlist: ${rep.sharedPlaylist.title}"
+                        !rep.imageUrl.isNullOrBlank() -> "Photo"
+                        !rep.videoUrl.isNullOrBlank() -> "Video"
+                        !rep.audioUrl.isNullOrBlank() -> "Voice note"
+                        !rep.gifUrl.isNullOrBlank() -> "GIF"
+                        else -> "Message"
+                    }
+                }.take(80).replace("\n", " ")
+            }
+            val replySender = replyTo?.let { rep ->
+                if (rep.senderId == senderId) "You" else (rep.replyToSender ?: "Friend")
+            }
+
             val finalContent = buildString {
+                if (replyTo != null && !replySnippet.isNullOrBlank()) {
+                    val encoded = runCatching {
+                        android.util.Base64.encodeToString(replySnippet.toByteArray(Charsets.UTF_8), android.util.Base64.NO_WRAP)
+                    }.getOrDefault(replySnippet)
+                    append("[reply:${replyTo.id}:${replySender ?: "Friend"}:$encoded] ")
+                }
                 if (!imageUrl.isNullOrBlank()) append("[image:$imageUrl] ")
                 if (!videoUrl.isNullOrBlank()) append("[video:$videoUrl] ")
                 if (!audioUrl.isNullOrBlank()) append("[audio:$audioUrl] ")
@@ -637,7 +761,7 @@ object SupabaseService {
                 setBody(body)
             }
             if (!res.status.isSuccess()) {
-                Log.w(TAG, "sendDirectMessage returned ${res.status}: ${res.bodyAsText()}")
+                Log.w(TAG, "sendDirectMessage returned ${res.status}: ${res.bodyAsText().take(300)}")
             }
 
             DirectMessage(
@@ -651,7 +775,60 @@ object SupabaseService {
                 gifUrl = gifUrl,
                 sharedMusic = trackAttachment,
                 sharedPlaylist = playlistAttachment,
+                replyToId = replyTo?.id,
+                replyToSender = replySender,
+                replyToText = replySnippet,
             )
+        }
+    }
+
+    /**
+     * Updates content of a direct message authored by senderId.
+     */
+    suspend fun updateDirectMessage(
+        messageId: String,
+        senderId: String,
+        newContent: String,
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            val body = "{\"content\":${jsonQuote(newContent)}}"
+            val response = client.patch(baseUrl("direct_messages")) {
+                header("apikey", SupabaseConfig.anonKey)
+                header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                contentType(ContentType.Application.Json)
+                parameter("id", "eq.$messageId")
+                parameter("sender_id", "eq.$senderId")
+                setBody(body)
+            }
+            if (!response.status.isSuccess()) {
+                val errorText = response.bodyAsText().take(300)
+                Log.w(TAG, "updateDirectMessage returned status ${response.status}: $errorText")
+                throw RuntimeException("Failed to update message: HTTP ${response.status.value}")
+            }
+            Unit
+        }
+    }
+
+    /**
+     * Deletes a direct message authored by senderId.
+     */
+    suspend fun deleteDirectMessage(
+        messageId: String,
+        senderId: String,
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            val response = client.delete(baseUrl("direct_messages")) {
+                header("apikey", SupabaseConfig.anonKey)
+                header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                parameter("id", "eq.$messageId")
+                parameter("sender_id", "eq.$senderId")
+            }
+            if (!response.status.isSuccess()) {
+                val errorText = response.bodyAsText().take(300)
+                Log.w(TAG, "deleteDirectMessage returned status ${response.status}: $errorText")
+                throw RuntimeException("Failed to delete message: HTTP ${response.status.value}")
+            }
+            Unit
         }
     }
 
@@ -662,18 +839,24 @@ object SupabaseService {
         withContext(Dispatchers.IO) {
             runCatching {
                 if (follow) {
-                    client.post(baseUrl("follows")) {
+                    val response = client.post(baseUrl("follows")) {
                         header("apikey", SupabaseConfig.anonKey)
                         header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
                         contentType(ContentType.Application.Json)
                         setBody("{\"follower_id\":\"$followerId\",\"following_id\":\"$targetUserId\"}")
                     }
+                    if (!response.status.isSuccess()) {
+                        Log.w(TAG, "toggleFollow (follow) ${response.status}: ${response.bodyAsText().take(300)}")
+                    }
                 } else {
-                    client.delete(baseUrl("follows")) {
+                    val response = client.delete(baseUrl("follows")) {
                         header("apikey", SupabaseConfig.anonKey)
                         header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
                         parameter("follower_id", "eq.$followerId")
                         parameter("following_id", "eq.$targetUserId")
+                    }
+                    if (!response.status.isSuccess()) {
+                        Log.w(TAG, "toggleFollow (unfollow) ${response.status}: ${response.bodyAsText().take(300)}")
                     }
                 }
                 Unit
@@ -686,11 +869,14 @@ object SupabaseService {
     suspend fun sendFriendRequest(requesterId: String, targetUserId: String): Result<Unit> =
         withContext(Dispatchers.IO) {
             runCatching {
-                client.post(baseUrl("friendships")) {
+                val response = client.post(baseUrl("friendships")) {
                     header("apikey", SupabaseConfig.anonKey)
                     header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
                     contentType(ContentType.Application.Json)
                     setBody("{\"requester_id\":\"$requesterId\",\"receiver_id\":\"$targetUserId\",\"status\":\"PENDING\"}")
+                }
+                if (!response.status.isSuccess()) {
+                    Log.w(TAG, "sendFriendRequest ${response.status}: ${response.bodyAsText().take(300)}")
                 }
                 Unit
             }
@@ -709,6 +895,8 @@ object SupabaseService {
                 parameter("limit", 40)
             }
             if (!response.status.isSuccess()) {
+                val err = response.bodyAsText().take(300)
+                Log.w(TAG, "fetchNotifications ${response.status}: $err")
                 return@runCatching emptyList()
             }
             parseNotifications(response.bodyAsText(), userId)
@@ -720,12 +908,15 @@ object SupabaseService {
      */
     suspend fun markNotificationRead(notificationId: String): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
-            client.patch(baseUrl("notifications")) {
+            val response = client.patch(baseUrl("notifications")) {
                 header("apikey", SupabaseConfig.anonKey)
                 header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
                 parameter("id", "eq.$notificationId")
                 contentType(ContentType.Application.Json)
                 setBody("{\"is_read\":true}")
+            }
+            if (!response.status.isSuccess()) {
+                Log.w(TAG, "markNotificationRead ${response.status}: ${response.bodyAsText().take(300)}")
             }
             Unit
         }
@@ -741,13 +932,25 @@ object SupabaseService {
                 header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
                 parameter("user_id", "eq.$userId")
             }
-            val array = json.parseToJsonElement(response.bodyAsText()).jsonArray
-            array.mapNotNull {
-                val obj = it.jsonObject
+            if (!response.status.isSuccess()) {
+                val err = response.bodyAsText().take(300)
+                Log.w(TAG, "fetchFavoriteArtists ${response.status}: $err")
+                return@runCatching emptyList()
+            }
+            val root = json.parseToJsonElement(response.bodyAsText())
+            if (root !is JsonArray) {
+                Log.w(TAG, "fetchFavoriteArtists: expected array, got: ${response.bodyAsText().take(300)}")
+                return@runCatching emptyList()
+            }
+            root.mapNotNull { el ->
+                val obj = el as? JsonObject ?: return@mapNotNull null
+                val id = obj.str("artist_id") ?: return@mapNotNull null
+                val name = obj.str("artist_name") ?: ""
+                val artwork = obj.str("artist_artwork")?.takeIf { it.isNotBlank() && it != "null" }
                 FavoriteArtist(
-                    id = obj["artist_id"]?.jsonPrimitive?.content ?: return@mapNotNull null,
-                    name = obj["artist_name"]?.jsonPrimitive?.content ?: "",
-                    avatarUrl = obj["artist_artwork"]?.jsonPrimitive?.content,
+                    id = id,
+                    name = name,
+                    avatarUrl = artwork,
                 )
             }
         }
@@ -782,7 +985,7 @@ object SupabaseService {
                     setBody(body)
                 }
                 if (!res.status.isSuccess()) {
-                    Log.w(TAG, "addFavoriteArtist returned ${res.status}: ${res.bodyAsText()}")
+                    Log.w(TAG, "addFavoriteArtist returned ${res.status}: ${res.bodyAsText().take(300)}")
                 }
                 Unit
             }
@@ -794,11 +997,14 @@ object SupabaseService {
     suspend fun removeFavoriteArtist(userId: String, artistId: String): Result<Unit> =
         withContext(Dispatchers.IO) {
             runCatching {
-                client.delete(baseUrl("favorite_artists")) {
+                val res = client.delete(baseUrl("favorite_artists")) {
                     header("apikey", SupabaseConfig.anonKey)
                     header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
                     parameter("user_id", "eq.$userId")
                     parameter("artist_id", "eq.$artistId")
+                }
+                if (!res.status.isSuccess()) {
+                    Log.w(TAG, "removeFavoriteArtist returned ${res.status}: ${res.bodyAsText().take(300)}")
                 }
                 Unit
             }
@@ -822,11 +1028,14 @@ object SupabaseService {
                     append("\"percentile\":${result.percentile}")
                     append("}")
                 }
-                client.post(baseUrl("quiz_leaderboards")) {
+                val res = client.post(baseUrl("quiz_leaderboards")) {
                     header("apikey", SupabaseConfig.anonKey)
                     header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
                     contentType(ContentType.Application.Json)
                     setBody(body)
+                }
+                if (!res.status.isSuccess()) {
+                    Log.w(TAG, "submitQuizScore returned ${res.status}: ${res.bodyAsText().take(300)}")
                 }
                 Unit
             }
@@ -848,6 +1057,11 @@ object SupabaseService {
                 parameter("select", "*,profiles:user_id(handle,display_name,avatar_url)")
                 parameter("order", "score.desc,time_seconds.asc")
                 parameter("limit", limit)
+            }
+            if (!response.status.isSuccess()) {
+                val err = response.bodyAsText().take(300)
+                Log.w(TAG, "fetchArtistLeaderboard ${response.status}: $err")
+                return@runCatching emptyList()
             }
             parseLeaderboard(response.bodyAsText(), currentUserId)
         }
@@ -894,12 +1108,15 @@ object SupabaseService {
                 append("\"preferred_genres\":$genresJson")
                 append("}")
             }
-            client.post(baseUrl("user_listening_experience")) {
+            val res = client.post(baseUrl("user_listening_experience")) {
                 header("apikey", SupabaseConfig.anonKey)
                 header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
                 header("Prefer", "resolution=merge-duplicates")
                 contentType(ContentType.Application.Json)
                 setBody(body)
+            }
+            if (!res.status.isSuccess()) {
+                Log.w(TAG, "syncListeningExperience returned ${res.status}: ${res.bodyAsText().take(300)}")
             }
             Unit
         }
@@ -915,24 +1132,33 @@ object SupabaseService {
                 header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
                 parameter("user_id", "eq.$userId")
             }
-            val array = json.parseToJsonElement(response.bodyAsText()).jsonArray
-            val obj = array.firstOrNull()?.jsonObject ?: return@runCatching null
-            val genres = obj["preferred_genres"]?.jsonArray?.mapNotNull { it.jsonPrimitive.content } ?: emptyList()
+            if (!response.status.isSuccess()) {
+                val err = response.bodyAsText().take(300)
+                Log.w(TAG, "fetchListeningExperience ${response.status}: $err")
+                return@runCatching null
+            }
+            val root = json.parseToJsonElement(response.bodyAsText())
+            if (root !is JsonArray) {
+                Log.w(TAG, "fetchListeningExperience: expected array, got: ${response.bodyAsText().take(300)}")
+                return@runCatching null
+            }
+            val obj = root.firstOrNull() as? JsonObject ?: return@runCatching null
+            val genres = obj.arr("preferred_genres")?.mapNotNull { (it as? JsonPrimitive)?.takeIf { p -> p !is JsonNull }?.content?.takeIf { s -> s.isNotBlank() && s != "null" } } ?: emptyList()
             UserListeningExperience(
                 userId = userId,
-                spotifySpdcToken = obj["spotify_spdc_token"]?.jsonPrimitive?.content,
-                spotifyConnected = obj["spotify_connected"]?.jsonPrimitive?.booleanOrNull ?: false,
-                audioQuality = obj["audio_quality"]?.jsonPrimitive?.content ?: "HIGH",
-                equalizerEnabled = obj["equalizer_enabled"]?.jsonPrimitive?.booleanOrNull ?: false,
-                equalizerPreset = obj["equalizer_preset"]?.jsonPrimitive?.content ?: "FLAT",
-                volumeNormalization = obj["volume_normalization"]?.jsonPrimitive?.booleanOrNull ?: true,
-                bassBoostPercent = obj["bass_boost_percent"]?.jsonPrimitive?.intOrNull ?: 0,
-                virtualizerPercent = obj["virtualizer_percent"]?.jsonPrimitive?.intOrNull ?: 0,
-                pitchCents = obj["pitch_cents"]?.jsonPrimitive?.intOrNull ?: 0,
-                tempoMultiplier = obj["tempo_multiplier"]?.jsonPrimitive?.doubleOrNull?.toFloat() ?: 1.0f,
-                autoSkipSilence = obj["auto_skip_silence"]?.jsonPrimitive?.booleanOrNull ?: false,
-                lyricsSource = obj["lyrics_source"]?.jsonPrimitive?.content ?: "DEFAULT",
-                canvasEnabled = obj["canvas_enabled"]?.jsonPrimitive?.booleanOrNull ?: true,
+                spotifySpdcToken = obj.str("spotify_spdc_token"),
+                spotifyConnected = obj.bool("spotify_connected") ?: false,
+                audioQuality = obj.str("audio_quality") ?: "HIGH",
+                equalizerEnabled = obj.bool("equalizer_enabled") ?: false,
+                equalizerPreset = obj.str("equalizer_preset") ?: "FLAT",
+                volumeNormalization = obj.bool("volume_normalization") ?: true,
+                bassBoostPercent = obj.int("bass_boost_percent") ?: 0,
+                virtualizerPercent = obj.int("virtualizer_percent") ?: 0,
+                pitchCents = obj.int("pitch_cents") ?: 0,
+                tempoMultiplier = obj.double("tempo_multiplier")?.toFloat() ?: 1.0f,
+                autoSkipSilence = obj.bool("auto_skip_silence") ?: false,
+                lyricsSource = obj.str("lyrics_source") ?: "DEFAULT",
+                canvasEnabled = obj.bool("canvas_enabled") ?: true,
                 preferredGenres = genres,
             )
         }
@@ -953,12 +1179,15 @@ object SupabaseService {
                 if (song.durationText != null) append(",\"duration_text\":${jsonQuote(song.durationText)}")
                 append("}")
             }
-            client.post(baseUrl("user_liked_tracks")) {
+            val res = client.post(baseUrl("user_liked_tracks")) {
                 header("apikey", SupabaseConfig.anonKey)
                 header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
                 header("Prefer", "resolution=merge-duplicates")
                 contentType(ContentType.Application.Json)
                 setBody(body)
+            }
+            if (!res.status.isSuccess()) {
+                Log.w(TAG, "syncLikedTrack returned ${res.status}: ${res.bodyAsText().take(300)}")
             }
             Unit
         }
@@ -969,11 +1198,14 @@ object SupabaseService {
      */
     suspend fun removeLikedTrack(userId: String, videoId: String): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
-            client.delete(baseUrl("user_liked_tracks")) {
+            val res = client.delete(baseUrl("user_liked_tracks")) {
                 header("apikey", SupabaseConfig.anonKey)
                 header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
                 parameter("user_id", "eq.$userId")
                 parameter("video_id", "eq.$videoId")
+            }
+            if (!res.status.isSuccess()) {
+                Log.w(TAG, "removeLikedTrack returned ${res.status}: ${res.bodyAsText().take(300)}")
             }
             Unit
         }
@@ -990,14 +1222,23 @@ object SupabaseService {
                 parameter("user_id", "eq.$userId")
                 parameter("order", "liked_at.desc")
             }
-            val array = json.parseToJsonElement(response.bodyAsText()).jsonArray
-            array.mapNotNull {
-                val obj = it.jsonObject
-                val videoId = obj["video_id"]?.jsonPrimitive?.content ?: return@mapNotNull null
-                val title = obj["title"]?.jsonPrimitive?.content ?: return@mapNotNull null
-                val artist = obj["artist"]?.jsonPrimitive?.content ?: ""
-                val thumb = obj["thumbnail_url"]?.jsonPrimitive?.content
-                val duration = obj["duration_text"]?.jsonPrimitive?.content
+            if (!response.status.isSuccess()) {
+                val err = response.bodyAsText().take(300)
+                Log.w(TAG, "fetchLikedTracks ${response.status}: $err")
+                return@runCatching emptyList()
+            }
+            val root = json.parseToJsonElement(response.bodyAsText())
+            if (root !is JsonArray) {
+                Log.w(TAG, "fetchLikedTracks: expected array, got: ${response.bodyAsText().take(300)}")
+                return@runCatching emptyList()
+            }
+            root.mapNotNull { el ->
+                val obj = el as? JsonObject ?: return@mapNotNull null
+                val videoId = obj.str("video_id") ?: return@mapNotNull null
+                val title = obj.str("title") ?: return@mapNotNull null
+                val artist = obj.str("artist") ?: ""
+                val thumb = obj.str("thumbnail_url")?.takeIf { it.isNotBlank() && it != "null" }
+                val duration = obj.str("duration_text")
                 Song(
                     videoId = videoId,
                     title = title,
@@ -1031,12 +1272,15 @@ object SupabaseService {
                 append("\"track_count\":$trackCount")
                 append("}")
             }
-            client.post(baseUrl("user_playlists")) {
+            val res = client.post(baseUrl("user_playlists")) {
                 header("apikey", SupabaseConfig.anonKey)
                 header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
                 header("Prefer", "resolution=merge-duplicates")
                 contentType(ContentType.Application.Json)
                 setBody(body)
+            }
+            if (!res.status.isSuccess()) {
+                Log.w(TAG, "syncPlaylist returned ${res.status}: ${res.bodyAsText().take(300)}")
             }
             Unit
         }
@@ -1047,11 +1291,14 @@ object SupabaseService {
      */
     suspend fun deletePlaylist(userId: String, playlistId: String): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
-            client.delete(baseUrl("user_playlists")) {
+            val res = client.delete(baseUrl("user_playlists")) {
                 header("apikey", SupabaseConfig.anonKey)
                 header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
                 parameter("id", "eq.$playlistId")
                 parameter("user_id", "eq.$userId")
+            }
+            if (!res.status.isSuccess()) {
+                Log.w(TAG, "deletePlaylist returned ${res.status}: ${res.bodyAsText().take(300)}")
             }
             Unit
         }
@@ -1087,11 +1334,14 @@ object SupabaseService {
                     }
                 }.joinToString(",", "[", "]")
 
-                client.post(baseUrl("user_playlist_tracks")) {
+                val res = client.post(baseUrl("user_playlist_tracks")) {
                     header("apikey", SupabaseConfig.anonKey)
                     header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
                     contentType(ContentType.Application.Json)
                     setBody(tracksJson)
+                }
+                if (!res.status.isSuccess()) {
+                    Log.w(TAG, "syncPlaylistTracks returned ${res.status}: ${res.bodyAsText().take(300)}")
                 }
             }
             Unit
@@ -1111,14 +1361,23 @@ object SupabaseService {
                 parameter("user_id", "eq.$userId")
                 parameter("order", "created_at.desc")
             }
-            val playlistsArray = json.parseToJsonElement(response.bodyAsText()).jsonArray
+            if (!response.status.isSuccess()) {
+                val err = response.bodyAsText().take(300)
+                Log.w(TAG, "fetchUserPlaylistsWithTracks ${response.status}: $err")
+                return@runCatching emptyList()
+            }
+            val root = json.parseToJsonElement(response.bodyAsText())
+            if (root !is JsonArray) {
+                Log.w(TAG, "fetchUserPlaylistsWithTracks: expected array, got: ${response.bodyAsText().take(300)}")
+                return@runCatching emptyList()
+            }
             val result = mutableListOf<Pair<UserPlaylist, List<Song>>>()
 
-            for (item in playlistsArray) {
-                val pObj = item.jsonObject
-                val pId = pObj["id"]?.jsonPrimitive?.content ?: continue
-                val pTitle = pObj["title"]?.jsonPrimitive?.content ?: "Playlist"
-                val pThumb = pObj["thumbnail_url"]?.jsonPrimitive?.content
+            for (item in root) {
+                val pObj = item as? JsonObject ?: continue
+                val pId = pObj.str("id") ?: continue
+                val pTitle = pObj.str("title") ?: "Playlist"
+                val pThumb = pObj.str("thumbnail_url")?.takeIf { it.isNotBlank() && it != "null" }
 
                 val tracksResp = client.get(baseUrl("user_playlist_tracks")) {
                     header("apikey", SupabaseConfig.anonKey)
@@ -1126,22 +1385,28 @@ object SupabaseService {
                     parameter("playlist_id", "eq.$pId")
                     parameter("order", "position.asc")
                 }
-                val tracksArray = json.parseToJsonElement(tracksResp.bodyAsText()).jsonArray
-                val songs = tracksArray.mapNotNull { tItem ->
-                    val tObj = tItem.jsonObject
-                    val vId = tObj["video_id"]?.jsonPrimitive?.content ?: return@mapNotNull null
-                    val title = tObj["title"]?.jsonPrimitive?.content ?: return@mapNotNull null
-                    val artist = tObj["artist"]?.jsonPrimitive?.content ?: ""
-                    val thumb = tObj["thumbnail_url"]?.jsonPrimitive?.content
-                    val duration = tObj["duration_text"]?.jsonPrimitive?.content
-                    Song(
-                        videoId = vId,
-                        title = title,
-                        artist = artist,
-                        thumbnailUrl = thumb,
-                        durationText = duration,
-                    )
+                if (!tracksResp.status.isSuccess()) {
+                    Log.w(TAG, "fetchUserPlaylistsWithTracks tracks ${tracksResp.status}: ${tracksResp.bodyAsText().take(300)}")
+                    continue
                 }
+                val tracksRoot = json.parseToJsonElement(tracksResp.bodyAsText())
+                val songs = if (tracksRoot is JsonArray) {
+                    tracksRoot.mapNotNull { tItem ->
+                        val tObj = tItem as? JsonObject ?: return@mapNotNull null
+                        val vId = tObj.str("video_id") ?: return@mapNotNull null
+                        val title = tObj.str("title") ?: return@mapNotNull null
+                        val artist = tObj.str("artist") ?: ""
+                        val thumb = tObj.str("thumbnail_url")?.takeIf { it.isNotBlank() && it != "null" }
+                        val duration = tObj.str("duration_text")
+                        Song(
+                            videoId = vId,
+                            title = title,
+                            artist = artist,
+                            thumbnailUrl = thumb,
+                            durationText = duration,
+                        )
+                    }
+                } else emptyList()
 
                 val userPlaylist = UserPlaylist(
                     playlistId = pId,
@@ -1154,263 +1419,6 @@ object SupabaseService {
             result
         }
     }
-
-    // ---- JSON Parsing Utilities ----------------------------------------------
-
-    private fun jsonQuote(text: String): String =
-        "\"" + text.replace("\\", "\\\\")
-            .replace("\"", "\\\"")
-            .replace("\n", "\\n")
-            .replace("\r", "\\r") + "\""
-
-    private fun parseProfiles(raw: String): List<SocialProfile> = runCatching {
-        val array = json.parseToJsonElement(raw).jsonArray
-        array.mapNotNull { element ->
-            val obj = element.jsonObject
-            val id = obj["id"]?.jsonPrimitive?.content ?: return@mapNotNull null
-            val handle = obj["handle"]?.jsonPrimitive?.content ?: "user"
-            val displayName = obj["display_name"]?.jsonPrimitive?.content ?: handle
-            val avatarUrl = obj["avatar_url"]?.jsonPrimitive?.content
-            SocialProfile(
-                id = id,
-                handle = handle,
-                displayName = displayName,
-                avatarUrl = avatarUrl,
-            )
-        }
-    }.getOrDefault(emptyList())
-
-    private fun parsePosts(raw: String, currentUserId: String): List<SocialPost> = runCatching {
-        val array = json.parseToJsonElement(raw).jsonArray
-        array.mapNotNull { element ->
-            val obj = element.jsonObject
-            val id = obj["id"]?.jsonPrimitive?.content ?: return@mapNotNull null
-            val authorId = obj["author_id"]?.jsonPrimitive?.content ?: ""
-            val content = obj["content"]?.jsonPrimitive?.content ?: ""
-            val imageUrl = obj["image_url"]?.jsonPrimitive?.content
-            val imageUrls = obj["image_urls"]?.jsonArray?.mapNotNull { it.jsonPrimitive.content } ?: emptyList()
-            val videoUrl = obj["video_url"]?.jsonPrimitive?.content
-            val gifUrl = obj["gif_url"]?.jsonPrimitive?.content
-                ?: if (imageUrl?.endsWith(".gif", ignoreCase = true) == true || imageUrl?.contains("giphy", ignoreCase = true) == true || imageUrl?.contains("tenor", ignoreCase = true) == true) imageUrl else null
-            val quoteOfId = obj["quote_of_id"]?.jsonPrimitive?.content
-            val repostOfId = obj["repost_of_id"]?.jsonPrimitive?.content
-            val createdAt = obj["created_at"]?.jsonPrimitive?.content ?: ""
-            val likesCount = obj["likes_count"]?.jsonPrimitive?.intOrNull ?: 0
-            val commentsCount = obj["comments_count"]?.jsonPrimitive?.intOrNull ?: 0
-            val repostsCount = obj["reposts_count"]?.jsonPrimitive?.intOrNull ?: 0
-
-            val profileObj = obj["profiles"]?.jsonObject
-            val author = profileObj?.let {
-                SocialProfile(
-                    id = it["id"]?.jsonPrimitive?.content ?: authorId,
-                    handle = it["handle"]?.jsonPrimitive?.content ?: "",
-                    displayName = it["display_name"]?.jsonPrimitive?.content ?: "Listener",
-                    avatarUrl = it["avatar_url"]?.jsonPrimitive?.content,
-                )
-            }
-
-            // Extract optional music track attachment
-            val musicTrack = obj["music_track"]?.jsonObject?.let { m ->
-                MusicTrackAttachment(
-                    videoId = m["video_id"]?.jsonPrimitive?.content ?: "",
-                    title = m["title"]?.jsonPrimitive?.content ?: "",
-                    artist = m["artist"]?.jsonPrimitive?.content ?: "",
-                    thumbnailUrl = m["thumbnail_url"]?.jsonPrimitive?.content,
-                    durationText = m["duration_text"]?.jsonPrimitive?.content,
-                )
-            }
-
-            // Extract optional poll
-            val poll = obj["poll_data"]?.jsonObject?.let { p ->
-                val question = p["question"]?.jsonPrimitive?.content ?: ""
-                val options = p["options"]?.jsonArray?.mapIndexed { idx, opt ->
-                    val o = opt.jsonObject
-                    PollOption(
-                        id = "$idx",
-                        text = o["text"]?.jsonPrimitive?.content ?: "",
-                        votes = o["votes"]?.jsonPrimitive?.intOrNull ?: 0,
-                    )
-                } ?: emptyList()
-                PollData(question = question, options = options, totalVotes = options.sumOf { it.votes })
-            }
-
-            val audioUrl = obj["audio_url"]?.jsonPrimitive?.content
-            val isReview = runCatching { obj["is_review"]?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: false }.getOrDefault(false)
-            val rating = obj["rating"]?.jsonPrimitive?.intOrNull ?: 0
-            val taggedArtist = obj["tagged_artist"]?.jsonPrimitive?.content
-            val isRepostedByMe = if (currentUserId.isNotBlank()) {
-                repostOfId != null && authorId == currentUserId
-            } else false
-
-            SocialPost(
-                id = id,
-                authorId = authorId,
-                author = author,
-                content = content,
-                imageUrl = imageUrl,
-                imageUrls = imageUrls,
-                videoUrl = videoUrl,
-                gifUrl = gifUrl,
-                audioUrl = audioUrl,
-                isReview = isReview,
-                rating = rating,
-                taggedArtist = taggedArtist,
-                musicTrack = musicTrack,
-                pollData = poll,
-                likesCount = likesCount,
-                commentsCount = commentsCount,
-                repostsCount = repostsCount,
-                quoteOfId = quoteOfId,
-                repostOfId = repostOfId,
-                isRepostedByMe = isRepostedByMe,
-                createdAt = createdAt,
-            )
-        }
-    }.getOrDefault(emptyList())
-
-    private fun parseComments(raw: String): List<PostComment> = runCatching {
-        val array = json.parseToJsonElement(raw).jsonArray
-        array.mapNotNull { element ->
-            val obj = element.jsonObject
-            val id = obj["id"]?.jsonPrimitive?.content ?: return@mapNotNull null
-            val postId = obj["post_id"]?.jsonPrimitive?.content ?: ""
-            val authorId = obj["author_id"]?.jsonPrimitive?.content ?: ""
-            val rawContent = obj["content"]?.jsonPrimitive?.content ?: ""
-            var cleanContent = rawContent
-            var gifUrl = obj["gif_url"]?.jsonPrimitive?.content
-            if (rawContent.contains("[gif:")) {
-                val match = "\\[gif:(https?://[^\\]]+)\\]".toRegex().find(rawContent)
-                if (match != null) {
-                    if (gifUrl == null) gifUrl = match.groupValues[1]
-                    cleanContent = rawContent.replace(match.value, "").trim()
-                }
-            }
-            val parentId = obj["parent_id"]?.jsonPrimitive?.content
-            val createdAt = obj["created_at"]?.jsonPrimitive?.content ?: ""
-            val likesCount = obj["likes_count"]?.jsonPrimitive?.intOrNull ?: 0
-
-            val profileObj = obj["profiles"]?.jsonObject
-            val author = profileObj?.let {
-                SocialProfile(
-                    id = it["id"]?.jsonPrimitive?.content ?: authorId,
-                    handle = it["handle"]?.jsonPrimitive?.content ?: "",
-                    displayName = it["display_name"]?.jsonPrimitive?.content ?: "Listener",
-                    avatarUrl = it["avatar_url"]?.jsonPrimitive?.content,
-                )
-            }
-
-            PostComment(
-                id = id,
-                postId = postId,
-                authorId = authorId,
-                author = author,
-                parentId = parentId,
-                content = cleanContent,
-                gifUrl = gifUrl,
-                likesCount = likesCount,
-                createdAt = createdAt,
-            )
-        }
-    }.getOrDefault(emptyList())
-
-    private fun parseDirectMessages(raw: String): List<DirectMessage> = runCatching {
-        val array = json.parseToJsonElement(raw).jsonArray
-        array.mapNotNull { element ->
-            val obj = element.jsonObject
-            val id = obj["id"]?.jsonPrimitive?.content ?: return@mapNotNull null
-            val senderId = obj["sender_id"]?.jsonPrimitive?.content ?: ""
-            val receiverId = obj["receiver_id"]?.jsonPrimitive?.content ?: ""
-            val rawContent = obj["content"]?.jsonPrimitive?.content ?: ""
-            var cleanContent = rawContent
-            var imageUrl = obj["image_url"]?.jsonPrimitive?.content
-            var videoUrl = obj["video_url"]?.jsonPrimitive?.content
-            var audioUrl = obj["audio_url"]?.jsonPrimitive?.content
-            var gifUrl = obj["gif_url"]?.jsonPrimitive?.content
-
-            val tagRegex = "\\[(image|video|audio|gif):(https?://[^\\]]+)\\]".toRegex()
-            tagRegex.findAll(rawContent).forEach { match ->
-                val type = match.groupValues[1]
-                val url = match.groupValues[2]
-                when (type) {
-                    "image" -> if (imageUrl == null) imageUrl = url
-                    "video" -> if (videoUrl == null) videoUrl = url
-                    "audio" -> if (audioUrl == null) audioUrl = url
-                    "gif" -> if (gifUrl == null) gifUrl = url
-                }
-            }
-            cleanContent = rawContent.replace(tagRegex, "").trim()
-
-            val isRead = obj["is_read"]?.jsonPrimitive?.booleanOrNull ?: false
-            val createdAt = obj["created_at"]?.jsonPrimitive?.content ?: ""
-
-            val sharedMusic = obj["shared_music"]?.jsonObject?.let { m ->
-                MusicTrackAttachment(
-                    videoId = m["video_id"]?.jsonPrimitive?.content ?: "",
-                    title = m["title"]?.jsonPrimitive?.content ?: "",
-                    artist = m["artist"]?.jsonPrimitive?.content ?: "",
-                    thumbnailUrl = m["thumbnail_url"]?.jsonPrimitive?.content,
-                    durationText = m["duration_text"]?.jsonPrimitive?.content,
-                )
-            }
-
-            val sharedPlaylist = obj["shared_playlist"]?.jsonObject?.let { p ->
-                SharedPlaylistAttachment(
-                    playlistId = p["playlist_id"]?.jsonPrimitive?.content ?: "",
-                    title = p["title"]?.jsonPrimitive?.content ?: "",
-                    author = p["author"]?.jsonPrimitive?.content ?: "",
-                    thumbnailUrl = p["thumbnail_url"]?.jsonPrimitive?.content,
-                    trackCount = p["track_count"]?.jsonPrimitive?.intOrNull ?: 0,
-                )
-            }
-
-            DirectMessage(
-                id = id,
-                senderId = senderId,
-                receiverId = receiverId,
-                content = cleanContent,
-                imageUrl = imageUrl,
-                videoUrl = videoUrl,
-                audioUrl = audioUrl,
-                gifUrl = gifUrl,
-                sharedMusic = sharedMusic,
-                sharedPlaylist = sharedPlaylist,
-                isRead = isRead,
-                createdAt = createdAt,
-            )
-        }
-    }.getOrDefault(emptyList())
-
-    private fun parseNotifications(raw: String, currentUserId: String): List<SocialNotification> = runCatching {
-        val array = json.parseToJsonElement(raw).jsonArray
-        array.mapNotNull { element ->
-            val obj = element.jsonObject
-            val id = obj["id"]?.jsonPrimitive?.content ?: return@mapNotNull null
-            val actorId = obj["actor_id"]?.jsonPrimitive?.content ?: ""
-            val actorName = obj["actor_name"]?.jsonPrimitive?.content ?: "A listener"
-            val actorAvatar = obj["actor_avatar"]?.jsonPrimitive?.content
-            val actorHandle = obj["actor_handle"]?.jsonPrimitive?.content ?: ""
-            val typeStr = obj["type"]?.jsonPrimitive?.content ?: "LIKE"
-            val type = runCatching { NotificationType.valueOf(typeStr) }.getOrDefault(NotificationType.LIKE)
-            val targetPostId = obj["target_post_id"]?.jsonPrimitive?.content
-            val message = obj["message"]?.jsonPrimitive?.content ?: ""
-            val isRead = obj["is_read"]?.jsonPrimitive?.booleanOrNull ?: false
-            val createdAt = obj["created_at"]?.jsonPrimitive?.content ?: ""
-
-            SocialNotification(
-                id = id,
-                userId = currentUserId,
-                actorId = actorId,
-                actorName = actorName,
-                actorAvatar = actorAvatar,
-                actorHandle = actorHandle,
-                type = type,
-                targetPostId = targetPostId,
-                message = message,
-                isRead = isRead,
-                createdAt = createdAt,
-            )
-        }
-    }.getOrDefault(emptyList())
 
     /**
      * Searches both profiles and posts across the Vibra Social database.
@@ -1432,7 +1440,12 @@ object SupabaseService {
                 parameter("or", "(display_name.ilike.$encodedQ,handle.ilike.$encodedQ)")
                 parameter("limit", limit)
             }
-            val matchedProfiles = parseProfiles(profilesResp.bodyAsText())
+            val matchedProfiles = if (profilesResp.status.isSuccess()) {
+                parseProfiles(profilesResp.bodyAsText())
+            } else {
+                Log.w(TAG, "searchProfiles ${profilesResp.status}: ${profilesResp.bodyAsText().take(300)}")
+                emptyList()
+            }
 
             val postsResp = client.get(baseUrl("posts")) {
                 header("apikey", SupabaseConfig.anonKey)
@@ -1442,41 +1455,402 @@ object SupabaseService {
                 parameter("order", "created_at.desc")
                 parameter("limit", limit)
             }
-            val matchedPosts = parsePosts(postsResp.bodyAsText(), currentUserId)
+            val matchedPosts = if (postsResp.status.isSuccess()) {
+                parsePosts(postsResp.bodyAsText(), currentUserId)
+            } else {
+                Log.w(TAG, "searchPosts ${postsResp.status}: ${postsResp.bodyAsText().take(300)}")
+                emptyList()
+            }
 
             matchedProfiles to matchedPosts
         }
     }
 
-    private fun parseLeaderboard(raw: String, currentUserId: String): List<LeaderboardEntry> =
-        runCatching {
-            val array = json.parseToJsonElement(raw).jsonArray
-            array.mapIndexedNotNull { index, element ->
-                val obj = element.jsonObject
-                val userId = obj["user_id"]?.jsonPrimitive?.content ?: return@mapIndexedNotNull null
-                val score = obj["score"]?.jsonPrimitive?.intOrNull ?: 0
-                val total = obj["total_questions"]?.jsonPrimitive?.intOrNull ?: 10
-                val time = obj["time_seconds"]?.jsonPrimitive?.doubleOrNull ?: 0.0
-                val createdAt = obj["created_at"]?.jsonPrimitive?.content ?: ""
+    // ---- JSON Parsing Utilities ----------------------------------------------
 
-                val profileObj = obj["profiles"]?.jsonObject
-                val handle = profileObj?.get("handle")?.jsonPrimitive?.content ?: "user_${userId.takeLast(4)}"
-                val displayName = profileObj?.get("display_name")?.jsonPrimitive?.content ?: handle
-                val avatarUrl = profileObj?.get("avatar_url")?.jsonPrimitive?.content
+    private fun jsonQuote(text: String): String =
+        "\"" + text.replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+            .replace("\n", "\\n")
+            .replace("\r", "\\r") + "\""
 
-                LeaderboardEntry(
-                    id = "$index",
-                    rank = index + 1,
-                    userId = userId,
-                    handle = handle,
-                    displayName = displayName,
-                    avatarUrl = avatarUrl,
-                    score = score,
-                    totalQuestions = total,
-                    timeSeconds = time,
-                    isCurrentUser = userId == currentUserId,
-                    createdAt = createdAt,
+    internal fun parseProfiles(raw: String): List<SocialProfile> {
+        val root = runCatching { json.parseToJsonElement(raw) }.getOrNull()
+        if (root !is JsonArray) {
+            Log.w(TAG, "parseProfiles: expected array, got: ${raw.take(300)}")
+            return emptyList()
+        }
+        return root.mapNotNull { element ->
+            runCatching { parseProfileRow(element as JsonObject) }
+                .onFailure { Log.w(TAG, "parseProfiles: skipping bad row: ${it.message}") }
+                .getOrNull()
+        }
+    }
+
+    internal fun parseProfileRow(obj: JsonObject): SocialProfile {
+        val id = obj.str("id") ?: throw IllegalArgumentException("Missing profile id")
+        val handle = obj.str("handle") ?: "user"
+        val displayName = obj.str("display_name") ?: handle
+        val avatarUrl = obj.str("avatar_url")?.takeIf { it.isNotBlank() && it != "null" }
+        val bio = obj.str("bio") ?: ""
+        val referralCode = obj.str("referral_code") ?: ""
+        val invitedBy = obj.str("invited_by")?.takeIf { it.isNotBlank() && it != "null" }
+        val invitesCount = obj.int("invites_count") ?: 0
+        val quizLives = obj.int("quiz_lives") ?: 5
+        val isUnlimitedLives = obj.bool("is_unlimited_lives") ?: false
+        val createdAt = obj.str("created_at") ?: ""
+
+        return SocialProfile(
+            id = id,
+            handle = handle,
+            displayName = displayName,
+            avatarUrl = avatarUrl,
+            bio = bio,
+            referralCode = referralCode,
+            invitedBy = invitedBy,
+            invitesCount = invitesCount,
+            quizLives = quizLives,
+            isUnlimitedLives = isUnlimitedLives,
+            createdAt = createdAt,
+        )
+    }
+
+    internal fun parsePosts(raw: String, currentUserId: String): List<SocialPost> {
+        val root = runCatching { json.parseToJsonElement(raw) }.getOrNull()
+        if (root !is JsonArray) {
+            Log.w(TAG, "parsePosts: expected array, got: ${raw.take(300)}")
+            return emptyList()
+        }
+        return root.mapNotNull { element ->
+            runCatching { parsePostRow(element as JsonObject, currentUserId) }
+                .onFailure { Log.w(TAG, "parsePosts: skipping bad row: ${it.message}") }
+                .getOrNull()
+        }
+    }
+
+    internal fun parsePostRow(obj: JsonObject, currentUserId: String): SocialPost {
+        val id = obj.str("id") ?: throw IllegalArgumentException("Missing post id")
+        val authorId = obj.str("author_id") ?: throw IllegalArgumentException("Missing author_id")
+        val content = obj.str("content") ?: ""
+        val imageUrl = obj.str("image_url")?.takeIf { it.isNotBlank() && it != "null" }
+        val imageUrls = obj.arr("image_urls")?.mapNotNull { (it as? JsonPrimitive)?.takeIf { p -> p !is JsonNull }?.content?.takeIf { s -> s.isNotBlank() && s != "null" } } ?: emptyList()
+        val videoUrl = obj.str("video_url")?.takeIf { it.isNotBlank() && it != "null" }
+        var gifUrl = obj.str("gif_url")?.takeIf { it.isNotBlank() && it != "null" }
+        if (gifUrl == null && (imageUrl?.endsWith(".gif", ignoreCase = true) == true || imageUrl?.contains("giphy", ignoreCase = true) == true || imageUrl?.contains("tenor", ignoreCase = true) == true)) {
+            gifUrl = imageUrl
+        }
+        val quoteOfId = obj.str("quote_of_id")?.takeIf { it.isNotBlank() && it != "null" }
+        val repostOfId = obj.str("repost_of_id")?.takeIf { it.isNotBlank() && it != "null" }
+        val createdAt = obj.str("created_at") ?: ""
+        val likesCount = obj["likes_count"]?.let { el ->
+            if (el is JsonNull) 0
+            else (el as? JsonPrimitive)?.intOrNull ?: throw IllegalArgumentException("Invalid likes_count: $el")
+        } ?: 0
+        val commentsCount = obj["comments_count"]?.let { el ->
+            if (el is JsonNull) 0
+            else (el as? JsonPrimitive)?.intOrNull ?: throw IllegalArgumentException("Invalid comments_count: $el")
+        } ?: 0
+        val repostsCount = obj["reposts_count"]?.let { el ->
+            if (el is JsonNull) 0
+            else (el as? JsonPrimitive)?.intOrNull ?: throw IllegalArgumentException("Invalid reposts_count: $el")
+        } ?: 0
+
+        val profileObj = obj.embeddedProfile("profiles")
+        val author = profileObj?.let {
+            SocialProfile(
+                id = it.str("id") ?: authorId,
+                handle = it.str("handle") ?: "",
+                displayName = it.str("display_name") ?: "Listener",
+                avatarUrl = it.str("avatar_url")?.takeIf { u -> u.isNotBlank() && u != "null" },
+            )
+        }
+
+        // Extract optional music track attachment
+        val musicTrack = obj.obj("music_track")?.let { m ->
+            MusicTrackAttachment(
+                videoId = m.str("video_id") ?: "",
+                title = m.str("title") ?: "",
+                artist = m.str("artist") ?: "",
+                thumbnailUrl = m.str("thumbnail_url")?.takeIf { it.isNotBlank() && it != "null" },
+                durationText = m.str("duration_text")?.takeIf { it.isNotBlank() && it != "null" },
+            )
+        }
+
+        // Extract optional poll
+        val poll = obj.obj("poll_data")?.let { p ->
+            val question = p.str("question") ?: ""
+            val options = p.arr("options")?.mapIndexedNotNull { idx, opt ->
+                val o = opt as? JsonObject ?: return@mapIndexedNotNull null
+                PollOption(
+                    id = "$idx",
+                    text = o.str("text") ?: "",
+                    votes = o.int("votes") ?: 0,
                 )
+            } ?: emptyList()
+            PollData(question = question, options = options, totalVotes = options.sumOf { it.votes })
+        }
+
+        val audioUrl = obj.str("audio_url")?.takeIf { it.isNotBlank() && it != "null" }
+        val isReview = obj.bool("is_review") ?: (obj.str("is_review")?.toBooleanStrictOrNull() ?: false)
+        val rating = obj.int("rating") ?: 0
+        val taggedArtist = obj.str("tagged_artist")?.takeIf { it.isNotBlank() && it != "null" }
+        val isRepostedByMe = if (currentUserId.isNotBlank()) {
+            repostOfId != null && authorId == currentUserId
+        } else false
+
+        return SocialPost(
+            id = id,
+            authorId = authorId,
+            author = author,
+            content = content,
+            imageUrl = imageUrl,
+            imageUrls = imageUrls,
+            videoUrl = videoUrl,
+            gifUrl = gifUrl,
+            audioUrl = audioUrl,
+            isReview = isReview,
+            rating = rating,
+            taggedArtist = taggedArtist,
+            musicTrack = musicTrack,
+            pollData = poll,
+            likesCount = likesCount,
+            commentsCount = commentsCount,
+            repostsCount = repostsCount,
+            quoteOfId = quoteOfId,
+            repostOfId = repostOfId,
+            isRepostedByMe = isRepostedByMe,
+            createdAt = createdAt,
+        )
+    }
+
+    internal fun parseComments(raw: String): List<PostComment> {
+        val root = runCatching { json.parseToJsonElement(raw) }.getOrNull()
+        if (root !is JsonArray) {
+            Log.w(TAG, "parseComments: expected array, got: ${raw.take(300)}")
+            return emptyList()
+        }
+        return root.mapNotNull { element ->
+            runCatching { parseCommentRow(element as JsonObject) }
+                .onFailure { Log.w(TAG, "parseComments: skipping bad row: ${it.message}") }
+                .getOrNull()
+        }
+    }
+
+    internal fun parseCommentRow(obj: JsonObject): PostComment {
+        val id = obj.str("id") ?: throw IllegalArgumentException("Missing comment id")
+        val postId = obj.str("post_id") ?: ""
+        val authorId = obj.str("author_id") ?: ""
+        val rawContent = obj.str("content") ?: ""
+        var cleanContent = rawContent
+        var gifUrl = obj.str("gif_url")?.takeIf { it.isNotBlank() && it != "null" }
+        if (rawContent.contains("[gif:")) {
+            val match = "\\[gif:(https?://[^\\]]+)\\]".toRegex().find(rawContent)
+            if (match != null) {
+                if (gifUrl == null) gifUrl = match.groupValues[1]
+                cleanContent = rawContent.replace(match.value, "").trim()
             }
-        }.getOrDefault(emptyList())
+        }
+        val parentId = obj.str("parent_id")?.takeIf { it.isNotBlank() && it != "null" }
+        val createdAt = obj.str("created_at") ?: ""
+        val likesCount = obj["likes_count"]?.let { el ->
+            if (el is JsonNull) 0
+            else (el as? JsonPrimitive)?.intOrNull ?: throw IllegalArgumentException("Invalid likes_count: $el")
+        } ?: 0
+
+        val profileObj = obj.embeddedProfile("profiles")
+        val author = profileObj?.let {
+            SocialProfile(
+                id = it.str("id") ?: authorId,
+                handle = it.str("handle") ?: "",
+                displayName = it.str("display_name") ?: "Listener",
+                avatarUrl = it.str("avatar_url")?.takeIf { u -> u.isNotBlank() && u != "null" },
+            )
+        } ?: SocialProfile(id = authorId, handle = "", displayName = "Listener")
+
+        return PostComment(
+            id = id,
+            postId = postId,
+            authorId = authorId,
+            author = author,
+            parentId = parentId,
+            content = cleanContent,
+            gifUrl = gifUrl,
+            likesCount = likesCount,
+            createdAt = createdAt,
+        )
+    }
+
+    internal fun parseDirectMessages(raw: String): List<DirectMessage> {
+        val root = runCatching { json.parseToJsonElement(raw) }.getOrNull()
+        if (root !is JsonArray) {
+            Log.w(TAG, "parseDirectMessages: expected array, got: ${raw.take(300)}")
+            return emptyList()
+        }
+        return root.mapNotNull { element ->
+            runCatching { parseDmRow(element as JsonObject) }
+                .onFailure { Log.w(TAG, "parseDirectMessages: skipping bad row: ${it.message}") }
+                .getOrNull()
+        }
+    }
+
+    internal fun parseDmRow(obj: JsonObject): DirectMessage {
+        val id = obj.str("id") ?: throw IllegalArgumentException("Missing message id")
+        val senderId = obj.str("sender_id") ?: ""
+        val receiverId = obj.str("receiver_id") ?: ""
+        val rawContent = obj.str("content") ?: ""
+        var cleanContent = rawContent
+        var imageUrl = obj.str("image_url")?.takeIf { it.isNotBlank() && it != "null" }
+        var videoUrl = obj.str("video_url")?.takeIf { it.isNotBlank() && it != "null" }
+        var audioUrl = obj.str("audio_url")?.takeIf { it.isNotBlank() && it != "null" }
+        var gifUrl = obj.str("gif_url")?.takeIf { it.isNotBlank() && it != "null" }
+
+        val tagRegex = "\\[(image|video|audio|gif):(https?://[^\\]]+)\\]".toRegex()
+        tagRegex.findAll(rawContent).forEach { match ->
+            val type = match.groupValues[1]
+            val url = match.groupValues[2].takeIf { it.isNotBlank() && it != "null" }
+            when (type) {
+                "image" -> if (imageUrl == null) imageUrl = url
+                "video" -> if (videoUrl == null) videoUrl = url
+                "audio" -> if (audioUrl == null) audioUrl = url
+                "gif" -> if (gifUrl == null) gifUrl = url
+            }
+        }
+        val replyRegex = "\\[reply:([^:]*):([^:]*):([^\\]]*)\\]".toRegex()
+        val replyMatch = replyRegex.find(rawContent)
+        var replyToId: String? = null
+        var replyToSender: String? = null
+        var replyToText: String? = null
+        if (replyMatch != null) {
+            replyToId = replyMatch.groupValues[1].takeIf { it.isNotBlank() }
+            replyToSender = replyMatch.groupValues[2].takeIf { it.isNotBlank() }
+            val encoded = replyMatch.groupValues[3]
+            replyToText = runCatching {
+                String(android.util.Base64.decode(encoded, android.util.Base64.NO_WRAP), Charsets.UTF_8)
+            }.getOrNull() ?: encoded
+        }
+
+        cleanContent = rawContent.replace(tagRegex, "").replace(replyRegex, "").trim()
+
+        val isRead = obj.bool("is_read") ?: false
+        val createdAt = obj.str("created_at") ?: ""
+
+        val sharedMusic = obj.obj("shared_music")?.let { m ->
+            MusicTrackAttachment(
+                videoId = m.str("video_id") ?: "",
+                title = m.str("title") ?: "",
+                artist = m.str("artist") ?: "",
+                thumbnailUrl = m.str("thumbnail_url")?.takeIf { it.isNotBlank() && it != "null" },
+                durationText = m.str("duration_text")?.takeIf { it.isNotBlank() && it != "null" },
+            )
+        }
+
+        val sharedPlaylist = obj.obj("shared_playlist")?.let { p ->
+            SharedPlaylistAttachment(
+                playlistId = p.str("playlist_id") ?: "",
+                title = p.str("title") ?: "",
+                author = p.str("author") ?: "",
+                thumbnailUrl = p.str("thumbnail_url")?.takeIf { it.isNotBlank() && it != "null" },
+                trackCount = p.int("track_count") ?: 0,
+            )
+        }
+
+        return DirectMessage(
+            id = id,
+            senderId = senderId,
+            receiverId = receiverId,
+            content = cleanContent,
+            imageUrl = imageUrl,
+            videoUrl = videoUrl,
+            audioUrl = audioUrl,
+            gifUrl = gifUrl,
+            sharedMusic = sharedMusic,
+            sharedPlaylist = sharedPlaylist,
+            replyToId = replyToId,
+            replyToSender = replyToSender,
+            replyToText = replyToText,
+            isRead = isRead,
+            createdAt = createdAt,
+        )
+    }
+
+    internal fun parseNotifications(raw: String, currentUserId: String): List<SocialNotification> {
+        val root = runCatching { json.parseToJsonElement(raw) }.getOrNull()
+        if (root !is JsonArray) {
+            Log.w(TAG, "parseNotifications: expected array, got: ${raw.take(300)}")
+            return emptyList()
+        }
+        return root.mapNotNull { element ->
+            runCatching { parseNotificationRow(element as JsonObject, currentUserId) }
+                .onFailure { Log.w(TAG, "parseNotifications: skipping bad row: ${it.message}") }
+                .getOrNull()
+        }
+    }
+
+    internal fun parseNotificationRow(obj: JsonObject, currentUserId: String): SocialNotification {
+        val id = obj.str("id") ?: throw IllegalArgumentException("Missing notification id")
+        val actorId = obj.str("actor_id") ?: ""
+        val actorName = obj.str("actor_name") ?: "A listener"
+        val actorAvatar = obj.str("actor_avatar")?.takeIf { it.isNotBlank() && it != "null" }
+        val actorHandle = obj.str("actor_handle") ?: ""
+        val typeStr = obj.str("type") ?: "LIKE"
+        val type = runCatching { NotificationType.valueOf(typeStr) }.getOrDefault(NotificationType.LIKE)
+        val targetPostId = obj.str("target_post_id")?.takeIf { it.isNotBlank() && it != "null" }
+        val message = obj.str("message") ?: ""
+        val isRead = obj.bool("is_read") ?: false
+        val createdAt = obj.str("created_at") ?: ""
+
+        return SocialNotification(
+            id = id,
+            userId = currentUserId,
+            actorId = actorId,
+            actorName = actorName,
+            actorAvatar = actorAvatar,
+            actorHandle = actorHandle,
+            type = type,
+            targetPostId = targetPostId,
+            message = message,
+            isRead = isRead,
+            createdAt = createdAt,
+        )
+    }
+
+    internal fun parseLeaderboard(raw: String, currentUserId: String): List<LeaderboardEntry> {
+        val root = runCatching { json.parseToJsonElement(raw) }.getOrNull()
+        if (root !is JsonArray) {
+            Log.w(TAG, "parseLeaderboard: expected array, got: ${raw.take(300)}")
+            return emptyList()
+        }
+        return root.mapIndexedNotNull { index, element ->
+            runCatching { parseLeaderboardRow(index, element as JsonObject, currentUserId) }
+                .onFailure { Log.w(TAG, "parseLeaderboard: skipping bad row: ${it.message}") }
+                .getOrNull()
+        }
+    }
+
+    internal fun parseLeaderboardRow(index: Int, obj: JsonObject, currentUserId: String): LeaderboardEntry {
+        val userId = obj.str("user_id") ?: throw IllegalArgumentException("Missing user_id")
+        val score = obj.int("score") ?: 0
+        val total = obj.int("total_questions") ?: 10
+        val time = obj.double("time_seconds") ?: 0.0
+        val createdAt = obj.str("created_at") ?: ""
+
+        val profileObj = obj.embeddedProfile("profiles")
+        val handle = profileObj?.str("handle") ?: "user_${userId.takeLast(4)}"
+        val displayName = profileObj?.str("display_name") ?: handle
+        val avatarUrl = profileObj?.str("avatar_url")?.takeIf { it.isNotBlank() && it != "null" }
+
+        return LeaderboardEntry(
+            id = "$index",
+            rank = index + 1,
+            userId = userId,
+            handle = handle,
+            displayName = displayName,
+            avatarUrl = avatarUrl,
+            score = score,
+            totalQuestions = total,
+            timeSeconds = time,
+            isCurrentUser = userId == currentUserId,
+            createdAt = createdAt,
+        )
+    }
 }

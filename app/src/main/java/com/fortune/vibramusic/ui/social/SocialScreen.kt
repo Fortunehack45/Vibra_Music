@@ -342,7 +342,13 @@ fun SocialScreen(
                                         post = post,
                                         onLikeClick = { viewModel.toggleLike(post) },
                                         onCommentClick = { viewModel.openComments(post) },
-                                        onRepostClick = { repostActionTarget = post },
+                                        onRepostClick = {
+                                            if (post.isRepostedByMe) {
+                                                viewModel.toggleRepost(post)
+                                            } else {
+                                                repostActionTarget = post
+                                            }
+                                        },
                                         onImageClick = { previewImageUrl = it },
                                         onMediaClick = { list, idx -> activeMediaViewer = Pair(list, idx) },
                                         onShareClick = {
@@ -555,7 +561,13 @@ fun SocialScreen(
                             post = post,
                             onLikeClick = { viewModel.toggleLike(targetPost) },
                             onCommentClick = { viewModel.openComments(targetPost) },
-                            onRepostClick = { repostActionTarget = targetPost },
+                            onRepostClick = {
+                                if (targetPost.isRepostedByMe) {
+                                    viewModel.toggleRepost(targetPost)
+                                } else {
+                                    repostActionTarget = targetPost
+                                }
+                            },
                             onImageClick = { previewImageUrl = it },
                             onMediaClick = { list, idx -> activeMediaViewer = Pair(list, idx) },
                             onShareClick = {

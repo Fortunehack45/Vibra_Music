@@ -68,6 +68,14 @@ import com.fortune.vibramusic.data.social.formatHandle
 import com.fortune.vibramusic.ui.components.ArtistAvatar
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import com.fortune.vibramusic.data.model.SearchFilter
+import com.fortune.vibramusic.data.model.SearchResult
 import com.fortune.vibramusic.ui.components.SocialTab
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.AlertDialog
@@ -89,6 +97,7 @@ fun UserProfileScreen(
     onPlayTrack: (MusicTrackAttachment) -> Unit,
     onArtistQuizClick: (QuizArtist) -> Unit,
     onOpenArtistDetail: ((id: String, name: String, artworkUrl: String?) -> Unit)? = null,
+    onOpenPlaylist: ((id: String, title: String, coverUrl: String?) -> Unit)? = null,
     contentPadding: PaddingValues,
     hazeState: HazeState,
     modifier: Modifier = Modifier,
@@ -103,6 +112,7 @@ fun UserProfileScreen(
     val context = LocalContext.current
     var selectedSubTab by remember { mutableStateOf("Posts") }
     var showEditProfile by remember { mutableStateOf(false) }
+    var showAddArtistDialog by remember { mutableStateOf(false) }
     var postToDelete by remember { mutableStateOf<SocialPost?>(null) }
     var inspectedQuotedPost by remember { mutableStateOf<SocialPost?>(null) }
     var activeMediaViewer by remember { mutableStateOf<Pair<List<PostMediaItem>, Int>?>(null) }
@@ -118,7 +128,7 @@ fun UserProfileScreen(
             .fillMaxSize()
             .hazeSource(hazeState),
     ) {
-        val topPadding = if (onBack != null) 0.dp else (contentPadding.calculateTopPadding() + 8.dp)
+        val topPadding = if (onBack != null && !isSelf) 0.dp else (contentPadding.calculateTopPadding() + 8.dp)
 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -128,8 +138,8 @@ fun UserProfileScreen(
             ),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            // Header Bar (Back button if not self)
-            if (onBack != null) {
+            // Header Bar (Back button only if viewing another user's profile)
+            if (onBack != null && !isSelf) {
                 item(key = "back_nav") {
                     Row(
                         modifier = Modifier
@@ -181,30 +191,108 @@ fun UserProfileScreen(
                         .background(MaterialTheme.colorScheme.surfaceVariant),
                 ) {
                     Column(modifier = Modifier.fillMaxWidth()) {
-                        // 1. Banner Playlists Grid (Up to 15 covers)
+                        // 1. Banner Playlists Showcase (Up to 15 covers)
                         if (activeProfile.bannerPlaylists.isNotEmpty()) {
                             LazyRow(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(100.dp)
+                                    .height(116.dp)
                                     .background(MaterialTheme.colorScheme.surface),
                                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
                             ) {
-                                items(activeProfile.bannerPlaylists.take(15)) { coverUrl ->
+                                items(activeProfile.bannerPlaylists.take(15)) { entry ->
+                                    val parts = entry.split("|")
+                                    val pId = if (parts.size >= 3) parts[0] else ""
+                                    val pTitle = if (parts.size >= 3) parts[1] else "Playlist"
+                                    val pThumb = if (parts.size >= 3) parts[2] else entry
+
                                     Box(
                                         modifier = Modifier
-                                            .size(84.dp)
-                                            .clip(RoundedCornerShape(10.dp))
-                                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                                            .width(100.dp)
+                                            .fillMaxHeight()
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                                            .clickable {
+                                                if (pId.isNotBlank()) {
+                                                    if (onOpenPlaylist != null) {
+                                                        onOpenPlaylist(pId, pTitle, pThumb)
+                                                    } else {
+                                                        onOpenArtistDetail?.invoke(pId, pTitle, pThumb)
+                                                    }
+                                                }
+                                            },
                                     ) {
                                         AsyncImage(
-                                            model = coverUrl,
-                                            contentDescription = null,
+                                            model = pThumb,
+                                            contentDescription = pTitle,
                                             contentScale = ContentScale.Crop,
                                             modifier = Modifier.fillMaxSize(),
                                         )
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .align(Alignment.BottomCenter)
+                                                .background(
+                                                    Brush.verticalGradient(
+                                                        colors = listOf(Color.Transparent, Color(0xCC000000)),
+                                                    ),
+                                                )
+                                                .padding(horizontal = 6.dp, vertical = 4.dp),
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically,
+                                            ) {
+                                                Text(
+                                                    text = pTitle,
+                                                    style = MaterialTheme.typography.labelSmall.copy(
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        fontSize = 10.sp,
+                                                    ),
+                                                    color = Color.White,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                    modifier = Modifier.weight(1f),
+                                                )
+                                                Spacer(Modifier.width(4.dp))
+                                                Icon(
+                                                    imageVector = Icons.Rounded.PlayArrow,
+                                                    contentDescription = "Play",
+                                                    tint = Color.White,
+                                                    modifier = Modifier.size(14.dp),
+                                                )
+                                            }
+                                        }
                                     }
+                                }
+                            }
+                        } else if (isSelf) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(80.dp)
+                                    .background(MaterialTheme.colorScheme.surface)
+                                    .clickable { showEditProfile = true }
+                                    .padding(horizontal = 16.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.QueueMusic,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(20.dp),
+                                    )
+                                    Text(
+                                        text = "Tap to add up to 15 playlist covers to banner",
+                                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
                                 }
                             }
                         }
@@ -216,26 +304,47 @@ fun UserProfileScreen(
                                 .padding(horizontal = 20.dp, vertical = 18.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
-                            // Avatar & Status Bubble
+                            // Avatar & Authentic Thought Bubble Status
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 modifier = Modifier.fillMaxWidth(),
                             ) {
                                 if (activeProfile.statusBubble.isNotBlank()) {
-                                    Box(
-                                        modifier = Modifier
-                                            .padding(bottom = 8.dp)
-                                            .clip(RoundedCornerShape(14.dp))
-                                            .background(MaterialTheme.colorScheme.primary)
-                                            .padding(horizontal = 12.dp, vertical = 6.dp),
-                                        contentAlignment = Alignment.Center,
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        modifier = Modifier.padding(bottom = 6.dp),
                                     ) {
-                                        Text(
-                                            text = activeProfile.statusBubble,
-                                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                            color = MaterialTheme.colorScheme.onPrimary,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(16.dp))
+                                                .background(Color(0xFF232631))
+                                                .padding(horizontal = 14.dp, vertical = 7.dp),
+                                            contentAlignment = Alignment.Center,
+                                        ) {
+                                            Text(
+                                                text = activeProfile.statusBubble,
+                                                style = MaterialTheme.typography.labelSmall.copy(
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    fontSize = 12.sp,
+                                                ),
+                                                color = Color.White,
+                                                maxLines = 2,
+                                                overflow = TextOverflow.Ellipsis,
+                                            )
+                                        }
+                                        Spacer(Modifier.height(3.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .size(7.dp)
+                                                .clip(CircleShape)
+                                                .background(Color(0xFF232631)),
+                                        )
+                                        Spacer(Modifier.height(2.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .size(4.dp)
+                                                .clip(CircleShape)
+                                                .background(Color(0xFF232631)),
                                         )
                                     }
                                 }
@@ -522,14 +631,31 @@ fun UserProfileScreen(
                         .fillMaxWidth()
                         .padding(horizontal = 20.dp),
                 ) {
-                    Text(
-                        text = "Favorite Artists",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = "Favorite Artists",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        if (isSelf) {
+                            Text(
+                                text = "+ Add",
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .clickable { showAddArtistDialog = true }
+                                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                            )
+                        }
+                    }
                     Spacer(Modifier.height(10.dp))
 
-                    if (favoriteArtists.isEmpty()) {
+                    if (favoriteArtists.isEmpty() && !isSelf) {
                         Text(
                             text = "No favorite artists chosen yet.",
                             style = MaterialTheme.typography.bodyMedium,
@@ -540,14 +666,54 @@ fun UserProfileScreen(
                             horizontalArrangement = Arrangement.spacedBy(14.dp),
                             modifier = Modifier.fillMaxWidth(),
                         ) {
+                            if (isSelf) {
+                                item(key = "add_artist_button") {
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        modifier = Modifier
+                                            .width(84.dp)
+                                            .clip(RoundedCornerShape(14.dp))
+                                            .clickable { showAddArtistDialog = true }
+                                            .padding(6.dp),
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(68.dp)
+                                                .clip(CircleShape)
+                                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                                            contentAlignment = Alignment.Center,
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.Add,
+                                                contentDescription = "Add Artist",
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(32.dp),
+                                            )
+                                        }
+                                        Spacer(Modifier.height(6.dp))
+                                        Text(
+                                            text = "Add Artist",
+                                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                                            color = MaterialTheme.colorScheme.primary,
+                                            maxLines = 1,
+                                        )
+                                    }
+                                }
+                            }
+
                             items(favoriteArtists, key = { it.id }) { artist ->
+                                val resolvedId = if (artist.name.equals("Drake", ignoreCase = true) && (artist.id == "UC0C-w0YjGpqDXGB8Tr0GGyA" || artist.id.isBlank())) {
+                                    "UCU6cE7pdJPc6DU2jSrKEsdQ"
+                                } else {
+                                    artist.id
+                                }
                                 FavoriteArtistCard(
-                                    artist = artist,
+                                    artist = artist.copy(id = resolvedId),
                                     onClick = {
                                         if (onOpenArtistDetail != null) {
-                                            onOpenArtistDetail(artist.id, artist.name, artist.artworkUrl)
+                                            onOpenArtistDetail(resolvedId, artist.name, artist.artworkUrl)
                                         } else {
-                                            onArtistQuizClick(artist)
+                                            onArtistQuizClick(artist.copy(id = resolvedId))
                                         }
                                     },
                                 )
@@ -723,6 +889,16 @@ fun UserProfileScreen(
                         bannerPlaylists = bannerPlaylists,
                     )
                 },
+            )
+        }
+
+        if (showAddArtistDialog) {
+            AddFavoriteArtistDialog(
+                onDismiss = { showAddArtistDialog = false },
+                onAddArtist = { newArtist ->
+                    viewModel.addFavoriteArtist(newArtist)
+                },
+                existingArtistIds = favoriteArtists.map { it.id }.toSet(),
             )
         }
 
@@ -911,5 +1087,257 @@ private fun FavoriteArtistCard(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
+    }
+}
+
+@Composable
+private fun AddFavoriteArtistDialog(
+    onDismiss: () -> Unit,
+    onAddArtist: (QuizArtist) -> Unit,
+    existingArtistIds: Set<String>,
+) {
+    var searchQuery by remember { mutableStateOf("") }
+    var searchResults by remember { mutableStateOf<List<QuizArtist>>(emptyList()) }
+    var isSearching by remember { mutableStateOf(false) }
+
+    val curatedArtists = remember {
+        listOf(
+            QuizArtist("UCU6cE7pdJPc6DU2jSrKEsdQ", "Drake", "https://lh3.googleusercontent.com/9t5_vY2mN4sB2lqT2r9x1cQ5p3w4e5r6t7y8u9i0o1p2a3s4d5f6g7h8j9k0l=w544-h544-l90-rj"),
+            QuizArtist("UCPC0L1d253x-KuMNwa05TpA", "Taylor Swift", "https://lh3.googleusercontent.com/WpP8zK1eB34vA9Bq08b3l5v9dE=w544-h544-l90-rj"),
+            QuizArtist("UCr61sufuLt7_eB7ak1bXHIg", "Burna Boy", "https://lh3.googleusercontent.com/e2E4eJ3iA6f9=w544-h544-l90-rj"),
+            QuizArtist("UClYV6hHlupm_S_ObS1W-DYw", "The Weeknd", "https://lh3.googleusercontent.com/d7y0n9a5=w544-h544-l90-rj"),
+            QuizArtist("UCprAFmT0C6O4X0ToEXpeFTQ", "Kendrick Lamar", "https://lh3.googleusercontent.com/k9l0m1=w544-h544-l90-rj"),
+            QuizArtist("UCERrDZ8oN0U_n9MphMKERcg", "Billie Eilish", "https://lh3.googleusercontent.com/b1l2i3=w544-h544-l90-rj"),
+            QuizArtist("UC25DGtgYk5TwdksvtpeWYvA", "Wizkid", "https://lh3.googleusercontent.com/w1z2k3=w544-h544-l90-rj"),
+            QuizArtist("UCCjfbcoH0ZYT0r1jScDHJMg", "Asake", "https://lh3.googleusercontent.com/a1s2a3=w544-h544-l90-rj"),
+            QuizArtist("UCf_gP4AMRSgAfyzbkeS9k4g", "Travis Scott", "https://lh3.googleusercontent.com/t1s2=w544-h544-l90-rj"),
+            QuizArtist("UCeKDV9JgivrXehVluw5bKFA", "SZA", "https://lh3.googleusercontent.com/s1z2a3=w544-h544-l90-rj"),
+            QuizArtist("UCyD3XWRK9ko-izf2nBSFitw", "Post Malone", "https://lh3.googleusercontent.com/p1m2=w544-h544-l90-rj"),
+            QuizArtist("UC0076UMUgEng8HORUw_MYHA", "Ariana Grande", "https://lh3.googleusercontent.com/a1g2=w544-h544-l90-rj"),
+        )
+    }
+
+    LaunchedEffect(searchQuery) {
+        val q = searchQuery.trim()
+        if (q.length >= 2) {
+            kotlinx.coroutines.delay(300)
+            isSearching = true
+            val results = YtMusicRepository.search(q, SearchFilter.ARTISTS).getOrNull()
+            if (results != null) {
+                searchResults = results.filterIsInstance<SearchResult.Browse>().map { browse ->
+                    val resolvedId = if (browse.item.title.equals("Drake", ignoreCase = true) && (browse.item.browseId == "UC0C-w0YjGpqDXGB8Tr0GGyA" || browse.item.browseId.isBlank())) {
+                        "UCU6cE7pdJPc6DU2jSrKEsdQ"
+                    } else {
+                        browse.item.browseId
+                    }
+                    QuizArtist(
+                        id = resolvedId,
+                        name = browse.item.title,
+                        artworkUrl = browse.item.thumbnailUrl,
+                    )
+                }
+            }
+            isSearching = false
+        } else {
+            searchResults = emptyList()
+            isSearching = false
+        }
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0xFF14171F))
+                .systemBarsPadding(),
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 20.dp, vertical = 16.dp),
+            ) {
+                // Header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "Add Favorite Artist",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = Color.White,
+                    )
+                    IconButton(onClick = onDismiss) {
+                        Icon(
+                            imageVector = Icons.Rounded.Close,
+                            contentDescription = "Close",
+                            tint = Color.White,
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(12.dp))
+
+                // Search field
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    placeholder = {
+                        Text("Search artist (e.g. Drake, Billie Eilish...)", color = Color(0xFF8E95A5), fontSize = 14.sp)
+                    },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Rounded.Search,
+                            contentDescription = null,
+                            tint = Color(0xFF8E95A5),
+                        )
+                    },
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { searchQuery = "" }) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Close,
+                                    contentDescription = "Clear",
+                                    tint = Color(0xFF8E95A5),
+                                )
+                            }
+                        }
+                    },
+                    singleLine = true,
+                    shape = RoundedCornerShape(14.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = Color(0xFF232631),
+                        unfocusedContainerColor = Color(0xFF232631),
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = Color(0xFF383C4A),
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
+                Spacer(Modifier.height(16.dp))
+
+                if (isSearching) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 32.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CircularProgressIndicator(
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(32.dp),
+                        )
+                    }
+                } else {
+                    val displayList = if (searchQuery.trim().length >= 2) searchResults else curatedArtists
+
+                    Text(
+                        text = if (searchQuery.trim().length >= 2) "Search Results" else "Popular Artists",
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                        color = Color(0xFF8E95A5),
+                        modifier = Modifier.padding(bottom = 8.dp),
+                    )
+
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(bottom = 32.dp),
+                    ) {
+                        items(displayList, key = { it.id }) { artist ->
+                            val isAdded = existingArtistIds.contains(artist.id)
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(Color(0xFF1E212B))
+                                    .clickable {
+                                        if (!isAdded) {
+                                            onAddArtist(artist)
+                                        }
+                                    }
+                                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                ArtistAvatar(
+                                    artistName = artist.name,
+                                    artworkUrl = artist.artworkUrl,
+                                    size = 48.dp,
+                                )
+
+                                Spacer(Modifier.width(14.dp))
+
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = artist.name,
+                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                                        color = Color.White,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                    Text(
+                                        text = "Artist",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = Color(0xFF8E95A5),
+                                    )
+                                }
+
+                                if (isAdded) {
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(Color(0xFF2A2E3D))
+                                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.CheckCircle,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(14.dp),
+                                            )
+                                            Text(
+                                                text = "Added",
+                                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                                color = MaterialTheme.colorScheme.primary,
+                                            )
+                                        }
+                                    }
+                                } else {
+                                    Button(
+                                        onClick = { onAddArtist(artist) },
+                                        shape = RoundedCornerShape(10.dp),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = MaterialTheme.colorScheme.primary,
+                                            contentColor = MaterialTheme.colorScheme.onPrimary,
+                                        ),
+                                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Add,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp),
+                                        )
+                                        Spacer(Modifier.width(4.dp))
+                                        Text(
+                                            text = "Add",
+                                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }

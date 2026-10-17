@@ -2443,10 +2443,10 @@ private fun VibraMusicApp(
         BackHandler(enabled = libraryShowAll != null && detail == null) { libraryShowAll = null }
         BackHandler(enabled = detailActiveShelf != null) { detailActiveShelf = null }
 
-        BackHandler(enabled = currentRealm == AppRealm.SOCIAL && activeLeaderboardArtist != null) {
+        BackHandler(enabled = currentRealm == AppRealm.SOCIAL && detail == null && activeLeaderboardArtist != null) {
             activeLeaderboardArtist = null
         }
-        BackHandler(enabled = currentRealm == AppRealm.SOCIAL && viewingSocialProfile != null) {
+        BackHandler(enabled = currentRealm == AppRealm.SOCIAL && detail == null && viewingSocialProfile != null) {
             socialViewModel.closeUserProfile()
             viewingSocialProfile = null
         }
@@ -2682,7 +2682,10 @@ private fun VibraMusicApp(
                                 viewModel.loadChannels()
                                 showAccountSelector = true
                             },
-                            onSignOut = { viewModel.signOut() },
+                            onSignOut = {
+                                viewModel.signOut()
+                                socialViewModel.onSignOut()
+                            },
                             onOpenListenBrainzLogin = { showListenBrainzLogin = true },
                             onOpenLastfmLogin = { showLastfmLogin = true },
                             onOpenDiscord = { showDiscord = true },
@@ -2725,7 +2728,10 @@ private fun VibraMusicApp(
                                 showSettings = false
                                 webSession = WebSessionMode.SIGN_IN
                             },
-                            onSignOut = { viewModel.signOut() },
+                            onSignOut = {
+                                viewModel.signOut()
+                                socialViewModel.onSignOut()
+                            },
                             onAccountScrobbling = { showAccountScrobbling = true },
                             onEqualizer = { showEqualizer = true },
                             onOpenReplay = {
@@ -3009,6 +3015,9 @@ private fun VibraMusicApp(
                                 onOpenArtistDetail = { id, name, artworkUrl ->
                                     viewModel.openDetail(id, name, "Artist", artworkUrl, BrowseType.ARTIST)
                                 },
+                                onOpenPlaylist = { id, title, coverUrl ->
+                                    viewModel.openDetail(id, title, "Playlist", coverUrl, BrowseType.PLAYLIST)
+                                },
                                 contentPadding = PaddingValues(
                                     top = 0.dp,
                                     bottom = listPadding.calculateBottomPadding(),
@@ -3084,6 +3093,9 @@ private fun VibraMusicApp(
                                     onArtistQuizClick = { artist -> activeLeaderboardArtist = artist },
                                     onOpenArtistDetail = { id, name, artworkUrl ->
                                         viewModel.openDetail(id, name, "Artist", artworkUrl, BrowseType.ARTIST)
+                                    },
+                                    onOpenPlaylist = { id, title, coverUrl ->
+                                        viewModel.openDetail(id, title, "Playlist", coverUrl, BrowseType.PLAYLIST)
                                     },
                                     contentPadding = listPadding,
                                     hazeState = hazeState,
@@ -3370,8 +3382,8 @@ private fun VibraMusicApp(
                     MaterialTheme.colorScheme.background
                 }
                 val isSocialChatActive = currentRealm == AppRealm.SOCIAL && socialActiveChatFriend != null
-                // Suppress global top chrome when in direct chat or inspecting another user's profile
-                val isSocialCustomTopActive = isSocialChatActive || (currentRealm == AppRealm.SOCIAL && viewingSocialProfile != null)
+                // Suppress global top chrome when in direct chat or inspecting another user's profile, but never when a detail page is open
+                val isSocialCustomTopActive = detail == null && (isSocialChatActive || (currentRealm == AppRealm.SOCIAL && viewingSocialProfile != null))
 
                 if (!isSocialCustomTopActive) {
                     BottomFadeScrim(
@@ -3821,7 +3833,16 @@ private fun VibraMusicApp(
                     } else {
                         SocialBottomBar(
                             selectedTab = socialNavTab,
-                            onTabSelected = { socialViewModel.setNavTab(it) },
+                            onTabSelected = { tab ->
+                                viewingSocialProfile = null
+                                activeLeaderboardArtist = null
+                                socialViewModel.closeUserProfile()
+                                socialViewModel.closeChat()
+                                if (detail != null) {
+                                    viewModel.closeDetail()
+                                }
+                                socialViewModel.setNavTab(tab)
+                            },
                             hazeState = hazeState,
                         )
                     }

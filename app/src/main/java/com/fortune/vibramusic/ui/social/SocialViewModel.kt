@@ -245,6 +245,16 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun onSignOut() {
+        _viewingProfile.value = null
+        _viewingProfilePosts.value = emptyList()
+        _favoriteArtists.value = emptyList()
+        _chatMessages.value = emptyList()
+        _conversations.value = emptyList()
+        _activeChatFriend.value = null
+        initUserProfile()
+    }
+
     fun loadFeed() {
         viewModelScope.launch {
             _isLoadingFeed.value = true
@@ -880,28 +890,52 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    private fun sanitizeQuizArtist(artist: QuizArtist): QuizArtist {
+        val fixedId = when {
+            artist.name.equals("Drake", ignoreCase = true) && (artist.id == "UC0C-w0YjGpqDXGB8Tr0GGyA" || artist.id.isBlank()) -> "UCU6cE7pdJPc6DU2jSrKEsdQ"
+            artist.name.equals("Taylor Swift", ignoreCase = true) && artist.id.isBlank() -> "UCPC0L1d253x-KuMNwa05TpA"
+            artist.name.equals("Burna Boy", ignoreCase = true) && artist.id.isBlank() -> "UCr61sufuLt7_eB7ak1bXHIg"
+            artist.name.equals("The Weeknd", ignoreCase = true) && artist.id.isBlank() -> "UClYV6hHlupm_S_ObS1W-DYw"
+            artist.name.equals("Kendrick Lamar", ignoreCase = true) && artist.id.isBlank() -> "UCprAFmT0C6O4X0ToEXpeFTQ"
+            artist.name.equals("Billie Eilish", ignoreCase = true) && artist.id.isBlank() -> "UCERrDZ8oN0U_n9MphMKERcg"
+            artist.name.equals("Wizkid", ignoreCase = true) && artist.id.isBlank() -> "UC25DGtgYk5TwdksvtpeWYvA"
+            artist.name.equals("Asake", ignoreCase = true) && artist.id.isBlank() -> "UCCjfbcoH0ZYT0r1jScDHJMg"
+            artist.name.equals("Travis Scott", ignoreCase = true) && artist.id.isBlank() -> "UCf_gP4AMRSgAfyzbkeS9k4g"
+            artist.name.equals("SZA", ignoreCase = true) && artist.id.isBlank() -> "UCeKDV9JgivrXehVluw5bKFA"
+            artist.name.equals("Post Malone", ignoreCase = true) && artist.id.isBlank() -> "UCyD3XWRK9ko-izf2nBSFitw"
+            artist.name.equals("Ariana Grande", ignoreCase = true) && artist.id.isBlank() -> "UC0076UMUgEng8HORUw_MYHA"
+            else -> artist.id
+        }
+        return artist.copy(id = fixedId)
+    }
+
     fun loadFavoriteArtists(userId: String) {
         viewModelScope.launch {
             SupabaseService.fetchFavoriteArtists(userId)
                 .onSuccess { list ->
                     val loaded = list.map {
-                        QuizArtist(
-                            id = it.artistId,
-                            name = it.artistName,
-                            artworkUrl = it.artworkUrl,
+                        sanitizeQuizArtist(
+                            QuizArtist(
+                                id = it.artistId,
+                                name = it.artistName,
+                                artworkUrl = it.artworkUrl,
+                            )
                         )
                     }
                     _favoriteArtists.value = loaded
 
                     // Asynchronously resolve and heal any missing or broken thumbnails from YouTube Music
-                    loaded.filter { it.artworkUrl.isNullOrBlank() || it.artworkUrl?.contains("/test") == true || it.artworkUrl?.startsWith("http") != true }.forEach { artist ->
-                        launch {
-                            val resolvedThumb = YtMusicRepository.getArtistThumbnail(artist.id, artist.name)
-                            if (!resolvedThumb.isNullOrBlank()) {
+                    loaded.forEach { artist ->
+                        val needsThumb = artist.artworkUrl.isNullOrBlank() || artist.artworkUrl?.contains("/test") == true || artist.artworkUrl?.startsWith("http") != true
+                        val needsIdRepair = list.any { it.artistName.equals("Drake", ignoreCase = true) && it.artistId == "UC0C-w0YjGpqDXGB8Tr0GGyA" }
+                        if (needsThumb || needsIdRepair) {
+                            launch {
+                                val resolvedThumb = if (needsThumb) YtMusicRepository.getArtistThumbnail(artist.id, artist.name) else artist.artworkUrl
+                                val updatedArtist = artist.copy(artworkUrl = resolvedThumb ?: artist.artworkUrl)
                                 _favoriteArtists.value = _favoriteArtists.value.map {
-                                    if (it.id == artist.id) it.copy(artworkUrl = resolvedThumb) else it
+                                    if (it.id == artist.id) updatedArtist else it
                                 }
-                                SupabaseService.addFavoriteArtist(userId, artist.copy(artworkUrl = resolvedThumb))
+                                SupabaseService.addFavoriteArtist(userId, updatedArtist)
                             }
                         }
                     }
@@ -911,17 +945,18 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
 
     fun addFavoriteArtist(artist: QuizArtist) {
         val userId = _currentProfile.value?.id ?: return
-        if (_favoriteArtists.value.any { it.id == artist.id }) return
+        val sanitized = sanitizeQuizArtist(artist)
+        if (_favoriteArtists.value.any { it.id == sanitized.id }) return
 
-        _favoriteArtists.value = _favoriteArtists.value + artist
+        _favoriteArtists.value = _favoriteArtists.value + sanitized
         viewModelScope.launch {
-            var toSave = artist
+            var toSave = sanitized
             if (toSave.artworkUrl.isNullOrBlank() || toSave.artworkUrl?.contains("/test") == true || toSave.artworkUrl?.startsWith("http") != true) {
-                val thumb = YtMusicRepository.getArtistThumbnail(artist.id, artist.name)
+                val thumb = YtMusicRepository.getArtistThumbnail(sanitized.id, sanitized.name)
                 if (!thumb.isNullOrBlank()) {
-                    toSave = artist.copy(artworkUrl = thumb)
+                    toSave = sanitized.copy(artworkUrl = thumb)
                     _favoriteArtists.value = _favoriteArtists.value.map {
-                        if (it.id == artist.id) toSave else it
+                        if (it.id == sanitized.id) toSave else it
                     }
                 }
             }

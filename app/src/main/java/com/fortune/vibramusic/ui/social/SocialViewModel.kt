@@ -9,6 +9,7 @@ import com.fortune.vibramusic.data.quiz.QuizArtist
 import com.fortune.vibramusic.data.settings.AppSettings
 import com.fortune.vibramusic.data.social.DirectMessage
 import com.fortune.vibramusic.data.social.MusicTrackAttachment
+import com.fortune.vibramusic.data.social.NotificationType
 import com.fortune.vibramusic.data.social.PollData
 import com.fortune.vibramusic.data.social.PostComment
 import com.fortune.vibramusic.data.social.SocialNotification
@@ -402,6 +403,18 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
 
         viewModelScope.launch {
             SupabaseService.toggleLikePost(postId = post.id, userId = userId, liked = !currentlyLiked)
+                .onSuccess {
+                    if (!currentlyLiked && post.authorId.isNotBlank() && post.authorId != userId) {
+                        val actor = _currentProfile.value ?: return@onSuccess
+                        SupabaseService.createNotification(
+                            recipientUserId = post.authorId,
+                            actor = actor,
+                            type = NotificationType.LIKE,
+                            targetPostId = post.id,
+                            message = "liked your post",
+                        )
+                    }
+                }
                 .onFailure {
                     // Revert on failure
                     _posts.value = _posts.value.map {
@@ -432,6 +445,15 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
                         if (it.id == post.id) it.copy(isRepostedByMe = isNowReposted) else it
                     }
                     cacheStore.savePosts(_posts.value)
+                    if (isNowReposted && post.authorId.isNotBlank() && post.authorId != user.id) {
+                        SupabaseService.createNotification(
+                            recipientUserId = post.authorId,
+                            actor = user,
+                            type = NotificationType.REPOST,
+                            targetPostId = post.id,
+                            message = "reposted your post",
+                        )
+                    }
                 }
                 .onFailure {
                     _posts.value = _posts.value.map {
@@ -590,6 +612,23 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
                 val reconciled = _comments.value.map { if (it.id == optimisticComment.id) newComment else it }
                 _comments.value = reconciled
                 cacheStore.saveComments(postId, reconciled)
+
+                val targetPost = _posts.value.firstOrNull { it.id == postId } ?: _selectedPostForComments.value
+                val recipientId = targetPost?.authorId
+                if (!recipientId.isNullOrBlank() && recipientId != user.id) {
+                    val snippet = when {
+                        content.isNotBlank() -> "commented: \"${content.take(50)}\""
+                        !gifUrl.isNullOrBlank() -> "replied with a GIF"
+                        else -> "commented on your post"
+                    }
+                    SupabaseService.createNotification(
+                        recipientUserId = recipientId,
+                        actor = user,
+                        type = NotificationType.COMMENT,
+                        targetPostId = postId,
+                        message = snippet,
+                    )
+                }
             }
         }
     }
@@ -762,6 +801,19 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
 
         viewModelScope.launch {
             SupabaseService.toggleFollow(myId, targetUserId, !isFollowing)
+                .onSuccess {
+                    if (!isFollowing) {
+                        val actor = _currentProfile.value
+                        if (actor != null && targetUserId != actor.id) {
+                            SupabaseService.createNotification(
+                                recipientUserId = targetUserId,
+                                actor = actor,
+                                type = NotificationType.FOLLOW,
+                                message = "started following you",
+                            )
+                        }
+                    }
+                }
         }
     }
 
@@ -769,6 +821,17 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
         val myId = _currentProfile.value?.id ?: return
         viewModelScope.launch {
             SupabaseService.sendFriendRequest(myId, targetUserId)
+                .onSuccess {
+                    val actor = _currentProfile.value
+                    if (actor != null && targetUserId != actor.id) {
+                        SupabaseService.createNotification(
+                            recipientUserId = targetUserId,
+                            actor = actor,
+                            type = NotificationType.FRIEND_REQUEST,
+                            message = "sent you a friend request",
+                        )
+                    }
+                }
         }
     }
 

@@ -225,7 +225,8 @@ object SupabaseService {
 
             val pollJson = poll?.let {
                 val optionsArray = it.options.joinToString(",") { opt ->
-                    "{\"text\":${jsonQuote(opt.text)},\"votes\":${opt.votes}}"
+                    val optImg = opt.imageUrl ?: opt.songAttachment?.artworkUrl ?: opt.songAttachment?.thumbnailUrl ?: ""
+                    "{\"text\":${jsonQuote(opt.text)},\"votes\":${opt.votes},\"image_url\":${jsonQuote(optImg)}}"
                 }
                 "{\"question\":${jsonQuote(it.question)},\"options\":[$optionsArray]}"
             }
@@ -711,7 +712,8 @@ object SupabaseService {
         runCatching {
             val messageId = UUID.randomUUID().toString()
             val sharedMusicJson = trackAttachment?.let {
-                "{\"video_id\":\"${it.videoId}\",\"title\":${jsonQuote(it.title)},\"artist\":${jsonQuote(it.artist)},\"thumbnail_url\":${jsonQuote(it.thumbnailUrl ?: "")},\"duration_text\":${jsonQuote(it.durationText ?: "")}}"
+                val thumb = it.thumbnailUrl ?: it.artworkUrl ?: "https://i.ytimg.com/vi/${it.videoId}/hqdefault.jpg"
+                "{\"video_id\":\"${it.videoId}\",\"title\":${jsonQuote(it.title)},\"artist\":${jsonQuote(it.artist)},\"thumbnail_url\":${jsonQuote(thumb)},\"duration_text\":${jsonQuote(it.durationText ?: "")}}"
             }
             val sharedPlaylistJson = playlistAttachment?.let {
                 "{\"playlist_id\":${jsonQuote(it.playlistId)},\"title\":${jsonQuote(it.title)},\"author\":${jsonQuote(it.author)},\"thumbnail_url\":${jsonQuote(it.thumbnailUrl ?: "")},\"track_count\":${it.trackCount}}"
@@ -921,6 +923,51 @@ object SupabaseService {
             }
             if (!response.status.isSuccess()) {
                 Log.w(TAG, "markNotificationRead ${response.status}: ${response.bodyAsText().take(300)}")
+            }
+            Unit
+        }
+    }
+
+    /**
+     * Creates and dispatches an in-app social notification to a recipient user.
+     */
+    suspend fun createNotification(
+        recipientUserId: String,
+        actor: SocialProfile,
+        type: NotificationType,
+        targetPostId: String? = null,
+        message: String = "",
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        if (recipientUserId.isBlank() || recipientUserId == actor.id) {
+            return@withContext Result.success(Unit)
+        }
+        runCatching {
+            val body = buildString {
+                append("{")
+                append("\"id\":\"${UUID.randomUUID()}\",")
+                append("\"user_id\":${jsonQuote(recipientUserId)},")
+                append("\"actor_id\":${jsonQuote(actor.id)},")
+                append("\"actor_name\":${jsonQuote(actor.displayName)},")
+                append("\"actor_handle\":${jsonQuote(actor.handle)},")
+                if (!actor.avatarUrl.isNullOrBlank()) {
+                    append("\"actor_avatar\":${jsonQuote(actor.avatarUrl)},")
+                }
+                append("\"type\":${jsonQuote(type.name)},")
+                if (!targetPostId.isNullOrBlank()) {
+                    append("\"target_post_id\":${jsonQuote(targetPostId)},")
+                }
+                append("\"message\":${jsonQuote(message)},")
+                append("\"is_read\":false")
+                append("}")
+            }
+            val response = client.post(baseUrl("notifications")) {
+                header("apikey", SupabaseConfig.anonKey)
+                header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                contentType(ContentType.Application.Json)
+                setBody(body)
+            }
+            if (!response.status.isSuccess()) {
+                Log.w(TAG, "createNotification ${response.status}: ${response.bodyAsText().take(300)}")
             }
             Unit
         }
@@ -1585,10 +1632,12 @@ object SupabaseService {
             val question = p.str("question") ?: ""
             val options = p.arr("options")?.mapIndexedNotNull { idx, opt ->
                 val o = opt as? JsonObject ?: return@mapIndexedNotNull null
+                val imageUrl = o.str("image_url")?.takeIf { it.isNotBlank() && it != "null" }
                 PollOption(
                     id = "$idx",
                     text = o.str("text") ?: "",
                     votes = o.int("votes") ?: 0,
+                    imageUrl = imageUrl,
                 )
             } ?: emptyList()
             PollData(question = question, options = options, totalVotes = options.sumOf { it.votes })

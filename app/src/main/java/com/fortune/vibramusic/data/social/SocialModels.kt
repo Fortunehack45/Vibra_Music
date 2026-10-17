@@ -49,13 +49,13 @@ data class MusicTrackAttachment(
     val artist: String,
     val thumbnailUrl: String? = null,
     val durationText: String? = null,
-    val artworkUrl: String? = thumbnailUrl,
+    val artworkUrl: String? = thumbnailUrl ?: ("https://i.ytimg.com/vi/$videoId/hqdefault.jpg").takeIf { videoId.isNotBlank() },
 ) {
     fun toSong(): Song = Song(
         videoId = videoId,
         title = title,
         artist = artist,
-        thumbnailUrl = artworkUrl ?: thumbnailUrl,
+        thumbnailUrl = artworkUrl ?: thumbnailUrl ?: ("https://i.ytimg.com/vi/$videoId/hqdefault.jpg").takeIf { videoId.isNotBlank() },
         durationText = durationText,
     )
 
@@ -64,9 +64,9 @@ data class MusicTrackAttachment(
             videoId = song.videoId,
             title = song.title,
             artist = song.artist,
-            thumbnailUrl = song.thumbnailUrl,
+            thumbnailUrl = song.thumbnailUrl ?: ("https://i.ytimg.com/vi/${song.videoId}/hqdefault.jpg").takeIf { song.videoId.isNotBlank() },
             durationText = song.durationText,
-            artworkUrl = song.thumbnailUrl,
+            artworkUrl = song.thumbnailUrl ?: ("https://i.ytimg.com/vi/${song.videoId}/hqdefault.jpg").takeIf { song.videoId.isNotBlank() },
         )
     }
 }
@@ -88,6 +88,7 @@ data class PollOption(
     val text: String,
     val votes: Int = 0,
     val songAttachment: MusicTrackAttachment? = null,
+    val imageUrl: String? = null,
 )
 
 /**
@@ -158,7 +159,33 @@ data class SocialPost(
         get() = imageUrls.filter { it.isNotBlank() && it != "null" }.ifEmpty {
             listOfNotNull(imageUrl?.takeIf { it.isNotBlank() && it != "null" })
         }
+    val allMediaItems: List<PostMediaItem>
+        get() {
+            val list = mutableListOf<PostMediaItem>()
+            effectiveImages.forEach { url ->
+                list.add(PostMediaItem(url = url, type = PostMediaType.IMAGE))
+            }
+            videoUrl?.takeIf { it.isNotBlank() && it != "null" }?.let { vUrl ->
+                list.add(PostMediaItem(url = vUrl, type = PostMediaType.VIDEO))
+            }
+            gifUrl?.takeIf { it.isNotBlank() && it != "null" && !effectiveImages.contains(it) }?.let { gUrl ->
+                list.add(PostMediaItem(url = gUrl, type = PostMediaType.IMAGE))
+            }
+            return list
+        }
 }
+
+@Serializable
+enum class PostMediaType {
+    IMAGE,
+    VIDEO,
+}
+
+@Serializable
+data class PostMediaItem(
+    val url: String,
+    val type: PostMediaType = PostMediaType.IMAGE,
+)
 
 /**
  * Comment or nested reply on a social post.
@@ -215,6 +242,7 @@ enum class NotificationType {
     LIKE,
     COMMENT,
     REPLY,
+    REPOST,
     FOLLOW,
     FRIEND_REQUEST,
     QUIZ_CHALLENGE,

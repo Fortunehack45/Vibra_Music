@@ -58,6 +58,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.fortune.vibramusic.data.quiz.QuizArtist
 import com.fortune.vibramusic.data.social.MusicTrackAttachment
+import com.fortune.vibramusic.data.social.PostMediaItem
 import com.fortune.vibramusic.data.social.SocialProfile
 import com.fortune.vibramusic.data.social.formatHandle
 import com.fortune.vibramusic.ui.components.ArtistAvatar
@@ -89,7 +90,7 @@ fun UserProfileScreen(
     val coroutineScope = rememberCoroutineScope()
     val currentProfile by viewModel.currentProfile.collectAsStateWithLifecycle()
     val viewingProfile by viewModel.viewingProfile.collectAsStateWithLifecycle()
-    val activeProfile = if (isSelf) (currentProfile ?: profile) else (viewingProfile ?: profile)
+    val activeProfile = if (isSelf) (currentProfile ?: profile) else (viewingProfile?.takeIf { it.id == profile.id } ?: profile)
 
     val posts by viewModel.viewingProfilePosts.collectAsStateWithLifecycle()
     val favoriteArtists by viewModel.favoriteArtists.collectAsStateWithLifecycle()
@@ -98,6 +99,7 @@ fun UserProfileScreen(
     var showEditProfile by remember { mutableStateOf(false) }
     var postToDelete by remember { mutableStateOf<SocialPost?>(null) }
     var inspectedQuotedPost by remember { mutableStateOf<SocialPost?>(null) }
+    var activeMediaViewer by remember { mutableStateOf<Pair<List<PostMediaItem>, Int>?>(null) }
 
     LaunchedEffect(activeProfile.id) {
         if (activeProfile.id.isNotBlank() && activeProfile.id != "me") {
@@ -441,6 +443,7 @@ fun UserProfileScreen(
                             onLikeClick = { viewModel.toggleLike(post) },
                             onCommentClick = { viewModel.openComments(post) },
                             onRepostClick = { viewModel.repost(post) },
+                            onMediaClick = { list, idx -> activeMediaViewer = Pair(list, idx) },
                             onShareClick = {
                                 val sendIntent = Intent(Intent.ACTION_SEND).apply {
                                     putExtra(
@@ -567,6 +570,15 @@ fun UserProfileScreen(
                         Text("Cancel")
                     }
                 },
+            )
+        }
+
+        // Fullscreen Multi-Media Viewer Dialog
+        activeMediaViewer?.let { (mediaList, idx) ->
+            FullScreenMediaViewerDialog(
+                mediaList = mediaList,
+                initialIndex = idx,
+                onDismiss = { activeMediaViewer = null },
             )
         }
 

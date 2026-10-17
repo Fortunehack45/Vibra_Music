@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Fullscreen
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.VolumeOff
@@ -101,6 +102,7 @@ object FeedVideoController {
 @Composable
 fun PostVideoPlayer(
     videoUrl: String,
+    onFullScreenClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -245,6 +247,29 @@ fun PostVideoPlayer(
                     contentDescription = if (isMuted) "Unmute" else "Mute",
                     tint = Color.White,
                     modifier = Modifier.size(18.dp),
+                )
+            }
+        }
+
+        if (onFullScreenClick != null) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(10.dp)
+                    .size(34.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF222226))
+                    .clickable {
+                        FeedVideoController.pause()
+                        onFullScreenClick()
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Fullscreen,
+                    contentDescription = "Fullscreen",
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp),
                 )
             }
         }

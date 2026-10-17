@@ -148,6 +148,20 @@ fun ArtistLeaderboardScreen(
                             .background(palette.elevated),
                     )
                 }
+
+                Box(
+                    Modifier
+                        .matchParentSize()
+                        .background(
+                            Brush.verticalGradient(
+                                0.35f to Color.Transparent,
+                                0.55f to palette.wash.copy(alpha = 0.25f),
+                                0.75f to palette.wash.copy(alpha = 0.65f),
+                                0.90f to palette.wash.copy(alpha = 0.90f),
+                                1.00f to palette.wash,
+                            ),
+                        ),
+                )
             }
         }
 
@@ -348,24 +362,6 @@ fun ArtistLeaderboardScreen(
                     }
                 }
             }
-        }
-
-        // 3. Floating Navigation Back Button
-        IconButton(
-            onClick = onBack,
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .statusBarsPadding()
-                .padding(start = 16.dp, top = 8.dp)
-                .size(42.dp)
-                .clip(CircleShape)
-                .background(palette.elevated),
-        ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                contentDescription = "Back",
-                tint = palette.onBackground,
-            )
         }
     }
 }

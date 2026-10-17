@@ -729,10 +729,13 @@ fun DirectMessagesScreen(
                                 .padding(horizontal = 16.dp, vertical = 11.dp),
                         ) {
                             if (messageText.isEmpty()) {
+                                val recipientLabel = friend.displayName.ifBlank { formatHandle(friend.handle) }
                                 Text(
-                                    text = "Message ${formatHandle(friend.handle)}...",
+                                    text = "Message $recipientLabel...",
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
                                 )
                             }
                             BasicTextField(
@@ -1394,12 +1397,12 @@ private fun MessageBubble(
                             modifier = Modifier
                                 .size(34.dp)
                                 .clip(CircleShape)
-                                .background(if (isMine) Color.White else MaterialTheme.colorScheme.primary),
+                                .background(MaterialTheme.colorScheme.primary),
                         ) {
                             Icon(
                                 imageVector = if (isPlayingThis) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
                                 contentDescription = if (isPlayingThis) "Pause" else "Play",
-                                tint = if (isMine) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onPrimary,
+                                tint = MaterialTheme.colorScheme.onPrimary,
                                 modifier = Modifier.size(18.dp),
                             )
                         }
@@ -1614,12 +1617,14 @@ private fun ChatAttachmentPickerSheet(
                         .clip(RoundedCornerShape(14.dp))
                         .background(MaterialTheme.colorScheme.surfaceVariant)
                         .clickable {
+                            val thumb = currentlyPlayingSong.thumbnailUrl ?: "https://i.ytimg.com/vi/${currentlyPlayingSong.videoId}/hqdefault.jpg"
                             onSelectTrack(
                                 MusicTrackAttachment(
                                     videoId = currentlyPlayingSong.videoId,
                                     title = currentlyPlayingSong.title,
                                     artist = currentlyPlayingSong.artist,
-                                    artworkUrl = currentlyPlayingSong.thumbnailUrl,
+                                    thumbnailUrl = thumb,
+                                    artworkUrl = thumb,
                                     durationText = currentlyPlayingSong.durationText,
                                 )
                             )
@@ -1752,12 +1757,14 @@ private fun ChatAttachmentPickerSheet(
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(10.dp))
                                     .clickable {
+                                        val thumb = song.thumbnailUrl ?: "https://i.ytimg.com/vi/${song.videoId}/hqdefault.jpg"
                                         onSelectTrack(
                                             MusicTrackAttachment(
                                                 videoId = song.videoId,
                                                 title = song.title,
                                                 artist = song.artist,
-                                                artworkUrl = song.thumbnailUrl,
+                                                thumbnailUrl = thumb,
+                                                artworkUrl = thumb,
                                                 durationText = song.durationText,
                                             )
                                         )

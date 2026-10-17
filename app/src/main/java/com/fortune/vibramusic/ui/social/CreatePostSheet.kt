@@ -90,6 +90,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil3.compose.AsyncImage
 import com.fortune.vibramusic.data.YtMusicRepository
+import com.fortune.vibramusic.data.model.BrowseItem
 import com.fortune.vibramusic.data.model.SearchFilter
 import com.fortune.vibramusic.data.model.SearchResult
 import com.fortune.vibramusic.data.model.Song
@@ -167,8 +168,10 @@ fun CreatePostSheet(
     var pollQuestion by remember { mutableStateOf("") }
     val pollOptions = remember { mutableStateListOf("Option 1", "Option 2") }
     val pollOptionTracks = remember { androidx.compose.runtime.mutableStateMapOf<Int, MusicTrackAttachment?>() }
+    val pollOptionImages = remember { androidx.compose.runtime.mutableStateMapOf<Int, String?>() }
     var pollDurationDays by remember { mutableIntStateOf(1) }
     var pickingSongForOptionIndex by remember { mutableStateOf<Int?>(null) }
+    var pickingAttachmentForOptionIndex by remember { mutableStateOf<Int?>(null) }
 
     // Voice note recording
     val voiceRecorder = remember { VoiceRecorderManager(context) }
@@ -852,23 +855,64 @@ fun CreatePostSheet(
 
                                         Spacer(Modifier.width(6.dp))
 
-                                        // Music attachment button for option
-                                        IconButton(
-                                            onClick = {
-                                                if (pollOptionTracks[index] != null) {
-                                                    pollOptionTracks.remove(index)
+                                        // Attachment preview / button for option (song, artist, or album)
+                                        val currentTrack = pollOptionTracks[index]
+                                        val currentImage = pollOptionImages[index] ?: currentTrack?.artworkUrl ?: currentTrack?.thumbnailUrl
+                                        if (currentImage != null || currentTrack != null) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(34.dp)
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                                                    .clickable {
+                                                        pollOptionTracks.remove(index)
+                                                        pollOptionImages.remove(index)
+                                                    },
+                                                contentAlignment = Alignment.Center,
+                                            ) {
+                                                if (currentImage != null) {
+                                                    AsyncImage(
+                                                        model = currentImage,
+                                                        contentDescription = "Option media",
+                                                        contentScale = ContentScale.Crop,
+                                                        modifier = Modifier.fillMaxSize(),
+                                                    )
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .fillMaxSize()
+                                                            .background(Color.Black.copy(alpha = 0.35f)),
+                                                        contentAlignment = Alignment.Center,
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = Icons.Rounded.Close,
+                                                            contentDescription = "Remove attachment",
+                                                            tint = Color.White,
+                                                            modifier = Modifier.size(16.dp),
+                                                        )
+                                                    }
                                                 } else {
-                                                    pickingSongForOptionIndex = index
+                                                    Icon(
+                                                        imageVector = Icons.Rounded.MusicNote,
+                                                        contentDescription = "Remove song",
+                                                        tint = MaterialTheme.colorScheme.primary,
+                                                        modifier = Modifier.size(18.dp),
+                                                    )
                                                 }
-                                            },
-                                            modifier = Modifier.size(32.dp),
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Rounded.MusicNote,
-                                                contentDescription = "Attach song to option",
-                                                tint = if (pollOptionTracks[index] != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                                modifier = Modifier.size(18.dp),
-                                            )
+                                            }
+                                        } else {
+                                            IconButton(
+                                                onClick = {
+                                                    pickingAttachmentForOptionIndex = index
+                                                },
+                                                modifier = Modifier.size(34.dp),
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Rounded.AddPhotoAlternate,
+                                                    contentDescription = "Attach song, artist or album to option",
+                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    modifier = Modifier.size(18.dp),
+                                                )
+                                            }
                                         }
 
                                         if (pollOptions.size > 2) {
@@ -877,6 +921,7 @@ fun CreatePostSheet(
                                                 onClick = {
                                                     pollOptions.removeAt(index)
                                                     pollOptionTracks.remove(index)
+                                                    pollOptionImages.remove(index)
                                                 },
                                                 modifier = Modifier.size(24.dp),
                                             ) {
@@ -1147,9 +1192,14 @@ fun CreatePostSheet(
                                             question = pollQuestion.trim(),
                                             options = pollOptions.mapIndexedNotNull { idx, text ->
                                                 val track = pollOptionTracks[idx]
+                                                val img = pollOptionImages[idx] ?: track?.artworkUrl ?: track?.thumbnailUrl
                                                 val effectiveText = text.trim().ifEmpty { track?.let { "${it.title} - ${it.artist}" } }
-                                                if (effectiveText.isNullOrBlank() && track == null) null
-                                                else PollOption(text = effectiveText ?: "Option ${idx + 1}", songAttachment = track)
+                                                if (effectiveText.isNullOrBlank() && track == null && img == null) null
+                                                else PollOption(
+                                                    text = effectiveText ?: "Option ${idx + 1}",
+                                                    songAttachment = track,
+                                                    imageUrl = img,
+                                                )
                                             },
                                         )
                                     } else null
@@ -1226,22 +1276,33 @@ fun CreatePostSheet(
         )
     }
 
-    if (pickingSongForOptionIndex != null) {
-        val optionIdx = pickingSongForOptionIndex!!
-        SongSearchDialog(
-            onDismiss = { pickingSongForOptionIndex = null },
-            onSongSelected = { song ->
-                pollOptionTracks[optionIdx] = MusicTrackAttachment(
-                    videoId = song.videoId,
-                    title = song.title,
-                    artist = song.artist,
-                    artworkUrl = song.thumbnailUrl,
-                    durationText = song.durationText,
-                )
+    if (pickingAttachmentForOptionIndex != null) {
+        val optionIdx = pickingAttachmentForOptionIndex!!
+        PollOptionAttachmentDialog(
+            onDismiss = { pickingAttachmentForOptionIndex = null },
+            onTrackSelected = { track ->
+                pollOptionTracks[optionIdx] = track
+                pollOptionImages[optionIdx] = track.artworkUrl ?: track.thumbnailUrl
                 if (pollOptions.getOrNull(optionIdx)?.isBlank() == true) {
-                    pollOptions[optionIdx] = "${song.title} - ${song.artist}"
+                    pollOptions[optionIdx] = "${track.title} - ${track.artist}"
                 }
-                pickingSongForOptionIndex = null
+                pickingAttachmentForOptionIndex = null
+            },
+            onArtistSelected = { artistName, imageUrl ->
+                pollOptionTracks.remove(optionIdx)
+                pollOptionImages[optionIdx] = imageUrl
+                if (pollOptions.getOrNull(optionIdx)?.isBlank() == true) {
+                    pollOptions[optionIdx] = artistName
+                }
+                pickingAttachmentForOptionIndex = null
+            },
+            onAlbumSelected = { albumTitle, imageUrl ->
+                pollOptionTracks.remove(optionIdx)
+                pollOptionImages[optionIdx] = imageUrl
+                if (pollOptions.getOrNull(optionIdx)?.isBlank() == true) {
+                    pollOptions[optionIdx] = albumTitle
+                }
+                pickingAttachmentForOptionIndex = null
             },
         )
     }
@@ -1761,3 +1822,323 @@ private fun SongSearchDialog(
         }
     }
 }
+
+private enum class PollAttachmentTab(val label: String) {
+    SONG("Song"),
+    ARTIST("Artist"),
+    ALBUM("Album"),
+}
+
+/**
+ * Modal dialog allowing attachment of a Song, Artist, or Album to a poll option.
+ * 100% solid theme colors, zero emojis.
+ */
+@Composable
+private fun PollOptionAttachmentDialog(
+    onDismiss: () -> Unit,
+    onTrackSelected: (MusicTrackAttachment) -> Unit,
+    onArtistSelected: (name: String, imageUrl: String?) -> Unit,
+    onAlbumSelected: (title: String, imageUrl: String?) -> Unit,
+) {
+    var activeTab by remember { mutableStateOf(PollAttachmentTab.SONG) }
+    var query by remember { mutableStateOf("") }
+    var songResults by remember { mutableStateOf<List<Song>>(emptyList()) }
+    var browseResults by remember { mutableStateOf<List<BrowseItem>>(emptyList()) }
+    var isSearching by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(query, activeTab) {
+        val q = query.trim()
+        if (q.length >= 2) {
+            isSearching = true
+            scope.launch {
+                val filter = when (activeTab) {
+                    PollAttachmentTab.SONG -> SearchFilter.SONGS
+                    PollAttachmentTab.ARTIST -> SearchFilter.ARTISTS
+                    PollAttachmentTab.ALBUM -> SearchFilter.ALBUMS
+                }
+                val rawResults = withContext(Dispatchers.IO) {
+                    YtMusicRepository.search(q, filter).getOrNull().orEmpty()
+                }
+                when (activeTab) {
+                    PollAttachmentTab.SONG -> {
+                        songResults = rawResults.mapNotNull { item ->
+                            when (item) {
+                                is SearchResult.Track -> item.song
+                                is SearchResult.TopTrack -> item.song
+                                else -> null
+                            }
+                        }
+                        browseResults = emptyList()
+                    }
+                    PollAttachmentTab.ARTIST, PollAttachmentTab.ALBUM -> {
+                        browseResults = rawResults.mapNotNull { item ->
+                            when (item) {
+                                is SearchResult.Browse -> item.item
+                                else -> null
+                            }
+                        }
+                        songResults = emptyList()
+                    }
+                }
+                isSearching = false
+            }
+        } else {
+            songResults = emptyList()
+            browseResults = emptyList()
+            isSearching = false
+        }
+    }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(20.dp))
+                .background(MaterialTheme.colorScheme.surface)
+                .padding(20.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "Attach to Option",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                IconButton(onClick = onDismiss, modifier = Modifier.size(24.dp)) {
+                    Icon(
+                        imageVector = Icons.Rounded.Close,
+                        contentDescription = "Close",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(14.dp))
+
+            // Tab selector (Song / Artist / Album)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .padding(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                PollAttachmentTab.entries.forEach { tab ->
+                    val isSelected = activeTab == tab
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent)
+                            .clickable {
+                                activeTab = tab
+                                songResults = emptyList()
+                                browseResults = emptyList()
+                            }
+                            .padding(vertical = 8.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = tab.label,
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                            color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            // Search Bar
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Rounded.Search,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    BasicTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        textStyle = TextStyle(
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontSize = 14.sp,
+                        ),
+                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                        decorationBox = { innerTextField ->
+                            if (query.isEmpty()) {
+                                Text(
+                                    text = "Search ${activeTab.label.lowercase()}...",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            innerTextField()
+                        },
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(14.dp))
+
+            if (isSearching) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(180.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CircularProgressIndicator(
+                        color = MaterialTheme.colorScheme.primary,
+                        strokeWidth = 2.dp,
+                        modifier = Modifier.size(24.dp),
+                    )
+                }
+            } else if (activeTab == PollAttachmentTab.SONG && songResults.isNotEmpty()) {
+                LazyColumn(modifier = Modifier.height(240.dp)) {
+                    items(songResults) { song ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable {
+                                    val fallbackArtwork = song.thumbnailUrl ?: "https://i.ytimg.com/vi/${song.videoId}/hqdefault.jpg"
+                                    onTrackSelected(
+                                        MusicTrackAttachment(
+                                            videoId = song.videoId,
+                                            title = song.title,
+                                            artist = song.artist,
+                                            thumbnailUrl = fallbackArtwork,
+                                            artworkUrl = fallbackArtwork,
+                                            durationText = song.durationText,
+                                        )
+                                    )
+                                }
+                                .padding(vertical = 8.dp, horizontal = 4.dp),
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                            ) {
+                                val thumb = song.thumbnailUrl ?: "https://i.ytimg.com/vi/${song.videoId}/hqdefault.jpg"
+                                AsyncImage(
+                                    model = thumb,
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                            }
+
+                            Spacer(Modifier.width(12.dp))
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = song.title,
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                Text(
+                                    text = song.artist,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
+                    }
+                }
+            } else if ((activeTab == PollAttachmentTab.ARTIST || activeTab == PollAttachmentTab.ALBUM) && browseResults.isNotEmpty()) {
+                LazyColumn(modifier = Modifier.height(240.dp)) {
+                    items(browseResults) { item ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable {
+                                    if (activeTab == PollAttachmentTab.ARTIST) {
+                                        onArtistSelected(item.title, item.thumbnailUrl)
+                                    } else {
+                                        onAlbumSelected(item.title, item.thumbnailUrl)
+                                    }
+                                }
+                                .padding(vertical = 8.dp, horizontal = 4.dp),
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .clip(if (activeTab == PollAttachmentTab.ARTIST) CircleShape else RoundedCornerShape(6.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                            ) {
+                                if (!item.thumbnailUrl.isNullOrBlank()) {
+                                    AsyncImage(
+                                        model = item.thumbnailUrl,
+                                        contentDescription = null,
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.fillMaxSize(),
+                                    )
+                                }
+                            }
+
+                            Spacer(Modifier.width(12.dp))
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = item.title,
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                if (item.subtitle.isNotBlank()) {
+                                    Text(
+                                        text = item.subtitle,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            } else if (query.isNotBlank() && !isSearching) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(100.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = "No results found for \"$query\"",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+    }
+}
+

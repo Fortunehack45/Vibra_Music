@@ -102,6 +102,30 @@ import com.fortune.vibramusic.data.YtMusicRepository
 import kotlinx.coroutines.launch
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
+import com.fortune.vibramusic.data.social.PostMediaItem
+import com.fortune.vibramusic.data.social.PostMediaType
+import java.time.Duration
+import java.time.Instant
+
+fun formatRelativeTime(raw: String): String {
+    if (raw.isBlank()) return ""
+    return try {
+        val instant = Instant.parse(raw)
+        val now = Instant.now()
+        val duration = Duration.between(instant, now)
+        val seconds = duration.seconds
+        when {
+            seconds < 10 -> "Just now"
+            seconds < 60 -> "${seconds}s"
+            seconds < 3600 -> "${seconds / 60}m"
+            seconds < 86400 -> "${seconds / 3600}h"
+            seconds < 604800 -> "${seconds / 86400}d"
+            else -> "${seconds / 604800}w"
+        }
+    } catch (_: Exception) {
+        raw.take(10)
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -139,6 +163,7 @@ fun SocialScreen(
     var showCreatePostSheet by remember { mutableStateOf(false) }
     var repostActionTarget by remember { mutableStateOf<SocialPost?>(null) }
     var previewImageUrl by remember { mutableStateOf<String?>(null) }
+    var activeMediaViewer by remember { mutableStateOf<Pair<List<PostMediaItem>, Int>?>(null) }
     val context = LocalContext.current
 
     Box(
@@ -340,6 +365,7 @@ fun SocialScreen(
                                         onCommentClick = { viewModel.openComments(post) },
                                         onRepostClick = { repostActionTarget = post },
                                         onImageClick = { previewImageUrl = it },
+                                        onMediaClick = { list, idx -> activeMediaViewer = Pair(list, idx) },
                                         onShareClick = {
                                             val sendIntent = Intent(Intent.ACTION_SEND).apply {
                                                 putExtra(
@@ -371,9 +397,7 @@ fun SocialScreen(
                                                 onOpenArtistDetail?.invoke(browseId, artistName, artwork)
                                             }
                                         },
-                                        onDeleteClick = if (post.authorId == currentProfile?.id) {
-                                            { postToDelete = post }
-                                        } else null,
+                                        onDeleteClick = null,
                                         onQuoteClick = { quoted ->
                                             inspectedQuotedPost = quoted
                                         },
@@ -553,6 +577,7 @@ fun SocialScreen(
                             onCommentClick = { viewModel.openComments(post) },
                             onRepostClick = { repostActionTarget = post },
                             onImageClick = { previewImageUrl = it },
+                            onMediaClick = { list, idx -> activeMediaViewer = Pair(list, idx) },
                             onShareClick = {
                                 val sendIntent = Intent(Intent.ACTION_SEND).apply {
                                     putExtra(
@@ -584,9 +609,7 @@ fun SocialScreen(
                                     onOpenArtistDetail?.invoke(browseId, artistName, artwork)
                                 }
                             },
-                            onDeleteClick = if (post.authorId == currentProfile?.id) {
-                                { postToDelete = post }
-                            } else null,
+                            onDeleteClick = null,
                             onQuoteClick = { quoted ->
                                 inspectedQuotedPost = quoted
                             },
@@ -682,10 +705,19 @@ fun SocialScreen(
         )
     }
 
-    // Fullscreen Image Preview Dialog
+    // Fullscreen Multi-Media Viewer Dialog (Swipeable Images & Videos)
+    activeMediaViewer?.let { (mediaList, idx) ->
+        FullScreenMediaViewerDialog(
+            mediaList = mediaList,
+            initialIndex = idx,
+            onDismiss = { activeMediaViewer = null },
+        )
+    }
+
     previewImageUrl?.let { url ->
-        FullscreenImageDialog(
-            imageUrl = url,
+        FullScreenMediaViewerDialog(
+            mediaList = listOf(PostMediaItem(url = url, type = PostMediaType.IMAGE)),
+            initialIndex = 0,
             onDismiss = { previewImageUrl = null },
         )
     }
@@ -789,6 +821,7 @@ fun SocialScreen(
                             repostActionTarget = quoted
                         },
                         onImageClick = { previewImageUrl = it },
+                        onMediaClick = { list, idx -> activeMediaViewer = Pair(list, idx) },
                         onShareClick = {
                             val sendIntent = Intent(Intent.ACTION_SEND).apply {
                                 putExtra(
@@ -986,6 +1019,7 @@ fun SocialPostCard(
     onCommentClick: () -> Unit,
     onRepostClick: () -> Unit,
     onImageClick: (String) -> Unit = {},
+    onMediaClick: ((List<PostMediaItem>, Int) -> Unit)? = null,
     onShareClick: () -> Unit,
     onPlayTrack: (MusicTrackAttachment) -> Unit,
     onVotePoll: (Int) -> Unit,
@@ -1092,9 +1126,10 @@ fun SocialPostCard(
                                 )
                             }
                         }
-                        if (post.createdAt.isNotBlank()) {
+                        val relativeTime = formatRelativeTime(post.createdAt)
+                        if (relativeTime.isNotBlank()) {
                             Text(
-                                text = " · ${post.createdAt}",
+                                text = " · $relativeTime",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -1159,7 +1194,14 @@ fun SocialPostCard(
             if (images.isNotEmpty()) {
                 PostMediaCarousel(
                     images = images,
-                    onImageClick = onImageClick,
+                    onImageClick = { clickedUrl ->
+                        val idx = post.allMediaItems.indexOfFirst { it.url == clickedUrl }.coerceAtLeast(0)
+                        if (onMediaClick != null) {
+                            onMediaClick(post.allMediaItems, idx)
+                        } else {
+                            onImageClick(clickedUrl)
+                        }
+                    },
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(Modifier.height(12.dp))
@@ -1168,12 +1210,19 @@ fun SocialPostCard(
             // Attached GIF
             post.gifUrl?.takeIf { it.isNotBlank() && it != "null" }?.let { gifUrl ->
                 if (!images.contains(gifUrl)) {
+                    val gifIdx = post.allMediaItems.indexOfFirst { it.url == gifUrl }.coerceAtLeast(0)
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(16.dp))
                             .background(MaterialTheme.colorScheme.surface)
-                            .clickable { onImageClick(gifUrl) },
+                            .clickable {
+                                if (onMediaClick != null) {
+                                    onMediaClick(post.allMediaItems, gifIdx)
+                                } else {
+                                    onImageClick(gifUrl)
+                                }
+                            },
                     ) {
                         AsyncImage(
                             model = gifUrl,
@@ -1188,8 +1237,14 @@ fun SocialPostCard(
 
             // Attached Video Player
             post.videoUrl?.takeIf { it.isNotBlank() && it != "null" }?.let { videoUrl ->
+                val videoIdx = post.allMediaItems.indexOfFirst { it.url == videoUrl }.coerceAtLeast(0)
                 PostVideoPlayer(
                     videoUrl = videoUrl,
+                    onFullScreenClick = {
+                        if (onMediaClick != null) {
+                            onMediaClick(post.allMediaItems, videoIdx)
+                        }
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
                         .aspectRatio(16f / 9f),
@@ -1639,7 +1694,8 @@ fun PollCard(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.weight(1f),
                     ) {
-                        if (option.songAttachment?.artworkUrl != null) {
+                        val optionThumb = option.imageUrl ?: option.songAttachment?.artworkUrl ?: option.songAttachment?.thumbnailUrl
+                        if (optionThumb != null) {
                             Box(
                                 modifier = Modifier
                                     .size(36.dp)
@@ -1647,7 +1703,7 @@ fun PollCard(
                                     .background(MaterialTheme.colorScheme.surface),
                             ) {
                                 AsyncImage(
-                                    model = option.songAttachment.artworkUrl,
+                                    model = optionThumb,
                                     contentDescription = null,
                                     contentScale = ContentScale.Crop,
                                     modifier = Modifier.fillMaxSize(),
@@ -1781,10 +1837,11 @@ fun QuotedPostCard(
                         )
                     }
 
-                    if (quotedPost.createdAt.isNotBlank()) {
+                    val relativeTime = formatRelativeTime(quotedPost.createdAt)
+                    if (relativeTime.isNotBlank()) {
                         Spacer(Modifier.width(6.dp))
                         Text(
-                            text = quotedPost.createdAt,
+                            text = relativeTime,
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

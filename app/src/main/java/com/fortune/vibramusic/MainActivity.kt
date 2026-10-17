@@ -2439,6 +2439,7 @@ private fun VibraMusicApp(
             activeLeaderboardArtist = null
         }
         BackHandler(enabled = currentRealm == AppRealm.SOCIAL && viewingSocialProfile != null) {
+            socialViewModel.closeUserProfile()
             viewingSocialProfile = null
         }
         BackHandler(enabled = currentRealm == AppRealm.SOCIAL && activeLeaderboardArtist == null && viewingSocialProfile == null && socialActiveChatFriend != null) {
@@ -2985,7 +2986,10 @@ private fun VibraMusicApp(
                                 profile = profile,
                                 viewModel = socialViewModel,
                                 isSelf = profile.id == (socialProfile?.id ?: ""),
-                                onBack = { viewingSocialProfile = null },
+                                onBack = {
+                                    socialViewModel.closeUserProfile()
+                                    viewingSocialProfile = null
+                                },
                                 onPlayTrack = playTrackAttachment,
                                 onArtistQuizClick = { artist -> activeLeaderboardArtist = artist },
                                 onOpenArtistDetail = { id, name, artworkUrl ->
@@ -3002,7 +3006,10 @@ private fun VibraMusicApp(
                                     viewModel = socialViewModel,
                                     currentlyPlayingSong = player.song,
                                     onPlayTrack = playTrackAttachment,
-                                    onOpenProfile = { profile -> viewingSocialProfile = profile },
+                                    onOpenProfile = { profile ->
+                                        socialViewModel.openUserProfile(profile)
+                                        viewingSocialProfile = profile
+                                    },
                                     onOpenArtistDetail = { id, name, artworkUrl ->
                                         viewModel.openDetail(id, name, "Artist", artworkUrl, BrowseType.ARTIST)
                                     },
@@ -3433,7 +3440,10 @@ private fun VibraMusicApp(
                         detail != null -> ({ viewModel.closeDetail(); Unit })
                         selectedMoodGenre != null -> ({ viewModel.closeMoodGenre(); Unit })
                         currentRealm == AppRealm.SOCIAL && activeLeaderboardArtist != null -> ({ activeLeaderboardArtist = null })
-                        currentRealm == AppRealm.SOCIAL && viewingSocialProfile != null -> ({ viewingSocialProfile = null })
+                        currentRealm == AppRealm.SOCIAL && viewingSocialProfile != null -> ({
+                            socialViewModel.closeUserProfile()
+                            viewingSocialProfile = null
+                        })
                         currentRealm == AppRealm.SOCIAL && socialActiveChatFriend != null -> ({ socialViewModel.closeChat() })
                         else -> null
                     },

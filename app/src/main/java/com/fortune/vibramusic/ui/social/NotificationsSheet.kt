@@ -283,6 +283,7 @@ private fun notificationText(notification: SocialNotification): String {
         NotificationType.LIKE -> "liked your post"
         NotificationType.COMMENT -> "commented on your post"
         NotificationType.REPLY -> "replied to your comment"
+        NotificationType.REPOST -> "reposted your post"
         NotificationType.FOLLOW -> "started following you"
         NotificationType.FRIEND_REQUEST -> "sent you a friend request"
         NotificationType.QUIZ_CHALLENGE -> "challenged you to a quiz"
@@ -295,6 +296,7 @@ private fun notificationTypeDetails(type: NotificationType): Pair<ImageVector, C
         NotificationType.LIKE -> Icons.Rounded.Favorite to Color(0xFFEF4444)
         NotificationType.COMMENT -> Icons.Rounded.ChatBubbleOutline to MaterialTheme.colorScheme.primary
         NotificationType.REPLY -> Icons.Rounded.Repeat to MaterialTheme.colorScheme.primary
+        NotificationType.REPOST -> Icons.Rounded.Repeat to Color(0xFF10B981)
         NotificationType.FOLLOW -> Icons.Rounded.PersonAdd to Color(0xFF10B981)
         NotificationType.FRIEND_REQUEST -> Icons.Rounded.PersonAdd to Color(0xFF6366F1)
         NotificationType.QUIZ_CHALLENGE -> Icons.Rounded.EmojiEvents to Color(0xFFF59E0B)

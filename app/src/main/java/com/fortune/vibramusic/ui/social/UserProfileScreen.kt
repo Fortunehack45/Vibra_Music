@@ -25,8 +25,11 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PersonAdd
+import androidx.compose.material.icons.rounded.QueueMusic
+import androidx.compose.material.icons.rounded.Repeat
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material3.Button
@@ -146,81 +149,174 @@ fun UserProfileScreen(
                 }
             }
 
-            // Profile Card Header (Solid Surface)
+            // Profile Card Header (Solid Surface with Banner & Status Bubble)
             item(key = "profile_header") {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp)
                         .clip(RoundedCornerShape(24.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                        .padding(20.dp),
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
                 ) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        // Avatar
-                        Box(
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        // 1. Banner Playlists Grid (Up to 15 covers)
+                        if (activeProfile.bannerPlaylists.isNotEmpty()) {
+                            LazyRow(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(100.dp)
+                                    .background(MaterialTheme.colorScheme.surface),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                items(activeProfile.bannerPlaylists.take(15)) { coverUrl ->
+                                    Box(
+                                        modifier = Modifier
+                                            .size(84.dp)
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                                    ) {
+                                        AsyncImage(
+                                            model = coverUrl,
+                                            contentDescription = null,
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier.fillMaxSize(),
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // 2. Profile Details & Avatar
+                        Column(
                             modifier = Modifier
-                                .size(90.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.surface),
-                            contentAlignment = Alignment.Center,
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp, vertical = 18.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
-                            if (!activeProfile.avatarUrl.isNullOrBlank() && activeProfile.avatarUrl != "null") {
-                                AsyncImage(
-                                    model = activeProfile.avatarUrl,
-                                    contentDescription = null,
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.fillMaxSize(),
-                                )
-                            } else {
-                                Icon(
-                                    imageVector = Icons.Rounded.Person,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(44.dp),
-                                )
+                            // Avatar & Status Bubble
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                if (activeProfile.statusBubble.isNotBlank()) {
+                                    Box(
+                                        modifier = Modifier
+                                            .padding(bottom = 8.dp)
+                                            .clip(RoundedCornerShape(14.dp))
+                                            .background(MaterialTheme.colorScheme.primary)
+                                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Text(
+                                            text = activeProfile.statusBubble,
+                                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                            color = MaterialTheme.colorScheme.onPrimary,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                    }
+                                }
+
+                                Box(
+                                    modifier = Modifier
+                                        .size(90.dp)
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.surface),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    if (!activeProfile.avatarUrl.isNullOrBlank() && activeProfile.avatarUrl != "null") {
+                                        AsyncImage(
+                                            model = activeProfile.avatarUrl,
+                                            contentDescription = null,
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier.fillMaxSize(),
+                                        )
+                                    } else {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Person,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(44.dp),
+                                        )
+                                    }
+                                }
                             }
-                        }
 
-                        Spacer(Modifier.height(12.dp))
+                            Spacer(Modifier.height(12.dp))
 
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        ) {
-                            Text(
-                                text = activeProfile.displayName,
-                                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.onSurface,
-                            )
-                            if (activeProfile.verifiedBadge) {
-                                Icon(
-                                    imageVector = Icons.Rounded.CheckCircle,
-                                    contentDescription = "Verified",
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(18.dp),
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                Text(
+                                    text = activeProfile.displayName,
+                                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.onSurface,
                                 )
+                                if (activeProfile.verifiedBadge) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.CheckCircle,
+                                        contentDescription = "Verified",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(18.dp),
+                                    )
+                                }
                             }
-                        }
 
-                        Text(
-                            text = formatHandle(activeProfile.handle),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-
-                        if (!activeProfile.bio.isNullOrBlank()) {
-                            Spacer(Modifier.height(8.dp))
                             Text(
-                                text = activeProfile.bio,
+                                text = formatHandle(activeProfile.handle),
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = 3,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
-                        }
+
+                            // Country & Age Badges
+                            if (activeProfile.country.isNotBlank() || activeProfile.age != null) {
+                                Spacer(Modifier.height(6.dp))
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                ) {
+                                    if (activeProfile.country.isNotBlank()) {
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(MaterialTheme.colorScheme.surface)
+                                                .padding(horizontal = 8.dp, vertical = 3.dp),
+                                        ) {
+                                            Text(
+                                                text = activeProfile.country,
+                                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
+                                    }
+                                    if (activeProfile.age != null) {
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(MaterialTheme.colorScheme.surface)
+                                                .padding(horizontal = 8.dp, vertical = 3.dp),
+                                        ) {
+                                            Text(
+                                                text = "${activeProfile.age} yrs",
+                                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            if (!activeProfile.bio.isNullOrBlank()) {
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    text = activeProfile.bio,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 3,
+                                )
+                            }
 
                         Spacer(Modifier.height(16.dp))
 
@@ -351,6 +447,7 @@ fun UserProfileScreen(
                     }
                 }
             }
+        }
 
             // Favorite Artists Section
             item(key = "favorite_artists_header") {
@@ -394,7 +491,7 @@ fun UserProfileScreen(
                 }
             }
 
-            // Sub-tabs: Posts / Quiz Records
+            // Sub-tabs: Posts / Reposts / Quiz Records
             item(key = "profile_subtabs") {
                 Row(
                     modifier = Modifier
@@ -402,7 +499,7 @@ fun UserProfileScreen(
                         .padding(horizontal = 20.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    listOf("Posts", "Quiz Records").forEach { tab ->
+                    listOf("Posts", "Reposts", "Quiz Records").forEach { tab ->
                         val selected = selectedSubTab == tab
                         Text(
                             text = tab,
@@ -420,9 +517,15 @@ fun UserProfileScreen(
             }
 
             // Content based on sub-tab
-            if (selectedSubTab == "Posts") {
-                if (posts.isEmpty()) {
-                    item(key = "empty_user_posts") {
+            val filteredPosts = when (selectedSubTab) {
+                "Reposts" -> posts.filter { it.repostOfId != null || it.repostOf != null }
+                "Posts" -> posts.filter { it.repostOfId == null && it.repostOf == null }
+                else -> emptyList()
+            }
+
+            if (selectedSubTab == "Posts" || selectedSubTab == "Reposts") {
+                if (filteredPosts.isEmpty()) {
+                    item(key = "empty_user_posts_$selectedSubTab") {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -430,33 +533,50 @@ fun UserProfileScreen(
                             contentAlignment = Alignment.Center,
                         ) {
                             Text(
-                                text = "No posts yet.",
+                                text = if (selectedSubTab == "Reposts") "No reposts yet." else "No posts yet.",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                     }
                 } else {
-                    items(posts, key = { it.id }) { post ->
+                    items(filteredPosts, key = { it.id }) { post ->
+                        val targetPost = if (post.repostOf != null && post.content.isBlank()) post.repostOf!! else post
                         SocialPostCard(
                             post = post,
-                            onLikeClick = { viewModel.toggleLike(post) },
-                            onCommentClick = { viewModel.openComments(post) },
-                            onRepostClick = { viewModel.repost(post) },
+                            onLikeClick = { viewModel.toggleLike(targetPost) },
+                            onCommentClick = { viewModel.openComments(targetPost) },
+                            onRepostClick = { viewModel.repost(targetPost) },
                             onMediaClick = { list, idx -> activeMediaViewer = Pair(list, idx) },
                             onShareClick = {
                                 val sendIntent = Intent(Intent.ACTION_SEND).apply {
                                     putExtra(
                                         Intent.EXTRA_TEXT,
-                                        "Check out @${post.authorHandle}'s music post on Vibra:\n\n${post.content}",
+                                        "Check out @${targetPost.authorHandle}'s music post on Vibra:\n\n${targetPost.content}",
                                     )
                                     type = "text/plain"
                                 }
                                 context.startActivity(Intent.createChooser(sendIntent, "Share Post"))
                             },
                             onPlayTrack = onPlayTrack,
-                            onVotePoll = { viewModel.votePoll(post, it) },
-                            onAuthorClick = {},
+                            onVotePoll = { viewModel.votePoll(targetPost, it) },
+                            onAuthorClick = {
+                                val target = post.author ?: SocialProfile(
+                                    id = post.authorId,
+                                    handle = post.authorHandle,
+                                    displayName = post.authorName,
+                                    avatarUrl = post.authorAvatar,
+                                    verifiedBadge = post.authorVerified,
+                                )
+                                if (target.id != activeProfile.id) {
+                                    viewModel.openUserProfile(target)
+                                }
+                            },
+                            onOpenProfile = { profile ->
+                                if (profile.id != activeProfile.id) {
+                                    viewModel.openUserProfile(profile)
+                                }
+                            },
                             onTaggedArtistClick = { artistName ->
                                 coroutineScope.launch {
                                     val resolved = YtMusicRepository.resolveArtist(artistName)
@@ -469,7 +589,14 @@ fun UserProfileScreen(
                                 { postToDelete = post }
                             } else null,
                             onQuoteClick = { quoted ->
-                                inspectedQuotedPost = quoted
+                                val target = quoted.author ?: SocialProfile(
+                                    id = quoted.authorId,
+                                    handle = quoted.authorHandle,
+                                    displayName = quoted.authorName,
+                                    avatarUrl = quoted.authorAvatar,
+                                    verifiedBadge = quoted.authorVerified,
+                                )
+                                viewModel.openUserProfile(target)
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -518,8 +645,17 @@ fun UserProfileScreen(
             EditProfileSheet(
                 profile = activeProfile,
                 onDismiss = { showEditProfile = false },
-                onSaveProfile = { name, handle, bio, avatar ->
-                    viewModel.updateUserProfile(name, handle, bio, avatar)
+                onSaveProfile = { name, handle, bio, avatar, country, age, statusBubble, bannerPlaylists ->
+                    viewModel.updateUserProfile(
+                        displayName = name,
+                        handle = handle,
+                        bio = bio,
+                        avatarUrl = avatar,
+                        country = country,
+                        age = age,
+                        statusBubble = statusBubble,
+                        bannerPlaylists = bannerPlaylists,
+                    )
                 },
             )
         }

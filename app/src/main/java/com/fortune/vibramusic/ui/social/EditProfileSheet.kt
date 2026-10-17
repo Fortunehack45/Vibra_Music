@@ -9,8 +9,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -22,9 +24,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.CameraAlt
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -34,6 +41,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -65,7 +73,16 @@ import kotlinx.coroutines.withContext
 fun EditProfileSheet(
     profile: SocialProfile,
     onDismiss: () -> Unit,
-    onSaveProfile: (displayName: String, handle: String, bio: String, avatarUrl: String?) -> Unit,
+    onSaveProfile: (
+        displayName: String,
+        handle: String,
+        bio: String,
+        avatarUrl: String?,
+        country: String,
+        age: Int?,
+        statusBubble: String,
+        bannerPlaylists: List<String>,
+    ) -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -74,6 +91,11 @@ fun EditProfileSheet(
     var displayName by remember { mutableStateOf(profile.displayName) }
     var handle by remember { mutableStateOf(profile.handle) }
     var bio by remember { mutableStateOf(profile.bio) }
+    var country by remember { mutableStateOf(profile.country) }
+    var ageText by remember { mutableStateOf(profile.age?.toString() ?: "") }
+    var statusBubble by remember { mutableStateOf(profile.statusBubble) }
+    var bannerPlaylists by remember { mutableStateOf(profile.bannerPlaylists.take(15)) }
+    var customPlaylistInput by remember { mutableStateOf("") }
     var selectedAvatarUri by remember { mutableStateOf<Uri?>(null) }
     var isSaving by remember { mutableStateOf(false) }
 
@@ -82,6 +104,23 @@ fun EditProfileSheet(
     ) { uri ->
         if (uri != null) {
             selectedAvatarUri = uri
+        }
+    }
+
+    val bannerImagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null && bannerPlaylists.size < 15) {
+            scope.launch {
+                val bytes = withContext(Dispatchers.IO) {
+                    context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                }
+                if (bytes != null) {
+                    SupabaseService.uploadImage(bytes = bytes, mimeType = "image/jpeg").onSuccess { uploadedUrl ->
+                        bannerPlaylists = (bannerPlaylists + uploadedUrl).take(15)
+                    }
+                }
+            }
         }
     }
 
@@ -141,11 +180,17 @@ fun EditProfileSheet(
                                 }
                             }
 
+                            val parsedAge = ageText.trim().toIntOrNull()?.coerceIn(1, 120)
+
                             onSaveProfile(
                                 displayName.trim(),
                                 handle.trim().trimStart('@'),
                                 bio.trim(),
                                 finalAvatarUrl,
+                                country.trim(),
+                                parsedAge,
+                                statusBubble.trim(),
+                                bannerPlaylists,
                             )
                             isSaving = false
                             onDismiss()
@@ -367,7 +412,272 @@ fun EditProfileSheet(
                 )
             }
 
+            Spacer(Modifier.height(16.dp))
+
+            // Bubble Message (Thought Bubble) Field
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = "Status Bubble (shown on profile)",
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(6.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                ) {
+                    if (statusBubble.isEmpty()) {
+                        Text(
+                            text = "What's on your mind? (e.g. Listening to Drake)",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    BasicTextField(
+                        value = statusBubble,
+                        onValueChange = { if (it.length <= 60) statusBubble = it },
+                        textStyle = TextStyle(
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                        ),
+                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            // Country & Age Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                // Country Field
+                Column(modifier = Modifier.weight(1.4f)) {
+                    Text(
+                        text = "Country",
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                    ) {
+                        if (country.isEmpty()) {
+                            Text(
+                                text = "e.g. United States",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        BasicTextField(
+                            value = country,
+                            onValueChange = { country = it },
+                            textStyle = TextStyle(
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium,
+                            ),
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
+
+                // Age Field
+                Column(modifier = Modifier.weight(0.8f)) {
+                    Text(
+                        text = "Age",
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                    ) {
+                        if (ageText.isEmpty()) {
+                            Text(
+                                text = "Age",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        BasicTextField(
+                            value = ageText,
+                            onValueChange = {
+                                if (it.all { ch -> ch.isDigit() } && it.length <= 3) {
+                                    ageText = it
+                                }
+                            },
+                            textStyle = TextStyle(
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium,
+                            ),
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
+            }
+
             Spacer(Modifier.height(20.dp))
+
+            // Banner Playlists Header (Up to 15)
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "Banner Playlists (${bannerPlaylists.size}/15)",
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+
+                    if (bannerPlaylists.size < 15) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(
+                                onClick = {
+                                    bannerImagePickerLauncher.launch(
+                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                    )
+                                },
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Image,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Text("Upload Cover", fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = "Display up to 15 playlist and album covers across the top banner of your profile.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+
+                Spacer(Modifier.height(10.dp))
+
+                // Custom URL Add Field
+                if (bannerPlaylists.size < 15) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                        ) {
+                            if (customPlaylistInput.isEmpty()) {
+                                Text(
+                                    text = "Paste image / artwork URL...",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            BasicTextField(
+                                value = customPlaylistInput,
+                                onValueChange = { customPlaylistInput = it },
+                                textStyle = TextStyle(
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    fontSize = 13.sp,
+                                ),
+                                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+
+                        ElevatedButton(
+                            onClick = {
+                                val trimmed = customPlaylistInput.trim()
+                                if (trimmed.isNotBlank() && bannerPlaylists.size < 15) {
+                                    bannerPlaylists = (bannerPlaylists + trimmed).take(15)
+                                    customPlaylistInput = ""
+                                }
+                            },
+                            enabled = customPlaylistInput.isNotBlank(),
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                        ) {
+                            Icon(imageVector = Icons.Rounded.Add, contentDescription = "Add", modifier = Modifier.size(16.dp))
+                        }
+                    }
+
+                    Spacer(Modifier.height(12.dp))
+                }
+
+                // Grid/Row of current banner playlists
+                if (bannerPlaylists.isNotEmpty()) {
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        itemsIndexed(bannerPlaylists) { idx, url ->
+                            Box(
+                                modifier = Modifier
+                                    .size(64.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                            ) {
+                                AsyncImage(
+                                    model = url,
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .padding(2.dp)
+                                        .size(20.dp)
+                                        .clip(CircleShape)
+                                        .background(Color.Black.copy(alpha = 0.7f))
+                                        .clickable {
+                                            bannerPlaylists = bannerPlaylists.filterIndexed { i, _ -> i != idx }
+                                        },
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Close,
+                                        contentDescription = "Remove",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(12.dp),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(24.dp))
         }
     }
 }

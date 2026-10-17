@@ -1,5 +1,6 @@
 package com.fortune.vibramusic.ui.quiz
 
+import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -11,13 +12,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -25,10 +24,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.EmojiEvents
-import androidx.compose.material.icons.rounded.MilitaryTech
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.WorkspacePremium
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedButton
@@ -50,20 +48,19 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.fortune.vibramusic.data.model.artworkAt
 import com.fortune.vibramusic.data.YtMusicRepository
-import com.fortune.vibramusic.data.model.SearchFilter
-import com.fortune.vibramusic.data.model.SearchResult
 import com.fortune.vibramusic.data.model.Song
 import com.fortune.vibramusic.data.quiz.LeaderboardEntry
 import com.fortune.vibramusic.data.quiz.QuizArtist
+import com.fortune.vibramusic.data.social.SocialProfile
 import com.fortune.vibramusic.data.social.formatHandle
 import com.fortune.vibramusic.data.supabase.SupabaseService
 import com.fortune.vibramusic.ui.components.ArtistAvatar
@@ -71,7 +68,13 @@ import com.fortune.vibramusic.ui.components.ArtworkWash
 import com.fortune.vibramusic.ui.theme.rememberArtworkPalette
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
-import kotlin.math.roundToInt
+
+fun formatLeaderboardTime(totalTimeMillis: Long): String {
+    val minutes = (totalTimeMillis / 60000)
+    val seconds = (totalTimeMillis % 60000) / 1000
+    val millis = (totalTimeMillis % 1000)
+    return "%02d:%02d.%03d".format(minutes, seconds, millis)
+}
 
 @Composable
 fun ArtistLeaderboardScreen(
@@ -80,6 +83,7 @@ fun ArtistLeaderboardScreen(
     onChallengeArtist: () -> Unit,
     onOpenArtistDetail: ((id: String, name: String, artworkUrl: String?) -> Unit)? = null,
     onPlaySong: ((Song) -> Unit)? = null,
+    onOpenProfile: ((SocialProfile) -> Unit)? = null,
     contentPadding: PaddingValues,
     hazeState: HazeState,
     modifier: Modifier = Modifier,
@@ -87,10 +91,11 @@ fun ArtistLeaderboardScreen(
     var resolvedArtwork by remember(artist.name) { mutableStateOf(artist.artworkUrl) }
     var resolvedBrowseId by remember(artist.id) { mutableStateOf(artist.id) }
 
+    val context = LocalContext.current
     val listState = rememberLazyListState()
     val highResArtwork = (resolvedArtwork ?: artist.artworkUrl)?.artworkAt(1080) ?: (resolvedArtwork ?: artist.artworkUrl)
     val palette = rememberArtworkPalette(highResArtwork)
-    val artHeight = 260.dp
+    val artHeight = 220.dp
 
     var leaderboardEntries by remember { mutableStateOf<List<LeaderboardEntry>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
@@ -122,6 +127,9 @@ fun ArtistLeaderboardScreen(
             }
         isLoading = false
     }
+
+    val bestEntry = leaderboardEntries.firstOrNull()
+    val topPercentile = if (leaderboardEntries.isNotEmpty()) "Top ${(100.0 / leaderboardEntries.size.coerceAtLeast(1)).toInt().coerceIn(1, 100)}%" else "Top Fan"
 
     Box(
         modifier = modifier
@@ -170,138 +178,204 @@ fun ArtistLeaderboardScreen(
             state = listState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
-                bottom = contentPadding.calculateBottomPadding() + 80.dp,
+                bottom = contentPadding.calculateBottomPadding() + 90.dp,
             ),
         ) {
-            // Header Space reserving room for the artwork
+            // Header: Top Bar with Back, "Leaderboard", Share
+            item(key = "nav_top_bar") {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                            contentDescription = "Back",
+                            tint = palette.onBackground,
+                        )
+                    }
+
+                    Text(
+                        text = "Leaderboard",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = palette.onBackground,
+                    )
+
+                    IconButton(onClick = {
+                        val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                            putExtra(
+                                Intent.EXTRA_TEXT,
+                                "Check out the Quiz Leaderboard for ${artist.name} on Vibra Music!\nCan you beat the record?",
+                            )
+                            type = "text/plain"
+                        }
+                        context.startActivity(Intent.createChooser(sendIntent, "Share Leaderboard"))
+                    }) {
+                        Icon(
+                            imageVector = Icons.Rounded.Share,
+                            contentDescription = "Share",
+                            tint = palette.onBackground,
+                        )
+                    }
+                }
+            }
+
+            // Artist Centerpiece: Large Circular Avatar + "Top Fan of [Artist]"
             item(key = "artist_header") {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = artHeight - 44.dp, start = 20.dp, end = 20.dp),
+                        .padding(top = 10.dp, start = 20.dp, end = 20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    // Circular HD Artist Profile Avatar
+                    // Centered Circular Avatar
                     Box(
                         modifier = Modifier
-                            .size(88.dp)
+                            .size(92.dp)
                             .clip(CircleShape)
-                            .background(palette.elevated),
+                            .background(palette.elevated)
+                            .clickable {
+                                onOpenArtistDetail?.invoke(resolvedBrowseId, artist.name, highResArtwork)
+                            },
                         contentAlignment = Alignment.Center,
                     ) {
                         ArtistAvatar(
                             name = artist.name,
                             artworkUrl = highResArtwork,
-                            size = 88.dp,
+                            size = 92.dp,
                         )
                     }
 
-                    Spacer(Modifier.height(14.dp))
+                    Spacer(Modifier.height(12.dp))
 
                     Text(
-                        text = artist.name,
-                        style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.ExtraBold),
+                        text = "Top Fan of ${artist.name}",
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold),
                         color = palette.onBackground,
                         textAlign = TextAlign.Center,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-
-                    Spacer(Modifier.height(6.dp))
-
-                    Text(
-                        text = "Quiz Master Hall of Fame",
-                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
-                        color = palette.accent,
                     )
 
                     Spacer(Modifier.height(16.dp))
 
-                    // Action Buttons Row: Challenge Artist + Open Discography
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
+                    // 3-Metric Summary Record Card (Matching Screenshot 1)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .padding(horizontal = 14.dp, vertical = 14.dp),
                     ) {
-                        ElevatedButton(
-                            onClick = onChallengeArtist,
-                            shape = RoundedCornerShape(16.dp),
-                            colors = ButtonDefaults.elevatedButtonColors(
-                                containerColor = palette.accent,
-                                contentColor = if (palette.accent.luminance() > 0.5f) Color.Black else Color.White,
-                            ),
-                            modifier = Modifier
-                                .weight(1.2f)
-                                .height(46.dp),
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Icon(
-                                imageVector = Icons.Rounded.PlayArrow,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                            )
-                            Spacer(Modifier.width(6.dp))
-                            Text(
-                                text = "Challenge",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp,
-                            )
-                        }
-
-                        if (onOpenArtistDetail != null) {
-                            ElevatedButton(
-                                onClick = { onOpenArtistDetail(resolvedBrowseId, artist.name, highResArtwork) },
-                                shape = RoundedCornerShape(16.dp),
-                                colors = ButtonDefaults.elevatedButtonColors(
-                                    containerColor = palette.elevated,
-                                    contentColor = palette.onBackground,
-                                ),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(46.dp),
+                            // Column 1: Your best record
+                            Column(
+                                modifier = Modifier.weight(1.3f),
+                                horizontalAlignment = Alignment.CenterHorizontally,
                             ) {
                                 Text(
-                                    text = "Discography",
-                                    fontWeight = FontWeight.SemiBold,
-                                    fontSize = 13.sp,
+                                    text = "Your best record",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    text = if (bestEntry != null) {
+                                        "${formatLeaderboardTime(bestEntry.totalTimeMillis)} (${bestEntry.score}/10)"
+                                    } else "--",
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+
+                            // Column 2: Global ranking
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                            ) {
+                                Text(
+                                    text = "Global rank",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    text = topPercentile,
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = palette.accent,
+                                )
+                            }
+
+                            // Column 3: NO. ranking
+                            Column(
+                                modifier = Modifier.weight(0.9f),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                            ) {
+                                Text(
+                                    text = "NO. ranking",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    text = if (bestEntry != null) "No. 1" else "--",
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.onSurface,
                                 )
                             }
                         }
                     }
+
+                    Spacer(Modifier.height(20.dp))
                 }
             }
 
-            item(key = "leaderboard_header") {
-                Spacer(Modifier.height(20.dp))
-                Text(
-                    text = "Quiz Master Leaderboard",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    color = palette.onBackground,
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
-                )
-            }
-
-            // Top 3 Podium (if we have entries)
-            if (leaderboardEntries.isNotEmpty()) {
-                item(key = "podium") {
-                    Spacer(Modifier.height(24.dp))
-                    Top3Podium(
-                        entries = leaderboardEntries.take(3),
-                        paletteAccent = palette.accent,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 20.dp),
+            // Table Column Headers: Fans | Score | Time (Matching Screenshot 1)
+            item(key = "table_header") {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "Fans",
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f),
                     )
-                    Spacer(Modifier.height(16.dp))
+                    Text(
+                        text = "Score",
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.width(60.dp),
+                        textAlign = TextAlign.Center,
+                    )
+                    Text(
+                        text = "Time",
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.width(90.dp),
+                        textAlign = TextAlign.End,
+                    )
                 }
             }
 
-            // Leaderboard Entries (Ranks 4+)
+            // Leaderboard Entries
             if (isLoading) {
                 item(key = "loading") {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(160.dp),
+                            .height(140.dp),
                         contentAlignment = Alignment.Center,
                     ) {
                         CircularProgressIndicator(color = palette.accent, strokeWidth = 2.dp)
@@ -312,7 +386,7 @@ fun ArtistLeaderboardScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = 40.dp, start = 24.dp, end = 24.dp),
+                            .padding(top = 30.dp, start = 24.dp, end = 24.dp),
                         contentAlignment = Alignment.Center,
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -322,7 +396,7 @@ fun ArtistLeaderboardScreen(
                                 tint = palette.accent,
                                 modifier = Modifier.size(44.dp),
                             )
-                            Spacer(Modifier.height(12.dp))
+                            Spacer(Modifier.height(10.dp))
                             Text(
                                 text = "No records yet for ${artist.name}",
                                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
@@ -330,7 +404,7 @@ fun ArtistLeaderboardScreen(
                             )
                             Spacer(Modifier.height(4.dp))
                             Text(
-                                text = "Take the quiz and be the first crowned master on the podium!",
+                                text = "Be the first to challenge the quiz and top the hall of fame!",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = palette.onBackgroundVariant,
                                 textAlign = TextAlign.Center,
@@ -339,27 +413,105 @@ fun ArtistLeaderboardScreen(
                     }
                 }
             } else {
-                val remainingEntries = leaderboardEntries.drop(3)
-                if (remainingEntries.isNotEmpty()) {
-                    item(key = "rankings_title") {
-                        Text(
-                            text = "Rankings",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = palette.onBackground,
-                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
-                        )
-                    }
+                itemsIndexed(leaderboardEntries, key = { _, it -> it.id }) { index, entry ->
+                    LeaderboardTableRow(
+                        entry = entry,
+                        rank = index + 1,
+                        paletteAccent = palette.accent,
+                        onClick = {
+                            onOpenProfile?.invoke(
+                                SocialProfile(
+                                    id = entry.userId,
+                                    handle = entry.userHandle,
+                                    displayName = entry.userName,
+                                    avatarUrl = entry.userAvatar,
+                                )
+                            )
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                    )
+                }
+            }
+        }
 
-                    itemsIndexed(remainingEntries, key = { _, it -> it.id }) { index, entry ->
-                        LeaderboardRow(
-                            entry = entry,
-                            rank = index + 4,
-                            paletteAccent = palette.accent,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 20.dp, vertical = 4.dp),
-                        )
-                    }
+        // 3. Sticky Bottom Action Card (Play again + Share buttons, matching Screenshot 1)
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(
+                    start = 16.dp,
+                    end = 16.dp,
+                    bottom = contentPadding.calculateBottomPadding() + 10.dp,
+                )
+                .clip(RoundedCornerShape(20.dp))
+                .background(MaterialTheme.colorScheme.surface)
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // Play Again / Challenge button
+                ElevatedButton(
+                    onClick = onChallengeArtist,
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.elevatedButtonColors(
+                        containerColor = palette.accent,
+                        contentColor = if (palette.accent.luminance() > 0.5f) Color.Black else Color.White,
+                    ),
+                    modifier = Modifier
+                        .weight(1.2f)
+                        .height(46.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.PlayArrow,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = "Play again",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                    )
+                }
+
+                // Share button
+                ElevatedButton(
+                    onClick = {
+                        val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                            putExtra(
+                                Intent.EXTRA_TEXT,
+                                "I scored on the ${artist.name} quiz on Vibra Music!\nTake the challenge now!",
+                            )
+                            type = "text/plain"
+                        }
+                        context.startActivity(Intent.createChooser(sendIntent, "Share Leaderboard"))
+                    },
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.elevatedButtonColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        contentColor = MaterialTheme.colorScheme.onSurface,
+                    ),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(46.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Share,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = "Share",
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 13.sp,
+                    )
                 }
             }
         }
@@ -367,180 +519,109 @@ fun ArtistLeaderboardScreen(
 }
 
 @Composable
-private fun Top3Podium(
-    entries: List<LeaderboardEntry>,
-    paletteAccent: Color,
-    modifier: Modifier = Modifier,
-) {
-    Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        verticalAlignment = Alignment.Bottom,
-    ) {
-        // 2nd Place (Silver)
-        entries.getOrNull(1)?.let { silver ->
-            PodiumPillar(
-                entry = silver,
-                rank = 2,
-                color = Color(0xFFC0C0C0), // Silver
-                height = 120.dp,
-                modifier = Modifier.weight(1f),
-            )
-        }
-
-        // 1st Place (Gold)
-        entries.getOrNull(0)?.let { gold ->
-            PodiumPillar(
-                entry = gold,
-                rank = 1,
-                color = Color(0xFFFFD700), // Gold
-                height = 150.dp,
-                modifier = Modifier.weight(1.15f),
-            )
-        }
-
-        // 3rd Place (Bronze)
-        entries.getOrNull(2)?.let { bronze ->
-            PodiumPillar(
-                entry = bronze,
-                rank = 3,
-                color = Color(0xFFCD7F32), // Bronze
-                height = 100.dp,
-                modifier = Modifier.weight(1f),
-            )
-        }
-    }
-}
-
-@Composable
-private fun PodiumPillar(
-    entry: LeaderboardEntry,
-    rank: Int,
-    color: Color,
-    height: androidx.compose.ui.unit.Dp,
-    modifier: Modifier = Modifier,
-) {
-    val seconds = (entry.totalTimeMillis % 60000) / 1000
-    val millis = (entry.totalTimeMillis % 1000)
-    val timeFormatted = "%d.%02ds".format(seconds, millis / 10)
-
-    Column(
-        modifier = modifier,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        // Avatar
-        Box(
-            modifier = Modifier
-                .size(if (rank == 1) 58.dp else 48.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.surfaceVariant),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (entry.userAvatar != null) {
-                AsyncImage(
-                    model = entry.userAvatar,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            } else {
-                Icon(
-                    imageVector = Icons.Rounded.Person,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(24.dp),
-                )
-            }
-        }
-
-        Spacer(Modifier.height(6.dp))
-
-        Text(
-            text = entry.userName,
-            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-
-        Text(
-            text = "${entry.score}/10 in $timeFormatted",
-            style = MaterialTheme.typography.labelSmall,
-            color = color,
-            fontWeight = FontWeight.Bold,
-        )
-
-        Spacer(Modifier.height(6.dp))
-
-        // Pedestal (Solid color, no gradient, no border)
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(height)
-                .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
-                .background(color),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = when (rank) {
-                    1 -> Icons.Rounded.EmojiEvents
-                    2 -> Icons.Rounded.WorkspacePremium
-                    else -> Icons.Rounded.MilitaryTech
-                },
-                contentDescription = "Rank #$rank",
-                tint = Color.White,
-                modifier = Modifier.size(32.dp),
-            )
-        }
-    }
-}
-
-@Composable
-private fun LeaderboardRow(
+private fun LeaderboardTableRow(
     entry: LeaderboardEntry,
     rank: Int,
     paletteAccent: Color,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val seconds = (entry.totalTimeMillis % 60000) / 1000
-    val millis = (entry.totalTimeMillis % 1000)
-    val timeFormatted = "%d.%02ds".format(seconds, millis / 10)
+    val timeFormatted = formatLeaderboardTime(entry.totalTimeMillis)
 
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(14.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant)
+            .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 10.dp),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text(
-                text = "#$rank",
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.width(36.dp),
-            )
+            // Rank Number or Badge
+            Box(
+                modifier = Modifier.width(32.dp),
+                contentAlignment = Alignment.CenterStart,
+            ) {
+                when (rank) {
+                    1 -> Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFFFD700)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = "1",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.ExtraBold),
+                            color = Color.Black,
+                        )
+                    }
+                    2 -> Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFC0C0C0)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = "2",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.ExtraBold),
+                            color = Color.Black,
+                        )
+                    }
+                    3 -> Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFCD7F32)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = "3",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.ExtraBold),
+                            color = Color.White,
+                        )
+                    }
+                    else -> Text(
+                        text = "$rank",
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
 
+            Spacer(Modifier.width(8.dp))
+
+            // User Avatar
             Box(
                 modifier = Modifier
-                    .size(36.dp)
+                    .size(38.dp)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                    .background(MaterialTheme.colorScheme.surface),
+                contentAlignment = Alignment.Center,
             ) {
-                if (entry.userAvatar != null) {
+                if (!entry.userAvatar.isNullOrBlank() && entry.userAvatar != "null") {
                     AsyncImage(
                         model = entry.userAvatar,
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize(),
                     )
+                } else {
+                    Icon(
+                        imageVector = Icons.Rounded.Person,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(22.dp),
+                    )
                 }
             }
 
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(10.dp))
 
+            // Username and Handle
             Column(Modifier.weight(1f)) {
                 Text(
                     text = entry.userName,
@@ -553,21 +634,28 @@ private fun LeaderboardRow(
                     text = formatHandle(entry.userHandle),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
 
-            Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    text = "${entry.score}/10",
-                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Black),
-                    color = paletteAccent,
-                )
-                Text(
-                    text = timeFormatted,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            // Score
+            Text(
+                text = "${entry.score}/10",
+                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Black),
+                color = paletteAccent,
+                modifier = Modifier.width(60.dp),
+                textAlign = TextAlign.Center,
+            )
+
+            // Time
+            Text(
+                text = timeFormatted,
+                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.width(90.dp),
+                textAlign = TextAlign.End,
+            )
         }
     }
 }

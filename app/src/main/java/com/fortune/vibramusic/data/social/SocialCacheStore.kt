@@ -84,4 +84,30 @@ class SocialCacheStore(private val context: Context) {
             }.getOrDefault(emptyList())
         }
     }
+
+    suspend fun saveProfile(profile: SocialProfile) = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            runCatching {
+                val file = File(cacheDir, "profile_${profile.id}.json")
+                val text = json.encodeToString(profile)
+                atomicWrite(file, text)
+            }.onFailure { e ->
+                Log.w("SocialCacheStore", "Failed to cache profile ${profile.id}: ${e.message}")
+            }
+        }
+    }
+
+    suspend fun loadProfile(userId: String): SocialProfile? = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            runCatching {
+                val file = File(cacheDir, "profile_${userId}.json")
+                if (!file.exists()) {
+                    null
+                } else {
+                    val text = file.readText()
+                    if (text.isBlank()) null else json.decodeFromString<SocialProfile>(text)
+                }
+            }.getOrNull()
+        }
+    }
 }

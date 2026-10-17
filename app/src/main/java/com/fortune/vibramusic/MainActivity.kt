@@ -486,6 +486,13 @@ private fun VibraMusicApp(
     val socialActiveChatFriend by socialViewModel.activeChatFriend.collectAsStateWithLifecycle()
     val socialNotifications by socialViewModel.notifications.collectAsStateWithLifecycle()
     val socialIsNotificationsOpen by socialViewModel.isNotificationsOpen.collectAsStateWithLifecycle()
+    val vmViewingProfile by socialViewModel.viewingProfile.collectAsStateWithLifecycle()
+
+    LaunchedEffect(vmViewingProfile) {
+        if (vmViewingProfile != null && vmViewingProfile != viewingSocialProfile) {
+            viewingSocialProfile = vmViewingProfile
+        }
+    }
 
     val quizGameState by quizViewModel.gameState.collectAsStateWithLifecycle()
     val quizLastResult by quizViewModel.lastResult.collectAsStateWithLifecycle()
@@ -2976,6 +2983,10 @@ private fun VibraMusicApp(
                                 onPlaySong = { song ->
                                     playRadio(song, QueueSource(artist.name, PlaybackSourceType.SEARCH))
                                 },
+                                onOpenProfile = { profile ->
+                                    socialViewModel.openUserProfile(profile)
+                                    viewingSocialProfile = profile
+                                },
                                 contentPadding = listPadding,
                                 hazeState = hazeState,
                             )
@@ -3863,6 +3874,16 @@ private fun VibraMusicApp(
                     socialViewModel.markNotificationRead(notification.id)
                     if (notification.targetPostId != null) {
                         socialViewModel.openCommentsForPostId(notification.targetPostId)
+                    } else if (notification.actorId.isNotBlank()) {
+                        val profile = SocialProfile(
+                            id = notification.actorId,
+                            handle = notification.actorHandle,
+                            displayName = notification.actorName,
+                            avatarUrl = notification.actorAvatar,
+                        )
+                        socialViewModel.openUserProfile(profile)
+                        viewingSocialProfile = profile
+                        socialViewModel.closeNotifications()
                     }
                 },
                 onMarkAllRead = {

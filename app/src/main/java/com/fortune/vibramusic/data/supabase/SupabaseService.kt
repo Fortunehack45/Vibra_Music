@@ -175,7 +175,41 @@ object SupabaseService {
                 throw RuntimeException("HTTP ${response.status.value}: $errorText")
             }
 
-            parsePosts(response.bodyAsText(), forUserId ?: "")
+            val rawPosts = parsePosts(response.bodyAsText(), forUserId ?: "")
+            resolveReferencedPosts(rawPosts, forUserId ?: "")
+        }
+    }
+
+    private suspend fun resolveReferencedPosts(
+        posts: List<SocialPost>,
+        currentUserId: String,
+    ): List<SocialPost> {
+        val missingIds = posts.mapNotNull { it.repostOfId }.plus(posts.mapNotNull { it.quoteOfId })
+            .filter { refId -> posts.none { it.id == refId } }
+            .distinct()
+
+        val resolvedMap = posts.associateBy { it.id }.toMutableMap()
+
+        if (missingIds.isNotEmpty()) {
+            runCatching {
+                val idFilter = "in.(${missingIds.joinToString(",")})"
+                val response = client.get(baseUrl("posts")) {
+                    header("apikey", SupabaseConfig.anonKey)
+                    header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                    parameter("id", idFilter)
+                    parameter("select", "*,profiles:author_id(*)")
+                }
+                if (response.status.isSuccess()) {
+                    val batch = parsePosts(response.bodyAsText(), currentUserId)
+                    batch.forEach { resolvedMap[it.id] = it }
+                }
+            }
+        }
+
+        return posts.map { post ->
+            val origRepost = post.repostOfId?.let { resolvedMap[it] }
+            val origQuote = post.quoteOfId?.let { resolvedMap[it] }
+            post.copy(repostOf = origRepost, quoteOf = origQuote)
         }
     }
 
@@ -196,7 +230,8 @@ object SupabaseService {
                 Log.w(TAG, "fetchUserPosts ${response.status}: $errorText")
                 return@runCatching emptyList()
             }
-            parsePosts(response.bodyAsText(), userId)
+            val rawPosts = parsePosts(response.bodyAsText(), userId)
+            resolveReferencedPosts(rawPosts, userId)
         }
     }
 
@@ -538,8 +573,15 @@ object SupabaseService {
         handle: String,
         bio: String,
         avatarUrl: String? = null,
+        country: String = "",
+        age: Int? = null,
+        statusBubble: String = "",
+        bannerPlaylists: List<String> = emptyList(),
     ): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
+            val bannerPlaylistsJson = if (bannerPlaylists.isNotEmpty()) {
+                "[" + bannerPlaylists.joinToString(",") { jsonQuote(it) } + "]"
+            } else "[]"
             val body = buildString {
                 append("{")
                 append("\"id\":\"$userId\",")
@@ -548,9 +590,13 @@ object SupabaseService {
                 append("\"bio\":${jsonQuote(bio)}")
                 if (avatarUrl != null) append(",\"avatar_url\":${jsonQuote(avatarUrl)}")
                 append(",\"referral_code\":\"vibra_${userId.takeLast(6)}\"")
+                append(",\"country\":${jsonQuote(country)}")
+                if (age != null) append(",\"age\":$age") else append(",\"age\":null")
+                append(",\"status_bubble\":${jsonQuote(statusBubble)}")
+                append(",\"banner_playlists\":$bannerPlaylistsJson")
                 append("}")
             }
-            val response = client.post("${baseUrl("profiles")}?on_conflict=id") {
+            var response = client.post("${baseUrl("profiles")}?on_conflict=id") {
                 header("apikey", SupabaseConfig.anonKey)
                 header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
                 header("Prefer", "resolution=merge-duplicates")
@@ -559,7 +605,24 @@ object SupabaseService {
             }
             if (!response.status.isSuccess()) {
                 val errorText = response.bodyAsText().take(300)
-                Log.w(TAG, "updateUserProfile returned status ${response.status}: $errorText")
+                Log.w(TAG, "updateUserProfile returned status ${response.status}: $errorText, falling back to legacy profile columns")
+                val fallbackBody = buildString {
+                    append("{")
+                    append("\"id\":\"$userId\",")
+                    append("\"display_name\":${jsonQuote(displayName)},")
+                    append("\"handle\":${jsonQuote(handle)},")
+                    append("\"bio\":${jsonQuote(bio)}")
+                    if (avatarUrl != null) append(",\"avatar_url\":${jsonQuote(avatarUrl)}")
+                    append(",\"referral_code\":\"vibra_${userId.takeLast(6)}\"")
+                    append("}")
+                }
+                response = client.post("${baseUrl("profiles")}?on_conflict=id") {
+                    header("apikey", SupabaseConfig.anonKey)
+                    header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                    header("Prefer", "resolution=merge-duplicates")
+                    contentType(ContentType.Application.Json)
+                    setBody(fallbackBody)
+                }
             }
             Unit
         }
@@ -747,6 +810,19 @@ object SupabaseService {
                 if (!videoUrl.isNullOrBlank()) append("[video:$videoUrl] ")
                 if (!audioUrl.isNullOrBlank()) append("[audio:$audioUrl] ")
                 if (!gifUrl.isNullOrBlank()) append("[gif:$gifUrl] ")
+                trackAttachment?.let { t ->
+                    val encT = android.util.Base64.encodeToString(t.title.toByteArray(Charsets.UTF_8), android.util.Base64.NO_WRAP)
+                    val encA = android.util.Base64.encodeToString(t.artist.toByteArray(Charsets.UTF_8), android.util.Base64.NO_WRAP)
+                    val thumb = t.thumbnailUrl ?: t.artworkUrl ?: "https://i.ytimg.com/vi/${t.videoId}/hqdefault.jpg"
+                    val encThumb = android.util.Base64.encodeToString(thumb.toByteArray(Charsets.UTF_8), android.util.Base64.NO_WRAP)
+                    append("[music:${t.videoId}:$encT:$encA:$encThumb] ")
+                }
+                playlistAttachment?.let { p ->
+                    val encT = android.util.Base64.encodeToString(p.title.toByteArray(Charsets.UTF_8), android.util.Base64.NO_WRAP)
+                    val encA = android.util.Base64.encodeToString(p.author.toByteArray(Charsets.UTF_8), android.util.Base64.NO_WRAP)
+                    val encThumb = android.util.Base64.encodeToString((p.thumbnailUrl ?: "").toByteArray(Charsets.UTF_8), android.util.Base64.NO_WRAP)
+                    append("[playlist:${p.playlistId}:$encT:$encA:$encThumb] ")
+                }
                 append(message)
             }.trim()
 
@@ -1549,6 +1625,12 @@ object SupabaseService {
         val invitesCount = obj.int("invites_count") ?: 0
         val quizLives = obj.int("quiz_lives") ?: 5
         val isUnlimitedLives = obj.bool("is_unlimited_lives") ?: false
+        val country = obj.str("country") ?: ""
+        val age = obj.int("age")
+        val statusBubble = obj.str("status_bubble") ?: ""
+        val bannerPlaylists = obj.arr("banner_playlists")?.mapNotNull {
+            (it as? JsonPrimitive)?.takeIf { p -> p !is JsonNull }?.content?.takeIf { s -> s.isNotBlank() }
+        } ?: emptyList()
         val createdAt = obj.str("created_at") ?: ""
 
         return SocialProfile(
@@ -1562,6 +1644,10 @@ object SupabaseService {
             invitesCount = invitesCount,
             quizLives = quizLives,
             isUnlimitedLives = isUnlimitedLives,
+            country = country,
+            age = age,
+            statusBubble = statusBubble,
+            bannerPlaylists = bannerPlaylists,
             createdAt = createdAt,
         )
     }
@@ -1782,12 +1868,42 @@ object SupabaseService {
             }.getOrNull() ?: encoded
         }
 
-        cleanContent = rawContent.replace(tagRegex, "").replace(replyRegex, "").trim()
+        val musicRegex = "\\[music:([^:]*):([^:]*):([^:]*):([^\\]]*)\\]".toRegex()
+        val musicMatch = musicRegex.find(rawContent)
+        var parsedMusic: MusicTrackAttachment? = null
+        if (musicMatch != null) {
+            val vId = musicMatch.groupValues[1]
+            val encT = musicMatch.groupValues[2]
+            val encA = musicMatch.groupValues[3]
+            val encTh = musicMatch.groupValues[4]
+            val t = runCatching { String(android.util.Base64.decode(encT, android.util.Base64.NO_WRAP), Charsets.UTF_8) }.getOrDefault(encT)
+            val a = runCatching { String(android.util.Base64.decode(encA, android.util.Base64.NO_WRAP), Charsets.UTF_8) }.getOrDefault(encA)
+            val th = runCatching { String(android.util.Base64.decode(encTh, android.util.Base64.NO_WRAP), Charsets.UTF_8) }.getOrDefault(encTh)
+                .takeIf { it.isNotBlank() && it != "null" } ?: "https://i.ytimg.com/vi/$vId/hqdefault.jpg"
+            parsedMusic = MusicTrackAttachment(videoId = vId, title = t, artist = a, thumbnailUrl = th)
+        }
+
+        val playlistRegex = "\\[playlist:([^:]*):([^:]*):([^:]*):([^\\]]*)\\]".toRegex()
+        val playlistMatch = playlistRegex.find(rawContent)
+        var parsedPlaylist: SharedPlaylistAttachment? = null
+        if (playlistMatch != null) {
+            val pId = playlistMatch.groupValues[1]
+            val encT = playlistMatch.groupValues[2]
+            val encA = playlistMatch.groupValues[3]
+            val encTh = playlistMatch.groupValues[4]
+            val t = runCatching { String(android.util.Base64.decode(encT, android.util.Base64.NO_WRAP), Charsets.UTF_8) }.getOrDefault(encT)
+            val a = runCatching { String(android.util.Base64.decode(encA, android.util.Base64.NO_WRAP), Charsets.UTF_8) }.getOrDefault(encA)
+            val th = runCatching { String(android.util.Base64.decode(encTh, android.util.Base64.NO_WRAP), Charsets.UTF_8) }.getOrDefault(encTh)
+                .takeIf { it.isNotBlank() && it != "null" }
+            parsedPlaylist = SharedPlaylistAttachment(playlistId = pId, title = t, author = a, thumbnailUrl = th)
+        }
+
+        cleanContent = rawContent.replace(tagRegex, "").replace(replyRegex, "").replace(musicRegex, "").replace(playlistRegex, "").trim()
 
         val isRead = obj.bool("is_read") ?: false
         val createdAt = obj.str("created_at") ?: ""
 
-        val sharedMusic = obj.obj("shared_music")?.let { m ->
+        val sharedMusicObj = obj.obj("shared_music")?.let { m ->
             MusicTrackAttachment(
                 videoId = m.str("video_id") ?: "",
                 title = m.str("title") ?: "",
@@ -1797,7 +1913,7 @@ object SupabaseService {
             )
         }
 
-        val sharedPlaylist = obj.obj("shared_playlist")?.let { p ->
+        val sharedPlaylistObj = obj.obj("shared_playlist")?.let { p ->
             SharedPlaylistAttachment(
                 playlistId = p.str("playlist_id") ?: "",
                 title = p.str("title") ?: "",
@@ -1806,6 +1922,14 @@ object SupabaseService {
                 trackCount = p.int("track_count") ?: 0,
             )
         }
+
+        val effectiveMusic = (sharedMusicObj ?: parsedMusic)?.let {
+            if (it.thumbnailUrl.isNullOrBlank() && it.videoId.isNotBlank()) {
+                it.copy(thumbnailUrl = "https://i.ytimg.com/vi/${it.videoId}/hqdefault.jpg")
+            } else it
+        }
+
+        val effectivePlaylist = sharedPlaylistObj ?: parsedPlaylist
 
         return DirectMessage(
             id = id,
@@ -1816,8 +1940,8 @@ object SupabaseService {
             videoUrl = videoUrl,
             audioUrl = audioUrl,
             gifUrl = gifUrl,
-            sharedMusic = sharedMusic,
-            sharedPlaylist = sharedPlaylist,
+            sharedMusic = effectiveMusic,
+            sharedPlaylist = effectivePlaylist,
             replyToId = replyToId,
             replyToSender = replyToSender,
             replyToText = replyToText,

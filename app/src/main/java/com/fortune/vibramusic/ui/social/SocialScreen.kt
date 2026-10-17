@@ -110,17 +110,38 @@ import java.time.Instant
 fun formatRelativeTime(raw: String): String {
     if (raw.isBlank()) return ""
     return try {
-        val instant = Instant.parse(raw)
-        val now = Instant.now()
-        val duration = Duration.between(instant, now)
-        val seconds = duration.seconds
-        when {
-            seconds < 10 -> "Just now"
-            seconds < 60 -> "${seconds}s"
-            seconds < 3600 -> "${seconds / 60}m"
-            seconds < 86400 -> "${seconds / 3600}h"
-            seconds < 604800 -> "${seconds / 86400}d"
-            else -> "${seconds / 604800}w"
+        val trimmed = raw.trim()
+        val normalized = trimmed.replace(' ', 'T')
+        val instant = runCatching { Instant.parse(normalized) }.getOrNull()
+            ?: runCatching { java.time.OffsetDateTime.parse(normalized).toInstant() }.getOrNull()
+            ?: runCatching { java.time.ZonedDateTime.parse(normalized).toInstant() }.getOrNull()
+            ?: runCatching {
+                val withZ = if (!normalized.endsWith("Z") && !normalized.contains("+") && !normalized.substringAfter('T', "").contains("-")) {
+                    "${normalized}Z"
+                } else normalized
+                Instant.parse(withZ)
+            }.getOrNull()
+            ?: runCatching {
+                java.time.LocalDateTime.parse(normalized.substringBefore('+').substringBefore('Z'))
+                    .atZone(java.time.ZoneOffset.UTC)
+                    .toInstant()
+            }.getOrNull()
+
+        if (instant != null) {
+            val now = Instant.now()
+            val duration = Duration.between(instant, now)
+            val seconds = duration.seconds.coerceAtLeast(0)
+            when {
+                seconds < 10 -> "Just now"
+                seconds < 60 -> "${seconds}s"
+                seconds < 3600 -> "${seconds / 60}m"
+                seconds < 86400 -> "${seconds / 3600}h"
+                seconds < 604800 -> "${seconds / 86400}d"
+                seconds < 2592000 -> "${seconds / 604800}w"
+                else -> "${seconds / 2592000}mo"
+            }
+        } else {
+            raw.take(10)
         }
     } catch (_: Exception) {
         raw.take(10)
@@ -571,25 +592,26 @@ fun SocialScreen(
 
                     // Posts Feed
                     items(posts, key = { it.id }) { post ->
+                        val targetPost = if (post.repostOf != null && post.content.isBlank()) post.repostOf!! else post
                         SocialPostCard(
                             post = post,
-                            onLikeClick = { viewModel.toggleLike(post) },
-                            onCommentClick = { viewModel.openComments(post) },
-                            onRepostClick = { repostActionTarget = post },
+                            onLikeClick = { viewModel.toggleLike(targetPost) },
+                            onCommentClick = { viewModel.openComments(targetPost) },
+                            onRepostClick = { repostActionTarget = targetPost },
                             onImageClick = { previewImageUrl = it },
                             onMediaClick = { list, idx -> activeMediaViewer = Pair(list, idx) },
                             onShareClick = {
                                 val sendIntent = Intent(Intent.ACTION_SEND).apply {
                                     putExtra(
                                         Intent.EXTRA_TEXT,
-                                        "Check out @${post.authorHandle}'s music post on Vibra:\n\n${post.content}",
+                                        "Check out @${targetPost.authorHandle}'s music post on Vibra:\n\n${targetPost.content}",
                                     )
                                     type = "text/plain"
                                 }
                                 context.startActivity(Intent.createChooser(sendIntent, "Share Post"))
                             },
                             onPlayTrack = onPlayTrack,
-                            onVotePoll = { optionIdx -> viewModel.votePoll(post, optionIdx) },
+                            onVotePoll = { optionIdx -> viewModel.votePoll(targetPost, optionIdx) },
                             onAuthorClick = {
                                 onOpenProfile(
                                     post.author ?: SocialProfile(
@@ -601,6 +623,7 @@ fun SocialScreen(
                                     ),
                                 )
                             },
+                            onOpenProfile = onOpenProfile,
                             onTaggedArtistClick = { artistName ->
                                 coroutineScope.launch {
                                     val resolved = YtMusicRepository.resolveArtist(artistName)
@@ -1027,8 +1050,54 @@ fun SocialPostCard(
     onTaggedArtistClick: ((String) -> Unit)? = null,
     onDeleteClick: (() -> Unit)? = null,
     onQuoteClick: ((SocialPost) -> Unit)? = null,
+    onOpenProfile: ((SocialProfile) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
+    val isPureRepost = (post.repostOf != null || post.repostOfId != null) && post.content.isBlank()
+    val displayPost = if (isPureRepost && post.repostOf != null) post.repostOf!! else post
+
+    val reposterProfile = post.author ?: SocialProfile(
+        id = post.authorId,
+        handle = post.authorHandle,
+        displayName = post.authorName,
+        avatarUrl = post.authorAvatar,
+        verifiedBadge = post.authorVerified,
+    )
+
+    val displayAuthorProfile = displayPost.author ?: SocialProfile(
+        id = displayPost.authorId,
+        handle = displayPost.authorHandle,
+        displayName = displayPost.authorName,
+        avatarUrl = displayPost.authorAvatar,
+        verifiedBadge = displayPost.authorVerified,
+    )
+
+    val onReposterHeaderClick: () -> Unit = {
+        if (onOpenProfile != null) {
+            onOpenProfile(reposterProfile)
+        } else {
+            onAuthorClick()
+        }
+    }
+
+    val onDisplayAuthorClick: () -> Unit = {
+        if (isPureRepost) {
+            if (onOpenProfile != null) {
+                onOpenProfile(displayAuthorProfile)
+            } else if (onQuoteClick != null) {
+                onQuoteClick(displayPost)
+            } else {
+                onAuthorClick()
+            }
+        } else {
+            if (onOpenProfile != null) {
+                onOpenProfile(displayAuthorProfile)
+            } else {
+                onAuthorClick()
+            }
+        }
+    }
+
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(20.dp))
@@ -1040,7 +1109,10 @@ fun SocialPostCard(
             if (post.repostOfId != null || post.repostOf != null) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(bottom = 8.dp),
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .clickable(onClick = onReposterHeaderClick)
+                        .padding(bottom = 8.dp),
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.Repeat,
@@ -1050,340 +1122,349 @@ fun SocialPostCard(
                     )
                     Spacer(Modifier.width(6.dp))
                     Text(
-                        text = "Reposted",
+                        text = "${post.authorName} reposted",
                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
                         color = MaterialTheme.colorScheme.primary,
                     )
                 }
             }
 
-            // Author Row
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(42.dp)
-                        .clip(CircleShape)
-                        .clickable(onClick = onAuthorClick),
-                    contentAlignment = Alignment.Center,
+            if (isPureRepost && post.repostOf == null) {
+                Text(
+                    text = "This post is no longer available.",
+                    style = MaterialTheme.typography.bodyMedium.copy(fontStyle = androidx.compose.ui.text.font.FontStyle.Italic),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(vertical = 12.dp),
+                )
+            } else {
+                // Author Row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    ArtistAvatar(
-                        name = post.authorName,
-                        artworkUrl = post.authorAvatar,
-                        size = 42.dp,
-                    )
-                }
-
-                Spacer(Modifier.width(12.dp))
-
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clickable(onClick = onAuthorClick),
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    Box(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(CircleShape)
+                            .clickable(onClick = onDisplayAuthorClick),
+                        contentAlignment = Alignment.Center,
                     ) {
-                        Text(
-                            text = post.authorName,
-                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
+                        ArtistAvatar(
+                            name = displayPost.authorName,
+                            artworkUrl = displayPost.authorAvatar,
+                            size = 42.dp,
                         )
-                        if (post.authorVerified) {
-                            Icon(
-                                imageVector = Icons.Rounded.CheckCircle,
-                                contentDescription = "Verified",
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(14.dp),
+                    }
+
+                    Spacer(Modifier.width(12.dp))
+
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable(onClick = onDisplayAuthorClick),
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Text(
+                                text = displayPost.authorName,
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
                             )
-                        }
-                        post.taggedArtist?.let { artist ->
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .clickable { onTaggedArtistClick?.invoke(artist) }
-                                    .padding(horizontal = 2.dp, vertical = 1.dp),
-                            ) {
+                            if (displayPost.authorVerified) {
                                 Icon(
-                                    imageVector = Icons.Rounded.ChevronRight,
-                                    contentDescription = null,
+                                    imageVector = Icons.Rounded.CheckCircle,
+                                    contentDescription = "Verified",
                                     tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(14.dp),
                                 )
-                                Spacer(Modifier.width(2.dp))
+                            }
+                            displayPost.taggedArtist?.let { artist ->
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .clickable { onTaggedArtistClick?.invoke(artist) }
+                                        .padding(horizontal = 2.dp, vertical = 1.dp),
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.ChevronRight,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(14.dp),
+                                    )
+                                    Spacer(Modifier.width(2.dp))
+                                    Text(
+                                        text = artist,
+                                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                        color = MaterialTheme.colorScheme.primary,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                            }
+                            val relativeTime = formatRelativeTime(displayPost.createdAt)
+                            if (relativeTime.isNotBlank()) {
                                 Text(
-                                    text = artist,
-                                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                    color = MaterialTheme.colorScheme.primary,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
+                                    text = " · $relativeTime",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
                         }
-                        val relativeTime = formatRelativeTime(post.createdAt)
-                        if (relativeTime.isNotBlank()) {
+
+                        Text(
+                            text = formatHandle(displayPost.authorHandle),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+
+                    if (onDeleteClick != null) {
+                        IconButton(
+                            onClick = onDeleteClick,
+                            modifier = Modifier.size(32.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.DeleteOutline,
+                                contentDescription = "Delete Post",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
+                    }
+                }
+
+                // Review 5-Star Rating Bar
+                if (displayPost.isReview && displayPost.rating > 0) {
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(3.dp),
+                    ) {
+                        (1..5).forEach { star ->
+                            Icon(
+                                imageVector = if (star <= displayPost.rating) Icons.Rounded.Star else Icons.Rounded.StarOutline,
+                                contentDescription = null,
+                                tint = if (star <= displayPost.rating) Color(0xFFFFB300) else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(16.dp),
+                            )
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(10.dp))
+
+                // Text Content
+                if (displayPost.content.isNotBlank()) {
+                    Text(
+                        text = displayPost.content,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        lineHeight = 22.sp,
+                    )
+                    Spacer(Modifier.height(12.dp))
+                }
+
+                // Attached Media Carousel (Swipeable HorizontalPager with indicator dots)
+                val images = displayPost.effectiveImages
+                if (images.isNotEmpty()) {
+                    PostMediaCarousel(
+                        images = images,
+                        onImageClick = { clickedUrl ->
+                            val idx = displayPost.allMediaItems.indexOfFirst { it.url == clickedUrl }.coerceAtLeast(0)
+                            if (onMediaClick != null) {
+                                onMediaClick(displayPost.allMediaItems, idx)
+                            } else {
+                                onImageClick(clickedUrl)
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(Modifier.height(12.dp))
+                }
+
+                // Attached GIF
+                displayPost.gifUrl?.takeIf { it.isNotBlank() && it != "null" }?.let { gifUrl ->
+                    if (!images.contains(gifUrl)) {
+                        val gifIdx = displayPost.allMediaItems.indexOfFirst { it.url == gifUrl }.coerceAtLeast(0)
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(MaterialTheme.colorScheme.surface)
+                                .clickable {
+                                    if (onMediaClick != null) {
+                                        onMediaClick(displayPost.allMediaItems, gifIdx)
+                                    } else {
+                                        onImageClick(gifUrl)
+                                    }
+                                },
+                        ) {
+                            AsyncImage(
+                                model = gifUrl,
+                                contentDescription = "GIF",
+                                contentScale = ContentScale.FillWidth,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                        Spacer(Modifier.height(12.dp))
+                    }
+                }
+
+                // Attached Video Player
+                displayPost.videoUrl?.takeIf { it.isNotBlank() && it != "null" }?.let { videoUrl ->
+                    val videoIdx = displayPost.allMediaItems.indexOfFirst { it.url == videoUrl }.coerceAtLeast(0)
+                    PostVideoPlayer(
+                        videoUrl = videoUrl,
+                        onFullScreenClick = {
+                            if (onMediaClick != null) {
+                                onMediaClick(displayPost.allMediaItems, videoIdx)
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(16f / 9f),
+                    )
+                    Spacer(Modifier.height(12.dp))
+                }
+
+                // Attached Voice Note Player
+                displayPost.audioUrl?.takeIf { it.isNotBlank() && it != "null" }?.let { audioUrl ->
+                    VoiceNotePlayerWidget(
+                        audioUrl = audioUrl,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(Modifier.height(12.dp))
+                }
+
+                // Attached Track Card
+                displayPost.musicTrack?.let { track ->
+                    PlayableTrackCard(
+                        track = track,
+                        onPlay = { onPlayTrack(track) },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(Modifier.height(12.dp))
+                }
+
+                // Interactive Poll Card
+                displayPost.poll?.let { poll ->
+                    PollCard(
+                        poll = poll,
+                        onVote = onVotePoll,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(Modifier.height(12.dp))
+                }
+
+                // Embedded Quoted Post
+                if (displayPost.quoteOf != null || displayPost.quoteOfId != null) {
+                    QuotedPostCard(
+                        quotedPost = displayPost.quoteOf,
+                        quotedId = displayPost.quoteOfId,
+                        onPlayTrack = onPlayTrack,
+                        onClick = {
+                            displayPost.quoteOf?.let { onQuoteClick?.invoke(it) }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(Modifier.height(12.dp))
+                }
+
+                // Actions Bar
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    // Like Button
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable(onClick = onLikeClick)
+                            .padding(horizontal = 8.dp, vertical = 6.dp),
+                    ) {
+                        Icon(
+                            imageVector = if (displayPost.isLikedByMe) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                            contentDescription = "Like",
+                            tint = if (displayPost.isLikedByMe) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(19.dp),
+                        )
+                        if (displayPost.likesCount > 0) {
+                            Spacer(Modifier.width(6.dp))
                             Text(
-                                text = " · $relativeTime",
-                                style = MaterialTheme.typography.labelSmall,
+                                text = displayPost.likesCount.toString(),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = if (displayPost.isLikedByMe) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+
+                    // Comment Button
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable(onClick = onCommentClick)
+                            .padding(horizontal = 8.dp, vertical = 6.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.ChatBubbleOutline,
+                            contentDescription = "Comment",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(19.dp),
+                        )
+                        if (displayPost.commentsCount > 0) {
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                text = displayPost.commentsCount.toString(),
+                                style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                     }
 
-                    Text(
-                        text = formatHandle(post.authorHandle),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-
-                if (onDeleteClick != null) {
-                    IconButton(
-                        onClick = onDeleteClick,
-                        modifier = Modifier.size(32.dp),
+                    // Repost Button
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable(onClick = onRepostClick)
+                            .padding(horizontal = 8.dp, vertical = 6.dp),
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.DeleteOutline,
-                            contentDescription = "Delete Post",
+                            imageVector = Icons.Rounded.Repeat,
+                            contentDescription = "Repost",
+                            tint = if (displayPost.isRepostedByMe) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(19.dp),
+                        )
+                        if (displayPost.repostsCount > 0) {
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                text = displayPost.repostsCount.toString(),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = if (displayPost.isRepostedByMe) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+
+                    // Share Button
+                    IconButton(
+                        onClick = onShareClick,
+                        modifier = Modifier.size(34.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Share,
+                            contentDescription = "Share",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(18.dp),
                         )
                     }
-                }
-            }
-
-            // Review 5-Star Rating Bar
-            if (post.isReview && post.rating > 0) {
-                Spacer(Modifier.height(8.dp))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(3.dp),
-                ) {
-                    (1..5).forEach { star ->
-                        Icon(
-                            imageVector = if (star <= post.rating) Icons.Rounded.Star else Icons.Rounded.StarOutline,
-                            contentDescription = null,
-                            tint = if (star <= post.rating) Color(0xFFFFB300) else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(16.dp),
-                        )
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(10.dp))
-
-            // Text Content
-            if (post.content.isNotBlank()) {
-                Text(
-                    text = post.content,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    lineHeight = 22.sp,
-                )
-                Spacer(Modifier.height(12.dp))
-            }
-
-            // Attached Media Carousel (Swipeable HorizontalPager with indicator dots)
-            val images = post.effectiveImages
-            if (images.isNotEmpty()) {
-                PostMediaCarousel(
-                    images = images,
-                    onImageClick = { clickedUrl ->
-                        val idx = post.allMediaItems.indexOfFirst { it.url == clickedUrl }.coerceAtLeast(0)
-                        if (onMediaClick != null) {
-                            onMediaClick(post.allMediaItems, idx)
-                        } else {
-                            onImageClick(clickedUrl)
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(Modifier.height(12.dp))
-            }
-
-            // Attached GIF
-            post.gifUrl?.takeIf { it.isNotBlank() && it != "null" }?.let { gifUrl ->
-                if (!images.contains(gifUrl)) {
-                    val gifIdx = post.allMediaItems.indexOfFirst { it.url == gifUrl }.coerceAtLeast(0)
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(MaterialTheme.colorScheme.surface)
-                            .clickable {
-                                if (onMediaClick != null) {
-                                    onMediaClick(post.allMediaItems, gifIdx)
-                                } else {
-                                    onImageClick(gifUrl)
-                                }
-                            },
-                    ) {
-                        AsyncImage(
-                            model = gifUrl,
-                            contentDescription = "GIF",
-                            contentScale = ContentScale.FillWidth,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
-                    Spacer(Modifier.height(12.dp))
-                }
-            }
-
-            // Attached Video Player
-            post.videoUrl?.takeIf { it.isNotBlank() && it != "null" }?.let { videoUrl ->
-                val videoIdx = post.allMediaItems.indexOfFirst { it.url == videoUrl }.coerceAtLeast(0)
-                PostVideoPlayer(
-                    videoUrl = videoUrl,
-                    onFullScreenClick = {
-                        if (onMediaClick != null) {
-                            onMediaClick(post.allMediaItems, videoIdx)
-                        }
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(16f / 9f),
-                )
-                Spacer(Modifier.height(12.dp))
-            }
-
-            // Attached Voice Note Player
-            post.audioUrl?.takeIf { it.isNotBlank() && it != "null" }?.let { audioUrl ->
-                VoiceNotePlayerWidget(
-                    audioUrl = audioUrl,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(Modifier.height(12.dp))
-            }
-
-            // Attached Track Card
-            post.musicTrack?.let { track ->
-                PlayableTrackCard(
-                    track = track,
-                    onPlay = { onPlayTrack(track) },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(Modifier.height(12.dp))
-            }
-
-            // Interactive Poll Card
-            post.poll?.let { poll ->
-                PollCard(
-                    poll = poll,
-                    onVote = onVotePoll,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(Modifier.height(12.dp))
-            }
-
-            // Embedded Quoted Post
-            if (post.quoteOf != null || post.quoteOfId != null) {
-                QuotedPostCard(
-                    quotedPost = post.quoteOf,
-                    quotedId = post.quoteOfId,
-                    onPlayTrack = onPlayTrack,
-                    onClick = {
-                        post.quoteOf?.let { onQuoteClick?.invoke(it) }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(Modifier.height(12.dp))
-            }
-
-            // Actions Bar
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                // Like Button
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable(onClick = onLikeClick)
-                        .padding(horizontal = 8.dp, vertical = 6.dp),
-                ) {
-                    Icon(
-                        imageVector = if (post.isLikedByMe) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
-                        contentDescription = "Like",
-                        tint = if (post.isLikedByMe) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(19.dp),
-                    )
-                    if (post.likesCount > 0) {
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            text = post.likesCount.toString(),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = if (post.isLikedByMe) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-
-                // Comment Button
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable(onClick = onCommentClick)
-                        .padding(horizontal = 8.dp, vertical = 6.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.ChatBubbleOutline,
-                        contentDescription = "Comment",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(19.dp),
-                    )
-                    if (post.commentsCount > 0) {
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            text = post.commentsCount.toString(),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-
-                // Repost Button
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable(onClick = onRepostClick)
-                        .padding(horizontal = 8.dp, vertical = 6.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Repeat,
-                        contentDescription = "Repost",
-                        tint = if (post.isRepostedByMe) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(19.dp),
-                    )
-                    if (post.repostsCount > 0) {
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            text = post.repostsCount.toString(),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = if (post.isRepostedByMe) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-
-                // Share Button
-                IconButton(
-                    onClick = onShareClick,
-                    modifier = Modifier.size(34.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Share,
-                        contentDescription = "Share",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(18.dp),
-                    )
                 }
             }
         }
@@ -1552,6 +1633,10 @@ fun PlayableTrackCard(
     onPlay: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val effectiveCover = track.artworkUrl?.takeIf { it.isNotBlank() && it != "null" }
+        ?: track.thumbnailUrl?.takeIf { it.isNotBlank() && it != "null" }
+        ?: if (track.videoId.isNotBlank()) "https://i.ytimg.com/vi/${track.videoId}/hqdefault.jpg" else null
+
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(16.dp))
@@ -1569,9 +1654,9 @@ fun PlayableTrackCard(
                     .clip(RoundedCornerShape(8.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant),
             ) {
-                if (track.artworkUrl != null) {
+                if (effectiveCover != null) {
                     AsyncImage(
-                        model = track.artworkUrl,
+                        model = effectiveCover,
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize(),

@@ -19,6 +19,10 @@ create table if not exists public.profiles (
     quiz_lives int default 5,
     last_life_refill timestamptz default now(),
     is_unlimited_lives boolean default false,
+    country text default '',
+    age int,
+    status_bubble text default '',
+    banner_playlists jsonb default '[]'::jsonb,
     created_at timestamptz default now(),
     updated_at timestamptz default now()
 );

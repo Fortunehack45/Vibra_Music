@@ -543,6 +543,10 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
         handle: String,
         bio: String,
         avatarUrl: String?,
+        country: String = "",
+        age: Int? = null,
+        statusBubble: String = "",
+        bannerPlaylists: List<String> = emptyList(),
         onComplete: (Boolean) -> Unit = {},
     ) {
         val current = _currentProfile.value ?: return
@@ -553,6 +557,10 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
             handle = cleanHandle.ifBlank { current.handle },
             bio = bio.trim(),
             avatarUrl = avatarUrl ?: current.avatarUrl,
+            country = country.trim(),
+            age = age,
+            statusBubble = statusBubble.trim(),
+            bannerPlaylists = bannerPlaylists,
         )
 
         _currentProfile.value = updated
@@ -561,12 +569,17 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
         }
 
         viewModelScope.launch {
+            cacheStore.saveProfile(updated)
             SupabaseService.updateUserProfile(
                 userId = current.id,
                 displayName = updated.displayName,
                 handle = updated.handle,
                 bio = updated.bio,
                 avatarUrl = updated.avatarUrl,
+                country = updated.country,
+                age = updated.age,
+                statusBubble = updated.statusBubble,
+                bannerPlaylists = updated.bannerPlaylists,
             ).onSuccess {
                 onComplete(true)
             }.onFailure {
@@ -765,9 +778,14 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
 
     fun loadProfileData(userId: String) {
         viewModelScope.launch {
+            val cached = cacheStore.loadProfile(userId)
+            if (cached != null && _viewingProfile.value?.id == userId) {
+                _viewingProfile.value = cached
+            }
             SupabaseService.fetchUserProfile(userId).onSuccess { fresh ->
                 if (fresh != null) {
                     _viewingProfile.value = fresh
+                    cacheStore.saveProfile(fresh)
                     if (_currentProfile.value?.id == userId) {
                         _currentProfile.value = fresh
                     }

@@ -25,6 +25,10 @@ data class SocialProfile(
     val invitesCount: Int = 0,
     val quizLives: Int = 5,
     val isUnlimitedLives: Boolean = false,
+    val country: String = "",
+    val age: Int? = null,
+    val statusBubble: String = "",
+    val bannerPlaylists: List<String> = emptyList(),
     val createdAt: String = "",
 )
 

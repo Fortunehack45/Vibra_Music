@@ -1,12 +1,17 @@
 package com.fortune.vibramusic.ui.social
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.media.MediaMetadataRetriever
+import android.net.Uri
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.annotation.OptIn
+import androidx.collection.LruCache
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -31,12 +36,15 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -49,6 +57,37 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
+object VideoThumbnailLoader {
+    private val memoryCache = LruCache<String, Bitmap>(40)
+
+    suspend fun loadThumbnail(context: Context, videoUrl: String): Bitmap? = withContext(Dispatchers.IO) {
+        if (videoUrl.isBlank()) return@withContext null
+        memoryCache.get(videoUrl)?.let { return@withContext it }
+        val retriever = MediaMetadataRetriever()
+        try {
+            if (videoUrl.startsWith("http://") || videoUrl.startsWith("https://")) {
+                retriever.setDataSource(videoUrl, HashMap<String, String>())
+            } else {
+                retriever.setDataSource(context, Uri.parse(videoUrl))
+            }
+            val frame = retriever.getFrameAtTime(1000000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                ?: retriever.getFrameAtTime()
+            if (frame != null) {
+                memoryCache.put(videoUrl, frame)
+            }
+            frame
+        } catch (_: Throwable) {
+            null
+        } finally {
+            try {
+                retriever.release()
+            } catch (_: Throwable) {}
+        }
+    }
+}
 
 @OptIn(UnstableApi::class)
 object FeedVideoController {
@@ -115,6 +154,10 @@ fun PostVideoPlayer(
     var showControls by remember { mutableStateOf(false) }
 
     val exoPlayer = remember { FeedVideoController.getOrCreatePlayer(context) }
+
+    val posterBitmap by produceState<Bitmap?>(initialValue = null, key1 = videoUrl) {
+        value = VideoThumbnailLoader.loadThumbnail(context, videoUrl)
+    }
 
     DisposableEffect(videoUrl) {
         val listener = object : Player.Listener {
@@ -195,6 +238,13 @@ fun PostVideoPlayer(
                         view.player = exoPlayer
                     }
                 },
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else if (posterBitmap != null) {
+            Image(
+                bitmap = posterBitmap!!.asImageBitmap(),
+                contentDescription = "Video preview",
+                contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
             )
         }

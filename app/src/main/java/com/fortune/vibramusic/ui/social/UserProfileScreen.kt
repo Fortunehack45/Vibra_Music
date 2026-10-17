@@ -99,8 +99,10 @@ fun UserProfileScreen(
     var postToDelete by remember { mutableStateOf<SocialPost?>(null) }
     var inspectedQuotedPost by remember { mutableStateOf<SocialPost?>(null) }
 
-    LaunchedEffect(profile.id) {
-        viewModel.loadProfileData(profile.id)
+    LaunchedEffect(activeProfile.id) {
+        if (activeProfile.id.isNotBlank() && activeProfile.id != "me") {
+            viewModel.loadProfileData(activeProfile.id)
+        }
     }
 
     Box(

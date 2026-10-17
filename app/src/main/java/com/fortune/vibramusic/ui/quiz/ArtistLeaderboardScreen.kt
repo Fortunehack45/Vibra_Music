@@ -90,19 +90,24 @@ fun ArtistLeaderboardScreen(
     val listState = rememberLazyListState()
     val highResArtwork = (resolvedArtwork ?: artist.artworkUrl)?.artworkAt(1080) ?: (resolvedArtwork ?: artist.artworkUrl)
     val palette = rememberArtworkPalette(highResArtwork)
-    val artHeight = 320.dp
+    val artHeight = 260.dp
 
     var leaderboardEntries by remember { mutableStateOf<List<LeaderboardEntry>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
 
-    LaunchedEffect(artist.name) {
+    LaunchedEffect(artist.name, artist.id) {
         if (resolvedArtwork.isNullOrBlank() || !resolvedBrowseId.startsWith("UC")) {
             runCatching {
-                val resolved = YtMusicRepository.resolveArtist(artist.name)
-                if (resolved != null) {
-                    resolvedBrowseId = resolved.first
-                    if (!resolved.second.isNullOrBlank()) {
-                        resolvedArtwork = resolved.second
+                val thumb = YtMusicRepository.getArtistThumbnail(artist.id, artist.name)
+                if (!thumb.isNullOrBlank()) {
+                    resolvedArtwork = thumb
+                } else {
+                    val resolved = YtMusicRepository.resolveArtist(artist.name)
+                    if (resolved != null) {
+                        resolvedBrowseId = resolved.first
+                        if (!resolved.second.isNullOrBlank()) {
+                            resolvedArtwork = resolved.second
+                        }
                     }
                 }
             }
@@ -124,7 +129,7 @@ fun ArtistLeaderboardScreen(
             .clipToBounds()
             .hazeSource(hazeState),
     ) {
-        // 1. Page Background: Dynamic Artwork Wash + Hero Artist Image (Mirroring DetailScreen)
+        // 1. Page Background: Dynamic Artwork Wash + Hero Artist Image
         Box(Modifier.matchParentSize()) {
             ArtworkWash(palette = palette, modifier = Modifier.matchParentSize())
 
@@ -143,13 +148,6 @@ fun ArtistLeaderboardScreen(
                             .background(palette.elevated),
                     )
                 }
-
-                // Solid wash container behind artist header
-                Box(
-                    Modifier
-                        .matchParentSize()
-                        .background(palette.wash),
-                )
             }
         }
 
@@ -166,13 +164,13 @@ fun ArtistLeaderboardScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = artHeight - 50.dp, start = 20.dp, end = 20.dp),
+                        .padding(top = artHeight - 44.dp, start = 20.dp, end = 20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     // Circular HD Artist Profile Avatar
                     Box(
                         modifier = Modifier
-                            .size(96.dp)
+                            .size(88.dp)
                             .clip(CircleShape)
                             .background(palette.elevated),
                         contentAlignment = Alignment.Center,
@@ -180,7 +178,7 @@ fun ArtistLeaderboardScreen(
                         ArtistAvatar(
                             name = artist.name,
                             artworkUrl = highResArtwork,
-                            size = 96.dp,
+                            size = 88.dp,
                         )
                     }
 
@@ -350,6 +348,24 @@ fun ArtistLeaderboardScreen(
                     }
                 }
             }
+        }
+
+        // 3. Floating Navigation Back Button
+        IconButton(
+            onClick = onBack,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .statusBarsPadding()
+                .padding(start = 16.dp, top = 8.dp)
+                .size(42.dp)
+                .clip(CircleShape)
+                .background(palette.elevated),
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                contentDescription = "Back",
+                tint = palette.onBackground,
+            )
         }
     }
 }

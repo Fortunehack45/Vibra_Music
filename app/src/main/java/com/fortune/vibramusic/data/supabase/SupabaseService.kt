@@ -68,7 +68,11 @@ object SupabaseService {
         }
     }
 
-    private fun baseUrl(table: String): String = "${SupabaseConfig.url.trimEnd('/')}/rest/v1/$table"
+    private fun baseUrl(table: String): String {
+        val root = SupabaseConfig.url.trim().trimEnd('/')
+        check(root.isNotBlank()) { "Supabase URL is not configured" }
+        return "$root/rest/v1/$table"
+    }
 
     // ---- Null-safe JSON Accessors --------------------------------------------
 

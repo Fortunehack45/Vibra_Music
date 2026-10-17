@@ -13,16 +13,19 @@ import com.fortune.vibramusic.BuildConfig
  */
 object SupabaseConfig {
 
+    const val DEFAULT_URL = "https://yinaxpgnnadhbkplokvl.supabase.co"
+    const val DEFAULT_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlpbmF4cGdubmFkaGJrcGxva3ZsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIxNTYxNDQsImV4cCI6MjEwNzczMjE0NH0.PtGQ_Yy4X-bKEPaukfydrlABsZKiYrzSfQ_Awz5075g"
+
     val url: String = try {
-        BuildConfig.SUPABASE_URL
+        BuildConfig.SUPABASE_URL.takeIf { it.isNotBlank() } ?: DEFAULT_URL
     } catch (_: Exception) {
-        ""
+        DEFAULT_URL
     }
 
     val anonKey: String = try {
-        BuildConfig.SUPABASE_ANON_KEY
+        BuildConfig.SUPABASE_ANON_KEY.takeIf { it.isNotBlank() } ?: DEFAULT_KEY
     } catch (_: Exception) {
-        ""
+        DEFAULT_KEY
     }
 
     val isConfigured: Boolean

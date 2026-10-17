@@ -37,12 +37,12 @@ val lastfmSecret: String = (
 val supabaseUrl: String = (
     localProps.getProperty("SUPABASE_URL")
         ?: System.getenv("SUPABASE_URL")
-        ?: ""
+        ?: "https://yinaxpgnnadhbkplokvl.supabase.co"
     ).trim()
 val supabaseAnonKey: String = (
     localProps.getProperty("SUPABASE_ANON_KEY")
         ?: System.getenv("SUPABASE_ANON_KEY")
-        ?: ""
+        ?: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlpbmF4cGdubmFkaGJrcGxva3ZsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIxNTYxNDQsImV4cCI6MjEwNzczMjE0NH0.PtGQ_Yy4X-bKEPaukfydrlABsZKiYrzSfQ_Awz5075g"
     ).trim()
 
 /*

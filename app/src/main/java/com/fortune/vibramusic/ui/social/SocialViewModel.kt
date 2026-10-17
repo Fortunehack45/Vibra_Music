@@ -743,7 +743,8 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             SupabaseService.fetchUserPosts(userId)
                 .onSuccess { list ->
-                    _viewingProfilePosts.value = list.distinctBy { it.id }
+                    val localUnsynced = _viewingProfilePosts.value.filter { c -> c.createdAt == "Just now" && list.none { it.id == c.id } }
+                    _viewingProfilePosts.value = (localUnsynced + list).distinctBy { it.id }
                 }
         }
     }

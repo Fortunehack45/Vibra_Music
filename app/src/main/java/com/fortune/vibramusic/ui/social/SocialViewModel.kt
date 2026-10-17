@@ -6,10 +6,12 @@ import androidx.lifecycle.viewModelScope
 import com.fortune.vibramusic.auth.AuthStore
 import com.fortune.vibramusic.data.DebugLog as Log
 import com.fortune.vibramusic.data.quiz.QuizArtist
+import com.fortune.vibramusic.data.settings.AppSettings
 import com.fortune.vibramusic.data.social.DirectMessage
 import com.fortune.vibramusic.data.social.MusicTrackAttachment
 import com.fortune.vibramusic.data.social.PollData
 import com.fortune.vibramusic.data.social.PostComment
+import com.fortune.vibramusic.data.social.SocialNotification
 import com.fortune.vibramusic.data.social.SocialPost
 import com.fortune.vibramusic.data.social.SocialProfile
 import com.fortune.vibramusic.data.supabase.SupabaseService
@@ -84,6 +86,12 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
     private val _quotingPost = MutableStateFlow<SocialPost?>(null)
     val quotingPost: StateFlow<SocialPost?> = _quotingPost.asStateFlow()
 
+    private val _notifications = MutableStateFlow<List<SocialNotification>>(emptyList())
+    val notifications: StateFlow<List<SocialNotification>> = _notifications.asStateFlow()
+
+    private val _isNotificationsOpen = MutableStateFlow(false)
+    val isNotificationsOpen: StateFlow<Boolean> = _isNotificationsOpen.asStateFlow()
+
     init {
         initUserProfile()
         loadFeed()
@@ -148,7 +156,7 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
 
     fun initUserProfile() {
         viewModelScope.launch {
-            val session = authStore.activeSession
+            val session = authStore.activeSession ?: authStore.sessions.firstOrNull()
             val profile = session?.profiles?.firstOrNull { it.profileId == session.activeProfileId }
                 ?: session?.profiles?.firstOrNull()
 
@@ -175,17 +183,29 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
                         loadProfileData(fallback.id)
                     }
             } else {
-                // Guest profile
-                val guestId = "guest_device"
-                val guestProfile = SocialProfile(
-                    id = guestId,
-                    handle = "guest_listener",
-                    displayName = "Guest Listener",
-                    avatarUrl = null,
-                    referralCode = "vibra_guest",
-                )
+                // Persistent guest profile tied to device ID
+                val anyAvatar = authStore.sessions.flatMap { it.profiles }.firstOrNull { !it.avatar.isNullOrBlank() }?.avatar
+                val anyName = authStore.sessions.flatMap { it.profiles }.firstOrNull { it.name.isNotBlank() }?.name
+                val guestId = AppSettings.deviceUserId
+                val existing = SupabaseService.fetchUserProfile(guestId).getOrNull()
+                val guestProfile = if (existing != null) {
+                    if (existing.avatarUrl.isNullOrBlank() && anyAvatar != null) {
+                        existing.copy(avatarUrl = anyAvatar)
+                    } else {
+                        existing
+                    }
+                } else {
+                    SocialProfile(
+                        id = guestId,
+                        handle = "guest_${guestId.takeLast(6)}",
+                        displayName = anyName ?: "Guest Listener",
+                        avatarUrl = anyAvatar,
+                        referralCode = "vibra_${guestId.takeLast(6)}",
+                    )
+                }
                 _currentProfile.value = guestProfile
                 loadProfileData(guestId)
+                UserCloudSyncManager.restoreUserData(guestId)
             }
         }
     }
@@ -198,12 +218,15 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
 
             SupabaseService.fetchPosts(forUserId = userId, friendsOnly = isFriendsOnly)
                 .onSuccess { loadedPosts ->
+                    val cached = if (_feedTab.value == FeedTab.FOR_YOU) forYouPostsCache else friendsPostsCache
+                    val localUnsynced = cached.filter { c -> loadedPosts.none { it.id == c.id } }
+                    val merged = localUnsynced + loadedPosts
                     if (_feedTab.value == FeedTab.FOR_YOU) {
-                        forYouPostsCache = loadedPosts
+                        forYouPostsCache = merged
                     } else {
-                        friendsPostsCache = loadedPosts
+                        friendsPostsCache = merged
                     }
-                    _posts.value = loadedPosts
+                    _posts.value = merged
                 }
                 .onFailure { e ->
                     Log.w("SocialViewModel", "Failed to load posts: ${e.message}")
@@ -220,12 +243,15 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
 
             SupabaseService.fetchPosts(forUserId = userId, friendsOnly = isFriendsOnly)
                 .onSuccess { loadedPosts ->
+                    val cached = if (_feedTab.value == FeedTab.FOR_YOU) forYouPostsCache else friendsPostsCache
+                    val localUnsynced = cached.filter { c -> loadedPosts.none { it.id == c.id } }
+                    val merged = localUnsynced + loadedPosts
                     if (_feedTab.value == FeedTab.FOR_YOU) {
-                        forYouPostsCache = loadedPosts
+                        forYouPostsCache = merged
                     } else {
-                        friendsPostsCache = loadedPosts
+                        friendsPostsCache = merged
                     }
-                    _posts.value = loadedPosts
+                    _posts.value = merged
                 }
             _isRefreshing.value = false
         }
@@ -235,6 +261,7 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
         content: String,
         imageUrls: List<String> = emptyList(),
         videoUrl: String? = null,
+        gifUrl: String? = null,
         musicAttachment: MusicTrackAttachment? = null,
         poll: PollData? = null,
         quoteOfId: String? = null,
@@ -248,6 +275,7 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
                 content = content,
                 imageUrls = imageUrls,
                 videoUrl = videoUrl,
+                gifUrl = gifUrl,
                 musicAttachment = musicAttachment,
                 poll = poll,
                 quoteOfId = quoteOfId,
@@ -358,6 +386,20 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun openCommentsForPostId(postId: String) {
+        val post = _posts.value.firstOrNull { it.id == postId }
+        if (post != null) {
+            openComments(post)
+        } else {
+            val stub = SocialPost(
+                id = postId,
+                authorId = "",
+                content = "",
+            )
+            openComments(stub)
+        }
+    }
+
     fun toggleLikeComment(comment: PostComment) {
         val userId = _currentProfile.value?.id ?: return
         val currentlyLiked = comment.isLikedByMe
@@ -420,9 +462,9 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
         _comments.value = emptyList()
     }
 
-    fun addComment(postId: String, content: String, parentCommentId: String? = null) {
+    fun addComment(postId: String, content: String, parentCommentId: String? = null, gifUrl: String? = null) {
         val user = _currentProfile.value ?: return
-        if (content.isBlank()) return
+        if (content.isBlank() && gifUrl.isNullOrBlank()) return
 
         viewModelScope.launch {
             SupabaseService.addComment(
@@ -430,6 +472,7 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
                 user = user,
                 content = content,
                 parentCommentId = parentCommentId,
+                gifUrl = gifUrl,
             ).onSuccess { newComment ->
                 _comments.value = _comments.value + newComment
                 // Update comment count on post
@@ -472,10 +515,14 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
         text: String,
         musicAttachment: MusicTrackAttachment? = null,
         playlistAttachment: com.fortune.vibramusic.data.social.SharedPlaylistAttachment? = null,
+        imageUrl: String? = null,
+        videoUrl: String? = null,
+        audioUrl: String? = null,
+        gifUrl: String? = null,
     ) {
         val user = _currentProfile.value ?: return
         val recipient = _activeChatFriend.value ?: return
-        if (text.isBlank() && musicAttachment == null && playlistAttachment == null) return
+        if (text.isBlank() && musicAttachment == null && playlistAttachment == null && imageUrl == null && videoUrl == null && audioUrl == null && gifUrl == null) return
 
         viewModelScope.launch {
             SupabaseService.sendDirectMessage(
@@ -484,6 +531,10 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
                 message = text,
                 trackAttachment = musicAttachment,
                 playlistAttachment = playlistAttachment,
+                imageUrl = imageUrl,
+                videoUrl = videoUrl,
+                audioUrl = audioUrl,
+                gifUrl = gifUrl,
             ).onSuccess { newMsg ->
                 _chatMessages.value = _chatMessages.value + newMsg
             }
@@ -550,8 +601,8 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
                     }
                     _favoriteArtists.value = loaded
 
-                    // Asynchronously resolve any missing thumbnails from YouTube Music
-                    loaded.filter { it.artworkUrl.isNullOrBlank() }.forEach { artist ->
+                    // Asynchronously resolve and heal any missing or broken thumbnails from YouTube Music
+                    loaded.filter { it.artworkUrl.isNullOrBlank() || it.artworkUrl?.contains("/test") == true || it.artworkUrl?.startsWith("http") != true }.forEach { artist ->
                         launch {
                             val resolvedThumb = YtMusicRepository.getArtistThumbnail(artist.id, artist.name)
                             if (!resolvedThumb.isNullOrBlank()) {
@@ -573,7 +624,7 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
         _favoriteArtists.value = _favoriteArtists.value + artist
         viewModelScope.launch {
             var toSave = artist
-            if (toSave.artworkUrl.isNullOrBlank()) {
+            if (toSave.artworkUrl.isNullOrBlank() || toSave.artworkUrl?.contains("/test") == true || toSave.artworkUrl?.startsWith("http") != true) {
                 val thumb = YtMusicRepository.getArtistThumbnail(artist.id, artist.name)
                 if (!thumb.isNullOrBlank()) {
                     toSave = artist.copy(artworkUrl = thumb)
@@ -591,6 +642,33 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
         _favoriteArtists.value = _favoriteArtists.value.filterNot { it.id == artistId }
         viewModelScope.launch {
             SupabaseService.removeFavoriteArtist(userId, artistId)
+        }
+    }
+
+    fun openNotifications() {
+        _isNotificationsOpen.value = true
+        loadNotifications()
+    }
+
+    fun closeNotifications() {
+        _isNotificationsOpen.value = false
+    }
+
+    fun loadNotifications() {
+        val userId = _currentProfile.value?.id ?: return
+        viewModelScope.launch {
+            SupabaseService.fetchNotifications(userId).onSuccess { list ->
+                _notifications.value = list
+            }
+        }
+    }
+
+    fun markNotificationRead(id: String) {
+        _notifications.value = _notifications.value.map {
+            if (it.id == id) it.copy(isRead = true) else it
+        }
+        viewModelScope.launch {
+            SupabaseService.markNotificationRead(id)
         }
     }
 }

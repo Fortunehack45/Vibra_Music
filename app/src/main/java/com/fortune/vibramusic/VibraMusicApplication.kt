@@ -12,15 +12,12 @@ import androidx.media3.common.util.UnstableApi
 import coil3.ImageLoader
 
 import coil3.PlatformContext
-
 import coil3.SingletonImageLoader
-
 import coil3.disk.DiskCache
-
 import coil3.disk.directory
-
+import coil3.gif.AnimatedImageDecoder
+import coil3.gif.GifDecoder
 import coil3.memory.MemoryCache
-
 import coil3.request.crossfade
 
 import com.fortune.vibramusic.auth.AuthStore
@@ -313,15 +310,13 @@ class VibraMusicApplication : Application(), SingletonImageLoader.Factory {
             // the header is attached per request instead. See WebDavCoilAuth.
 
             .components {
-
                 add(WebDavCoilAuth())
-
-                // Covers filed on the SMB share; anything else falls
-
-                // through to Coil's own fetchers. See SmbCoverFetcher.
-
                 add(SmbCoverFetcher.Factory())
-
+                if (android.os.Build.VERSION.SDK_INT >= 28) {
+                    add(AnimatedImageDecoder.Factory())
+                } else {
+                    add(GifDecoder.Factory())
+                }
             }
 
             .memoryCache {

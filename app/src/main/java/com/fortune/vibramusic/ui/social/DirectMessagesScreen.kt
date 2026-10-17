@@ -1,7 +1,12 @@
 package com.fortune.vibramusic.ui.social
 
+import android.content.pm.PackageManager
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -9,10 +14,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -32,13 +38,21 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Gif
 import androidx.compose.material.icons.rounded.GraphicEq
+import androidx.compose.material.icons.rounded.Image
+import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.MusicNote
+import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Videocam
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -47,6 +61,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -59,11 +74,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.fortune.vibramusic.data.YtMusicRepository
@@ -75,12 +92,14 @@ import com.fortune.vibramusic.data.social.MusicTrackAttachment
 import com.fortune.vibramusic.data.social.SharedPlaylistAttachment
 import com.fortune.vibramusic.data.social.SocialProfile
 import com.fortune.vibramusic.data.social.formatHandle
+import com.fortune.vibramusic.data.supabase.SupabaseService
 import com.fortune.vibramusic.ui.components.ArtistAvatar
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.UUID
 
 @Composable
 fun DirectMessagesScreen(
@@ -91,6 +110,9 @@ fun DirectMessagesScreen(
     hazeState: HazeState,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
     val activeChatFriend by viewModel.activeChatFriend.collectAsStateWithLifecycle()
     val conversations by viewModel.conversations.collectAsStateWithLifecycle()
     val messages by viewModel.chatMessages.collectAsStateWithLifecycle()
@@ -99,7 +121,57 @@ fun DirectMessagesScreen(
     var messageText by remember { mutableStateOf("") }
     var attachedTrack by remember { mutableStateOf<MusicTrackAttachment?>(null) }
     var attachedPlaylist by remember { mutableStateOf<SharedPlaylistAttachment?>(null) }
+    var stagedImageUri by remember { mutableStateOf<Uri?>(null) }
+    var stagedVideoUri by remember { mutableStateOf<Uri?>(null) }
+    var stagedGifUrl by remember { mutableStateOf<String?>(null) }
+
     var showAttachmentPicker by remember { mutableStateOf(false) }
+    var showGifPicker by remember { mutableStateOf(false) }
+    var showMediaMenu by remember { mutableStateOf(false) }
+    var isUploadingMedia by remember { mutableStateOf(false) }
+
+    // Audio recording & playback manager
+    val voiceRecorderManager = remember { VoiceRecorderManager(context) }
+    DisposableEffect(Unit) {
+        onDispose {
+            voiceRecorderManager.release()
+        }
+    }
+
+    val isRecording by voiceRecorderManager.isRecording.collectAsStateWithLifecycle()
+    val recordDuration by voiceRecorderManager.recordingDurationSeconds.collectAsStateWithLifecycle()
+    val currentlyPlayingAudioUrl by voiceRecorderManager.currentlyPlayingUrl.collectAsStateWithLifecycle()
+    val isAudioPlaying by voiceRecorderManager.isPlaying.collectAsStateWithLifecycle()
+
+    // Activity Result Launchers for Photo and Video
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia(),
+    ) { uri ->
+        if (uri != null) {
+            stagedImageUri = uri
+            stagedVideoUri = null
+            stagedGifUrl = null
+        }
+    }
+
+    val videoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia(),
+    ) { uri ->
+        if (uri != null) {
+            stagedVideoUri = uri
+            stagedImageUri = null
+            stagedGifUrl = null
+        }
+    }
+
+    // Audio Permission Launcher
+    val audioPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) { isGranted ->
+        if (isGranted) {
+            voiceRecorderManager.startRecording()
+        }
+    }
 
     Box(
         modifier = modifier
@@ -142,7 +214,7 @@ fun DirectMessagesScreen(
                             )
                             Spacer(Modifier.height(4.dp))
                             Text(
-                                text = "Connect with friends to start chatting and sharing tracks!",
+                                text = "Connect with friends to start chatting and sharing tracks",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                             )
@@ -187,7 +259,7 @@ fun DirectMessagesScreen(
                         modifier = Modifier
                             .size(38.dp)
                             .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)),
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)),
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
@@ -199,37 +271,38 @@ fun DirectMessagesScreen(
 
                     Spacer(Modifier.width(10.dp))
 
-                    ArtistAvatar(
-                        artistName = friend.displayName,
-                        artworkUrl = friend.avatarUrl,
-                        size = 40.dp,
-                    )
-
-                    Spacer(Modifier.width(10.dp))
-
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            text = friend.displayName,
-                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { viewModel.openUserProfile(friend) }
+                            .padding(4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        ArtistAvatar(
+                            artistName = friend.displayName,
+                            artworkUrl = friend.avatarUrl,
+                            size = 40.dp,
                         )
-                        Text(
-                            text = formatHandle(friend.handle),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
-                        )
+
+                        Spacer(Modifier.width(10.dp))
+
+                        Column {
+                            Text(
+                                text = friend.displayName,
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                text = formatHandle(friend.handle),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                            )
+                        }
                     }
                 }
-
-                // Divider line
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(1.dp)
-                        .background(Color.White.copy(alpha = 0.07f)),
-                )
 
                 // Messages List
                 LazyColumn(
@@ -247,185 +320,440 @@ fun DirectMessagesScreen(
                             message = msg,
                             isMine = isMine,
                             onPlayTrack = onPlayTrack,
+                            voiceRecorderManager = voiceRecorderManager,
+                            currentlyPlayingAudioUrl = currentlyPlayingAudioUrl,
+                            isAudioPlaying = isAudioPlaying,
                         )
                     }
                 }
 
-                // Staged Track Attachment Preview
-                attachedTrack?.let { track ->
+                // Staged Media Previews (Image, Video, GIF, Track, Playlist)
+                if (stagedImageUri != null || stagedVideoUri != null || stagedGifUrl != null || attachedTrack != null || attachedPlaylist != null) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 4.dp)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
-                            .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
-                            .padding(8.dp),
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Icon(
-                            imageVector = Icons.Rounded.MusicNote,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp),
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                text = track.title,
-                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = 1,
-                            )
-                            Text(
-                                text = track.artist,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                            )
-                        }
-                        IconButton(onClick = { attachedTrack = null }, modifier = Modifier.size(24.dp)) {
-                            Icon(
-                                imageVector = Icons.Rounded.Close,
-                                contentDescription = "Remove",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(16.dp),
-                            )
-                        }
-                    }
-                }
-
-                // Staged Playlist Attachment Preview
-                attachedPlaylist?.let { playlist ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 4.dp)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
-                            .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
-                            .padding(8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.QueueMusic,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp),
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                text = playlist.title,
-                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = 1,
-                            )
-                            Text(
-                                text = "Playlist • ${playlist.author ?: "Vibra"}",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                            )
-                        }
-                        IconButton(onClick = { attachedPlaylist = null }, modifier = Modifier.size(24.dp)) {
-                            Icon(
-                                imageVector = Icons.Rounded.Close,
-                                contentDescription = "Remove",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(16.dp),
-                            )
-                        }
-                    }
-                }
-
-                // Chat Input Bar (Docked directly above keyboard via imePadding)
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    // Attachment Picker Button (+ / Music)
-                    IconButton(
-                        onClick = { showAttachmentPicker = true },
-                        modifier = Modifier
-                            .size(42.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                            .border(1.dp, Color.White.copy(alpha = 0.08f), CircleShape),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Add,
-                            contentDescription = "Attach song or playlist",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(22.dp),
-                        )
-                    }
-
-                    Spacer(Modifier.width(8.dp))
-
-                    // Text Input
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(24.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(24.dp))
-                            .padding(horizontal = 16.dp, vertical = 11.dp),
-                    ) {
-                        if (messageText.isEmpty()) {
-                            Text(
-                                text = "Message ${formatHandle(friend.handle)}...",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                            )
-                        }
-                        BasicTextField(
-                            value = messageText,
-                            onValueChange = { messageText = it },
-                            textStyle = TextStyle(
-                                color = MaterialTheme.colorScheme.onSurface,
-                                fontSize = 14.sp,
-                            ),
-                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
-
-                    Spacer(Modifier.width(8.dp))
-
-                    // Send Button
-                    val canSend = messageText.isNotBlank() || attachedTrack != null || attachedPlaylist != null
-                    IconButton(
-                        onClick = {
-                            val trimmed = messageText.trim()
-                            if (canSend) {
-                                viewModel.sendDirectMessage(
-                                    text = trimmed,
-                                    musicAttachment = attachedTrack,
-                                    playlistAttachment = attachedPlaylist,
+                        stagedImageUri?.let { uri ->
+                            Box(
+                                modifier = Modifier
+                                    .size(68.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                            ) {
+                                AsyncImage(
+                                    model = uri,
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize(),
                                 )
-                                messageText = ""
-                                attachedTrack = null
-                                attachedPlaylist = null
+                                IconButton(
+                                    onClick = { stagedImageUri = null },
+                                    modifier = Modifier
+                                        .size(22.dp)
+                                        .align(Alignment.TopEnd)
+                                        .clip(CircleShape)
+                                        .background(Color.Black.copy(alpha = 0.6f)),
+                                ) {
+                                    Icon(Icons.Rounded.Close, null, tint = Color.White, modifier = Modifier.size(14.dp))
+                                }
                             }
-                        },
-                        enabled = canSend,
+                        }
+
+                        stagedVideoUri?.let { uri ->
+                            Box(
+                                modifier = Modifier
+                                    .size(68.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(Color.Black.copy(alpha = 0.45f)),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(Icons.Rounded.Videocam, null, tint = Color.White, modifier = Modifier.size(24.dp))
+                                IconButton(
+                                    onClick = { stagedVideoUri = null },
+                                    modifier = Modifier
+                                        .size(22.dp)
+                                        .align(Alignment.TopEnd)
+                                        .clip(CircleShape)
+                                        .background(Color.Black.copy(alpha = 0.6f)),
+                                ) {
+                                    Icon(Icons.Rounded.Close, null, tint = Color.White, modifier = Modifier.size(14.dp))
+                                }
+                            }
+                        }
+
+                        stagedGifUrl?.let { url ->
+                            Box(
+                                modifier = Modifier
+                                    .size(68.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                            ) {
+                                AsyncImage(
+                                    model = url,
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                                IconButton(
+                                    onClick = { stagedGifUrl = null },
+                                    modifier = Modifier
+                                        .size(22.dp)
+                                        .align(Alignment.TopEnd)
+                                        .clip(CircleShape)
+                                        .background(Color.Black.copy(alpha = 0.6f)),
+                                ) {
+                                    Icon(Icons.Rounded.Close, null, tint = Color.White, modifier = Modifier.size(14.dp))
+                                }
+                            }
+                        }
+
+                        attachedTrack?.let { track ->
+                            Row(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+                                    .padding(8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Icon(Icons.Rounded.MusicNote, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text(track.title, style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
+                                    Text(track.artist, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                                }
+                                IconButton(onClick = { attachedTrack = null }, modifier = Modifier.size(24.dp)) {
+                                    Icon(Icons.Rounded.Close, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        }
+
+                        attachedPlaylist?.let { playlist ->
+                            Row(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+                                    .padding(8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Icon(Icons.Rounded.QueueMusic, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text(playlist.title, style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
+                                    Text("Playlist • ${playlist.author ?: "Vibra"}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                                }
+                                IconButton(onClick = { attachedPlaylist = null }, modifier = Modifier.size(24.dp)) {
+                                    Icon(Icons.Rounded.Close, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Voice Recording State Banner (Active recording)
+                if (isRecording) {
+                    Row(
                         modifier = Modifier
-                            .size(42.dp)
-                            .clip(CircleShape)
-                            .background(
-                                if (canSend) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
-                            ),
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 8.dp)
+                            .clip(RoundedCornerShape(24.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f))
+                            .padding(horizontal = 14.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.Send,
-                            contentDescription = "Send",
-                            tint = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(18.dp),
+                        // Pulsing red indicator
+                        Box(
+                            modifier = Modifier
+                                .size(10.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFFEF4444)),
                         )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = "%02d:%02d".format(recordDuration / 60, recordDuration % 60),
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Spacer(Modifier.width(12.dp))
+
+                        // Waveform visualization
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(3.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            listOf(6, 12, 18, 10, 16, 22, 14, 20, 12, 8, 14, 18, 10).forEach { h ->
+                                Box(
+                                    modifier = Modifier
+                                        .width(3.dp)
+                                        .height(h.dp)
+                                        .clip(RoundedCornerShape(2.dp))
+                                        .background(MaterialTheme.colorScheme.primary),
+                                )
+                            }
+                        }
+
+                        // Cancel button
+                        IconButton(
+                            onClick = { voiceRecorderManager.cancelRecording() },
+                            modifier = Modifier.size(36.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Delete,
+                                contentDescription = "Cancel Recording",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp),
+                            )
+                        }
+
+                        // Send Voice Note button
+                        IconButton(
+                            onClick = {
+                                val recordedFile = voiceRecorderManager.stopRecording()
+                                if (recordedFile != null && recordedFile.exists()) {
+                                    scope.launch {
+                                        isUploadingMedia = true
+                                        val bytes = withContext(Dispatchers.IO) { recordedFile.readBytes() }
+                                        val uploaded = SupabaseService.uploadMedia(
+                                            bytes = bytes,
+                                            mimeType = "audio/mp4",
+                                            fileName = "vn_${UUID.randomUUID()}.m4a",
+                                        )
+                                        uploaded.onSuccess { url ->
+                                            viewModel.sendDirectMessage(
+                                                text = "",
+                                                audioUrl = url,
+                                            )
+                                        }
+                                        recordedFile.delete()
+                                        isUploadingMedia = false
+                                    }
+                                }
+                            },
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primary),
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.Send,
+                                contentDescription = "Send Voice Note",
+                                tint = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
+                    }
+                } else {
+                    // Chat Input Bar (Docked directly above keyboard via imePadding)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        // Media Attach Button (+)
+                        Box {
+                            IconButton(
+                                onClick = { showMediaMenu = true },
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Add,
+                                    contentDescription = "Attach media",
+                                    tint = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.size(22.dp),
+                                )
+                            }
+
+                            DropdownMenu(
+                                expanded = showMediaMenu,
+                                onDismissRequest = { showMediaMenu = false },
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Share Music") },
+                                    leadingIcon = { Icon(Icons.Rounded.MusicNote, null) },
+                                    onClick = {
+                                        showMediaMenu = false
+                                        showAttachmentPicker = true
+                                    },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Photo") },
+                                    leadingIcon = { Icon(Icons.Rounded.Image, null) },
+                                    onClick = {
+                                        showMediaMenu = false
+                                        photoPickerLauncher.launch(
+                                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                        )
+                                    },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Video") },
+                                    leadingIcon = { Icon(Icons.Rounded.Videocam, null) },
+                                    onClick = {
+                                        showMediaMenu = false
+                                        videoPickerLauncher.launch(
+                                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)
+                                        )
+                                    },
+                                )
+                            }
+                        }
+
+                        Spacer(Modifier.width(6.dp))
+
+                        // GIF Button
+                        IconButton(
+                            onClick = { showGifPicker = true },
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Gif,
+                                contentDescription = "Add GIF",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(24.dp),
+                            )
+                        }
+
+                        Spacer(Modifier.width(6.dp))
+
+                        // Text Input
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(24.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+                                .padding(horizontal = 16.dp, vertical = 11.dp),
+                        ) {
+                            if (messageText.isEmpty()) {
+                                Text(
+                                    text = "Message ${formatHandle(friend.handle)}...",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                )
+                            }
+                            BasicTextField(
+                                value = messageText,
+                                onValueChange = { messageText = it },
+                                textStyle = TextStyle(
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    fontSize = 14.sp,
+                                ),
+                                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+
+                        Spacer(Modifier.width(6.dp))
+
+                        // Send or Mic Action Button
+                        val hasDraft = messageText.isNotBlank() || stagedImageUri != null || stagedVideoUri != null || stagedGifUrl != null || attachedTrack != null || attachedPlaylist != null
+
+                        if (hasDraft || isUploadingMedia) {
+                            IconButton(
+                                onClick = {
+                                    val trimmed = messageText.trim()
+                                    scope.launch {
+                                        isUploadingMedia = true
+                                        var finalImageUrl: String? = null
+                                        var finalVideoUrl: String? = null
+
+                                        stagedImageUri?.let { uri ->
+                                            val bytes = withContext(Dispatchers.IO) {
+                                                context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                                            }
+                                            if (bytes != null) {
+                                                SupabaseService.uploadMedia(bytes, "image/jpeg", "dm_img_${UUID.randomUUID()}.jpg")
+                                                    .onSuccess { finalImageUrl = it }
+                                            }
+                                        }
+
+                                        stagedVideoUri?.let { uri ->
+                                            val bytes = withContext(Dispatchers.IO) {
+                                                context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                                            }
+                                            if (bytes != null) {
+                                                SupabaseService.uploadMedia(bytes, "video/mp4", "dm_vid_${UUID.randomUUID()}.mp4")
+                                                    .onSuccess { finalVideoUrl = it }
+                                            }
+                                        }
+
+                                        viewModel.sendDirectMessage(
+                                            text = trimmed,
+                                            musicAttachment = attachedTrack,
+                                            playlistAttachment = attachedPlaylist,
+                                            imageUrl = finalImageUrl,
+                                            videoUrl = finalVideoUrl,
+                                            gifUrl = stagedGifUrl,
+                                        )
+
+                                        messageText = ""
+                                        attachedTrack = null
+                                        attachedPlaylist = null
+                                        stagedImageUri = null
+                                        stagedVideoUri = null
+                                        stagedGifUrl = null
+                                        isUploadingMedia = false
+                                    }
+                                },
+                                enabled = !isUploadingMedia,
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.primary),
+                            ) {
+                                if (isUploadingMedia) {
+                                    CircularProgressIndicator(
+                                        color = MaterialTheme.colorScheme.onPrimary,
+                                        strokeWidth = 2.dp,
+                                        modifier = Modifier.size(18.dp),
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Rounded.Send,
+                                        contentDescription = "Send",
+                                        tint = MaterialTheme.colorScheme.onPrimary,
+                                        modifier = Modifier.size(18.dp),
+                                    )
+                                }
+                            }
+                        } else {
+                            // Mic Button
+                            IconButton(
+                                onClick = {
+                                    val hasPermission = ContextCompat.checkSelfPermission(
+                                        context,
+                                        android.Manifest.permission.RECORD_AUDIO,
+                                    ) == PackageManager.PERMISSION_GRANTED
+
+                                    if (hasPermission) {
+                                        voiceRecorderManager.startRecording()
+                                    } else {
+                                        audioPermissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
+                                    }
+                                },
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Mic,
+                                    contentDescription = "Record Voice Note",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp),
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -447,6 +775,17 @@ fun DirectMessagesScreen(
                 showAttachmentPicker = false
             },
             onDismiss = { showAttachmentPicker = false },
+        )
+    }
+
+    // Tenor GIF Picker Sheet
+    if (showGifPicker) {
+        GifPickerSheet(
+            onDismiss = { showGifPicker = false },
+            onSelectGif = { gifUrl ->
+                stagedGifUrl = gifUrl
+                showGifPicker = false
+            },
         )
     }
 }
@@ -494,6 +833,9 @@ private fun MessageBubble(
     message: DirectMessage,
     isMine: Boolean,
     onPlayTrack: (MusicTrackAttachment) -> Unit,
+    voiceRecorderManager: VoiceRecorderManager,
+    currentlyPlayingAudioUrl: String?,
+    isAudioPlaying: Boolean,
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -511,17 +853,123 @@ private fun MessageBubble(
                 )
                 .background(
                     if (isMine) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                )
-                .border(
-                    1.dp,
-                    if (isMine) MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
-                    else Color.White.copy(alpha = 0.08f),
-                    RoundedCornerShape(16.dp),
+                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
                 )
                 .padding(horizontal = 14.dp, vertical = 10.dp),
         ) {
             Column {
+                // GIF attachment
+                if (!message.gifUrl.isNullOrBlank()) {
+                    AsyncImage(
+                        model = message.gifUrl,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 220.dp)
+                            .clip(RoundedCornerShape(12.dp)),
+                    )
+                    if (message.message.isNotBlank()) Spacer(Modifier.height(8.dp))
+                }
+
+                // Image attachment
+                if (!message.imageUrl.isNullOrBlank()) {
+                    AsyncImage(
+                        model = message.imageUrl,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 240.dp)
+                            .clip(RoundedCornerShape(12.dp)),
+                    )
+                    if (message.message.isNotBlank()) Spacer(Modifier.height(8.dp))
+                }
+
+                // Video attachment
+                if (!message.videoUrl.isNullOrBlank()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(180.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color.Black.copy(alpha = 0.45f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.PlayArrow,
+                            contentDescription = "Play Video",
+                            tint = Color.White,
+                            modifier = Modifier.size(44.dp),
+                        )
+                    }
+                    if (message.message.isNotBlank()) Spacer(Modifier.height(8.dp))
+                }
+
+                // Voice Note audio attachment
+                if (!message.audioUrl.isNullOrBlank()) {
+                    val isPlayingThis = currentlyPlayingAudioUrl == message.audioUrl && isAudioPlaying
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(
+                                if (isMine) Color.White.copy(alpha = 0.15f)
+                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                            )
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        IconButton(
+                            onClick = {
+                                if (isPlayingThis) voiceRecorderManager.pauseAudio()
+                                else voiceRecorderManager.playAudio(message.audioUrl)
+                            },
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(CircleShape)
+                                .background(if (isMine) Color.White else MaterialTheme.colorScheme.primary),
+                        ) {
+                            Icon(
+                                imageVector = if (isPlayingThis) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                                contentDescription = if (isPlayingThis) "Pause" else "Play",
+                                tint = if (isMine) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
+
+                        Spacer(Modifier.width(10.dp))
+
+                        // Waveform bars
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(3.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            listOf(8, 14, 20, 12, 18, 24, 16, 22, 14, 10, 18, 12).forEach { h ->
+                                Box(
+                                    modifier = Modifier
+                                        .width(3.dp)
+                                        .height(h.dp)
+                                        .clip(RoundedCornerShape(2.dp))
+                                        .background(
+                                            if (isMine) Color.White.copy(alpha = 0.85f)
+                                            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                                        ),
+                                )
+                            }
+                        }
+
+                        Spacer(Modifier.width(10.dp))
+
+                        Text(
+                            text = "Voice Note",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                            color = if (isMine) Color.White.copy(alpha = 0.9f) else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    if (message.message.isNotBlank()) Spacer(Modifier.height(8.dp))
+                }
+
+                // Text Content
                 if (message.message.isNotBlank()) {
                     Text(
                         text = message.message,
@@ -532,7 +980,9 @@ private fun MessageBubble(
 
                 // Track Attachment inside DM
                 message.trackAttachment?.let { track ->
-                    if (message.message.isNotBlank()) Spacer(Modifier.height(8.dp))
+                    if (message.message.isNotBlank() || !message.gifUrl.isNullOrBlank() || !message.imageUrl.isNullOrBlank()) {
+                        Spacer(Modifier.height(8.dp))
+                    }
                     PlayableTrackCard(
                         track = track,
                         onPlay = { onPlayTrack(track) },
@@ -541,7 +991,9 @@ private fun MessageBubble(
 
                 // Shared Playlist Attachment inside DM
                 message.sharedPlaylist?.let { playlist ->
-                    if (message.message.isNotBlank()) Spacer(Modifier.height(8.dp))
+                    if (message.message.isNotBlank() || !message.gifUrl.isNullOrBlank() || !message.imageUrl.isNullOrBlank()) {
+                        Spacer(Modifier.height(8.dp))
+                    }
                     SharedPlaylistCard(playlist = playlist)
                 }
             }
@@ -559,7 +1011,6 @@ private fun SharedPlaylistCard(
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(Color.Black.copy(alpha = 0.25f))
-            .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(12.dp))
             .padding(10.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -695,7 +1146,6 @@ private fun ChatAttachmentPickerSheet(
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(14.dp))
                         .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
-                        .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
                         .clickable {
                             onSelectTrack(
                                 MusicTrackAttachment(
@@ -776,8 +1226,7 @@ private fun ChatAttachmentPickerSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(14.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
-                    .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(14.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
                     .padding(horizontal = 14.dp, vertical = 10.dp),
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {

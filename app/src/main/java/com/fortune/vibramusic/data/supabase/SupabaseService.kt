@@ -13,10 +13,12 @@ import com.fortune.vibramusic.data.social.FavoriteArtist
 import com.fortune.vibramusic.data.social.Friendship
 import com.fortune.vibramusic.data.social.FriendshipStatus
 import com.fortune.vibramusic.data.social.MusicTrackAttachment
+import com.fortune.vibramusic.data.social.NotificationType
 import com.fortune.vibramusic.data.social.PollData
 import com.fortune.vibramusic.data.social.PollOption
 import com.fortune.vibramusic.data.social.PostComment
 import com.fortune.vibramusic.data.social.SharedPlaylistAttachment
+import com.fortune.vibramusic.data.social.SocialNotification
 import com.fortune.vibramusic.data.social.SocialPost
 import com.fortune.vibramusic.data.social.SocialProfile
 import com.fortune.vibramusic.data.social.UserListeningExperience
@@ -101,7 +103,7 @@ object SupabaseService {
                 append("}")
             }
 
-            val response = client.post(baseUrl("profiles")) {
+            val response = client.post("${baseUrl("profiles")}?on_conflict=id") {
                 header("apikey", SupabaseConfig.anonKey)
                 header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
                 header("Prefer", "resolution=merge-duplicates,return=representation")
@@ -177,6 +179,7 @@ object SupabaseService {
         content: String,
         imageUrls: List<String> = emptyList(),
         videoUrl: String? = null,
+        gifUrl: String? = null,
         musicAttachment: MusicTrackAttachment? = null,
         poll: PollData? = null,
         quoteOfId: String? = null,
@@ -194,8 +197,9 @@ object SupabaseService {
                 "{\"question\":${jsonQuote(it.question)},\"options\":[$optionsArray]}"
             }
 
-            val imageUrlsJson = if (imageUrls.isNotEmpty()) {
-                imageUrls.joinToString(prefix = "[", postfix = "]", separator = ",") { jsonQuote(it) }
+            val allImages = if (gifUrl != null) listOf(gifUrl) + imageUrls else imageUrls
+            val imageUrlsJson = if (allImages.isNotEmpty()) {
+                allImages.joinToString(prefix = "[", postfix = "]", separator = ",") { jsonQuote(it) }
             } else null
 
             val body = buildString {
@@ -204,6 +208,7 @@ object SupabaseService {
                 append("\"author_id\":\"${author.id}\",")
                 append("\"content\":${jsonQuote(content)}")
                 if (imageUrlsJson != null) append(",\"image_urls\":$imageUrlsJson")
+                if (allImages.isNotEmpty()) append(",\"image_url\":${jsonQuote(allImages.first())}")
                 if (videoUrl != null) append(",\"video_url\":${jsonQuote(videoUrl)}")
                 if (musicTrackJson != null) append(",\"music_track\":$musicTrackJson")
                 if (pollJson != null) append(",\"poll_data\":$pollJson")
@@ -218,15 +223,20 @@ object SupabaseService {
                 contentType(ContentType.Application.Json)
                 setBody(body)
             }
+            if (!response.status.isSuccess()) {
+                val err = response.bodyAsText()
+                Log.w(TAG, "createPost failed with ${response.status}: $err")
+            }
 
             SocialPost(
                 id = postId,
                 authorId = author.id,
                 author = author,
                 content = content,
-                imageUrl = imageUrls.firstOrNull(),
-                imageUrls = imageUrls,
+                imageUrl = allImages.firstOrNull(),
+                imageUrls = allImages,
                 videoUrl = videoUrl,
+                gifUrl = gifUrl,
                 musicTrack = musicAttachment,
                 pollData = poll,
                 quoteOfId = quoteOfId,
@@ -306,24 +316,32 @@ object SupabaseService {
         user: SocialProfile,
         content: String,
         parentCommentId: String? = null,
+        gifUrl: String? = null,
     ): Result<PostComment> = withContext(Dispatchers.IO) {
         runCatching {
             val commentId = UUID.randomUUID().toString()
+            val finalContent = if (!gifUrl.isNullOrBlank()) {
+                if (content.isNotBlank()) "[gif:$gifUrl] $content" else "[gif:$gifUrl]"
+            } else content
+
             val body = buildString {
                 append("{")
                 append("\"id\":\"$commentId\",")
                 append("\"post_id\":\"$postId\",")
                 append("\"author_id\":\"${user.id}\",")
-                append("\"content\":${jsonQuote(content)}")
+                append("\"content\":${jsonQuote(finalContent)}")
                 if (parentCommentId != null) append(",\"parent_id\":\"$parentCommentId\"")
                 append("}")
             }
 
-            client.post(baseUrl("post_comments")) {
+            val response = client.post(baseUrl("post_comments")) {
                 header("apikey", SupabaseConfig.anonKey)
                 header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
                 contentType(ContentType.Application.Json)
                 setBody(body)
+            }
+            if (!response.status.isSuccess()) {
+                Log.w(TAG, "addComment failed with status ${response.status}: ${response.bodyAsText()}")
             }
 
             PostComment(
@@ -333,6 +351,7 @@ object SupabaseService {
                 author = user,
                 parentId = parentCommentId,
                 content = content,
+                gifUrl = gifUrl,
             )
         }
     }
@@ -424,7 +443,7 @@ object SupabaseService {
                 append(",\"referral_code\":\"vibra_${userId.takeLast(6)}\"")
                 append("}")
             }
-            val response = client.post(baseUrl("profiles")) {
+            val response = client.post("${baseUrl("profiles")}?on_conflict=id") {
                 header("apikey", SupabaseConfig.anonKey)
                 header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
                 header("Prefer", "resolution=merge-duplicates")
@@ -436,6 +455,25 @@ object SupabaseService {
                 Log.w(TAG, "updateUserProfile returned status ${response.status}: $errorText")
             }
             Unit
+        }
+    }
+
+    /**
+     * Fetches a single user's profile by ID.
+     */
+    suspend fun fetchUserProfile(userId: String): Result<SocialProfile?> = withContext(Dispatchers.IO) {
+        runCatching {
+            val response = client.get(baseUrl("profiles")) {
+                header("apikey", SupabaseConfig.anonKey)
+                header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                parameter("id", "eq.$userId")
+                parameter("limit", "1")
+            }
+            if (!response.status.isSuccess()) {
+                null
+            } else {
+                parseProfiles(response.bodyAsText()).firstOrNull()
+            }
         }
     }
 
@@ -519,6 +557,10 @@ object SupabaseService {
         message: String,
         trackAttachment: MusicTrackAttachment? = null,
         playlistAttachment: SharedPlaylistAttachment? = null,
+        imageUrl: String? = null,
+        videoUrl: String? = null,
+        audioUrl: String? = null,
+        gifUrl: String? = null,
     ): Result<DirectMessage> = withContext(Dispatchers.IO) {
         runCatching {
             val messageId = UUID.randomUUID().toString()
@@ -529,12 +571,20 @@ object SupabaseService {
                 "{\"playlist_id\":${jsonQuote(it.playlistId)},\"title\":${jsonQuote(it.title)},\"author\":${jsonQuote(it.author)},\"thumbnail_url\":${jsonQuote(it.thumbnailUrl ?: "")},\"track_count\":${it.trackCount}}"
             }
 
+            val finalContent = buildString {
+                if (!imageUrl.isNullOrBlank()) append("[image:$imageUrl] ")
+                if (!videoUrl.isNullOrBlank()) append("[video:$videoUrl] ")
+                if (!audioUrl.isNullOrBlank()) append("[audio:$audioUrl] ")
+                if (!gifUrl.isNullOrBlank()) append("[gif:$gifUrl] ")
+                append(message)
+            }.trim()
+
             val body = buildString {
                 append("{")
                 append("\"id\":\"$messageId\",")
                 append("\"sender_id\":\"$senderId\",")
                 append("\"receiver_id\":\"$recipientId\",")
-                append("\"content\":${jsonQuote(message)}")
+                append("\"content\":${jsonQuote(finalContent)}")
                 if (sharedMusicJson != null) append(",\"shared_music\":$sharedMusicJson")
                 if (sharedPlaylistJson != null) append(",\"shared_playlist\":$sharedPlaylistJson")
                 append("}")
@@ -554,6 +604,10 @@ object SupabaseService {
                 senderId = senderId,
                 receiverId = recipientId,
                 content = message,
+                imageUrl = imageUrl,
+                videoUrl = videoUrl,
+                audioUrl = audioUrl,
+                gifUrl = gifUrl,
                 sharedMusic = trackAttachment,
                 sharedPlaylist = playlistAttachment,
             )
@@ -602,6 +656,41 @@ object SupabaseService {
         }
 
     /**
+     * Fetches notifications for a user.
+     */
+    suspend fun fetchNotifications(userId: String): Result<List<SocialNotification>> = withContext(Dispatchers.IO) {
+        runCatching {
+            val response = client.get(baseUrl("notifications")) {
+                header("apikey", SupabaseConfig.anonKey)
+                header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                parameter("user_id", "eq.$userId")
+                parameter("order", "created_at.desc")
+                parameter("limit", 40)
+            }
+            if (!response.status.isSuccess()) {
+                return@runCatching emptyList()
+            }
+            parseNotifications(response.bodyAsText(), userId)
+        }
+    }
+
+    /**
+     * Marks a notification as read.
+     */
+    suspend fun markNotificationRead(notificationId: String): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            client.patch(baseUrl("notifications")) {
+                header("apikey", SupabaseConfig.anonKey)
+                header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                parameter("id", "eq.$notificationId")
+                contentType(ContentType.Application.Json)
+                setBody("{\"is_read\":true}")
+            }
+            Unit
+        }
+    }
+
+    /**
      * Fetches favorite artists for a user.
      */
     suspend fun fetchFavoriteArtists(userId: String): Result<List<FavoriteArtist>> = withContext(Dispatchers.IO) {
@@ -629,6 +718,13 @@ object SupabaseService {
     suspend fun addFavoriteArtist(userId: String, artist: QuizArtist): Result<Unit> =
         withContext(Dispatchers.IO) {
             runCatching {
+                // Delete existing favorite entry to avoid ON CONFLICT inference errors across schemas
+                client.delete(baseUrl("favorite_artists")) {
+                    header("apikey", SupabaseConfig.anonKey)
+                    header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                    parameter("user_id", "eq.$userId")
+                    parameter("artist_id", "eq.${artist.id}")
+                }
                 val artwork = artist.artworkUrl
                 val body = buildString {
                     append("{")
@@ -641,7 +737,6 @@ object SupabaseService {
                 val res = client.post(baseUrl("favorite_artists")) {
                     header("apikey", SupabaseConfig.anonKey)
                     header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
-                    header("Prefer", "resolution=merge-duplicates")
                     contentType(ContentType.Application.Json)
                     setBody(body)
                 }
@@ -1054,6 +1149,8 @@ object SupabaseService {
             val imageUrl = obj["image_url"]?.jsonPrimitive?.content
             val imageUrls = obj["image_urls"]?.jsonArray?.mapNotNull { it.jsonPrimitive.content } ?: emptyList()
             val videoUrl = obj["video_url"]?.jsonPrimitive?.content
+            val gifUrl = obj["gif_url"]?.jsonPrimitive?.content
+                ?: if (imageUrl?.endsWith(".gif", ignoreCase = true) == true || imageUrl?.contains("giphy", ignoreCase = true) == true || imageUrl?.contains("tenor", ignoreCase = true) == true) imageUrl else null
             val quoteOfId = obj["quote_of_id"]?.jsonPrimitive?.content
             val repostOfId = obj["repost_of_id"]?.jsonPrimitive?.content
             val createdAt = obj["created_at"]?.jsonPrimitive?.content ?: ""
@@ -1104,6 +1201,7 @@ object SupabaseService {
                 imageUrl = imageUrl,
                 imageUrls = imageUrls,
                 videoUrl = videoUrl,
+                gifUrl = gifUrl,
                 musicTrack = musicTrack,
                 pollData = poll,
                 likesCount = likesCount,
@@ -1123,7 +1221,16 @@ object SupabaseService {
             val id = obj["id"]?.jsonPrimitive?.content ?: return@mapNotNull null
             val postId = obj["post_id"]?.jsonPrimitive?.content ?: ""
             val authorId = obj["author_id"]?.jsonPrimitive?.content ?: ""
-            val content = obj["content"]?.jsonPrimitive?.content ?: ""
+            val rawContent = obj["content"]?.jsonPrimitive?.content ?: ""
+            var cleanContent = rawContent
+            var gifUrl = obj["gif_url"]?.jsonPrimitive?.content
+            if (rawContent.contains("[gif:")) {
+                val match = "\\[gif:(https?://[^\\]]+)\\]".toRegex().find(rawContent)
+                if (match != null) {
+                    if (gifUrl == null) gifUrl = match.groupValues[1]
+                    cleanContent = rawContent.replace(match.value, "").trim()
+                }
+            }
             val parentId = obj["parent_id"]?.jsonPrimitive?.content
             val createdAt = obj["created_at"]?.jsonPrimitive?.content ?: ""
             val likesCount = obj["likes_count"]?.jsonPrimitive?.intOrNull ?: 0
@@ -1144,7 +1251,8 @@ object SupabaseService {
                 authorId = authorId,
                 author = author,
                 parentId = parentId,
-                content = content,
+                content = cleanContent,
+                gifUrl = gifUrl,
                 likesCount = likesCount,
                 createdAt = createdAt,
             )
@@ -1158,7 +1266,26 @@ object SupabaseService {
             val id = obj["id"]?.jsonPrimitive?.content ?: return@mapNotNull null
             val senderId = obj["sender_id"]?.jsonPrimitive?.content ?: ""
             val receiverId = obj["receiver_id"]?.jsonPrimitive?.content ?: ""
-            val content = obj["content"]?.jsonPrimitive?.content ?: ""
+            val rawContent = obj["content"]?.jsonPrimitive?.content ?: ""
+            var cleanContent = rawContent
+            var imageUrl = obj["image_url"]?.jsonPrimitive?.content
+            var videoUrl = obj["video_url"]?.jsonPrimitive?.content
+            var audioUrl = obj["audio_url"]?.jsonPrimitive?.content
+            var gifUrl = obj["gif_url"]?.jsonPrimitive?.content
+
+            val tagRegex = "\\[(image|video|audio|gif):(https?://[^\\]]+)\\]".toRegex()
+            tagRegex.findAll(rawContent).forEach { match ->
+                val type = match.groupValues[1]
+                val url = match.groupValues[2]
+                when (type) {
+                    "image" -> if (imageUrl == null) imageUrl = url
+                    "video" -> if (videoUrl == null) videoUrl = url
+                    "audio" -> if (audioUrl == null) audioUrl = url
+                    "gif" -> if (gifUrl == null) gifUrl = url
+                }
+            }
+            cleanContent = rawContent.replace(tagRegex, "").trim()
+
             val isRead = obj["is_read"]?.jsonPrimitive?.booleanOrNull ?: false
             val createdAt = obj["created_at"]?.jsonPrimitive?.content ?: ""
 
@@ -1186,9 +1313,45 @@ object SupabaseService {
                 id = id,
                 senderId = senderId,
                 receiverId = receiverId,
-                content = content,
+                content = cleanContent,
+                imageUrl = imageUrl,
+                videoUrl = videoUrl,
+                audioUrl = audioUrl,
+                gifUrl = gifUrl,
                 sharedMusic = sharedMusic,
                 sharedPlaylist = sharedPlaylist,
+                isRead = isRead,
+                createdAt = createdAt,
+            )
+        }
+    }.getOrDefault(emptyList())
+
+    private fun parseNotifications(raw: String, currentUserId: String): List<SocialNotification> = runCatching {
+        val array = json.parseToJsonElement(raw).jsonArray
+        array.mapNotNull { element ->
+            val obj = element.jsonObject
+            val id = obj["id"]?.jsonPrimitive?.content ?: return@mapNotNull null
+            val actorId = obj["actor_id"]?.jsonPrimitive?.content ?: ""
+            val actorName = obj["actor_name"]?.jsonPrimitive?.content ?: "A listener"
+            val actorAvatar = obj["actor_avatar"]?.jsonPrimitive?.content
+            val actorHandle = obj["actor_handle"]?.jsonPrimitive?.content ?: ""
+            val typeStr = obj["type"]?.jsonPrimitive?.content ?: "LIKE"
+            val type = runCatching { NotificationType.valueOf(typeStr) }.getOrDefault(NotificationType.LIKE)
+            val targetPostId = obj["target_post_id"]?.jsonPrimitive?.content
+            val message = obj["message"]?.jsonPrimitive?.content ?: ""
+            val isRead = obj["is_read"]?.jsonPrimitive?.booleanOrNull ?: false
+            val createdAt = obj["created_at"]?.jsonPrimitive?.content ?: ""
+
+            SocialNotification(
+                id = id,
+                userId = currentUserId,
+                actorId = actorId,
+                actorName = actorName,
+                actorAvatar = actorAvatar,
+                actorHandle = actorHandle,
+                type = type,
+                targetPostId = targetPostId,
+                message = message,
                 isRead = isRead,
                 createdAt = createdAt,
             )

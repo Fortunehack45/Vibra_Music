@@ -2,7 +2,6 @@ package com.fortune.vibramusic.ui.social
 
 import android.content.Intent
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -72,6 +71,7 @@ fun UserProfileScreen(
     onBack: (() -> Unit)?,
     onPlayTrack: (MusicTrackAttachment) -> Unit,
     onArtistQuizClick: (QuizArtist) -> Unit,
+    onOpenArtistDetail: ((id: String, name: String, artworkUrl: String?) -> Unit)? = null,
     contentPadding: PaddingValues,
     hazeState: HazeState,
     modifier: Modifier = Modifier,
@@ -125,38 +125,24 @@ fun UserProfileScreen(
                 }
             }
 
-            // Profile Card Header (Liquid Glass)
+            // Profile Card Header (Solid Surface)
             item(key = "profile_header") {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp)
                         .clip(RoundedCornerShape(24.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
-                        .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(24.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
                         .padding(20.dp),
                 ) {
                     Column(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
-                        // Avatar with glowing liquid glass ring
+                        // Avatar
                         Box(
                             modifier = Modifier
                                 .size(90.dp)
-                                .clip(CircleShape)
-                                .border(
-                                    3.dp,
-                                    Brush.sweepGradient(
-                                        listOf(
-                                            MaterialTheme.colorScheme.primary,
-                                            MaterialTheme.colorScheme.secondary,
-                                            MaterialTheme.colorScheme.primary,
-                                        ),
-                                    ),
-                                    CircleShape,
-                                )
-                                .padding(4.dp)
                                 .clip(CircleShape)
                                 .background(MaterialTheme.colorScheme.surfaceVariant),
                             contentAlignment = Alignment.Center,
@@ -357,7 +343,13 @@ fun UserProfileScreen(
                             items(favoriteArtists, key = { it.id }) { artist ->
                                 FavoriteArtistCard(
                                     artist = artist,
-                                    onClick = { onArtistQuizClick(artist) },
+                                    onClick = {
+                                        if (onOpenArtistDetail != null) {
+                                            onOpenArtistDetail(artist.id, artist.name, artist.artworkUrl)
+                                        } else {
+                                            onArtistQuizClick(artist)
+                                        }
+                                    },
                                 )
                             }
                         }

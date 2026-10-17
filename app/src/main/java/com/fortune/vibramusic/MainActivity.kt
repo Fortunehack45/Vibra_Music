@@ -117,6 +117,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fortune.vibramusic.auth.DiscordLoginScreen
@@ -267,6 +268,10 @@ import com.fortune.vibramusic.ui.social.SocialViewModel
 import com.fortune.vibramusic.ui.social.SocialScreen
 import com.fortune.vibramusic.ui.social.DirectMessagesScreen
 import com.fortune.vibramusic.ui.social.UserProfileScreen
+import com.fortune.vibramusic.ui.social.NotificationsSheet
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
+import androidx.compose.material.icons.rounded.Notifications
 import com.fortune.vibramusic.ui.quiz.QuizViewModel
 import com.fortune.vibramusic.ui.quiz.QuizHubScreen
 import com.fortune.vibramusic.ui.quiz.ActiveQuizScreen
@@ -479,6 +484,8 @@ private fun VibraMusicApp(
     val socialNavTab by socialViewModel.navTab.collectAsStateWithLifecycle()
     val socialProfile by socialViewModel.currentProfile.collectAsStateWithLifecycle()
     val socialActiveChatFriend by socialViewModel.activeChatFriend.collectAsStateWithLifecycle()
+    val socialNotifications by socialViewModel.notifications.collectAsStateWithLifecycle()
+    val socialIsNotificationsOpen by socialViewModel.isNotificationsOpen.collectAsStateWithLifecycle()
 
     val quizGameState by quizViewModel.gameState.collectAsStateWithLifecycle()
     val quizLastResult by quizViewModel.lastResult.collectAsStateWithLifecycle()
@@ -2971,10 +2978,13 @@ private fun VibraMusicApp(
                             UserProfileScreen(
                                 profile = profile,
                                 viewModel = socialViewModel,
-                                isSelf = profile.id == socialProfile?.id,
+                                isSelf = profile.id == (socialProfile?.id ?: ""),
                                 onBack = { viewingSocialProfile = null },
                                 onPlayTrack = playTrackAttachment,
                                 onArtistQuizClick = { artist -> activeLeaderboardArtist = artist },
+                                onOpenArtistDetail = { id, name, artworkUrl ->
+                                    viewModel.openDetail(id, name, "Artist", artworkUrl, BrowseType.ARTIST)
+                                },
                                 contentPadding = listPadding,
                                 hazeState = hazeState,
                             )
@@ -3014,11 +3024,23 @@ private fun VibraMusicApp(
                                 )
                             }
                             SocialTab.PROFILE -> {
-                                val prof = socialProfile ?: SocialProfile(
+                                val resolvedAvatar = if (!socialProfile?.avatarUrl.isNullOrBlank()) {
+                                    socialProfile?.avatarUrl
+                                } else {
+                                    googleAccounts
+                                        .firstOrNull { it.accountId == activeAccountId }
+                                        ?.profiles
+                                        ?.firstOrNull { it.profileId == activeProfileId }
+                                        ?.avatar
+                                        ?: googleAccounts.firstOrNull()?.profiles?.firstOrNull { !it.avatar.isNullOrBlank() }?.avatar
+                                }
+                                val prof = socialProfile?.let {
+                                    if (it.avatarUrl.isNullOrBlank() && resolvedAvatar != null) it.copy(avatarUrl = resolvedAvatar) else it
+                                } ?: SocialProfile(
                                     id = "me",
                                     handle = "listener",
                                     displayName = "Vibra Listener",
-                                    avatarUrl = null,
+                                    avatarUrl = resolvedAvatar,
                                 )
                                 UserProfileScreen(
                                     profile = prof,
@@ -3027,6 +3049,9 @@ private fun VibraMusicApp(
                                     onBack = null,
                                     onPlayTrack = playTrackAttachment,
                                     onArtistQuizClick = { artist -> activeLeaderboardArtist = artist },
+                                    onOpenArtistDetail = { id, name, artworkUrl ->
+                                        viewModel.openDetail(id, name, "Artist", artworkUrl, BrowseType.ARTIST)
+                                    },
                                     contentPadding = listPadding,
                                     hazeState = hazeState,
                                 )
@@ -3570,6 +3595,30 @@ private fun VibraMusicApp(
                             // itself rather than being told.
                             TopBarDownloadButton(onClick = { showDownloadManager = true })
 
+                            if (currentRealm == AppRealm.SOCIAL) {
+                                val unreadNotifications = socialNotifications.count { !it.isRead }
+                                IconButton(onClick = { socialViewModel.openNotifications() }) {
+                                    BadgedBox(
+                                        badge = {
+                                            if (unreadNotifications > 0) {
+                                                Badge(
+                                                    containerColor = MaterialTheme.colorScheme.primary,
+                                                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                                                ) {
+                                                    Text(text = "$unreadNotifications", fontSize = 10.sp)
+                                                }
+                                            }
+                                        },
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Notifications,
+                                            contentDescription = "Notifications",
+                                            tint = MaterialTheme.colorScheme.onSurface,
+                                        )
+                                    }
+                                }
+                            }
+
                             val activeAvatar = if (currentRealm == AppRealm.SOCIAL && !socialProfile?.avatarUrl.isNullOrBlank()) {
                                 socialProfile?.avatarUrl
                             } else {
@@ -3783,6 +3832,23 @@ private fun VibraMusicApp(
                 livesState = quizLivesState,
                 referralCode = socialProfile?.referralCode ?: "vibra_quiz",
                 onDismiss = { quizShowLivesDialog = false },
+            )
+        }
+
+        // ---- Social Notifications Sheet ----
+        if (socialIsNotificationsOpen) {
+            NotificationsSheet(
+                notifications = socialNotifications,
+                onDismiss = { socialViewModel.closeNotifications() },
+                onNotificationClick = { notification ->
+                    socialViewModel.markNotificationRead(notification.id)
+                    if (notification.targetPostId != null) {
+                        socialViewModel.openCommentsForPostId(notification.targetPostId)
+                    }
+                },
+                onMarkAllRead = {
+                    socialNotifications.filter { !it.isRead }.forEach { socialViewModel.markNotificationRead(it.id) }
+                },
             )
         }
 

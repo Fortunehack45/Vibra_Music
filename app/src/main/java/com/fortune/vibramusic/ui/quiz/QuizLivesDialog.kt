@@ -2,7 +2,6 @@ package com.fortune.vibramusic.ui.quiz
 
 import android.content.Intent
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -50,9 +49,7 @@ fun QuizLivesDialog(
         Surface(
             shape = RoundedCornerShape(24.dp),
             color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(24.dp)),
+            modifier = Modifier.fillMaxWidth(),
         ) {
             Column(
                 modifier = Modifier
@@ -123,8 +120,7 @@ fun QuizLivesDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(16.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
-                        .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(16.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
                         .padding(16.dp),
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -146,8 +142,7 @@ fun QuizLivesDialog(
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(10.dp))
-                                .background(MaterialTheme.colorScheme.surface)
-                                .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f), RoundedCornerShape(10.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f))
                                 .padding(horizontal = 16.dp, vertical = 8.dp),
                         ) {
                             Text(

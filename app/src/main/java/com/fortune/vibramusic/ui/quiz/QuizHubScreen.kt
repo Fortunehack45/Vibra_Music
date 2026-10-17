@@ -182,29 +182,12 @@ fun QuizHubScreen(
                         )
                     }
 
-                    // Lives Pill (Liquid Glass)
+                    // Lives Pill (Solid)
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
                             .clip(RoundedCornerShape(percent = 50))
-                            .background(
-                                Brush.verticalGradient(
-                                    listOf(
-                                        Color.White.copy(alpha = 0.12f),
-                                        Color.White.copy(alpha = 0.04f),
-                                    )
-                                )
-                            )
-                            .border(
-                                width = 1.dp,
-                                brush = Brush.verticalGradient(
-                                    listOf(
-                                        Color.White.copy(alpha = 0.30f),
-                                        Color.White.copy(alpha = 0.08f),
-                                    )
-                                ),
-                                shape = RoundedCornerShape(percent = 50),
-                            )
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
                             .clickable { showLivesDialog = true }
                             .padding(horizontal = 14.dp, vertical = 7.dp),
                     ) {
@@ -231,24 +214,7 @@ fun QuizHubScreen(
                         .fillMaxWidth()
                         .padding(horizontal = 20.dp)
                         .clip(RoundedCornerShape(22.dp))
-                        .background(
-                            Brush.verticalGradient(
-                                listOf(
-                                    Color.White.copy(alpha = 0.08f),
-                                    Color.White.copy(alpha = 0.03f),
-                                )
-                            )
-                        )
-                        .border(
-                            1.dp,
-                            Brush.verticalGradient(
-                                listOf(
-                                    Color.White.copy(alpha = 0.18f),
-                                    Color.White.copy(alpha = 0.04f),
-                                )
-                            ),
-                            RoundedCornerShape(22.dp),
-                        )
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
                         .padding(horizontal = 16.dp, vertical = 12.dp),
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -364,31 +330,14 @@ fun QuizHubScreen(
                     }
                 }
 
-                // How to Play Banner (Liquid Glass Step Cards)
+                // How to Play Banner (Solid Cards)
                 item(key = "how_to_play") {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 20.dp)
                             .clip(RoundedCornerShape(22.dp))
-                            .background(
-                                Brush.verticalGradient(
-                                    listOf(
-                                        Color.White.copy(alpha = 0.06f),
-                                        Color.White.copy(alpha = 0.02f),
-                                    )
-                                )
-                            )
-                            .border(
-                                1.dp,
-                                Brush.verticalGradient(
-                                    listOf(
-                                        Color.White.copy(alpha = 0.18f),
-                                        Color.White.copy(alpha = 0.04f),
-                                    )
-                                ),
-                                RoundedCornerShape(22.dp),
-                            )
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
                             .padding(18.dp),
                     ) {
                         Text(
@@ -472,24 +421,7 @@ private fun TrendingArtistCard(
         modifier = Modifier
             .width(168.dp)
             .clip(RoundedCornerShape(24.dp))
-            .background(
-                Brush.verticalGradient(
-                    listOf(
-                        Color.White.copy(alpha = 0.09f),
-                        Color.White.copy(alpha = 0.02f),
-                    )
-                )
-            )
-            .border(
-                1.dp,
-                Brush.verticalGradient(
-                    listOf(
-                        Color.White.copy(alpha = 0.28f),
-                        Color.White.copy(alpha = 0.06f),
-                    )
-                ),
-                RoundedCornerShape(24.dp),
-            )
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
             .padding(14.dp),
     ) {
         Column(
@@ -502,7 +434,6 @@ private fun TrendingArtistCard(
                     .size(92.dp)
                     .clip(CircleShape)
                     .background(Color.Black.copy(alpha = 0.45f))
-                    .border(2.dp, Color.White.copy(alpha = 0.14f), CircleShape)
                     .padding(4.dp),
                 contentAlignment = Alignment.Center,
             ) {
@@ -567,8 +498,7 @@ private fun TrendingArtistCard(
                     modifier = Modifier
                         .size(36.dp)
                         .clip(RoundedCornerShape(12.dp))
-                        .background(Color.White.copy(alpha = 0.08f))
-                        .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
                         .clickable(onClick = onLeaderboard),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -598,8 +528,7 @@ private fun QuizStepRow(
             modifier = Modifier
                 .size(24.dp)
                 .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.18f))
-                .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f), CircleShape),
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)),
             contentAlignment = Alignment.Center,
         ) {
             Text(
@@ -638,24 +567,7 @@ private fun ArtistQuizRow(
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(18.dp))
-            .background(
-                Brush.verticalGradient(
-                    listOf(
-                        Color.White.copy(alpha = 0.08f),
-                        Color.White.copy(alpha = 0.02f),
-                    )
-                )
-            )
-            .border(
-                1.dp,
-                Brush.verticalGradient(
-                    listOf(
-                        Color.White.copy(alpha = 0.18f),
-                        Color.White.copy(alpha = 0.04f),
-                    )
-                ),
-                RoundedCornerShape(18.dp),
-            )
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
             .padding(12.dp),
     ) {
         Row(

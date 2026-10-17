@@ -1,7 +1,6 @@
 package com.fortune.vibramusic.ui.quiz
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -57,6 +56,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import com.fortune.vibramusic.data.model.artworkAt
 import com.fortune.vibramusic.data.quiz.LeaderboardEntry
 import com.fortune.vibramusic.data.quiz.QuizArtist
 import com.fortune.vibramusic.data.social.formatHandle
@@ -78,7 +78,8 @@ fun ArtistLeaderboardScreen(
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
-    val palette = rememberArtworkPalette(artist.artworkUrl)
+    val highResArtwork = artist.artworkUrl?.artworkAt(1080) ?: artist.artworkUrl
+    val palette = rememberArtworkPalette(highResArtwork)
     val artHeight = 320.dp
 
     var leaderboardEntries by remember { mutableStateOf<List<LeaderboardEntry>>(emptyList()) }
@@ -99,7 +100,7 @@ fun ArtistLeaderboardScreen(
             .clipToBounds()
             .hazeSource(hazeState),
     ) {
-        // 1. Page Background: Dynamic Artwork Wash + Hero Artist Image (Directly mirroring DetailScreen)
+        // 1. Page Background: Dynamic Artwork Wash + Hero Artist Image (Mirroring DetailScreen)
         Box(Modifier.matchParentSize()) {
             ArtworkWash(palette = palette, modifier = Modifier.matchParentSize())
 
@@ -108,9 +109,9 @@ fun ArtistLeaderboardScreen(
                     .fillMaxWidth()
                     .height(artHeight),
             ) {
-                if (artist.artworkUrl != null) {
+                if (highResArtwork != null) {
                     AsyncImage(
-                        model = artist.artworkUrl,
+                        model = highResArtwork,
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
@@ -149,17 +150,9 @@ fun ArtistLeaderboardScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = artHeight - 70.dp, start = 20.dp, end = 20.dp),
+                        .padding(top = artHeight - 40.dp, start = 20.dp, end = 20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    ArtistAvatar(
-                        artistName = artist.name,
-                        artworkUrl = artist.artworkUrl,
-                        size = 96.dp,
-                        modifier = Modifier
-                            .padding(bottom = 12.dp)
-                            .border(3.dp, Color.White.copy(alpha = 0.25f), CircleShape),
-                    )
 
                     Text(
                         text = artist.name,
@@ -290,25 +283,6 @@ fun ArtistLeaderboardScreen(
                 }
             }
         }
-
-        // Back Button floating top-left with frosted glass backing
-        IconButton(
-            onClick = onBack,
-            modifier = Modifier
-                .statusBarsPadding()
-                .padding(start = 16.dp, top = 8.dp)
-                .size(42.dp)
-                .clip(CircleShape)
-                .background(Color.Black.copy(alpha = 0.35f))
-                .border(1.dp, Color.White.copy(alpha = 0.15f), CircleShape),
-        ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                contentDescription = "Back",
-                tint = Color.White,
-                modifier = Modifier.size(20.dp),
-            )
-        }
     }
 }
 
@@ -374,12 +348,11 @@ private fun PodiumPillar(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        // Avatar with medal border
+        // Avatar
         Box(
             modifier = Modifier
                 .size(if (rank == 1) 58.dp else 48.dp)
                 .clip(CircleShape)
-                .border(2.5.dp, color, CircleShape)
                 .background(MaterialTheme.colorScheme.surfaceVariant),
             contentAlignment = Alignment.Center,
         ) {
@@ -419,21 +392,13 @@ private fun PodiumPillar(
 
         Spacer(Modifier.height(6.dp))
 
-        // Pedestal (Liquid Glass)
+        // Pedestal (Solid color, no gradient, no border)
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(height)
                 .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
-                .background(
-                    Brush.verticalGradient(
-                        listOf(
-                            color.copy(alpha = 0.35f),
-                            color.copy(alpha = 0.15f),
-                        ),
-                    ),
-                )
-                .border(1.dp, color.copy(alpha = 0.5f), RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)),
+                .background(color.copy(alpha = 0.22f)),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
@@ -464,8 +429,7 @@ private fun LeaderboardRow(
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(14.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
-            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(14.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
             .padding(horizontal = 14.dp, vertical = 10.dp),
     ) {
         Row(

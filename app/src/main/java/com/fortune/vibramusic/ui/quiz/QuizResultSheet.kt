@@ -2,7 +2,6 @@ package com.fortune.vibramusic.ui.quiz
 
 import android.content.Intent
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -110,24 +109,7 @@ fun QuizResultSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(20.dp))
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(
-                                MaterialTheme.colorScheme.primary.copy(alpha = 0.25f),
-                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                            ),
-                        ),
-                    )
-                    .border(
-                        1.dp,
-                        Brush.linearGradient(
-                            listOf(
-                                MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
-                                Color.White.copy(alpha = 0.1f),
-                            ),
-                        ),
-                        RoundedCornerShape(20.dp),
-                    )
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
                     .padding(20.dp),
             ) {
                 Column(
@@ -139,7 +121,6 @@ fun QuizResultSheet(
                         artistName = result.artistName,
                         artworkUrl = result.artistArtworkUrl,
                         size = 72.dp,
-                        modifier = Modifier.border(2.dp, MaterialTheme.colorScheme.primary, CircleShape),
                     )
 
                     Spacer(Modifier.height(10.dp))
@@ -205,8 +186,7 @@ fun QuizResultSheet(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(12.dp))
-                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
-                            .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
                             .padding(horizontal = 14.dp, vertical = 6.dp),
                     ) {
                         Text(

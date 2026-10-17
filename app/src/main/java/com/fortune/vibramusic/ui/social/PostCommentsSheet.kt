@@ -2,7 +2,6 @@ package com.fortune.vibramusic.ui.social
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -11,16 +10,14 @@ import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.ime
-import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -60,27 +57,20 @@ import coil3.compose.AsyncImage
 import com.fortune.vibramusic.data.social.PostComment
 import com.fortune.vibramusic.data.social.SocialPost
 
-// Solid opaque color definitions to satisfy the strict non-transparent requirement
-private val SolidSheetBackground = Color(0xFF141416)
-private val SolidInputBackground = Color(0xFF1E1E22)
-private val SolidInputBorder = Color(0xFF2E2E36)
-private val SolidReplyBannerBg = Color(0xFF1B1B20)
-private val SolidAvatarBackground = Color(0xFF282830)
-private val SolidDividerColor = Color(0xFF222228)
-private val SolidThreadLineColor = Color(0xFF2F2F38)
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PostCommentsSheet(
     post: SocialPost,
     comments: List<PostComment>,
     onDismiss: () -> Unit,
-    onAddComment: (content: String, parentId: String?) -> Unit,
+    onAddComment: (content: String, parentId: String?, gifUrl: String?) -> Unit,
     onToggleLikeComment: (PostComment) -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
     var commentText by remember { mutableStateOf("") }
     var replyingTo by remember { mutableStateOf<PostComment?>(null) }
+    var selectedGifUrl by remember { mutableStateOf<String?>(null) }
+    var showGifPicker by remember { mutableStateOf(false) }
 
     // Organize comments into root comments and replies grouped by parentId
     val repliesByParent = remember(comments) {
@@ -90,19 +80,26 @@ fun PostCommentsSheet(
         comments.filter { it.parentId == null }
     }
 
+    val surfaceColor = MaterialTheme.colorScheme.surface
+    val onSurfaceColor = MaterialTheme.colorScheme.onSurface
+    val onSurfaceVariantColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val dividerColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+    val inputBgColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+    val inputBorderColor = Color.White.copy(alpha = 0.12f)
+    val replyBannerBg = primaryColor.copy(alpha = 0.12f)
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = SolidSheetBackground,
+        containerColor = surfaceColor,
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
         dragHandle = null,
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.85f)
-                .background(SolidSheetBackground)
-                .windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime)),
+                .fillMaxHeight(0.85f),
         ) {
             // Header Bar
             Row(
@@ -116,12 +113,12 @@ fun PostCommentsSheet(
                     Text(
                         text = "Comments (${comments.size})",
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = Color.White,
+                        color = onSurfaceColor,
                     )
                     Text(
-                        text = "on @${post.authorHandle}'s post",
+                        text = "on ${post.authorHandle}'s post",
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color(0xFF9E9EA8),
+                        color = onSurfaceVariantColor,
                     )
                 }
 
@@ -129,12 +126,12 @@ fun PostCommentsSheet(
                     Icon(
                         imageVector = Icons.Rounded.Close,
                         contentDescription = "Close",
-                        tint = Color(0xFFB0B0BC),
+                        tint = onSurfaceVariantColor,
                     )
                 }
             }
 
-            HorizontalDivider(color = SolidDividerColor, thickness = 1.dp)
+            HorizontalDivider(color = dividerColor, thickness = 1.dp)
 
             // Threaded Comments List
             Box(
@@ -153,36 +150,32 @@ fun PostCommentsSheet(
                             Text(
                                 text = "No comments yet",
                                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
-                                color = Color.White,
+                                color = onSurfaceColor,
                             )
                             Spacer(Modifier.height(4.dp))
                             Text(
-                                text = "Be the first to share your thoughts or start a thread!",
+                                text = "Be the first to start the conversation",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = Color(0xFF8E8E98),
+                                color = onSurfaceVariantColor,
                             )
                         }
                     }
                 } else {
                     LazyColumn(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp),
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp),
                     ) {
-                        item { Spacer(Modifier.height(8.dp)) }
-
                         items(rootComments, key = { it.id }) { rootComment ->
-                            CommentThreadItem(
+                            val childReplies = repliesByParent[rootComment.id].orEmpty()
+                            ThreadedCommentItem(
                                 comment = rootComment,
-                                replies = repliesByParent[rootComment.id].orEmpty(),
+                                replies = childReplies,
                                 allRepliesByParent = repliesByParent,
                                 onReply = { replyingTo = it },
                                 onToggleLike = onToggleLikeComment,
                             )
                         }
-
-                        item { Spacer(Modifier.height(16.dp)) }
                     }
                 }
             }
@@ -193,7 +186,7 @@ fun PostCommentsSheet(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(SolidReplyBannerBg)
+                            .background(replyBannerBg)
                             .padding(horizontal = 18.dp, vertical = 9.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
@@ -202,14 +195,14 @@ fun PostCommentsSheet(
                             Icon(
                                 imageVector = Icons.Rounded.SubdirectoryArrowRight,
                                 contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
+                                tint = primaryColor,
                                 modifier = Modifier.size(16.dp),
                             )
                             Spacer(Modifier.width(8.dp))
                             Text(
-                                text = "Replying to @${replyTarget.authorHandle}",
+                                text = "Replying to ${replyTarget.authorHandle}",
                                 style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-                                color = MaterialTheme.colorScheme.primary,
+                                color = primaryColor,
                             )
                         }
 
@@ -220,7 +213,7 @@ fun PostCommentsSheet(
                             Icon(
                                 imageVector = Icons.Rounded.Close,
                                 contentDescription = "Cancel Reply",
-                                tint = Color(0xFFAAAAAF),
+                                tint = onSurfaceVariantColor,
                                 modifier = Modifier.size(16.dp),
                             )
                         }
@@ -228,40 +221,77 @@ fun PostCommentsSheet(
                 }
             }
 
-            HorizontalDivider(color = SolidDividerColor, thickness = 1.dp)
+            // Attached GIF Preview Banner
+            AnimatedVisibility(visible = selectedGifUrl != null) {
+                selectedGifUrl?.let { gif ->
+                    Box(
+                        modifier = Modifier
+                            .padding(horizontal = 16.dp, vertical = 6.dp)
+                            .size(width = 110.dp, height = 80.dp)
+                            .clip(RoundedCornerShape(12.dp)),
+                    ) {
+                        AsyncImage(
+                            model = gif,
+                            contentDescription = "Selected GIF",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(4.dp)
+                                .size(20.dp)
+                                .clip(CircleShape)
+                                .background(Color.Black.copy(alpha = 0.65f))
+                                .clickable { selectedGifUrl = null },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Close,
+                                contentDescription = "Remove GIF",
+                                tint = Color.White,
+                                modifier = Modifier.size(12.dp),
+                            )
+                        }
+                    }
+                }
+            }
 
-            // Solid Input Field
+            HorizontalDivider(color = dividerColor, thickness = 1.dp)
+
+            // Input Field Bar with Keyboard Padding
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(SolidSheetBackground)
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                    .background(surfaceColor)
+                    .navigationBarsPadding()
+                    .imePadding()
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(
                     modifier = Modifier
                         .weight(1f)
                         .clip(RoundedCornerShape(22.dp))
-                        .background(SolidInputBackground)
-                        .border(1.dp, SolidInputBorder, RoundedCornerShape(22.dp))
+                        .background(inputBgColor)
                         .padding(horizontal = 16.dp, vertical = 11.dp),
                 ) {
                     BasicTextField(
                         value = commentText,
                         onValueChange = { commentText = it },
                         textStyle = TextStyle(
-                            color = Color.White,
+                            color = onSurfaceColor,
                             fontSize = 14.sp,
                         ),
-                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                        cursorBrush = SolidColor(primaryColor),
                         modifier = Modifier.fillMaxWidth(),
                         maxLines = 4,
                         decorationBox = { innerTextField ->
-                            if (commentText.isEmpty()) {
+                            if (commentText.isEmpty() && selectedGifUrl == null) {
                                 Text(
-                                    text = if (replyingTo != null) "Reply to @${replyingTo?.authorHandle}..." else "Add a comment...",
+                                    text = if (replyingTo != null) "Reply to ${replyingTo?.authorHandle}..." else "Add a comment...",
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = Color(0xFF7A7A85),
+                                    color = onSurfaceVariantColor.copy(alpha = 0.65f),
                                 )
                             }
                             innerTextField()
@@ -269,35 +299,70 @@ fun PostCommentsSheet(
                     )
                 }
 
-                Spacer(Modifier.width(10.dp))
+                Spacer(Modifier.width(8.dp))
 
+                // GIF Picker Button
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (selectedGifUrl != null) primaryColor.copy(alpha = 0.25f)
+                            else inputBgColor
+                        )
+                        .clickable { showGifPicker = true },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = "GIF",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = if (selectedGifUrl != null) primaryColor else onSurfaceVariantColor,
+                        fontSize = 11.sp,
+                    )
+                }
+
+                Spacer(Modifier.width(8.dp))
+
+                // Send Button
+                val canSend = commentText.isNotBlank() || selectedGifUrl != null
                 IconButton(
                     onClick = {
                         val trimmed = commentText.trim()
-                        if (trimmed.isNotBlank()) {
-                            onAddComment(trimmed, replyingTo?.id)
+                        if (trimmed.isNotBlank() || selectedGifUrl != null) {
+                            onAddComment(trimmed, replyingTo?.id, selectedGifUrl)
                             commentText = ""
+                            selectedGifUrl = null
                             replyingTo = null
                         }
                     },
-                    enabled = commentText.isNotBlank(),
+                    enabled = canSend,
                     modifier = Modifier
-                        .size(42.dp)
+                        .size(40.dp)
                         .clip(CircleShape)
                         .background(
-                            if (commentText.isNotBlank()) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.primary.copy(alpha = 0.25f),
+                            if (canSend) primaryColor
+                            else primaryColor.copy(alpha = 0.25f),
                         ),
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Rounded.Send,
                         contentDescription = "Send",
-                        tint = if (commentText.isNotBlank()) MaterialTheme.colorScheme.onPrimary else Color(0xFF6B6B75),
+                        tint = if (canSend) MaterialTheme.colorScheme.onPrimary else onSurfaceVariantColor.copy(alpha = 0.5f),
                         modifier = Modifier.size(18.dp),
                     )
                 }
             }
         }
+    }
+
+    if (showGifPicker) {
+        GifPickerSheet(
+            onDismiss = { showGifPicker = false },
+            onSelectGif = { gif ->
+                selectedGifUrl = gif
+                showGifPicker = false
+            },
+        )
     }
 }
 
@@ -305,7 +370,7 @@ fun PostCommentsSheet(
  * Thread item containing a parent comment and its nested replies with connector lines.
  */
 @Composable
-private fun CommentThreadItem(
+private fun ThreadedCommentItem(
     comment: PostComment,
     replies: List<PostComment>,
     allRepliesByParent: Map<String, List<PostComment>>,
@@ -313,6 +378,8 @@ private fun CommentThreadItem(
     onToggleLike: (PostComment) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val threadLineColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+
     Column(modifier = modifier.fillMaxWidth()) {
         // Parent Comment Row
         SingleCommentRow(
@@ -339,7 +406,7 @@ private fun CommentThreadItem(
                             modifier = Modifier
                                 .width(2.dp)
                                 .fillMaxHeight()
-                                .background(SolidThreadLineColor),
+                                .background(threadLineColor),
                         )
 
                         Spacer(Modifier.width(14.dp))
@@ -385,7 +452,7 @@ private fun CommentThreadItem(
 }
 
 /**
- * Individual comment or reply bubble with solid high-contrast styling and like/reply actions.
+ * Individual comment or reply bubble with adaptive styling, GIF rendering, and like/reply actions.
  */
 @Composable
 private fun SingleCommentRow(
@@ -395,6 +462,11 @@ private fun SingleCommentRow(
     isReply: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
+    val onSurfaceColor = MaterialTheme.colorScheme.onSurface
+    val onSurfaceVariantColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val avatarBg = MaterialTheme.colorScheme.surfaceVariant
+
     Row(
         modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.Top,
@@ -404,8 +476,7 @@ private fun SingleCommentRow(
             modifier = Modifier
                 .size(if (isReply) 28.dp else 36.dp)
                 .clip(CircleShape)
-                .background(SolidAvatarBackground)
-                .border(1.dp, SolidInputBorder, CircleShape),
+                .background(avatarBg),
             contentAlignment = Alignment.Center,
         ) {
             if (comment.authorAvatar != null) {
@@ -413,13 +484,13 @@ private fun SingleCommentRow(
                     model = comment.authorAvatar,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxSize(),
                 )
             } else {
                 Icon(
                     imageVector = Icons.Rounded.Person,
                     contentDescription = null,
-                    tint = Color(0xFFA0A0AA),
+                    tint = onSurfaceVariantColor,
                     modifier = Modifier.size(if (isReply) 16.dp else 20.dp),
                 )
             }
@@ -438,24 +509,40 @@ private fun SingleCommentRow(
                     text = comment.authorName,
                     style = (if (isReply) MaterialTheme.typography.bodySmall else MaterialTheme.typography.labelMedium)
                         .copy(fontWeight = FontWeight.Bold),
-                    color = Color.White,
+                    color = onSurfaceColor,
                 )
                 Text(
-                    text = "@${comment.authorHandle}",
+                    text = comment.authorHandle,
                     style = MaterialTheme.typography.labelSmall,
-                    color = Color(0xFF8E8E98),
+                    color = onSurfaceVariantColor,
                 )
             }
 
             Spacer(Modifier.height(3.dp))
 
             // Text
-            Text(
-                text = comment.content,
-                style = MaterialTheme.typography.bodyMedium,
-                color = Color(0xFFEDEDF0),
-                lineHeight = 20.sp,
-            )
+            if (comment.content.isNotBlank()) {
+                Text(
+                    text = comment.content,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = onSurfaceColor.copy(alpha = 0.92f),
+                    lineHeight = 20.sp,
+                )
+            }
+
+            // GIF attachment if present
+            if (!comment.gifUrl.isNullOrBlank()) {
+                Spacer(Modifier.height(6.dp))
+                AsyncImage(
+                    model = comment.gifUrl,
+                    contentDescription = "Comment GIF",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxWidth(0.85f)
+                        .height(160.dp)
+                        .clip(RoundedCornerShape(12.dp)),
+                )
+            }
 
             Spacer(Modifier.height(6.dp))
 
@@ -468,7 +555,7 @@ private fun SingleCommentRow(
                 Text(
                     text = "Reply",
                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                    color = MaterialTheme.colorScheme.primary,
+                    color = primaryColor,
                     modifier = Modifier
                         .clip(RoundedCornerShape(4.dp))
                         .clickable(onClick = onReply)
@@ -486,7 +573,7 @@ private fun SingleCommentRow(
                     Icon(
                         imageVector = if (comment.isLikedByMe) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
                         contentDescription = "Like Comment",
-                        tint = if (comment.isLikedByMe) Color(0xFFE53935) else Color(0xFF8E8E98),
+                        tint = if (comment.isLikedByMe) Color(0xFFE53935) else onSurfaceVariantColor,
                         modifier = Modifier.size(14.dp),
                     )
                     if (comment.likesCount > 0) {
@@ -494,7 +581,7 @@ private fun SingleCommentRow(
                         Text(
                             text = comment.likesCount.toString(),
                             style = MaterialTheme.typography.labelSmall,
-                            color = if (comment.isLikedByMe) Color(0xFFE53935) else Color(0xFF8E8E98),
+                            color = if (comment.isLikedByMe) Color(0xFFE53935) else onSurfaceVariantColor,
                         )
                     }
                 }

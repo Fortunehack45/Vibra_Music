@@ -94,6 +94,7 @@ fun CreatePostSheet(
         content: String,
         imageUrls: List<String>,
         videoUrl: String?,
+        gifUrl: String?,
         track: MusicTrackAttachment?,
         poll: PollData?,
         quoteOfId: String?,
@@ -106,6 +107,8 @@ fun CreatePostSheet(
     var textContent by remember { mutableStateOf("") }
     val selectedImageUris = remember { mutableStateListOf<Uri>() }
     var selectedVideoUri by remember { mutableStateOf<Uri?>(null) }
+    var selectedGifUrl by remember { mutableStateOf<String?>(null) }
+    var showGifPicker by remember { mutableStateOf(false) }
     var attachedTrack by remember {
         mutableStateOf(
             currentlyPlayingSong?.let {
@@ -264,6 +267,7 @@ fun CreatePostSheet(
                                 textContent.trim(),
                                 uploadedUrls,
                                 uploadedVideoUrl,
+                                selectedGifUrl,
                                 attachedTrack,
                                 finalPoll,
                                 quotedPost?.id,
@@ -271,7 +275,7 @@ fun CreatePostSheet(
                         }
                     },
                     enabled = !isPosting && !isUploadingMedia && (
-                        textContent.isNotBlank() || selectedImageUris.isNotEmpty() || selectedVideoUri != null || attachedTrack != null || showPollBuilder || quotedPost != null
+                        textContent.isNotBlank() || selectedImageUris.isNotEmpty() || selectedVideoUri != null || selectedGifUrl != null || attachedTrack != null || showPollBuilder || quotedPost != null
                     ),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.elevatedButtonColors(
@@ -303,8 +307,7 @@ fun CreatePostSheet(
                     .fillMaxWidth()
                     .height(115.dp)
                     .clip(RoundedCornerShape(16.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                    .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(16.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
                     .padding(14.dp),
             ) {
                 BasicTextField(
@@ -337,8 +340,7 @@ fun CreatePostSheet(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(16.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                        .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
                         .padding(12.dp),
                 ) {
                     Column {
@@ -423,8 +425,7 @@ fun CreatePostSheet(
                         Box(
                             modifier = Modifier
                                 .size(90.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(12.dp)),
+                                .clip(RoundedCornerShape(12.dp)),
                         ) {
                             AsyncImage(
                                 model = uri,
@@ -456,6 +457,43 @@ fun CreatePostSheet(
                 }
             }
 
+            // GIF Selection Preview
+            if (selectedGifUrl != null) {
+                Spacer(Modifier.height(12.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(180.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)),
+                ) {
+                    AsyncImage(
+                        model = selectedGifUrl,
+                        contentDescription = "Selected GIF",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                    // Remove button
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(8.dp)
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(Color.Black.copy(alpha = 0.7f))
+                            .clickable { selectedGifUrl = null },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Close,
+                            contentDescription = "Remove GIF",
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp),
+                        )
+                    }
+                }
+            }
+
             // Video Selection Indicator Preview
             if (selectedVideoUri != null) {
                 Spacer(Modifier.height(12.dp))
@@ -463,8 +501,7 @@ fun CreatePostSheet(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(14.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                        .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
                         .padding(12.dp),
                 ) {
                     Row(
@@ -519,14 +556,13 @@ fun CreatePostSheet(
 
             Spacer(Modifier.height(12.dp))
 
-            // Attached Track Preview Card (Liquid Glass with Switch/Remove options)
+            // Attached Track Preview Card (Solid with Switch/Remove options)
             attachedTrack?.let { track ->
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(14.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                        .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
                         .padding(10.dp),
                 ) {
                     Row(
@@ -605,8 +641,7 @@ fun CreatePostSheet(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(16.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                        .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
                         .padding(14.dp),
                 ) {
                     Row(
@@ -743,8 +778,7 @@ fun CreatePostSheet(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(16.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
-                        .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(16.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
                         .padding(14.dp),
                 ) {
                     Row(
@@ -866,7 +900,7 @@ fun CreatePostSheet(
                 Spacer(Modifier.height(12.dp))
             }
 
-            // Bottom Toolbar Controls (Multi-Image, Change Track, Poll)
+            // Bottom Toolbar Controls (Multi-Image, GIF, Video, Change Track, Poll)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -879,8 +913,7 @@ fun CreatePostSheet(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
                         .clip(RoundedCornerShape(20.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
-                        .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(20.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
                         .clickable {
                             photoPickerLauncher.launch(
                                 PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
@@ -902,20 +935,33 @@ fun CreatePostSheet(
                     )
                 }
 
+                // Add GIF Button
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(
+                            if (selectedGifUrl != null) MaterialTheme.colorScheme.primary.copy(alpha = 0.20f)
+                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+                        )
+                        .clickable { showGifPicker = true }
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                ) {
+                    Text(
+                        text = "GIF",
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.ExtraBold),
+                        color = if (selectedGifUrl != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+
                 // Add Video Button
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
                         .clip(RoundedCornerShape(20.dp))
                         .background(
-                            if (selectedVideoUri != null) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                        )
-                        .border(
-                            1.dp,
-                            if (selectedVideoUri != null) MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
-                            else Color.White.copy(alpha = 0.08f),
-                            RoundedCornerShape(20.dp)
+                            if (selectedVideoUri != null) MaterialTheme.colorScheme.primary.copy(alpha = 0.20f)
+                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
                         )
                         .clickable {
                             videoPickerLauncher.launch(
@@ -944,14 +990,8 @@ fun CreatePostSheet(
                     modifier = Modifier
                         .clip(RoundedCornerShape(20.dp))
                         .background(
-                            if (attachedTrack != null) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                        )
-                        .border(
-                            1.dp,
-                            if (attachedTrack != null) MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
-                            else Color.White.copy(alpha = 0.08f),
-                            RoundedCornerShape(20.dp)
+                            if (attachedTrack != null) MaterialTheme.colorScheme.primary.copy(alpha = 0.20f)
+                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
                         )
                         .clickable { showMusicSearch = !showMusicSearch }
                         .padding(horizontal = 12.dp, vertical = 8.dp),
@@ -976,8 +1016,7 @@ fun CreatePostSheet(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
                             .clip(RoundedCornerShape(20.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
-                            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(20.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
                             .clickable { showPollBuilder = true }
                             .padding(horizontal = 12.dp, vertical = 8.dp),
                     ) {
@@ -997,5 +1036,15 @@ fun CreatePostSheet(
                 }
             }
         }
+    }
+
+    if (showGifPicker) {
+        GifPickerSheet(
+            onDismiss = { showGifPicker = false },
+            onSelectGif = { gifUrl ->
+                selectedGifUrl = gifUrl
+                showGifPicker = false
+            },
+        )
     }
 }

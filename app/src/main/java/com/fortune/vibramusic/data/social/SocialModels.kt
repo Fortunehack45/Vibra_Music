@@ -129,6 +129,7 @@ data class SocialPost(
     val imageUrl: String? = null,
     val imageUrls: List<String> = emptyList(),
     val videoUrl: String? = null,
+    val gifUrl: String? = null,
     val musicTrack: MusicTrackAttachment? = null,
     val pollData: PollData? = null,
     val quizResult: QuizResultAttachment? = null,
@@ -162,6 +163,7 @@ data class PostComment(
     val author: SocialProfile? = null,
     val parentId: String? = null,
     val content: String,
+    val gifUrl: String? = null,
     val likesCount: Int = 0,
     val isLikedByMe: Boolean = false,
     val createdAt: String = "",
@@ -180,6 +182,10 @@ data class DirectMessage(
     val senderId: String,
     val receiverId: String,
     val content: String,
+    val imageUrl: String? = null,
+    val videoUrl: String? = null,
+    val audioUrl: String? = null,
+    val gifUrl: String? = null,
     val sharedMusic: MusicTrackAttachment? = null,
     val sharedPlaylist: SharedPlaylistAttachment? = null,
     val isRead: Boolean = false,
@@ -189,6 +195,34 @@ data class DirectMessage(
     val trackAttachment: MusicTrackAttachment? get() = sharedMusic
     val playlistAttachment: SharedPlaylistAttachment? get() = sharedPlaylist
 }
+
+/**
+ * Social notifications for likes, comments, follows, friend requests, and quizzes.
+ */
+@Serializable
+enum class NotificationType {
+    LIKE,
+    COMMENT,
+    REPLY,
+    FOLLOW,
+    FRIEND_REQUEST,
+    QUIZ_CHALLENGE,
+}
+
+@Serializable
+data class SocialNotification(
+    val id: String,
+    val userId: String,
+    val actorId: String,
+    val actorName: String,
+    val actorAvatar: String? = null,
+    val actorHandle: String = "",
+    val type: NotificationType,
+    val targetPostId: String? = null,
+    val message: String = "",
+    val isRead: Boolean = false,
+    val createdAt: String = "",
+)
 
 /**
  * Friendship relationship state.

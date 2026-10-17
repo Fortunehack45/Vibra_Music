@@ -7,7 +7,6 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
@@ -114,7 +113,6 @@ fun PostVideoPlayer(
         modifier = modifier
             .clip(RoundedCornerShape(16.dp))
             .background(Color.Black)
-            .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(16.dp))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -161,8 +159,7 @@ fun PostVideoPlayer(
                 modifier = Modifier
                     .size(52.dp)
                     .clip(CircleShape)
-                    .background(Color.Black.copy(alpha = 0.65f))
-                    .border(1.dp, Color.White.copy(alpha = 0.2f), CircleShape),
+                    .background(Color.Black.copy(alpha = 0.65f)),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
@@ -182,7 +179,6 @@ fun PostVideoPlayer(
                 .size(34.dp)
                 .clip(CircleShape)
                 .background(Color.Black.copy(alpha = 0.65f))
-                .border(1.dp, Color.White.copy(alpha = 0.15f), CircleShape)
                 .clickable {
                     isMuted = !isMuted
                     exoPlayer.volume = if (isMuted) 0f else 1f

@@ -13,7 +13,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -130,8 +129,7 @@ fun ActiveQuizScreen(
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(14.dp))
-                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                                    .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(14.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
                                     .padding(horizontal = 14.dp, vertical = 6.dp),
                             ) {
                                 Text(
@@ -146,8 +144,7 @@ fun ActiveQuizScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(14.dp))
-                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
-                                    .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
+                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.18f))
                                     .padding(horizontal = 10.dp, vertical = 6.dp),
                             ) {
                                 Icon(
@@ -256,16 +253,7 @@ private fun CountdownPhase(countdownNumber: Int) {
                 .size(160.dp)
                 .scale(scale)
                 .clip(CircleShape)
-                .background(
-                    Brush.sweepGradient(
-                        listOf(
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
-                            MaterialTheme.colorScheme.secondary.copy(alpha = 0.6f),
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
-                        ),
-                    ),
-                )
-                .border(2.dp, Color.White.copy(alpha = 0.2f), CircleShape),
+                .background(MaterialTheme.colorScheme.primary),
             contentAlignment = Alignment.Center,
         ) {
             Text(
@@ -302,7 +290,6 @@ private fun MysteryVinylPlayer(
             .size(170.dp)
             .clip(CircleShape)
             .background(Color(0xFF141416))
-            .border(4.dp, Color.White.copy(alpha = 0.12f), CircleShape)
             .rotate(if (isPlaying) rotation else 0f),
         contentAlignment = Alignment.Center,
     ) {
@@ -311,7 +298,7 @@ private fun MysteryVinylPlayer(
             modifier = Modifier
                 .size(130.dp)
                 .clip(CircleShape)
-                .border(1.dp, Color.White.copy(alpha = 0.08f), CircleShape),
+                .background(Color.White.copy(alpha = 0.05f)),
         )
 
         // Center Album Art
@@ -319,7 +306,6 @@ private fun MysteryVinylPlayer(
             artistName = artistName,
             artworkUrl = artistArtworkUrl,
             size = 76.dp,
-            modifier = Modifier.border(2.dp, MaterialTheme.colorScheme.primary, CircleShape),
         )
     }
 }
@@ -337,21 +323,12 @@ private fun QuizOptionCard(
 
     val backgroundColor by animateColorAsState(
         targetValue = when {
-            isAnswered && isCorrect -> Color(0xFF10B981).copy(alpha = 0.25f) // Emerald green
-            isAnswered && isSelected && !isCorrect -> Color(0xFFEF4444).copy(alpha = 0.25f) // Crimson red
-            else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+            isAnswered && isCorrect -> Color(0xFF10B981).copy(alpha = 0.35f) // Emerald green
+            isAnswered && isSelected && !isCorrect -> Color(0xFFEF4444).copy(alpha = 0.35f) // Crimson red
+            isSelected -> MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
+            else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
         },
         label = "optionBg",
-    )
-
-    val borderColor by animateColorAsState(
-        targetValue = when {
-            isAnswered && isCorrect -> Color(0xFF10B981)
-            isAnswered && isSelected && !isCorrect -> Color(0xFFEF4444)
-            isSelected -> MaterialTheme.colorScheme.primary
-            else -> Color.White.copy(alpha = 0.08f)
-        },
-        label = "optionBorder",
     )
 
     Box(
@@ -359,7 +336,6 @@ private fun QuizOptionCard(
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
             .background(backgroundColor)
-            .border(1.5.dp, borderColor, RoundedCornerShape(16.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 14.dp),
     ) {

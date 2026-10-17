@@ -9,11 +9,15 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -58,6 +62,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.max
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
@@ -127,7 +132,12 @@ fun UserProfileScreen(
     Box(
         modifier = modifier.fillMaxSize(),
     ) {
-        val topPadding = if (onBack != null && !isSelf) 0.dp else (contentPadding.calculateTopPadding() + 8.dp)
+        val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+        val topPadding = if (onBack != null) {
+            0.dp
+        } else {
+            max(contentPadding.calculateTopPadding(), statusBarTop + 64.dp)
+        }
 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -137,20 +147,20 @@ fun UserProfileScreen(
             ),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            // Header Bar (Back button only if viewing another user's profile)
-            if (onBack != null && !isSelf) {
+            // Header Bar (Back button when viewing another user's profile or subprofile)
+            if (onBack != null) {
                 item(key = "back_nav") {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .statusBarsPadding()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                            .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         IconButton(
                             onClick = onBack,
                             modifier = Modifier
-                                .size(38.dp)
+                                .size(40.dp)
                                 .clip(CircleShape)
                                 .background(MaterialTheme.colorScheme.surfaceVariant),
                         ) {
@@ -162,7 +172,7 @@ fun UserProfileScreen(
                             )
                         }
                         Spacer(Modifier.width(12.dp))
-                        Column {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = activeProfile.displayName,
                                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
@@ -274,10 +284,11 @@ fun UserProfileScreen(
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(80.dp)
-                                    .background(MaterialTheme.colorScheme.surface)
+                                    .padding(horizontal = 12.dp, vertical = 10.dp)
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.6f))
                                     .clickable { showEditProfile = true }
-                                    .padding(horizontal = 16.dp),
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Row(
@@ -291,7 +302,7 @@ fun UserProfileScreen(
                                         modifier = Modifier.size(20.dp),
                                     )
                                     Text(
-                                        text = "Tap to add up to 15 playlist covers to banner",
+                                        text = "Add up to 15 playlist covers to your banner",
                                         style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )

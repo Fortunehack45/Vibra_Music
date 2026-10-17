@@ -3018,10 +3018,7 @@ private fun VibraMusicApp(
                                 onOpenPlaylist = { id, title, coverUrl ->
                                     viewModel.openDetail(id, title, "Playlist", coverUrl, BrowseType.PLAYLIST)
                                 },
-                                contentPadding = PaddingValues(
-                                    top = 0.dp,
-                                    bottom = listPadding.calculateBottomPadding(),
-                                ),
+                                contentPadding = listPadding,
                                 hazeState = hazeState,
                             )
                         }
@@ -3731,54 +3728,25 @@ private fun VibraMusicApp(
                     }
                 }
 
-                if (currentRealm == AppRealm.SOCIAL) {
-                    Column(
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .widthIn(max = FLOATING_BAR_MAX_WIDTH)
-                            .fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        OfflinePromptBanner(
-                            isOnline = isOnline,
-                            hasDownloads = savedDownloads.isNotEmpty() && detail?.browseId != "local:downloads",
-                            onOpenDownloads = { viewModel.openDetail("local:downloads", context.getString(R.string.downloads)) },
-                        )
-                        QueueActionNoticeHost(queueNotice)
-                        player.song?.let { song ->
-                            MiniPlayer(
-                                song = song,
-                                isPlaying = player.isPlaying,
-                                isLoading = playPauseBusy,
-                                hazeState = hazeState,
-                                onPlayPause = {
-                                    togglePlayPause()
-                                },
-                                onNext = { controller?.seekToNextMediaItem() },
-                                onPrevious = { controller?.seekToPrevious() },
-                                onExpand = { showNowPlaying = true },
-                                controlsLocked = controlsLocked,
-                                onBlockedControl = showHostOnlyNotice,
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                            Spacer(Modifier.height(8.dp))
+                val activeNavBarTabs = if (currentRealm == AppRealm.MUSIC) tabs else socialTabs
+                val activeNavBarIndex = if (currentRealm == AppRealm.MUSIC) selectedTab else socialNavTab.ordinal
+                val activeOnTabSelected: (Int) -> Unit = if (currentRealm == AppRealm.MUSIC) {
+                    onTabSelected
+                } else {
+                    { index ->
+                        viewingSocialProfile = null
+                        activeLeaderboardArtist = null
+                        socialViewModel.closeUserProfile()
+                        socialViewModel.closeChat()
+                        if (detail != null) {
+                            viewModel.closeDetail()
                         }
-                        SocialBottomBar(
-                            selectedTab = socialNavTab,
-                            onTabSelected = { tab ->
-                                viewingSocialProfile = null
-                                activeLeaderboardArtist = null
-                                socialViewModel.closeUserProfile()
-                                socialViewModel.closeChat()
-                                if (detail != null) {
-                                    viewModel.closeDetail()
-                                }
-                                socialViewModel.setNavTab(tab)
-                            },
-                            hazeState = hazeState,
-                        )
+                        val tab = SocialTab.entries.getOrNull(index) ?: SocialTab.FEED
+                        socialViewModel.setNavTab(tab)
                     }
-                } else if (glassActive) {
+                }
+
+                if (glassActive) {
                     Column(
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
@@ -3792,9 +3760,9 @@ private fun VibraMusicApp(
                         )
                         QueueActionNoticeHost(queueNotice)
                         GlassNavBar(
-                            tabs = tabs,
-                            selectedIndex = selectedTab,
-                            onTabSelected = onTabSelected,
+                            tabs = activeNavBarTabs,
+                            selectedIndex = activeNavBarIndex,
+                            onTabSelected = activeOnTabSelected,
                             scrollConnection = navBarScroll,
                             song = player.song,
                             isPlaying = player.isPlaying,
@@ -3842,12 +3810,29 @@ private fun VibraMusicApp(
                             )
                             Spacer(Modifier.height(8.dp))
                         }
-                        FloatingBottomBar(
-                            tabs = tabs,
-                            selectedIndex = selectedTab,
-                            hazeState = hazeState,
-                            onTabSelected = onTabSelected,
-                        )
+                        if (currentRealm == AppRealm.SOCIAL) {
+                            SocialBottomBar(
+                                selectedTab = socialNavTab,
+                                onTabSelected = { tab ->
+                                    viewingSocialProfile = null
+                                    activeLeaderboardArtist = null
+                                    socialViewModel.closeUserProfile()
+                                    socialViewModel.closeChat()
+                                    if (detail != null) {
+                                        viewModel.closeDetail()
+                                    }
+                                    socialViewModel.setNavTab(tab)
+                                },
+                                hazeState = hazeState,
+                            )
+                        } else {
+                            FloatingBottomBar(
+                                tabs = tabs,
+                                selectedIndex = selectedTab,
+                                hazeState = hazeState,
+                                onTabSelected = onTabSelected,
+                            )
+                        }
                     }
                 }
                 }

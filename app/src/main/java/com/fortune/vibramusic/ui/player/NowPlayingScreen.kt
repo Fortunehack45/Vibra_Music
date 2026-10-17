@@ -261,7 +261,7 @@ private const val QUEUE_FLICK_VELOCITY = 450f
  * theirs on as well, which is what makes the whole top of the player closable
  * rather than just its topmost 32dp. See the dismiss band in `NowPlayingScreen`.
  */
-private val DISMISS_STRIP_HEIGHT = 32.dp
+private val DISMISS_STRIP_HEIGHT = 42.dp
 /** The breathing room above the sleeve, needed twice: once to apply, once to measure past. */
 private val ART_BOX_TOP_PAD = 8.dp
 /**
@@ -1910,6 +1910,9 @@ fun NowPlayingScreen(
                 DisposableEffect(art.request) {
                     onDispose { heroArtLoaded = false }
                 }
+                LaunchedEffect(art.loaded) {
+                    if (art.loaded) heroArtLoaded = true
+                }
                 AsyncImage(
                     // Decoded at the same size the sleeve asks for, so the two
                     // share one entry in Coil's cache and one bitmap: the pair
@@ -2203,7 +2206,7 @@ fun NowPlayingScreen(
                             IntOffset(
                                 x = 0,
                                 y = lerp(
-                                    6.dp,
+                                    8.dp,
                                     (topStrip - 5.dp).coerceAtLeast(0.dp) / 2,
                                     p(),
                                 ).roundToPx(),
@@ -2225,7 +2228,7 @@ fun NowPlayingScreen(
                         text = playbackOriginText(song, playedBy),
                         onClick = openPlaybackOrigin,
                         textAlign = TextAlign.Center,
-                        contentPadding = PaddingValues(start = PLAYER_GUTTER, end = PLAYER_GUTTER, bottom = 1.dp),
+                        contentPadding = PaddingValues(start = PLAYER_GUTTER, end = PLAYER_GUTTER, bottom = 4.dp),
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
                             .graphicsLayer { alpha = (1f - p()) * spotifyChromeAlpha },
@@ -2591,8 +2594,9 @@ fun NowPlayingScreen(
                             // bleed artwork is off, including its Canvas.
                             .hazeSource(playerHaze)
                             .graphicsLayer {
-                                alpha = if (heroArtLoaded || canvasRendered) {
-                                    1f - heroVisible()
+                                val heroReady = heroArtLoaded || canvasRendered || (heroMode && art.loaded)
+                                alpha = if (heroReady) {
+                                    (1f - heroVisible()).coerceIn(0f, 1f)
                                 } else {
                                     1f
                                 }

@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.download
+package com.fortune.vibramusic.download
 
 import android.content.ContentValues
 import android.content.Context
@@ -249,6 +249,22 @@ object DownloadStore {
                 null,
                 null,
             )
+            runCatching {
+                context.contentResolver.query(
+                    uri,
+                    arrayOf(MediaStore.MediaColumns.DATA),
+                    null,
+                    null,
+                    null
+                )?.use { cursor ->
+                    if (cursor.moveToFirst()) {
+                        val path = cursor.getString(0)
+                        if (!path.isNullOrBlank()) {
+                            MediaScannerConnection.scanFile(context, arrayOf(path), null, null)
+                        }
+                    }
+                }
+            }
             return uri
         }
 

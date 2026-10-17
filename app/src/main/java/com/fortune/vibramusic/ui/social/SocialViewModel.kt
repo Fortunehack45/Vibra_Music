@@ -34,6 +34,7 @@ enum class FeedTab {
 class SocialViewModel(application: Application) : AndroidViewModel(application) {
 
     private val authStore = AuthStore(application)
+    private val cacheStore = com.fortune.vibramusic.data.social.SocialCacheStore(application)
 
     private val _currentProfile = MutableStateFlow<SocialProfile?>(null)
     val currentProfile: StateFlow<SocialProfile?> = _currentProfile.asStateFlow()
@@ -93,6 +94,13 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
     val isNotificationsOpen: StateFlow<Boolean> = _isNotificationsOpen.asStateFlow()
 
     init {
+        viewModelScope.launch {
+            val cached = cacheStore.loadPosts()
+            if (cached.isNotEmpty()) {
+                forYouPostsCache = cached
+                _posts.value = cached
+            }
+        }
         initUserProfile()
         loadFeed()
     }
@@ -227,6 +235,7 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
                         friendsPostsCache = merged
                     }
                     _posts.value = merged
+                    cacheStore.savePosts(merged)
                 }
                 .onFailure { e ->
                     Log.w("SocialViewModel", "Failed to load posts: ${e.message}")
@@ -252,6 +261,7 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
                         friendsPostsCache = merged
                     }
                     _posts.value = merged
+                    cacheStore.savePosts(merged)
                 }
             _isRefreshing.value = false
         }
@@ -262,6 +272,10 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
         imageUrls: List<String> = emptyList(),
         videoUrl: String? = null,
         gifUrl: String? = null,
+        audioUrl: String? = null,
+        isReview: Boolean = false,
+        rating: Int = 0,
+        taggedArtist: String? = null,
         musicAttachment: MusicTrackAttachment? = null,
         poll: PollData? = null,
         quoteOfId: String? = null,
@@ -270,21 +284,51 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
         val user = _currentProfile.value ?: return
         viewModelScope.launch {
             _isCreatingPost.value = true
+            val optimisticPost = SocialPost(
+                id = java.util.UUID.randomUUID().toString(),
+                authorId = user.id,
+                author = user,
+                content = content,
+                imageUrl = imageUrls.firstOrNull() ?: gifUrl,
+                imageUrls = if (gifUrl != null) listOf(gifUrl) + imageUrls else imageUrls,
+                videoUrl = videoUrl,
+                gifUrl = gifUrl,
+                audioUrl = audioUrl,
+                isReview = isReview,
+                rating = rating,
+                taggedArtist = taggedArtist,
+                musicTrack = musicAttachment,
+                pollData = poll,
+                quoteOfId = quoteOfId,
+                quoteOf = _quotingPost.value,
+                createdAt = "Just now",
+            )
+            val updatedFeed = listOf(optimisticPost) + _posts.value
+            _posts.value = updatedFeed
+            forYouPostsCache = listOf(optimisticPost) + forYouPostsCache
+            if (_viewingProfile.value?.id == user.id || _currentProfile.value?.id == user.id) {
+                _viewingProfilePosts.value = listOf(optimisticPost) + _viewingProfilePosts.value
+            }
+            cacheStore.savePosts(updatedFeed)
+
             SupabaseService.createPost(
                 author = user,
                 content = content,
                 imageUrls = imageUrls,
                 videoUrl = videoUrl,
                 gifUrl = gifUrl,
+                audioUrl = audioUrl,
+                isReview = isReview,
+                rating = rating,
+                taggedArtist = taggedArtist,
                 musicAttachment = musicAttachment,
                 poll = poll,
                 quoteOfId = quoteOfId,
             ).onSuccess { newPost ->
-                _posts.value = listOf(newPost) + _posts.value
-                forYouPostsCache = listOf(newPost) + forYouPostsCache
-                if (_viewingProfile.value?.id == user.id || _currentProfile.value?.id == user.id) {
-                    _viewingProfilePosts.value = listOf(newPost) + _viewingProfilePosts.value
-                }
+                val finalFeed = _posts.value.map { if (it.id == optimisticPost.id) newPost.copy(quoteOf = optimisticPost.quoteOf) else it }
+                _posts.value = finalFeed
+                forYouPostsCache = finalFeed
+                cacheStore.savePosts(finalFeed)
                 _isCreatingPost.value = false
                 _quotingPost.value = null
                 onSuccess()
@@ -328,23 +372,29 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun repost(post: SocialPost) {
-        val user = _currentProfile.value ?: return
-        val newRepostCount = post.repostsCount + 1
+    fun repost(post: SocialPost) = toggleRepost(post)
 
-        // Optimistic update
+    fun toggleRepost(post: SocialPost) {
+        val user = _currentProfile.value ?: return
+        val currentlyReposted = post.isRepostedByMe
+        val newRepostCount = if (currentlyReposted) (post.repostsCount - 1).coerceAtLeast(0) else post.repostsCount + 1
+
+        // Single repost rule: toggle between reposted and not reposted
         _posts.value = _posts.value.map {
-            if (it.id == post.id) it.copy(repostsCount = newRepostCount) else it
+            if (it.id == post.id) it.copy(isRepostedByMe = !currentlyReposted, repostsCount = newRepostCount) else it
         }
 
         viewModelScope.launch {
-            SupabaseService.repost(postId = post.id, user = user)
-                .onSuccess { newPost ->
-                    _posts.value = listOf(newPost) + _posts.value
+            SupabaseService.toggleRepost(postId = post.id, user = user, currentlyReposted = currentlyReposted)
+                .onSuccess { isNowReposted ->
+                    _posts.value = _posts.value.map {
+                        if (it.id == post.id) it.copy(isRepostedByMe = isNowReposted) else it
+                    }
+                    cacheStore.savePosts(_posts.value)
                 }
                 .onFailure {
                     _posts.value = _posts.value.map {
-                        if (it.id == post.id) it.copy(repostsCount = post.repostsCount) else it
+                        if (it.id == post.id) it.copy(isRepostedByMe = currentlyReposted, repostsCount = post.repostsCount) else it
                     }
                 }
         }
@@ -376,12 +426,18 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
 
     fun openComments(post: SocialPost) {
         _selectedPostForComments.value = post
-        _comments.value = emptyList()
-        val userId = _currentProfile.value?.id
         viewModelScope.launch {
+            val cachedComments = cacheStore.loadComments(post.id)
+            if (cachedComments.isNotEmpty()) {
+                _comments.value = cachedComments
+            } else {
+                _comments.value = emptyList()
+            }
+            val userId = _currentProfile.value?.id
             SupabaseService.fetchComments(post.id, currentUserId = userId)
                 .onSuccess { list ->
                     _comments.value = list
+                    cacheStore.saveComments(post.id, list)
                 }
         }
     }
@@ -466,7 +522,23 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
         val user = _currentProfile.value ?: return
         if (content.isBlank() && gifUrl.isNullOrBlank()) return
 
+        val optimisticComment = PostComment(
+            id = java.util.UUID.randomUUID().toString(),
+            postId = postId,
+            authorId = user.id,
+            author = user,
+            parentId = parentCommentId,
+            content = content,
+            gifUrl = gifUrl,
+        )
+        val updatedComments = _comments.value + optimisticComment
+        _comments.value = updatedComments
+        _posts.value = _posts.value.map {
+            if (it.id == postId) it.copy(commentsCount = it.commentsCount + 1) else it
+        }
+
         viewModelScope.launch {
+            cacheStore.saveComments(postId, updatedComments)
             SupabaseService.addComment(
                 postId = postId,
                 user = user,
@@ -474,11 +546,9 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
                 parentCommentId = parentCommentId,
                 gifUrl = gifUrl,
             ).onSuccess { newComment ->
-                _comments.value = _comments.value + newComment
-                // Update comment count on post
-                _posts.value = _posts.value.map {
-                    if (it.id == postId) it.copy(commentsCount = it.commentsCount + 1) else it
-                }
+                val reconciled = _comments.value.map { if (it.id == optimisticComment.id) newComment else it }
+                _comments.value = reconciled
+                cacheStore.saveComments(postId, reconciled)
             }
         }
     }

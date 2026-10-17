@@ -2969,6 +2969,12 @@ private fun VibraMusicApp(
                                     activeLeaderboardArtist = null
                                     quizViewModel.startQuizForArtist(artist, onInsufficientLives = { quizShowLivesDialog = true })
                                 },
+                                onOpenArtistDetail = { id, name, artworkUrl ->
+                                    viewModel.openDetail(id, name, "Artist", artworkUrl, BrowseType.ARTIST)
+                                },
+                                onPlaySong = { song ->
+                                    playRadio(song, QueueSource(artist.name, PlaybackSourceType.SEARCH))
+                                },
                                 contentPadding = listPadding,
                                 hazeState = hazeState,
                             )

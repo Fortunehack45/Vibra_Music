@@ -69,7 +69,7 @@ fun QuizResultSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
+        containerColor = MaterialTheme.colorScheme.surface,
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
         dragHandle = null,
     ) {
@@ -104,12 +104,12 @@ fun QuizResultSheet(
 
             Spacer(Modifier.height(14.dp))
 
-            // "FLEX YOUR RECORD!" Share Card (Liquid Glass)
+            // Share Card
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(20.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
                     .padding(20.dp),
             ) {
                 Column(
@@ -163,7 +163,7 @@ fun QuizResultSheet(
                             modifier = Modifier
                                 .width(1.dp)
                                 .height(36.dp)
-                                .background(Color.White.copy(alpha = 0.15f)),
+                                .background(MaterialTheme.colorScheme.surface),
                         )
 
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -186,7 +186,7 @@ fun QuizResultSheet(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(12.dp))
-                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
+                            .background(MaterialTheme.colorScheme.surface)
                             .padding(horizontal = 14.dp, vertical = 6.dp),
                     ) {
                         Text(
@@ -201,7 +201,7 @@ fun QuizResultSheet(
                     Text(
                         text = "${formatHandle(userHandle)} • Vibra Music",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }

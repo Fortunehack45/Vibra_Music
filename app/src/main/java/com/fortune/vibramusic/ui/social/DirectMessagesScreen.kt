@@ -203,7 +203,7 @@ fun DirectMessagesScreen(
                             Icon(
                                 imageVector = Icons.Rounded.Person,
                                 contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                                tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(52.dp),
                             )
                             Spacer(Modifier.height(14.dp))
@@ -216,7 +216,7 @@ fun DirectMessagesScreen(
                             Text(
                                 text = "Connect with friends to start chatting and sharing tracks",
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                     }
@@ -259,7 +259,7 @@ fun DirectMessagesScreen(
                         modifier = Modifier
                             .size(38.dp)
                             .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)),
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
@@ -298,7 +298,7 @@ fun DirectMessagesScreen(
                             Text(
                                 text = formatHandle(friend.handle),
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                     }
@@ -354,7 +354,7 @@ fun DirectMessagesScreen(
                                         .size(22.dp)
                                         .align(Alignment.TopEnd)
                                         .clip(CircleShape)
-                                        .background(Color.Black.copy(alpha = 0.6f)),
+                                        .background(Color.Black),
                                 ) {
                                     Icon(Icons.Rounded.Close, null, tint = Color.White, modifier = Modifier.size(14.dp))
                                 }
@@ -366,7 +366,7 @@ fun DirectMessagesScreen(
                                 modifier = Modifier
                                     .size(68.dp)
                                     .clip(RoundedCornerShape(12.dp))
-                                    .background(Color.Black.copy(alpha = 0.45f)),
+                                    .background(Color.Black),
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Icon(Icons.Rounded.Videocam, null, tint = Color.White, modifier = Modifier.size(24.dp))
@@ -376,7 +376,7 @@ fun DirectMessagesScreen(
                                         .size(22.dp)
                                         .align(Alignment.TopEnd)
                                         .clip(CircleShape)
-                                        .background(Color.Black.copy(alpha = 0.6f)),
+                                        .background(Color.Black),
                                 ) {
                                     Icon(Icons.Rounded.Close, null, tint = Color.White, modifier = Modifier.size(14.dp))
                                 }
@@ -402,7 +402,7 @@ fun DirectMessagesScreen(
                                         .size(22.dp)
                                         .align(Alignment.TopEnd)
                                         .clip(CircleShape)
-                                        .background(Color.Black.copy(alpha = 0.6f)),
+                                        .background(Color.Black),
                                 ) {
                                     Icon(Icons.Rounded.Close, null, tint = Color.White, modifier = Modifier.size(14.dp))
                                 }
@@ -414,7 +414,7 @@ fun DirectMessagesScreen(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clip(RoundedCornerShape(12.dp))
-                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
                                     .padding(8.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
@@ -435,7 +435,7 @@ fun DirectMessagesScreen(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clip(RoundedCornerShape(12.dp))
-                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
                                     .padding(8.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
@@ -460,7 +460,7 @@ fun DirectMessagesScreen(
                             .fillMaxWidth()
                             .padding(horizontal = 12.dp, vertical = 8.dp)
                             .clip(RoundedCornerShape(24.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
                             .padding(horizontal = 14.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -561,7 +561,7 @@ fun DirectMessagesScreen(
                                 modifier = Modifier
                                     .size(40.dp)
                                     .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)),
+                                    .background(MaterialTheme.colorScheme.surfaceVariant),
                             ) {
                                 Icon(
                                     imageVector = Icons.Rounded.Add,
@@ -614,7 +614,7 @@ fun DirectMessagesScreen(
                             modifier = Modifier
                                 .size(40.dp)
                                 .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)),
+                                .background(MaterialTheme.colorScheme.surfaceVariant),
                         ) {
                             Icon(
                                 imageVector = Icons.Rounded.Gif,
@@ -631,14 +631,14 @@ fun DirectMessagesScreen(
                             modifier = Modifier
                                 .weight(1f)
                                 .clip(RoundedCornerShape(24.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
                                 .padding(horizontal = 16.dp, vertical = 11.dp),
                         ) {
                             if (messageText.isEmpty()) {
                                 Text(
                                     text = "Message ${formatHandle(friend.handle)}...",
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
                             BasicTextField(
@@ -744,7 +744,7 @@ fun DirectMessagesScreen(
                                 modifier = Modifier
                                     .size(40.dp)
                                     .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)),
+                                    .background(MaterialTheme.colorScheme.surfaceVariant),
                             ) {
                                 Icon(
                                     imageVector = Icons.Rounded.Mic,
@@ -822,7 +822,7 @@ private fun ConversationRow(
             Text(
                 text = formatHandle(friend.handle),
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
@@ -853,7 +853,7 @@ private fun MessageBubble(
                 )
                 .background(
                     if (isMine) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                    else MaterialTheme.colorScheme.surfaceVariant,
                 )
                 .padding(horizontal = 14.dp, vertical = 10.dp),
         ) {
@@ -893,7 +893,7 @@ private fun MessageBubble(
                             .fillMaxWidth()
                             .height(180.dp)
                             .clip(RoundedCornerShape(12.dp))
-                            .background(Color.Black.copy(alpha = 0.45f)),
+                            .background(Color.Black),
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
@@ -913,8 +913,8 @@ private fun MessageBubble(
                         modifier = Modifier
                             .clip(RoundedCornerShape(12.dp))
                             .background(
-                                if (isMine) Color.White.copy(alpha = 0.15f)
-                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                                if (isMine) MaterialTheme.colorScheme.primaryContainer
+                                else MaterialTheme.colorScheme.surface,
                             )
                             .padding(horizontal = 10.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
@@ -951,8 +951,8 @@ private fun MessageBubble(
                                         .height(h.dp)
                                         .clip(RoundedCornerShape(2.dp))
                                         .background(
-                                            if (isMine) Color.White.copy(alpha = 0.85f)
-                                            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                                            if (isMine) MaterialTheme.colorScheme.onPrimaryContainer
+                                            else MaterialTheme.colorScheme.primary,
                                         ),
                                 )
                             }
@@ -963,7 +963,7 @@ private fun MessageBubble(
                         Text(
                             text = "Voice Note",
                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                            color = if (isMine) Color.White.copy(alpha = 0.9f) else MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = if (isMine) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
                         )
                     }
                     if (message.message.isNotBlank()) Spacer(Modifier.height(8.dp))
@@ -1010,7 +1010,7 @@ private fun SharedPlaylistCard(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(Color.Black.copy(alpha = 0.25f))
+            .background(MaterialTheme.colorScheme.surface)
             .padding(10.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1044,14 +1044,14 @@ private fun SharedPlaylistCard(
                 Text(
                     text = playlist.title,
                     style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
                     text = "Playlist • ${playlist.author ?: "Shared"}",
                     style = MaterialTheme.typography.labelSmall,
-                    color = Color.White.copy(alpha = 0.7f),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                 )
             }
@@ -1122,7 +1122,7 @@ private fun ChatAttachmentPickerSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
+        containerColor = MaterialTheme.colorScheme.surface,
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
     ) {
         Column(
@@ -1145,7 +1145,7 @@ private fun ChatAttachmentPickerSheet(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(14.dp))
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
                         .clickable {
                             onSelectTrack(
                                 MusicTrackAttachment(
@@ -1196,7 +1196,7 @@ private fun ChatAttachmentPickerSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
                     .padding(4.dp),
             ) {
                 listOf("Song", "Playlist").forEach { tab ->
@@ -1226,7 +1226,7 @@ private fun ChatAttachmentPickerSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(14.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
                     .padding(horizontal = 14.dp, vertical = 10.dp),
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1242,7 +1242,7 @@ private fun ChatAttachmentPickerSheet(
                             Text(
                                 text = if (activeTab == "Song") "Search any song..." else "Search any playlist...",
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                         BasicTextField(

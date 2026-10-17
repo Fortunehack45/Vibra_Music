@@ -5,25 +5,29 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -32,26 +36,38 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.AddPhotoAlternate
+import androidx.compose.material.icons.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.ArrowDropDown
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.EditNote
 import androidx.compose.material.icons.rounded.GraphicEq
+import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.MusicNote
+import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Poll
+import androidx.compose.material.icons.rounded.RocketLaunch
 import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.SwapHoriz
+import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.StarOutline
+import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material.icons.rounded.Videocam
+import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ElevatedButton
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -66,9 +82,12 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import coil3.compose.AsyncImage
 import com.fortune.vibramusic.data.YtMusicRepository
 import com.fortune.vibramusic.data.model.SearchFilter
@@ -82,8 +101,13 @@ import com.fortune.vibramusic.data.supabase.SupabaseService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 
-@OptIn(ExperimentalMaterial3Api::class)
+private enum class CreateMode {
+    POST,
+    REVIEW,
+}
+
 @Composable
 fun CreatePostSheet(
     currentlyPlayingSong: Song?,
@@ -95,6 +119,10 @@ fun CreatePostSheet(
         imageUrls: List<String>,
         videoUrl: String?,
         gifUrl: String?,
+        audioUrl: String?,
+        isReview: Boolean,
+        rating: Int,
+        taggedArtist: String?,
         track: MusicTrackAttachment?,
         poll: PollData?,
         quoteOfId: String?,
@@ -102,13 +130,24 @@ fun CreatePostSheet(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
+    // Mode state: If quoting a post, jump directly into composer
+    var isChoiceScreenVisible by remember { mutableStateOf(quotedPost == null) }
+    var selectedMode by remember { mutableStateOf(CreateMode.POST) }
+
+    // Composer inputs
     var textContent by remember { mutableStateOf("") }
     val selectedImageUris = remember { mutableStateListOf<Uri>() }
     var selectedVideoUri by remember { mutableStateOf<Uri?>(null) }
     var selectedGifUrl by remember { mutableStateOf<String?>(null) }
     var showGifPicker by remember { mutableStateOf(false) }
+
+    // Review fields
+    var reviewRating by remember { mutableIntStateOf(5) }
+    var taggedArtist by remember { mutableStateOf<String?>(null) }
+    var showArtistPicker by remember { mutableStateOf(false) }
+
+    // Track attachment
     var attachedTrack by remember {
         mutableStateOf(
             currentlyPlayingSong?.let {
@@ -123,25 +162,38 @@ fun CreatePostSheet(
         )
     }
 
+    // Poll builder
     var showPollBuilder by remember { mutableStateOf(false) }
     var pollQuestion by remember { mutableStateOf("") }
     val pollOptions = remember { mutableStateListOf("Option 1", "Option 2") }
 
-    // Music search switcher state
-    var showMusicSearch by remember { mutableStateOf(false) }
-    var musicSearchQuery by remember { mutableStateOf("") }
-    var musicSearchResults by remember { mutableStateOf<List<Song>>(emptyList()) }
-    var isSearchingMusic by remember { mutableStateOf(false) }
+    // Voice note recording
+    val voiceRecorder = remember { VoiceRecorderManager(context) }
+    val isRecordingVoice by voiceRecorder.isRecording.collectAsState()
+    val recordingDuration by voiceRecorder.recordingDurationSeconds.collectAsState()
+    val isVoicePlaying by voiceRecorder.isPlaying.collectAsState()
+    val voiceProgress by voiceRecorder.playbackProgress.collectAsState()
+    var recordedAudioFile by remember { mutableStateOf<File?>(null) }
 
-    // Upload in progress
+    DisposableEffect(Unit) {
+        onDispose {
+            voiceRecorder.cancelRecording()
+            voiceRecorder.stopPlayback()
+        }
+    }
+
+    // Music search dialog
+    var showMusicSearch by remember { mutableStateOf(false) }
+
+    // Upload state
     var isUploadingMedia by remember { mutableStateOf(false) }
 
-    // Photo picker launcher (multi-image selection up to 4 images)
+    // Multi-image picker (up to 10 photos)
     val photoPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickMultipleVisualMedia(maxItems = 4)
+        contract = ActivityResultContracts.PickMultipleVisualMedia(maxItems = 10)
     ) { uris ->
         uris.forEach { uri ->
-            if (selectedImageUris.size < 4 && !selectedImageUris.contains(uri)) {
+            if (selectedImageUris.size < 10 && !selectedImageUris.contains(uri)) {
                 selectedImageUris.add(uri)
                 selectedVideoUri = null
             }
@@ -158,886 +210,908 @@ fun CreatePostSheet(
         }
     }
 
-    // Music Search effect
-    LaunchedEffect(musicSearchQuery) {
-        val q = musicSearchQuery.trim()
-        if (q.length >= 2) {
-            isSearchingMusic = true
-            scope.launch {
-                val results = withContext(Dispatchers.IO) {
-                    val searchItems = YtMusicRepository.search(q, SearchFilter.SONGS).getOrNull().orEmpty()
-                    searchItems.mapNotNull { item ->
-                        when (item) {
-                            is SearchResult.Track -> item.song
-                            is SearchResult.TopTrack -> item.song
-                            else -> null
-                        }
-                    }
-                }
-                musicSearchResults = results
-                isSearchingMusic = false
-            }
-        } else {
-            musicSearchResults = emptyList()
-            isSearchingMusic = false
-        }
-    }
-
-    ModalBottomSheet(
+    Dialog(
         onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
-        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-        dragHandle = null,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false,
+        ),
     ) {
-        Column(
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 16.dp)
-                .navigationBarsPadding()
-                .verticalScroll(rememberScrollState()),
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.surface)
+                .systemBarsPadding(),
         ) {
-            // Header
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconButton(onClick = onDismiss) {
-                    Icon(
-                        imageVector = Icons.Rounded.Close,
-                        contentDescription = "Cancel",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-
-                Text(
-                    text = if (quotedPost != null) "Quote Post" else "New Post",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-
-                ElevatedButton(
-                    onClick = {
-                        scope.launch {
-                            isUploadingMedia = true
-                            // Upload selected images to Supabase Storage vibra_social bucket
-                            val uploadedUrls = mutableListOf<String>()
-                            selectedImageUris.forEach { uri ->
-                                runCatching {
-                                    val bytes = withContext(Dispatchers.IO) {
-                                        context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                                    }
-                                    if (bytes != null) {
-                                        val uploadResult = SupabaseService.uploadImage(
-                                            bytes = bytes,
-                                            mimeType = "image/jpeg",
-                                        )
-                                        uploadResult.getOrNull()?.let { uploadedUrls.add(it) }
-                                    }
-                                }
-                            }
-
-                            // Upload selected video to Supabase Storage
-                            var uploadedVideoUrl: String? = null
-                            selectedVideoUri?.let { uri ->
-                                runCatching {
-                                    val bytes = withContext(Dispatchers.IO) {
-                                        context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                                    }
-                                    if (bytes != null) {
-                                        val uploadResult = SupabaseService.uploadMedia(
-                                            bytes = bytes,
-                                            mimeType = "video/mp4",
-                                        )
-                                        uploadedVideoUrl = uploadResult.getOrNull()
-                                    }
-                                }
-                            }
-                            isUploadingMedia = false
-
-                            val finalPoll = if (showPollBuilder && pollQuestion.isNotBlank() && pollOptions.size >= 2) {
-                                PollData(
-                                    question = pollQuestion.trim(),
-                                    options = pollOptions.filter { it.isNotBlank() }.map { PollOption(text = it.trim()) },
-                                )
-                            } else null
-
-                            onSubmitPost(
-                                textContent.trim(),
-                                uploadedUrls,
-                                uploadedVideoUrl,
-                                selectedGifUrl,
-                                attachedTrack,
-                                finalPoll,
-                                quotedPost?.id,
-                            )
-                        }
+            if (isChoiceScreenVisible) {
+                // Choice view: Post vs Review
+                CreateChoiceScreen(
+                    onDismiss = onDismiss,
+                    onSelectPost = {
+                        selectedMode = CreateMode.POST
+                        isChoiceScreenVisible = false
                     },
-                    enabled = !isPosting && !isUploadingMedia && (
-                        textContent.isNotBlank() || selectedImageUris.isNotEmpty() || selectedVideoUri != null || selectedGifUrl != null || attachedTrack != null || showPollBuilder || quotedPost != null
-                    ),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.elevatedButtonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary,
-                        disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
-                    ),
-                ) {
-                    if (isPosting || isUploadingMedia) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            color = MaterialTheme.colorScheme.onPrimary,
-                            strokeWidth = 2.dp,
-                        )
-                    } else {
-                        Text(
-                            text = if (quotedPost != null) "Quote" else "Post",
-                            fontWeight = FontWeight.Bold,
-                        )
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(14.dp))
-
-            // Text Input Box
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(115.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
-                    .padding(14.dp),
-            ) {
-                BasicTextField(
-                    value = textContent,
-                    onValueChange = { textContent = it },
-                    textStyle = TextStyle(
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontSize = 15.sp,
-                    ),
-                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                    modifier = Modifier.fillMaxSize(),
-                    decorationBox = { innerTextField ->
-                        if (textContent.isEmpty()) {
-                            Text(
-                                text = if (quotedPost != null) "Add your commentary..."
-                                else "Share what you're listening to, ask for music recs, or drop your thoughts...",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                            )
-                        }
-                        innerTextField()
+                    onSelectReview = {
+                        selectedMode = CreateMode.REVIEW
+                        isChoiceScreenVisible = false
                     },
                 )
-            }
-
-            // Quoted Post Card Embed Preview
-            if (quotedPost != null) {
-                Spacer(Modifier.height(12.dp))
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
-                        .padding(12.dp),
-                ) {
-                    Column {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(24.dp)
-                                    .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                            ) {
-                                if (quotedPost.authorAvatar != null) {
-                                    AsyncImage(
-                                        model = quotedPost.authorAvatar,
-                                        contentDescription = null,
-                                        contentScale = ContentScale.Crop,
-                                        modifier = Modifier.fillMaxWidth(),
-                                    )
-                                }
-                            }
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                text = quotedPost.authorName,
-                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.onSurface,
-                            )
-                            Spacer(Modifier.width(4.dp))
-                            Text(
-                                text = "@${quotedPost.authorHandle}",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-
-                        if (quotedPost.content.isNotBlank()) {
-                            Spacer(Modifier.height(6.dp))
-                            Text(
-                                text = quotedPost.content,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = 3,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-
-                        quotedPost.musicTrack?.let { qTrack ->
-                            Spacer(Modifier.height(6.dp))
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f))
-                                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.MusicNote,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(14.dp),
-                                )
-                                Spacer(Modifier.width(6.dp))
-                                Text(
-                                    text = "${qTrack.title} • ${qTrack.artist}",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Image Selection Thumbnails Carousel
-            if (selectedImageUris.isNotEmpty()) {
-                Spacer(Modifier.height(12.dp))
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    itemsIndexed(selectedImageUris) { index, uri ->
-                        Box(
-                            modifier = Modifier
-                                .size(90.dp)
-                                .clip(RoundedCornerShape(12.dp)),
-                        ) {
-                            AsyncImage(
-                                model = uri,
-                                contentDescription = "Selected image",
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.matchParentSize(),
-                            )
-
-                            // Remove button
-                            Box(
-                                modifier = Modifier
-                                    .align(Alignment.TopEnd)
-                                    .padding(4.dp)
-                                    .size(22.dp)
-                                    .clip(CircleShape)
-                                    .background(Color.Black.copy(alpha = 0.7f))
-                                    .clickable { selectedImageUris.removeAt(index) },
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Close,
-                                    contentDescription = "Remove Image",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(14.dp),
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            // GIF Selection Preview
-            if (selectedGifUrl != null) {
-                Spacer(Modifier.height(12.dp))
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(180.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)),
-                ) {
-                    AsyncImage(
-                        model = selectedGifUrl,
-                        contentDescription = "Selected GIF",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                    // Remove button
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(8.dp)
-                            .size(28.dp)
-                            .clip(CircleShape)
-                            .background(Color.Black.copy(alpha = 0.7f))
-                            .clickable { selectedGifUrl = null },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Close,
-                            contentDescription = "Remove GIF",
-                            tint = Color.White,
-                            modifier = Modifier.size(16.dp),
-                        )
-                    }
-                }
-            }
-
-            // Video Selection Indicator Preview
-            if (selectedVideoUri != null) {
-                Spacer(Modifier.height(12.dp))
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
-                        .padding(12.dp),
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(38.dp)
-                                    .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Videocam,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(20.dp),
-                                )
-                            }
-                            Spacer(Modifier.width(12.dp))
-                            Column {
-                                Text(
-                                    text = "Video Selected",
-                                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                )
-                                Text(
-                                    text = "Ready to upload with post",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        }
-
-                        IconButton(
-                            onClick = { selectedVideoUri = null },
-                            modifier = Modifier.size(28.dp),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Close,
-                                contentDescription = "Remove video",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(16.dp),
-                            )
-                        }
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(12.dp))
-
-            // Attached Track Preview Card (Solid with Switch/Remove options)
-            attachedTrack?.let { track ->
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
-                        .padding(10.dp),
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(44.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant),
-                        ) {
-                            if (track.artworkUrl != null) {
-                                AsyncImage(
-                                    model = track.artworkUrl,
-                                    contentDescription = null,
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.fillMaxWidth(),
-                                )
-                            } else {
-                                Icon(
-                                    imageVector = Icons.Rounded.MusicNote,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.align(Alignment.Center),
-                                )
-                            }
-                        }
-
-                        Spacer(Modifier.width(12.dp))
-
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                text = track.title,
-                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                                color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            Text(
-                                text = track.artist,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-
-                        // Switch track button
-                        IconButton(onClick = { showMusicSearch = true }) {
-                            Icon(
-                                imageVector = Icons.Rounded.SwapHoriz,
-                                contentDescription = "Change Track",
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(20.dp),
-                            )
-                        }
-
-                        // Remove track button
-                        IconButton(onClick = { attachedTrack = null }) {
-                            Icon(
-                                imageVector = Icons.Rounded.Close,
-                                contentDescription = "Remove Track",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(18.dp),
-                            )
-                        }
-                    }
-                }
-                Spacer(Modifier.height(12.dp))
-            }
-
-            // Inline YouTube Music Track Search Sheet / Panel
-            AnimatedVisibility(visible = showMusicSearch) {
+            } else {
+                // Full Screen Composer
                 Column(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
-                        .padding(14.dp),
+                        .fillMaxSize()
+                        .imePadding(),
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = "Search Track to Attach",
-                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                        IconButton(
-                            onClick = { showMusicSearch = false },
-                            modifier = Modifier.size(24.dp),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Close,
-                                contentDescription = "Close",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(16.dp),
-                            )
-                        }
-                    }
-
-                    Spacer(Modifier.height(8.dp))
-
-                    // Search input
+                    // Top Navigation Bar
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.8f))
-                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                            .height(56.dp)
+                            .padding(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Search,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(18.dp),
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        BasicTextField(
-                            value = musicSearchQuery,
-                            onValueChange = { musicSearchQuery = it },
-                            textStyle = TextStyle(
-                                color = MaterialTheme.colorScheme.onSurface,
-                                fontSize = 14.sp,
-                            ),
-                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                            modifier = Modifier.fillMaxWidth(),
-                            decorationBox = { inner ->
-                                if (musicSearchQuery.isEmpty()) {
-                                    Text(
-                                        text = "Search song or artist name...",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                    )
+                        TextButton(
+                            onClick = {
+                                if (quotedPost == null) {
+                                    isChoiceScreenVisible = true
+                                } else {
+                                    onDismiss()
                                 }
-                                inner()
                             },
-                        )
-                    }
-
-                    if (isSearchingMusic) {
-                        Spacer(Modifier.height(8.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.Center,
                         ) {
-                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                        }
-                    }
-
-                    // Search results list
-                    if (musicSearchResults.isNotEmpty()) {
-                        Spacer(Modifier.height(8.dp))
-                        Column(
-                            verticalArrangement = Arrangement.spacedBy(6.dp),
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            musicSearchResults.take(5).forEach { song ->
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(10.dp))
-                                        .clickable {
-                                            attachedTrack = MusicTrackAttachment.fromSong(song)
-                                            showMusicSearch = false
-                                            musicSearchQuery = ""
-                                            musicSearchResults = emptyList()
-                                        }
-                                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.4f))
-                                        .padding(8.dp),
-                                ) {
-                                    AsyncImage(
-                                        model = song.thumbnailUrl,
-                                        contentDescription = null,
-                                        contentScale = ContentScale.Crop,
-                                        modifier = Modifier
-                                            .size(36.dp)
-                                            .clip(RoundedCornerShape(6.dp)),
-                                    )
-                                    Spacer(Modifier.width(10.dp))
-                                    Column(Modifier.weight(1f)) {
-                                        Text(
-                                            text = song.title,
-                                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
-                                            color = MaterialTheme.colorScheme.onSurface,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                        )
-                                        Text(
-                                            text = song.artist,
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                Spacer(Modifier.height(12.dp))
-            }
-
-            // Poll Builder Section
-            AnimatedVisibility(visible = showPollBuilder) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
-                        .padding(14.dp),
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = "Poll Question",
-                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                        IconButton(
-                            onClick = { showPollBuilder = false },
-                            modifier = Modifier.size(24.dp),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Close,
-                                contentDescription = "Close Poll",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(16.dp),
+                            Text(
+                                text = "Back",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Medium),
+                                color = MaterialTheme.colorScheme.onSurface,
                             )
                         }
+
+                        Text(
+                            text = when {
+                                quotedPost != null -> "Quote Post"
+                                selectedMode == CreateMode.REVIEW -> "Music Review"
+                                else -> "New Post"
+                            },
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+
+                        Text(
+                            text = "${9000 - textContent.length}",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = if (textContent.length > 8500) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
 
-                    Spacer(Modifier.height(6.dp))
-
-                    BasicTextField(
-                        value = pollQuestion,
-                        onValueChange = { pollQuestion = it },
-                        textStyle = TextStyle(
-                            color = MaterialTheme.colorScheme.onSurface,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Medium,
-                        ),
-                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                    // Main Scrollable Content Area
+                    Column(
                         modifier = Modifier
+                            .weight(1f)
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f))
-                            .padding(10.dp),
-                        decorationBox = { innerTextField ->
-                            if (pollQuestion.isEmpty()) {
-                                Text(
-                                    text = "Ask a music question...",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                )
-                            }
-                            innerTextField()
-                        },
-                    )
-
-                    Spacer(Modifier.height(10.dp))
-
-                    pollOptions.forEachIndexed { index, option ->
+                            .verticalScroll(rememberScrollState())
+                            .padding(horizontal = 20.dp, vertical = 8.dp),
+                    ) {
+                        // Artist Tag Pill (clickable to search artist)
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp),
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                .clickable { showArtistPicker = true }
+                                .padding(horizontal = 14.dp, vertical = 8.dp),
                         ) {
-                            BasicTextField(
-                                value = option,
-                                onValueChange = { pollOptions[index] = it },
-                                textStyle = TextStyle(
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    fontSize = 13.sp,
-                                ),
-                                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f))
-                                    .padding(8.dp),
+                            Text(
+                                text = taggedArtist?.let { "Artist: $it" } ?: "Select Artist",
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                                color = MaterialTheme.colorScheme.onSurface,
                             )
+                            Spacer(Modifier.width(4.dp))
+                            if (taggedArtist != null) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Close,
+                                    contentDescription = "Clear Artist",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier
+                                        .size(16.dp)
+                                        .clickable { taggedArtist = null },
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Rounded.ArrowDropDown,
+                                    contentDescription = "Select Artist",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            }
+                        }
 
-                            if (pollOptions.size > 2) {
-                                IconButton(
-                                    onClick = { pollOptions.removeAt(index) },
-                                    modifier = Modifier.size(28.dp),
+                        // Music Review Rating Bar (1-5 stars)
+                        if (selectedMode == CreateMode.REVIEW) {
+                            Spacer(Modifier.height(14.dp))
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                            ) {
+                                (1..5).forEach { star ->
+                                    Icon(
+                                        imageVector = if (star <= reviewRating) Icons.Rounded.Star else Icons.Rounded.StarOutline,
+                                        contentDescription = "Rating $star",
+                                        tint = if (star <= reviewRating) Color(0xFFFFB300) else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier
+                                            .size(28.dp)
+                                            .clickable { reviewRating = star },
+                                    )
+                                }
+                                Spacer(Modifier.width(12.dp))
+                                Text(
+                                    text = "$reviewRating / 5 Stars",
+                                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                )
+                            }
+                        }
+
+                        // Quoted Post Card Embed Preview
+                        if (quotedPost != null) {
+                            Spacer(Modifier.height(14.dp))
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                                    .padding(14.dp),
+                            ) {
+                                Column {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(26.dp)
+                                                .clip(CircleShape)
+                                                .background(MaterialTheme.colorScheme.surface),
+                                        ) {
+                                            if (quotedPost.authorAvatar != null) {
+                                                AsyncImage(
+                                                    model = quotedPost.authorAvatar,
+                                                    contentDescription = null,
+                                                    contentScale = ContentScale.Crop,
+                                                    modifier = Modifier.fillMaxSize(),
+                                                )
+                                            }
+                                        }
+                                        Spacer(Modifier.width(8.dp))
+                                        Text(
+                                            text = quotedPost.authorName,
+                                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                        )
+                                        Spacer(Modifier.width(6.dp))
+                                        Text(
+                                            text = "@${quotedPost.authorHandle}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+
+                                    if (quotedPost.content.isNotBlank()) {
+                                        Spacer(Modifier.height(6.dp))
+                                        Text(
+                                            text = quotedPost.content,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            maxLines = 3,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                    }
+
+                                    quotedPost.musicTrack?.let { qTrack ->
+                                        Spacer(Modifier.height(8.dp))
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(MaterialTheme.colorScheme.surface)
+                                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.MusicNote,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(16.dp),
+                                            )
+                                            Spacer(Modifier.width(8.dp))
+                                            Text(
+                                                text = "${qTrack.title} • ${qTrack.artist}",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(Modifier.height(14.dp))
+
+                        // Text Input
+                        BasicTextField(
+                            value = textContent,
+                            onValueChange = { textContent = it },
+                            textStyle = TextStyle(
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontSize = 16.sp,
+                                lineHeight = 22.sp,
+                            ),
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(130.dp),
+                            decorationBox = { innerTextField ->
+                                if (textContent.isEmpty()) {
+                                    Text(
+                                        text = when {
+                                            quotedPost != null -> "Add your take on this post..."
+                                            selectedMode == CreateMode.REVIEW -> "Write your song review, breakdown, or critique..."
+                                            else -> "Write something..."
+                                        },
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                                innerTextField()
+                            },
+                        )
+
+                        // Multi-Media Carousel Preview with Dynamic Dots
+                        if (selectedImageUris.isNotEmpty()) {
+                            Spacer(Modifier.height(14.dp))
+                            val pagerState = rememberPagerState(pageCount = { selectedImageUris.size })
+
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                HorizontalPager(
+                                    state = pagerState,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(240.dp)
+                                        .clip(RoundedCornerShape(16.dp)),
+                                ) { page ->
+                                    val uri = selectedImageUris[page]
+                                    Box(modifier = Modifier.fillMaxSize()) {
+                                        AsyncImage(
+                                            model = uri,
+                                            contentDescription = "Selected media",
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier.fillMaxSize(),
+                                        )
+
+                                        // Delete media button
+                                        Box(
+                                            modifier = Modifier
+                                                .align(Alignment.TopEnd)
+                                                .padding(10.dp)
+                                                .size(28.dp)
+                                                .clip(CircleShape)
+                                                .background(Color.Black)
+                                                .clickable { selectedImageUris.removeAt(page) },
+                                            contentAlignment = Alignment.Center,
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.Close,
+                                                contentDescription = "Remove",
+                                                tint = Color.White,
+                                                modifier = Modifier.size(16.dp),
+                                            )
+                                        }
+                                    }
+                                }
+
+                                // Carousel Dynamic Indicator Dots
+                                if (selectedImageUris.size > 1) {
+                                    Spacer(Modifier.height(8.dp))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.Center,
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        repeat(selectedImageUris.size) { index ->
+                                            val isActive = pagerState.currentPage == index
+                                            Box(
+                                                modifier = Modifier
+                                                    .padding(horizontal = 3.dp)
+                                                    .height(6.dp)
+                                                    .width(if (isActive) 18.dp else 6.dp)
+                                                    .clip(RoundedCornerShape(3.dp))
+                                                    .background(
+                                                        if (isActive) MaterialTheme.colorScheme.primary
+                                                        else MaterialTheme.colorScheme.onSurfaceVariant
+                                                    ),
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Video Attachment Preview
+                        selectedVideoUri?.let { uri ->
+                            Spacer(Modifier.height(14.dp))
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                                    .padding(14.dp),
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Videocam,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(24.dp),
+                                        )
+                                        Spacer(Modifier.width(10.dp))
+                                        Text(
+                                            text = "Video selected",
+                                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                        )
+                                    }
+                                    IconButton(onClick = { selectedVideoUri = null }) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Close,
+                                            contentDescription = "Remove video",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // GIF Attachment Preview
+                        selectedGifUrl?.let { gifUrl ->
+                            Spacer(Modifier.height(14.dp))
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(200.dp)
+                                    .clip(RoundedCornerShape(16.dp)),
+                            ) {
+                                AsyncImage(
+                                    model = gifUrl,
+                                    contentDescription = "Selected GIF",
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .padding(8.dp)
+                                        .size(28.dp)
+                                        .clip(CircleShape)
+                                        .background(Color.Black)
+                                        .clickable { selectedGifUrl = null },
+                                    contentAlignment = Alignment.Center,
                                 ) {
                                     Icon(
                                         imageVector = Icons.Rounded.Close,
-                                        contentDescription = "Remove Option",
-                                        tint = MaterialTheme.colorScheme.error.copy(alpha = 0.8f),
+                                        contentDescription = "Remove GIF",
+                                        tint = Color.White,
                                         modifier = Modifier.size(16.dp),
                                     )
                                 }
                             }
                         }
-                    }
 
-                    if (pollOptions.size < 4) {
-                        Spacer(Modifier.height(6.dp))
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .clickable { pollOptions.add("Option ${pollOptions.size + 1}") }
-                                .padding(horizontal = 8.dp, vertical = 6.dp),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Add,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(16.dp),
-                            )
-                            Spacer(Modifier.width(6.dp))
-                            Text(
-                                text = "Add Option",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.SemiBold,
-                            )
+                        // Voice Note Attachment Preview
+                        recordedAudioFile?.let { file ->
+                            Spacer(Modifier.height(14.dp))
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                            ) {
+                                IconButton(
+                                    onClick = {
+                                        if (isVoicePlaying) voiceRecorder.pauseAudio()
+                                        else voiceRecorder.playAudio(file.absolutePath)
+                                    },
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.primary),
+                                ) {
+                                    Icon(
+                                        imageVector = if (isVoicePlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                                        contentDescription = "Play voice note",
+                                        tint = MaterialTheme.colorScheme.onPrimary,
+                                        modifier = Modifier.size(20.dp),
+                                    )
+                                }
+
+                                Spacer(Modifier.width(12.dp))
+
+                                // Waveform simulation
+                                Row(
+                                    modifier = Modifier.weight(1f),
+                                    horizontalArrangement = Arrangement.spacedBy(3.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    val barHeights = listOf(14, 24, 18, 30, 20, 16, 26, 22, 12, 28, 20, 15, 25, 18)
+                                    barHeights.forEachIndexed { idx, h ->
+                                        val barProgress = idx.toFloat() / barHeights.size
+                                        val isPassed = barProgress <= voiceProgress
+                                        Box(
+                                            modifier = Modifier
+                                                .width(3.dp)
+                                                .height(h.dp)
+                                                .clip(RoundedCornerShape(1.5.dp))
+                                                .background(
+                                                    if (isPassed) MaterialTheme.colorScheme.primary
+                                                    else MaterialTheme.colorScheme.onSurfaceVariant
+                                                ),
+                                        )
+                                    }
+                                }
+
+                                Spacer(Modifier.width(10.dp))
+
+                                IconButton(
+                                    onClick = {
+                                        voiceRecorder.stopPlayback()
+                                        file.delete()
+                                        recordedAudioFile = null
+                                    },
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Delete,
+                                        contentDescription = "Delete voice note",
+                                        tint = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.size(20.dp),
+                                    )
+                                }
+                            }
+                        }
+
+                        // Attached Track Card
+                        attachedTrack?.let { track ->
+                            Spacer(Modifier.height(14.dp))
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                                    .padding(10.dp),
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(46.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(MaterialTheme.colorScheme.surface),
+                                ) {
+                                    if (track.artworkUrl != null) {
+                                        AsyncImage(
+                                            model = track.artworkUrl,
+                                            contentDescription = null,
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier.fillMaxSize(),
+                                        )
+                                    }
+                                }
+
+                                Spacer(Modifier.width(12.dp))
+
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = track.title,
+                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                    Text(
+                                        text = track.artist,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+
+                                IconButton(onClick = { attachedTrack = null }) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Close,
+                                        contentDescription = "Remove track",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        }
+
+                        // Poll Builder Section
+                        if (showPollBuilder) {
+                            Spacer(Modifier.height(14.dp))
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                                    .padding(14.dp),
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    Text(
+                                        text = "Create Poll",
+                                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                    )
+                                    IconButton(
+                                        onClick = { showPollBuilder = false },
+                                        modifier = Modifier.size(24.dp),
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Close,
+                                            contentDescription = "Remove poll",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                }
+
+                                Spacer(Modifier.height(10.dp))
+
+                                // Poll Question
+                                BasicTextField(
+                                    value = pollQuestion,
+                                    onValueChange = { pollQuestion = it },
+                                    textStyle = TextStyle(
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        fontSize = 14.sp,
+                                    ),
+                                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(MaterialTheme.colorScheme.surface)
+                                        .padding(10.dp),
+                                    decorationBox = { innerTextField ->
+                                        if (pollQuestion.isEmpty()) {
+                                            Text(
+                                                text = "Ask a question...",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
+                                        innerTextField()
+                                    },
+                                )
+
+                                Spacer(Modifier.height(8.dp))
+
+                                // Poll Options
+                                pollOptions.forEachIndexed { index, option ->
+                                    Spacer(Modifier.height(6.dp))
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.fillMaxWidth(),
+                                    ) {
+                                        BasicTextField(
+                                            value = option,
+                                            onValueChange = { pollOptions[index] = it },
+                                            textStyle = TextStyle(
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                                fontSize = 14.sp,
+                                            ),
+                                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .background(MaterialTheme.colorScheme.surface)
+                                                .padding(10.dp),
+                                            decorationBox = { innerTextField ->
+                                                if (option.isEmpty()) {
+                                                    Text(
+                                                        text = "Option ${index + 1}",
+                                                        style = MaterialTheme.typography.bodyMedium,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    )
+                                                }
+                                                innerTextField()
+                                            },
+                                        )
+
+                                        if (pollOptions.size > 2) {
+                                            Spacer(Modifier.width(8.dp))
+                                            IconButton(
+                                                onClick = { pollOptions.removeAt(index) },
+                                                modifier = Modifier.size(24.dp),
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Rounded.Close,
+                                                    contentDescription = "Remove option",
+                                                    tint = MaterialTheme.colorScheme.error,
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if (pollOptions.size < 4) {
+                                    Spacer(Modifier.height(8.dp))
+                                    TextButton(
+                                        onClick = { pollOptions.add("") },
+                                        contentPadding = PaddingValues(0.dp),
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Add,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(16.dp),
+                                        )
+                                        Spacer(Modifier.width(4.dp))
+                                        Text(
+                                            text = "Add option",
+                                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                            color = MaterialTheme.colorScheme.primary,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // Live Voice Recording State Indicator
+                        if (isRecordingVoice) {
+                            Spacer(Modifier.height(14.dp))
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.GraphicEq,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(24.dp),
+                                )
+                                Spacer(Modifier.width(12.dp))
+                                Text(
+                                    text = "Recording Voice Note... ${recordingDuration}s",
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                IconButton(
+                                    onClick = {
+                                        val file = voiceRecorder.stopRecording()
+                                        if (file != null && file.exists()) {
+                                            recordedAudioFile = file
+                                        }
+                                    },
+                                    modifier = Modifier
+                                        .size(34.dp)
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.error),
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Stop,
+                                        contentDescription = "Stop recording",
+                                        tint = MaterialTheme.colorScheme.onError,
+                                        modifier = Modifier.size(18.dp),
+                                    )
+                                }
+                            }
                         }
                     }
-                }
-                Spacer(Modifier.height(12.dp))
-            }
 
-            // Bottom Toolbar Controls (Multi-Image, GIF, Video, Change Track, Poll)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                // Add Images Button
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
-                        .clickable {
-                            photoPickerLauncher.launch(
-                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                            )
-                        }
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.AddPhotoAlternate,
-                        contentDescription = "Add Images",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(16.dp),
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        text = if (selectedImageUris.isNotEmpty()) "${selectedImageUris.size}/4" else "Photo",
-                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                }
-
-                // Add GIF Button
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(
-                            if (selectedGifUrl != null) MaterialTheme.colorScheme.primary.copy(alpha = 0.20f)
-                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
-                        )
-                        .clickable { showGifPicker = true }
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                ) {
-                    Text(
-                        text = "GIF",
-                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.ExtraBold),
-                        color = if (selectedGifUrl != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                    )
-                }
-
-                // Add Video Button
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(
-                            if (selectedVideoUri != null) MaterialTheme.colorScheme.primary.copy(alpha = 0.20f)
-                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
-                        )
-                        .clickable {
-                            videoPickerLauncher.launch(
-                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)
-                            )
-                        }
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Videocam,
-                        contentDescription = "Add Video",
-                        tint = if (selectedVideoUri != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(16.dp),
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        text = if (selectedVideoUri != null) "Video added" else "Video",
-                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
-                        color = if (selectedVideoUri != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                    )
-                }
-
-                // Attach / Change Song Button
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(
-                            if (attachedTrack != null) MaterialTheme.colorScheme.primary.copy(alpha = 0.20f)
-                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
-                        )
-                        .clickable { showMusicSearch = !showMusicSearch }
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.MusicNote,
-                        contentDescription = "Search Song",
-                        tint = if (attachedTrack != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(16.dp),
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        text = if (attachedTrack != null) "Change Song" else "Attach Song",
-                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
-                        color = if (attachedTrack != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                    )
-                }
-
-                // Poll Toggle Button
-                if (!showPollBuilder) {
+                    // Bottom Docked Toolbar (above keyboard)
                     Row(
-                        verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
-                            .clickable { showPollBuilder = true }
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.surface)
+                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Poll,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(16.dp),
+                        // Toolbar Action Icons
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            // Photo
+                            Icon(
+                                imageVector = Icons.Rounded.AddPhotoAlternate,
+                                contentDescription = "Add Photos",
+                                tint = if (selectedImageUris.isNotEmpty()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .clickable {
+                                        photoPickerLauncher.launch(
+                                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                        )
+                                    },
+                            )
+
+                            // Song
+                            Icon(
+                                imageVector = Icons.Rounded.MusicNote,
+                                contentDescription = "Attach Song",
+                                tint = if (attachedTrack != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .clickable { showMusicSearch = true },
+                            )
+
+                            // Poll
+                            Icon(
+                                imageVector = Icons.Rounded.Poll,
+                                contentDescription = "Create Poll",
+                                tint = if (showPollBuilder) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .clickable { showPollBuilder = !showPollBuilder },
+                            )
+
+                            // GIF
+                            Text(
+                                text = "GIF",
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold),
+                                color = if (selectedGifUrl != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.clickable { showGifPicker = true },
+                            )
+
+                            // Voice Note
+                            Icon(
+                                imageVector = Icons.Rounded.Mic,
+                                contentDescription = "Record Voice Note",
+                                tint = if (isRecordingVoice || recordedAudioFile != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .clickable {
+                                        if (isRecordingVoice) {
+                                            val file = voiceRecorder.stopRecording()
+                                            if (file != null && file.exists()) {
+                                                recordedAudioFile = file
+                                            }
+                                        } else {
+                                            voiceRecorder.startRecording()
+                                        }
+                                    },
+                            )
+                        }
+
+                        // Post Pill Button
+                        val canPost = !isPosting && !isUploadingMedia && (
+                            textContent.isNotBlank() || selectedImageUris.isNotEmpty() || selectedVideoUri != null ||
+                                selectedGifUrl != null || attachedTrack != null || showPollBuilder || recordedAudioFile != null || quotedPost != null
                         )
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            text = "Poll",
-                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    isUploadingMedia = true
+                                    // 1. Upload selected images
+                                    val uploadedUrls = mutableListOf<String>()
+                                    selectedImageUris.forEach { uri ->
+                                        runCatching {
+                                            val bytes = withContext(Dispatchers.IO) {
+                                                context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                                            }
+                                            if (bytes != null) {
+                                                val uploadResult = SupabaseService.uploadImage(
+                                                    bytes = bytes,
+                                                    mimeType = "image/jpeg",
+                                                )
+                                                uploadResult.getOrNull()?.let { uploadedUrls.add(it) }
+                                            }
+                                        }
+                                    }
+
+                                    // 2. Upload video
+                                    var uploadedVideoUrl: String? = null
+                                    selectedVideoUri?.let { uri ->
+                                        runCatching {
+                                            val bytes = withContext(Dispatchers.IO) {
+                                                context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                                            }
+                                            if (bytes != null) {
+                                                val uploadResult = SupabaseService.uploadMedia(
+                                                    bytes = bytes,
+                                                    mimeType = "video/mp4",
+                                                )
+                                                uploadedVideoUrl = uploadResult.getOrNull()
+                                            }
+                                        }
+                                    }
+
+                                    // 3. Upload voice note
+                                    var uploadedAudioUrl: String? = null
+                                    recordedAudioFile?.let { file ->
+                                        runCatching {
+                                            val bytes = withContext(Dispatchers.IO) { file.readBytes() }
+                                            val uploadResult = SupabaseService.uploadMedia(
+                                                bytes = bytes,
+                                                mimeType = "audio/mp4",
+                                            )
+                                            uploadedAudioUrl = uploadResult.getOrNull()
+                                        }
+                                    }
+
+                                    isUploadingMedia = false
+
+                                    // 4. Construct poll
+                                    val finalPoll = if (showPollBuilder && pollQuestion.isNotBlank() && pollOptions.size >= 2) {
+                                        PollData(
+                                            question = pollQuestion.trim(),
+                                            options = pollOptions.filter { it.isNotBlank() }.map { PollOption(text = it.trim()) },
+                                        )
+                                    } else null
+
+                                    onSubmitPost(
+                                        textContent.trim(),
+                                        uploadedUrls,
+                                        uploadedVideoUrl,
+                                        selectedGifUrl,
+                                        uploadedAudioUrl,
+                                        selectedMode == CreateMode.REVIEW,
+                                        if (selectedMode == CreateMode.REVIEW) reviewRating else 0,
+                                        taggedArtist,
+                                        attachedTrack,
+                                        finalPoll,
+                                        quotedPost?.id,
+                                    )
+                                }
+                            },
+                            enabled = canPost,
+                            shape = RoundedCornerShape(20.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary,
+                                disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            ),
+                            contentPadding = PaddingValues(horizontal = 24.dp, vertical = 10.dp),
+                        ) {
+                            if (isPosting || isUploadingMedia) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    color = MaterialTheme.colorScheme.onPrimary,
+                                    strokeWidth = 2.dp,
+                                )
+                            } else {
+                                Text(
+                                    text = if (quotedPost != null) "Quote" else "Post",
+                                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                                )
+                            }
+                        }
                     }
                 }
             }
         }
     }
 
+    // GIF Picker Modal
     if (showGifPicker) {
         GifPickerSheet(
             onDismiss = { showGifPicker = false },
@@ -1046,5 +1120,537 @@ fun CreatePostSheet(
                 showGifPicker = false
             },
         )
+    }
+
+    // Music Search Modal
+    if (showMusicSearch) {
+        SongSearchDialog(
+            onDismiss = { showMusicSearch = false },
+            onSongSelected = { song ->
+                attachedTrack = MusicTrackAttachment(
+                    videoId = song.videoId,
+                    title = song.title,
+                    artist = song.artist,
+                    artworkUrl = song.thumbnailUrl,
+                    durationText = song.durationText,
+                )
+                showMusicSearch = false
+            },
+        )
+    }
+
+    // Artist Search Modal
+    if (showArtistPicker) {
+        ArtistSearchDialog(
+            onDismiss = { showArtistPicker = false },
+            onArtistSelected = { artistName ->
+                taggedArtist = artistName
+                showArtistPicker = false
+            },
+        )
+    }
+}
+
+/**
+ * Clean Choice Screen: Post vs Review.
+ * 100% solid colors, zero borders, zero gradients, zero emojis.
+ */
+@Composable
+private fun CreateChoiceScreen(
+    onDismiss: () -> Unit,
+    onSelectPost: () -> Unit,
+    onSelectReview: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 24.dp, vertical = 16.dp),
+    ) {
+        // Top Header
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TextButton(
+                onClick = onDismiss,
+                contentPadding = PaddingValues(0.dp),
+            ) {
+                Text(
+                    text = "Cancel",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Medium),
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            }
+
+            Text(
+                text = "Create",
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+
+            Spacer(Modifier.width(48.dp))
+        }
+
+        Spacer(Modifier.height(28.dp))
+
+        Text(
+            text = "What is on your mind?",
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        Spacer(Modifier.height(18.dp))
+
+        // Card 1: Normal Post
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(18.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .clickable { onSelectPost() }
+                .padding(20.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(46.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.EditNote,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(26.dp),
+                )
+            }
+
+            Spacer(Modifier.width(16.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Post",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = "Share a music moment",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        // Card 2: Music Review
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(18.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .clickable { onSelectReview() }
+                .padding(20.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(46.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFFFFB300)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Star,
+                    contentDescription = null,
+                    tint = Color.Black,
+                    modifier = Modifier.size(26.dp),
+                )
+            }
+
+            Spacer(Modifier.width(16.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Review",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = "Rate a song or project",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+
+        Spacer(Modifier.weight(1f))
+
+        // Bottom Info Card: Boost your reach
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .padding(16.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.RocketLaunch,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp),
+            )
+            Spacer(Modifier.width(14.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Boost your reach",
+                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = "Music content with substance gets more visibility across Vibra.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+    }
+}
+
+/**
+ * Modal dialog for searching and picking an artist tag.
+ */
+@Composable
+private fun ArtistSearchDialog(
+    onDismiss: () -> Unit,
+    onArtistSelected: (String) -> Unit,
+) {
+    var query by remember { mutableStateOf("") }
+    var results by remember { mutableStateOf<List<String>>(emptyList()) }
+    var isSearching by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(query) {
+        val q = query.trim()
+        if (q.length >= 2) {
+            isSearching = true
+            scope.launch {
+                val searchItems = withContext(Dispatchers.IO) {
+                    YtMusicRepository.search(q, SearchFilter.ARTISTS).getOrNull().orEmpty()
+                }
+                results = searchItems.mapNotNull { item ->
+                    when (item) {
+                        is SearchResult.Browse -> item.item.title
+                        else -> null
+                    }
+                }
+                isSearching = false
+            }
+        } else {
+            results = emptyList()
+            isSearching = false
+        }
+    }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(20.dp))
+                .background(MaterialTheme.colorScheme.surface)
+                .padding(20.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "Tag Artist",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                IconButton(onClick = onDismiss, modifier = Modifier.size(24.dp)) {
+                    Icon(
+                        imageVector = Icons.Rounded.Close,
+                        contentDescription = "Close",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(14.dp))
+
+            // Search Bar
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Rounded.Search,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    BasicTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        textStyle = TextStyle(
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontSize = 14.sp,
+                        ),
+                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                        decorationBox = { innerTextField ->
+                            if (query.isEmpty()) {
+                                Text(
+                                    text = "Search artist name...",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            innerTextField()
+                        },
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(14.dp))
+
+            if (isSearching) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CircularProgressIndicator(
+                        color = MaterialTheme.colorScheme.primary,
+                        strokeWidth = 2.dp,
+                        modifier = Modifier.size(24.dp),
+                    )
+                }
+            } else if (results.isNotEmpty()) {
+                LazyColumn(modifier = Modifier.height(200.dp)) {
+                    items(results) { artistName ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable { onArtistSelected(artistName) }
+                                .padding(vertical = 10.dp, horizontal = 8.dp),
+                        ) {
+                            Text(
+                                text = artistName,
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                    }
+                }
+            } else if (query.isNotBlank()) {
+                TextButton(
+                    onClick = { onArtistSelected(query.trim()) },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        text = "Use \"${query.trim()}\"",
+                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Modal dialog for searching and attaching a song.
+ */
+@Composable
+private fun SongSearchDialog(
+    onDismiss: () -> Unit,
+    onSongSelected: (Song) -> Unit,
+) {
+    var query by remember { mutableStateOf("") }
+    var results by remember { mutableStateOf<List<Song>>(emptyList()) }
+    var isSearching by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(query) {
+        val q = query.trim()
+        if (q.length >= 2) {
+            isSearching = true
+            scope.launch {
+                val searchItems = withContext(Dispatchers.IO) {
+                    YtMusicRepository.search(q, SearchFilter.SONGS).getOrNull().orEmpty()
+                }
+                results = searchItems.mapNotNull { item ->
+                    when (item) {
+                        is SearchResult.Track -> item.song
+                        is SearchResult.TopTrack -> item.song
+                        else -> null
+                    }
+                }
+                isSearching = false
+            }
+        } else {
+            results = emptyList()
+            isSearching = false
+        }
+    }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(20.dp))
+                .background(MaterialTheme.colorScheme.surface)
+                .padding(20.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "Attach Song",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                IconButton(onClick = onDismiss, modifier = Modifier.size(24.dp)) {
+                    Icon(
+                        imageVector = Icons.Rounded.Close,
+                        contentDescription = "Close",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(14.dp))
+
+            // Search Bar
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Rounded.Search,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    BasicTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        textStyle = TextStyle(
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontSize = 14.sp,
+                        ),
+                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                        decorationBox = { innerTextField ->
+                            if (query.isEmpty()) {
+                                Text(
+                                    text = "Search song or artist...",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            innerTextField()
+                        },
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(14.dp))
+
+            if (isSearching) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(150.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CircularProgressIndicator(
+                        color = MaterialTheme.colorScheme.primary,
+                        strokeWidth = 2.dp,
+                        modifier = Modifier.size(24.dp),
+                    )
+                }
+            } else {
+                LazyColumn(modifier = Modifier.height(240.dp)) {
+                    items(results) { song ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable { onSongSelected(song) }
+                                .padding(vertical = 8.dp, horizontal = 4.dp),
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                            ) {
+                                if (song.thumbnailUrl != null) {
+                                    AsyncImage(
+                                        model = song.thumbnailUrl,
+                                        contentDescription = null,
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.fillMaxSize(),
+                                    )
+                                }
+                            }
+
+                            Spacer(Modifier.width(12.dp))
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = song.title,
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                Text(
+                                    text = song.artist,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }

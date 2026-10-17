@@ -57,6 +57,9 @@ import coil3.compose.AsyncImage
 import com.fortune.vibramusic.data.social.PostComment
 import com.fortune.vibramusic.data.social.SocialPost
 
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.ui.graphics.luminance
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PostCommentsSheet(
@@ -66,7 +69,7 @@ fun PostCommentsSheet(
     onAddComment: (content: String, parentId: String?, gifUrl: String?) -> Unit,
     onToggleLikeComment: (PostComment) -> Unit,
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var commentText by remember { mutableStateOf("") }
     var replyingTo by remember { mutableStateOf<PostComment?>(null) }
     var selectedGifUrl by remember { mutableStateOf<String?>(null) }
@@ -84,10 +87,10 @@ fun PostCommentsSheet(
     val onSurfaceColor = MaterialTheme.colorScheme.onSurface
     val onSurfaceVariantColor = MaterialTheme.colorScheme.onSurfaceVariant
     val primaryColor = MaterialTheme.colorScheme.primary
-    val dividerColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
-    val inputBgColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
-    val inputBorderColor = Color.White.copy(alpha = 0.12f)
-    val replyBannerBg = primaryColor.copy(alpha = 0.12f)
+    val isDark = surfaceColor.luminance() < 0.5f
+    val inputBgColor = if (isDark) Color(0xFF28282B) else Color(0xFFE5E5EA)
+    val disabledButtonBg = if (isDark) Color(0xFF343438) else Color(0xFFD1D1D6)
+    val replyBannerBg = if (isDark) Color(0xFF2C2C2E) else Color(0xFFE5E5EA)
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -95,11 +98,14 @@ fun PostCommentsSheet(
         containerColor = surfaceColor,
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
         dragHandle = null,
+        contentWindowInsets = { WindowInsets(0, 0, 0, 0) },
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.85f),
+                .fillMaxHeight(0.92f)
+                .navigationBarsPadding()
+                .imePadding(),
         ) {
             // Header Bar
             Row(
@@ -130,8 +136,6 @@ fun PostCommentsSheet(
                     )
                 }
             }
-
-            HorizontalDivider(color = dividerColor, thickness = 1.dp)
 
             // Threaded Comments List
             Box(
@@ -242,7 +246,7 @@ fun PostCommentsSheet(
                                 .padding(4.dp)
                                 .size(20.dp)
                                 .clip(CircleShape)
-                                .background(Color.Black.copy(alpha = 0.65f))
+                                .background(Color.Black)
                                 .clickable { selectedGifUrl = null },
                             contentAlignment = Alignment.Center,
                         ) {
@@ -257,15 +261,11 @@ fun PostCommentsSheet(
                 }
             }
 
-            HorizontalDivider(color = dividerColor, thickness = 1.dp)
-
-            // Input Field Bar with Keyboard Padding
+            // Input Field Bar
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(surfaceColor)
-                    .navigationBarsPadding()
-                    .imePadding()
                     .padding(horizontal = 16.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -274,7 +274,7 @@ fun PostCommentsSheet(
                         .weight(1f)
                         .clip(RoundedCornerShape(22.dp))
                         .background(inputBgColor)
-                        .padding(horizontal = 16.dp, vertical = 11.dp),
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
                 ) {
                     BasicTextField(
                         value = commentText,
@@ -291,7 +291,7 @@ fun PostCommentsSheet(
                                 Text(
                                     text = if (replyingTo != null) "Reply to ${replyingTo?.authorHandle}..." else "Add a comment...",
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = onSurfaceVariantColor.copy(alpha = 0.65f),
+                                    color = onSurfaceVariantColor,
                                 )
                             }
                             innerTextField()
@@ -304,10 +304,10 @@ fun PostCommentsSheet(
                 // GIF Picker Button
                 Box(
                     modifier = Modifier
-                        .size(38.dp)
+                        .size(40.dp)
                         .clip(CircleShape)
                         .background(
-                            if (selectedGifUrl != null) primaryColor.copy(alpha = 0.25f)
+                            if (selectedGifUrl != null) primaryColor
                             else inputBgColor
                         )
                         .clickable { showGifPicker = true },
@@ -316,7 +316,7 @@ fun PostCommentsSheet(
                     Text(
                         text = "GIF",
                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                        color = if (selectedGifUrl != null) primaryColor else onSurfaceVariantColor,
+                        color = if (selectedGifUrl != null) MaterialTheme.colorScheme.onPrimary else onSurfaceColor,
                         fontSize = 11.sp,
                     )
                 }
@@ -341,13 +341,13 @@ fun PostCommentsSheet(
                         .clip(CircleShape)
                         .background(
                             if (canSend) primaryColor
-                            else primaryColor.copy(alpha = 0.25f),
+                            else disabledButtonBg,
                         ),
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Rounded.Send,
                         contentDescription = "Send",
-                        tint = if (canSend) MaterialTheme.colorScheme.onPrimary else onSurfaceVariantColor.copy(alpha = 0.5f),
+                        tint = if (canSend) MaterialTheme.colorScheme.onPrimary else onSurfaceVariantColor,
                         modifier = Modifier.size(18.dp),
                     )
                 }
@@ -378,7 +378,7 @@ private fun ThreadedCommentItem(
     onToggleLike: (PostComment) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val threadLineColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+    val threadLineColor = MaterialTheme.colorScheme.surfaceVariant
 
     Column(modifier = modifier.fillMaxWidth()) {
         // Parent Comment Row
@@ -525,7 +525,7 @@ private fun SingleCommentRow(
                 Text(
                     text = comment.content,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = onSurfaceColor.copy(alpha = 0.92f),
+                    color = onSurfaceColor,
                     lineHeight = 20.sp,
                 )
             }

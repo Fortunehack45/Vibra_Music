@@ -159,7 +159,7 @@ fun PostVideoPlayer(
                 modifier = Modifier
                     .size(52.dp)
                     .clip(CircleShape)
-                    .background(Color.Black.copy(alpha = 0.65f)),
+                    .background(Color.Black),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
@@ -178,7 +178,7 @@ fun PostVideoPlayer(
                 .padding(10.dp)
                 .size(34.dp)
                 .clip(CircleShape)
-                .background(Color.Black.copy(alpha = 0.65f))
+                .background(Color.Black)
                 .clickable {
                     isMuted = !isMuted
                     exoPlayer.volume = if (isMuted) 0f else 1f

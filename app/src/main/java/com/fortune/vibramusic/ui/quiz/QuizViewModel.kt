@@ -30,10 +30,16 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.UUID
 
+import com.fortune.vibramusic.auth.AuthStore
+import com.fortune.vibramusic.data.quiz.QuizLivesManager
+import com.fortune.vibramusic.data.settings.AppSettings
+
 class QuizViewModel(application: Application) : AndroidViewModel(application) {
 
     private val TAG = "QuizViewModel"
     val audioEngine = QuizAudioEngine(application)
+    val livesManager = QuizLivesManager(application)
+    private val authStore = AuthStore(application)
 
     private val _gameState = MutableStateFlow(QuizGameState.IDLE)
     val gameState: StateFlow<QuizGameState> = _gameState.asStateFlow()
@@ -66,8 +72,7 @@ class QuizViewModel(application: Application) : AndroidViewModel(application) {
     private val _lastResult = MutableStateFlow<QuizScoreResult?>(null)
     val lastResult: StateFlow<QuizScoreResult?> = _lastResult.asStateFlow()
 
-    private val _livesState = MutableStateFlow(QuizLivesState())
-    val livesState: StateFlow<QuizLivesState> = _livesState.asStateFlow()
+    val livesState: StateFlow<QuizLivesState> = livesManager.livesState
 
     private val _isPreparingQuiz = MutableStateFlow(false)
     val isPreparingQuiz: StateFlow<Boolean> = _isPreparingQuiz.asStateFlow()
@@ -83,17 +88,9 @@ class QuizViewModel(application: Application) : AndroidViewModel(application) {
         artist: QuizArtist,
         onInsufficientLives: () -> Unit,
     ) {
-        if (!_livesState.value.canPlay) {
+        if (!livesManager.consumeLife()) {
             onInsufficientLives()
             return
-        }
-
-        // Deduct 1 life if not unlimited
-        if (!_livesState.value.isUnlimited) {
-            _livesState.value = _livesState.value.copy(
-                remainingLives = (_livesState.value.remainingLives - 1).coerceAtLeast(0),
-                nextRefillMillis = System.currentTimeMillis() + 30 * 60 * 1000L,
-            )
         }
 
         _currentArtist.value = artist
@@ -242,9 +239,15 @@ class QuizViewModel(application: Application) : AndroidViewModel(application) {
 
         val percentile = calculatePercentile(correctAnswersCount, totalTime)
 
+        val session = authStore.activeSession ?: authStore.sessions.firstOrNull()
+        val activeUserId = session?.activeProfileId
+            ?: session?.profiles?.firstOrNull()?.profileId
+            ?: session?.accountId
+            ?: AppSettings.deviceUserId
+
         val result = QuizScoreResult(
             id = UUID.randomUUID().toString(),
-            userId = "user_me",
+            userId = activeUserId,
             artistId = artist.id,
             artistName = artist.name,
             artistAvatar = artist.artworkUrl,

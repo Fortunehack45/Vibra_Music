@@ -32,11 +32,21 @@ class VoiceRecorderManager(private val context: Context) {
 
     // Playback
     private var mediaPlayer: MediaPlayer? = null
+    private var playbackTickerJob: Job? = null
     private val _currentlyPlayingUrl = MutableStateFlow<String?>(null)
     val currentlyPlayingUrl: StateFlow<String?> = _currentlyPlayingUrl.asStateFlow()
 
     private val _isPlaying = MutableStateFlow(false)
     val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
+
+    private val _playbackProgress = MutableStateFlow(0f)
+    val playbackProgress: StateFlow<Float> = _playbackProgress.asStateFlow()
+
+    private val _playbackPositionMs = MutableStateFlow(0)
+    val playbackPositionMs: StateFlow<Int> = _playbackPositionMs.asStateFlow()
+
+    private val _playbackDurationMs = MutableStateFlow(0)
+    val playbackDurationMs: StateFlow<Int> = _playbackDurationMs.asStateFlow()
 
     fun startRecording(): Boolean {
         return try {
@@ -125,10 +135,16 @@ class VoiceRecorderManager(private val context: Context) {
                     start()
                     _isPlaying.value = true
                     _currentlyPlayingUrl.value = urlOrPath
+                    val dur = duration
+                    _playbackDurationMs.value = dur
+                    startPlaybackTicker()
                 }
                 setOnCompletionListener {
                     _isPlaying.value = false
                     _currentlyPlayingUrl.value = null
+                    _playbackProgress.value = 0f
+                    _playbackPositionMs.value = 0
+                    playbackTickerJob?.cancel()
                 }
                 prepareAsync()
             }
@@ -136,15 +152,33 @@ class VoiceRecorderManager(private val context: Context) {
             Log.e("VoiceRecorder", "Failed to play audio: $urlOrPath", e)
             _isPlaying.value = false
             _currentlyPlayingUrl.value = null
+            _playbackProgress.value = 0f
+            playbackTickerJob?.cancel()
+        }
+    }
+
+    private fun startPlaybackTicker() {
+        playbackTickerJob?.cancel()
+        playbackTickerJob = scope.launch {
+            while (isActive && _isPlaying.value) {
+                val current = mediaPlayer?.currentPosition ?: 0
+                val dur = mediaPlayer?.duration ?: 0
+                _playbackPositionMs.value = current
+                _playbackDurationMs.value = dur
+                _playbackProgress.value = if (dur > 0) (current.toFloat() / dur.toFloat()).coerceIn(0f, 1f) else 0f
+                delay(60)
+            }
         }
     }
 
     fun pauseAudio() {
         mediaPlayer?.pause()
         _isPlaying.value = false
+        playbackTickerJob?.cancel()
     }
 
     fun stopAudio() {
+        playbackTickerJob?.cancel()
         try {
             mediaPlayer?.stop()
             mediaPlayer?.release()
@@ -152,6 +186,12 @@ class VoiceRecorderManager(private val context: Context) {
         mediaPlayer = null
         _isPlaying.value = false
         _currentlyPlayingUrl.value = null
+        _playbackProgress.value = 0f
+        _playbackPositionMs.value = 0
+    }
+
+    fun stopPlayback() {
+        stopAudio()
     }
 
     fun release() {

@@ -180,6 +180,10 @@ object SupabaseService {
         imageUrls: List<String> = emptyList(),
         videoUrl: String? = null,
         gifUrl: String? = null,
+        audioUrl: String? = null,
+        isReview: Boolean = false,
+        rating: Int = 0,
+        taggedArtist: String? = null,
         musicAttachment: MusicTrackAttachment? = null,
         poll: PollData? = null,
         quoteOfId: String? = null,
@@ -210,6 +214,12 @@ object SupabaseService {
                 if (imageUrlsJson != null) append(",\"image_urls\":$imageUrlsJson")
                 if (allImages.isNotEmpty()) append(",\"image_url\":${jsonQuote(allImages.first())}")
                 if (videoUrl != null) append(",\"video_url\":${jsonQuote(videoUrl)}")
+                if (audioUrl != null) append(",\"audio_url\":${jsonQuote(audioUrl)}")
+                if (isReview) {
+                    append(",\"is_review\":true")
+                    append(",\"rating\":$rating")
+                }
+                if (taggedArtist != null) append(",\"tagged_artist\":${jsonQuote(taggedArtist)}")
                 if (musicTrackJson != null) append(",\"music_track\":$musicTrackJson")
                 if (pollJson != null) append(",\"poll_data\":$pollJson")
                 if (quoteOfId != null) append(",\"quote_of_id\":\"$quoteOfId\"")
@@ -237,6 +247,10 @@ object SupabaseService {
                 imageUrls = allImages,
                 videoUrl = videoUrl,
                 gifUrl = gifUrl,
+                audioUrl = audioUrl,
+                isReview = isReview,
+                rating = rating,
+                taggedArtist = taggedArtist,
                 musicTrack = musicAttachment,
                 pollData = poll,
                 quoteOfId = quoteOfId,
@@ -290,6 +304,33 @@ object SupabaseService {
             )
         }
     }
+
+    /**
+     * Toggles repost of a post ensuring single repost per user.
+     */
+    suspend fun toggleRepost(postId: String, user: SocialProfile, currentlyReposted: Boolean): Result<Boolean> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                if (currentlyReposted) {
+                    client.delete(baseUrl("posts")) {
+                        header("apikey", SupabaseConfig.anonKey)
+                        header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                        parameter("author_id", "eq.${user.id}")
+                        parameter("repost_of_id", "eq.$postId")
+                    }
+                    false
+                } else {
+                    val newPostId = UUID.randomUUID().toString()
+                    client.post(baseUrl("posts")) {
+                        header("apikey", SupabaseConfig.anonKey)
+                        header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                        contentType(ContentType.Application.Json)
+                        setBody("{\"id\":\"$newPostId\",\"author_id\":\"${user.id}\",\"repost_of_id\":\"$postId\",\"content\":\"\"}")
+                    }
+                    true
+                }
+            }
+        }
 
     /**
      * Casts a vote on a poll.
@@ -1193,6 +1234,14 @@ object SupabaseService {
                 PollData(question = question, options = options, totalVotes = options.sumOf { it.votes })
             }
 
+            val audioUrl = obj["audio_url"]?.jsonPrimitive?.content
+            val isReview = runCatching { obj["is_review"]?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: false }.getOrDefault(false)
+            val rating = obj["rating"]?.jsonPrimitive?.intOrNull ?: 0
+            val taggedArtist = obj["tagged_artist"]?.jsonPrimitive?.content
+            val isRepostedByMe = if (currentUserId.isNotBlank()) {
+                repostOfId != null && authorId == currentUserId
+            } else false
+
             SocialPost(
                 id = id,
                 authorId = authorId,
@@ -1202,6 +1251,10 @@ object SupabaseService {
                 imageUrls = imageUrls,
                 videoUrl = videoUrl,
                 gifUrl = gifUrl,
+                audioUrl = audioUrl,
+                isReview = isReview,
+                rating = rating,
+                taggedArtist = taggedArtist,
                 musicTrack = musicTrack,
                 pollData = poll,
                 likesCount = likesCount,
@@ -1209,6 +1262,7 @@ object SupabaseService {
                 repostsCount = repostsCount,
                 quoteOfId = quoteOfId,
                 repostOfId = repostOfId,
+                isRepostedByMe = isRepostedByMe,
                 createdAt = createdAt,
             )
         }

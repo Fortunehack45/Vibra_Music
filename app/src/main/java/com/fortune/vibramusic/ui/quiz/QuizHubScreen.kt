@@ -178,7 +178,7 @@ fun QuizHubScreen(
                         Text(
                             text = "Do You Know The Song?",
                             style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
 
@@ -187,7 +187,7 @@ fun QuizHubScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
                             .clip(RoundedCornerShape(percent = 50))
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
                             .clickable { showLivesDialog = true }
                             .padding(horizontal = 14.dp, vertical = 7.dp),
                     ) {
@@ -214,7 +214,7 @@ fun QuizHubScreen(
                         .fillMaxWidth()
                         .padding(horizontal = 20.dp)
                         .clip(RoundedCornerShape(22.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
                         .padding(horizontal = 16.dp, vertical = 12.dp),
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -230,7 +230,7 @@ fun QuizHubScreen(
                                 Text(
                                     text = "Search any artist in the world...",
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
                             BasicTextField(
@@ -337,7 +337,7 @@ fun QuizHubScreen(
                             .fillMaxWidth()
                             .padding(horizontal = 20.dp)
                             .clip(RoundedCornerShape(22.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
                             .padding(18.dp),
                     ) {
                         Text(
@@ -382,7 +382,7 @@ fun QuizHubScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.72f)),
+                    .background(Color.Black),
                 contentAlignment = Alignment.Center,
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -421,7 +421,7 @@ private fun TrendingArtistCard(
         modifier = Modifier
             .width(168.dp)
             .clip(RoundedCornerShape(24.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
             .padding(14.dp),
     ) {
         Column(
@@ -433,7 +433,7 @@ private fun TrendingArtistCard(
                 modifier = Modifier
                     .size(92.dp)
                     .clip(CircleShape)
-                    .background(Color.Black.copy(alpha = 0.45f))
+                    .background(Color.Black)
                     .padding(4.dp),
                 contentAlignment = Alignment.Center,
             ) {
@@ -457,7 +457,7 @@ private fun TrendingArtistCard(
             Text(
                 text = "10 Audio Snippets",
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
             )
 
@@ -498,7 +498,7 @@ private fun TrendingArtistCard(
                     modifier = Modifier
                         .size(36.dp)
                         .clip(RoundedCornerShape(12.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
                         .clickable(onClick = onLeaderboard),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -528,7 +528,7 @@ private fun QuizStepRow(
             modifier = Modifier
                 .size(24.dp)
                 .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)),
+                .background(MaterialTheme.colorScheme.surfaceVariant),
             contentAlignment = Alignment.Center,
         ) {
             Text(
@@ -550,7 +550,7 @@ private fun QuizStepRow(
             Text(
                 text = description,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 lineHeight = 16.sp,
             )
         }
@@ -567,7 +567,7 @@ private fun ArtistQuizRow(
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(18.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
             .padding(12.dp),
     ) {
         Row(
@@ -593,7 +593,7 @@ private fun ArtistQuizRow(
                 Text(
                     text = "10 Audio Snippets Challenge",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
 

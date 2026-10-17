@@ -48,7 +48,7 @@ fun QuizLivesDialog(
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = RoundedCornerShape(24.dp),
-            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+            color = MaterialTheme.colorScheme.surface,
             modifier = Modifier.fillMaxWidth(),
         ) {
             Column(
@@ -77,7 +77,7 @@ fun QuizLivesDialog(
                     modifier = Modifier
                         .size(64.dp)
                         .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.error.copy(alpha = 0.15f)),
+                        .background(MaterialTheme.colorScheme.errorContainer),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
@@ -99,10 +99,13 @@ fun QuizLivesDialog(
                 Spacer(Modifier.height(6.dp))
 
                 if (livesState.livesRemaining < livesState.maxLives) {
-                    val minutesRemaining = (livesState.refillTimeMillisRemaining / 60000).coerceAtLeast(1)
+                    val totalSecs = (livesState.refillTimeMillisRemaining / 1000).coerceAtLeast(0)
+                    val mm = totalSecs / 60
+                    val ss = totalSecs % 60
+                    val timeStr = String.format("%02d:%02d", mm, ss)
                     Text(
-                        text = "+1 Life in ~$minutesRemaining mins",
-                        style = MaterialTheme.typography.bodyMedium,
+                        text = "Next life in $timeStr",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 } else {
@@ -120,7 +123,7 @@ fun QuizLivesDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(16.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
                         .padding(16.dp),
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -142,7 +145,7 @@ fun QuizLivesDialog(
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(10.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f))
+                                .background(MaterialTheme.colorScheme.surface)
                                 .padding(horizontal = 16.dp, vertical = 8.dp),
                         ) {
                             Text(

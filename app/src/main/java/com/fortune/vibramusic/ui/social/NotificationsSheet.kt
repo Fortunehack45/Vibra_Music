@@ -69,7 +69,7 @@ fun NotificationsSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
+        containerColor = MaterialTheme.colorScheme.surface,
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
         dragHandle = null,
         modifier = modifier,
@@ -126,7 +126,7 @@ fun NotificationsSheet(
                         Icon(
                             imageVector = Icons.Rounded.NotificationsNone,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(48.dp),
                         )
                         Spacer(Modifier.height(12.dp))
@@ -139,7 +139,7 @@ fun NotificationsSheet(
                         Text(
                             text = "Likes, comments, replies and challenges will appear here.",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
@@ -177,8 +177,8 @@ private fun NotificationCard(
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
             .background(
-                if (isUnread) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)
-                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                if (isUnread) MaterialTheme.colorScheme.surfaceVariant
+                else MaterialTheme.colorScheme.surface,
             )
             .clickable(onClick = onClick)
             .padding(14.dp),
@@ -247,7 +247,7 @@ private fun NotificationCard(
                     Text(
                         text = formatHandle(notification.actorHandle),
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )

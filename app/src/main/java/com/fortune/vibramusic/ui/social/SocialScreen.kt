@@ -24,6 +24,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.heightIn
@@ -31,17 +33,21 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ChatBubbleOutline
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.MusicNote
+import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Repeat
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Share
+import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.StarOutline
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -55,6 +61,8 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -156,7 +164,7 @@ fun SocialScreen(
                                 modifier = Modifier
                                     .size(42.dp)
                                     .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
                                     .clickable { isSearchExpanded = true },
                                 contentAlignment = Alignment.Center,
                             ) {
@@ -182,7 +190,7 @@ fun SocialScreen(
                                     .weight(1f)
                                     .height(44.dp)
                                     .clip(RoundedCornerShape(22.dp))
-                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
                                     .padding(horizontal = 14.dp),
                                 contentAlignment = Alignment.CenterStart,
                             ) {
@@ -212,7 +220,7 @@ fun SocialScreen(
                                                 Text(
                                                     text = "Search posts and users...",
                                                     style = MaterialTheme.typography.bodySmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 )
                                             }
                                             inner()
@@ -239,7 +247,7 @@ fun SocialScreen(
                                 modifier = Modifier
                                     .size(42.dp)
                                     .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
                                     .clickable {
                                         isSearchExpanded = false
                                         viewModel.clearSearch()
@@ -407,7 +415,7 @@ fun SocialScreen(
                                     Icon(
                                         imageVector = Icons.Rounded.GraphicEq,
                                         contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
+                                        tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.size(48.dp),
                                     )
                                     Spacer(Modifier.height(14.dp))
@@ -420,7 +428,7 @@ fun SocialScreen(
                                     Text(
                                         text = "Be the first to share your music vibe or ask a question!",
                                         style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
                                 }
                             }
@@ -475,7 +483,7 @@ fun SocialScreen(
             shape = CircleShape,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(end = 20.dp, bottom = (contentPadding.calculateBottomPadding() - 20.dp).coerceAtLeast(16.dp))
+                .padding(end = 20.dp, bottom = (contentPadding.calculateBottomPadding() - 40.dp).coerceAtLeast(16.dp))
                 .size(54.dp),
         ) {
             Icon(
@@ -496,12 +504,16 @@ fun SocialScreen(
                 showCreatePostSheet = false
                 viewModel.clearQuotePost()
             },
-            onSubmitPost = { content, imageUrls, videoUrl, gifUrl, track, poll, quoteOfId ->
+            onSubmitPost = { content, imageUrls, videoUrl, gifUrl, audioUrl, isReview, rating, taggedArtist, track, poll, quoteOfId ->
                 viewModel.createPost(
                     content = content,
                     imageUrls = imageUrls,
                     videoUrl = videoUrl,
                     gifUrl = gifUrl,
+                    audioUrl = audioUrl,
+                    isReview = isReview,
+                    rating = rating,
+                    taggedArtist = taggedArtist,
                     musicAttachment = track,
                     poll = poll,
                     quoteOfId = quoteOfId,
@@ -561,7 +573,7 @@ private fun SearchUserChip(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
             .clip(RoundedCornerShape(20.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
             .clickable(onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 6.dp),
     ) {
@@ -597,7 +609,7 @@ fun FeedTabSwitcher(
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(24.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
             .padding(4.dp),
     ) {
         Row(
@@ -716,10 +728,31 @@ fun SocialPostCard(
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(20.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
             .padding(16.dp),
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
+            // Repost Header indicator
+            if (post.repostOfId != null || post.repostOf != null) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(bottom = 8.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Repeat,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(14.dp),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = "Reposted",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
+
             // Author Row
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -765,17 +798,57 @@ fun SocialPostCard(
                                 modifier = Modifier.size(14.dp),
                             )
                         }
+                        post.taggedArtist?.let { artist ->
+                            Icon(
+                                imageVector = Icons.Rounded.ChevronRight,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(14.dp),
+                            )
+                            Text(
+                                text = artist,
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        if (post.createdAt.isNotBlank()) {
+                            Text(
+                                text = " · ${post.createdAt}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
 
                     Text(
                         text = formatHandle(post.authorHandle),
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
 
-            Spacer(Modifier.height(12.dp))
+            // Review 5-Star Rating Bar
+            if (post.isReview && post.rating > 0) {
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(3.dp),
+                ) {
+                    (1..5).forEach { star ->
+                        Icon(
+                            imageVector = if (star <= post.rating) Icons.Rounded.Star else Icons.Rounded.StarOutline,
+                            contentDescription = null,
+                            tint = if (star <= post.rating) Color(0xFFFFB300) else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(16.dp),
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(10.dp))
 
             // Text Content
             if (post.content.isNotBlank()) {
@@ -788,10 +861,10 @@ fun SocialPostCard(
                 Spacer(Modifier.height(12.dp))
             }
 
-            // Attached Images Grid
+            // Attached Media Carousel (Swipeable HorizontalPager with indicator dots)
             val images = post.effectiveImages
             if (images.isNotEmpty()) {
-                PostImageGrid(
+                PostMediaCarousel(
                     images = images,
                     onImageClick = onImageClick,
                     modifier = Modifier.fillMaxWidth(),
@@ -805,8 +878,8 @@ fun SocialPostCard(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(MaterialTheme.colorScheme.surface)
                             .clickable { onImageClick(gifUrl) },
                     ) {
                         AsyncImage(
@@ -831,7 +904,16 @@ fun SocialPostCard(
                 Spacer(Modifier.height(12.dp))
             }
 
-            // Attached Track Card (Solid Surface with Play Preview)
+            // Attached Voice Note Player
+            post.audioUrl?.let { audioUrl ->
+                VoiceNotePlayerWidget(
+                    audioUrl = audioUrl,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(12.dp))
+            }
+
+            // Attached Track Card
             post.musicTrack?.let { track ->
                 PlayableTrackCard(
                     track = track,
@@ -858,7 +940,7 @@ fun SocialPostCard(
                     quotedId = post.quoteOfId,
                     onPlayTrack = onPlayTrack,
                     onClick = {
-                        post.quoteOf?.let { qPost -> onCommentClick() }
+                        post.quoteOf?.let { onCommentClick() }
                     },
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -930,7 +1012,7 @@ fun SocialPostCard(
                     Icon(
                         imageVector = Icons.Rounded.Repeat,
                         contentDescription = "Repost",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        tint = if (post.isRepostedByMe) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(19.dp),
                     )
                     if (post.repostsCount > 0) {
@@ -938,7 +1020,7 @@ fun SocialPostCard(
                         Text(
                             text = post.repostsCount.toString(),
                             style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = if (post.isRepostedByMe) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
@@ -961,6 +1043,162 @@ fun SocialPostCard(
 }
 
 @Composable
+fun VoiceNotePlayerWidget(
+    audioUrl: String,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    val voiceRecorder = remember { VoiceRecorderManager(context) }
+    val isPlaying by voiceRecorder.isPlaying.collectAsState()
+    val progress by voiceRecorder.playbackProgress.collectAsState()
+    val currentPositionMs by voiceRecorder.playbackPositionMs.collectAsState()
+    val durationMs by voiceRecorder.playbackDurationMs.collectAsState()
+
+    DisposableEffect(audioUrl) {
+        onDispose {
+            voiceRecorder.stopPlayback()
+        }
+    }
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+    ) {
+        IconButton(
+            onClick = {
+                if (isPlaying) voiceRecorder.pauseAudio()
+                else voiceRecorder.playAudio(audioUrl)
+            },
+            modifier = Modifier
+                .size(38.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primary),
+        ) {
+            Icon(
+                imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                contentDescription = "Play voice note",
+                tint = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier.size(22.dp),
+            )
+        }
+
+        Spacer(Modifier.width(12.dp))
+
+        // Dynamic Waveform
+        Row(
+            modifier = Modifier.weight(1f),
+            horizontalArrangement = Arrangement.spacedBy(3.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            val barHeights = listOf(14, 24, 18, 30, 20, 16, 26, 22, 12, 28, 20, 15, 25, 18)
+            barHeights.forEachIndexed { idx, h ->
+                val barProgress = idx.toFloat() / barHeights.size
+                val isPassed = barProgress <= progress
+                Box(
+                    modifier = Modifier
+                        .width(3.dp)
+                        .height(h.dp)
+                        .clip(RoundedCornerShape(1.5.dp))
+                        .background(
+                            if (isPassed) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant
+                        ),
+                )
+            }
+        }
+
+        Spacer(Modifier.width(10.dp))
+
+        val displaySeconds = if (isPlaying) currentPositionMs / 1000 else (if (durationMs > 0) durationMs / 1000 else 0)
+        Text(
+            text = String.format("%02d:%02d", displaySeconds / 60, displaySeconds % 60),
+            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+fun PostMediaCarousel(
+    images: List<String>,
+    onImageClick: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    if (images.isEmpty()) return
+
+    if (images.size == 1) {
+        Box(
+            modifier = modifier
+                .fillMaxWidth()
+                .height(260.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(MaterialTheme.colorScheme.surface)
+                .clickable { onImageClick(images[0]) },
+        ) {
+            AsyncImage(
+                model = images[0],
+                contentDescription = "Post image",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+    } else {
+        val pagerState = rememberPagerState(pageCount = { images.size })
+        Column(modifier = modifier.fillMaxWidth()) {
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(280.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(MaterialTheme.colorScheme.surface),
+            ) { page ->
+                val url = images[page]
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clickable { onImageClick(url) },
+                ) {
+                    AsyncImage(
+                        model = url,
+                        contentDescription = "Media ${page + 1}",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            // Dynamic indicator dots: pill for active, small dot for inactive
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                repeat(images.size) { index ->
+                    val isActive = pagerState.currentPage == index
+                    Box(
+                        modifier = Modifier
+                            .padding(horizontal = 3.dp)
+                            .height(6.dp)
+                            .width(if (isActive) 18.dp else 6.dp)
+                            .clip(RoundedCornerShape(3.dp))
+                            .background(
+                                if (isActive) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun PlayableTrackCard(
     track: MusicTrackAttachment,
     onPlay: () -> Unit,
@@ -968,10 +1206,10 @@ fun PlayableTrackCard(
 ) {
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(14.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surface)
             .clickable(onClick = onPlay)
-            .padding(10.dp),
+            .padding(12.dp),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -979,8 +1217,8 @@ fun PlayableTrackCard(
         ) {
             Box(
                 modifier = Modifier
-                    .size(46.dp)
-                    .clip(RoundedCornerShape(10.dp))
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(8.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant),
             ) {
                 if (track.artworkUrl != null) {
@@ -1005,7 +1243,7 @@ fun PlayableTrackCard(
             Column(Modifier.weight(1f)) {
                 Text(
                     text = track.title,
-                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -1023,8 +1261,7 @@ fun PlayableTrackCard(
                 modifier = Modifier
                     .size(36.dp)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary)
-                    .padding(6.dp),
+                    .background(MaterialTheme.colorScheme.primary),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
@@ -1046,8 +1283,8 @@ fun PollCard(
 ) {
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(14.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surface)
             .padding(14.dp),
     ) {
         Text(
@@ -1056,7 +1293,7 @@ fun PollCard(
             color = MaterialTheme.colorScheme.onSurface,
         )
 
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(12.dp))
 
         val hasVoted = poll.userVotedIndex != null
         val totalVotes = poll.totalVotes.coerceAtLeast(1)
@@ -1073,19 +1310,16 @@ fun PollCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 4.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(
-                        if (isMyVote) MaterialTheme.colorScheme.primary.copy(alpha = 0.20f)
-                        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-                    )
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
                     .clickable(enabled = !hasVoted) { onVote(index) }
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                    .padding(vertical = 8.dp, horizontal = 10.dp),
             ) {
                 if (hasVoted) {
-                    val solidProgressColor = if (isMyVote) {
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
+                    val progressFillColor = if (isMyVote) {
+                        MaterialTheme.colorScheme.primaryContainer
                     } else {
-                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
+                        MaterialTheme.colorScheme.surface
                     }
                     Box(
                         modifier = Modifier
@@ -1096,202 +1330,80 @@ fun PollCard(
                             modifier = Modifier
                                 .fillMaxHeight()
                                 .fillMaxWidth(animatedProgress.coerceIn(0f, 1f))
-                                .background(solidProgressColor, RoundedCornerShape(10.dp)),
+                                .background(progressFillColor, RoundedCornerShape(12.dp)),
                         )
                     }
                 }
 
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 6.dp, vertical = 2.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(
-                        text = option.text,
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            fontWeight = if (isMyVote) FontWeight.Bold else FontWeight.Medium,
-                        ),
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        if (option.songAttachment?.artworkUrl != null) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(MaterialTheme.colorScheme.surface),
+                            ) {
+                                AsyncImage(
+                                    model = option.songAttachment.artworkUrl,
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                            }
+                            Spacer(Modifier.width(10.dp))
+                        }
+
+                        Column {
+                            Text(
+                                text = option.text,
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontWeight = if (isMyVote) FontWeight.Bold else FontWeight.Medium,
+                                ),
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            option.songAttachment?.let { song ->
+                                Text(
+                                    text = song.artist,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
+                    }
 
                     if (hasVoted) {
+                        Spacer(Modifier.width(8.dp))
                         Text(
                             text = "$percentage%",
-                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                            color = if (isMyVote) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                            color = if (isMyVote) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                         )
                     }
                 }
             }
         }
 
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(8.dp))
 
         Text(
-            text = "${poll.totalVotes} votes",
+            text = if (hasVoted) "${poll.totalVotes} votes · Poll ended" else "${poll.totalVotes} votes · Tap to vote",
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-    }
-}
-
-@Composable
-fun PostImageGrid(
-    images: List<String>,
-    onImageClick: (String) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    if (images.isEmpty()) return
-
-    when (images.size) {
-        1 -> {
-            Box(
-                modifier = modifier
-                    .fillMaxWidth()
-                    .height(220.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
-                    .clickable { onImageClick(images[0]) },
-            ) {
-                AsyncImage(
-                    model = images[0],
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            }
-        }
-        2 -> {
-            Row(
-                modifier = modifier
-                    .fillMaxWidth()
-                    .height(180.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                images.forEach { url ->
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
-                            .clickable { onImageClick(url) },
-                    ) {
-                        AsyncImage(
-                            model = url,
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize(),
-                        )
-                    }
-                }
-            }
-        }
-        3 -> {
-            Row(
-                modifier = modifier
-                    .fillMaxWidth()
-                    .height(200.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Box(
-                    modifier = Modifier
-                        .weight(1.2f)
-                        .fillMaxHeight()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
-                        .clickable { onImageClick(images[0]) },
-                ) {
-                    AsyncImage(
-                        model = images[0],
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                }
-
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    for (i in 1..2) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .weight(1f)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
-                                .clickable { onImageClick(images[i]) },
-                        ) {
-                            AsyncImage(
-                                model = images[i],
-                                contentDescription = null,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize(),
-                            )
-                        }
-                    }
-                }
-            }
-        }
-        else -> {
-            // 4 or more
-            Column(
-                modifier = modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(120.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    for (i in 0..1) {
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
-                                .clickable { onImageClick(images[i]) },
-                        ) {
-                            AsyncImage(
-                                model = images[i],
-                                contentDescription = null,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize(),
-                            )
-                        }
-                    }
-                }
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(120.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    for (i in 2..3) {
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
-                                .clickable { onImageClick(images[i]) },
-                        ) {
-                            AsyncImage(
-                                model = images[i],
-                                contentDescription = null,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize(),
-                            )
-                        }
-                    }
-                }
-            }
-        }
     }
 }
 
@@ -1305,10 +1417,10 @@ fun QuotedPostCard(
 ) {
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(14.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surface)
             .clickable(onClick = onClick)
-            .padding(12.dp),
+            .padding(14.dp),
     ) {
         if (quotedPost == null) {
             Row(
@@ -1330,6 +1442,7 @@ fun QuotedPostCard(
             }
         } else {
             Column(modifier = Modifier.fillMaxWidth()) {
+                // Author row
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth(),
@@ -1357,17 +1470,53 @@ fun QuotedPostCard(
                         overflow = TextOverflow.Ellipsis,
                     )
 
-                    Spacer(Modifier.width(4.dp))
+                    quotedPost.taggedArtist?.let { artist ->
+                        Spacer(Modifier.width(4.dp))
+                        Icon(
+                            imageVector = Icons.Rounded.ChevronRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(14.dp),
+                        )
+                        Spacer(Modifier.width(2.dp))
+                        Text(
+                            text = artist,
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
 
-                    Text(
-                        text = formatHandle(quotedPost.authorHandle),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    if (quotedPost.createdAt.isNotBlank()) {
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            text = quotedPost.createdAt,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
 
+                // Review rating stars if quoted post is review
+                if (quotedPost.isReview && quotedPost.rating > 0) {
+                    Spacer(Modifier.height(6.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(3.dp),
+                    ) {
+                        (1..5).forEach { star ->
+                            Icon(
+                                imageVector = if (star <= quotedPost.rating) Icons.Rounded.Star else Icons.Rounded.StarOutline,
+                                contentDescription = null,
+                                tint = if (star <= quotedPost.rating) Color(0xFFFFB300) else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(14.dp),
+                            )
+                        }
+                    }
+                }
+
+                // Quoted text
                 if (quotedPost.content.isNotBlank()) {
                     Spacer(Modifier.height(8.dp))
                     Text(
@@ -1380,25 +1529,7 @@ fun QuotedPostCard(
                     )
                 }
 
-                val images = quotedPost.effectiveImages
-                if (images.isNotEmpty()) {
-                    Spacer(Modifier.height(8.dp))
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(100.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
-                    ) {
-                        AsyncImage(
-                            model = images.first(),
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize(),
-                        )
-                    }
-                }
-
+                // Quoted song track
                 quotedPost.musicTrack?.let { track ->
                     Spacer(Modifier.height(8.dp))
                     PlayableTrackCard(
@@ -1452,7 +1583,7 @@ fun RepostOptionsSheet(
                     modifier = Modifier
                         .size(40.dp)
                         .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
@@ -1494,7 +1625,7 @@ fun RepostOptionsSheet(
                     modifier = Modifier
                         .size(40.dp)
                         .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.12f)),
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
@@ -1538,7 +1669,7 @@ fun FullscreenImageDialog(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.95f)),
+                .background(Color.Black),
         ) {
             AsyncImage(
                 model = imageUrl,
@@ -1557,7 +1688,7 @@ fun FullscreenImageDialog(
                     .padding(24.dp)
                     .size(42.dp)
                     .clip(CircleShape)
-                    .background(Color.Black.copy(alpha = 0.6f)),
+                    .background(Color(0xFF222226)),
             ) {
                 Icon(
                     imageVector = Icons.Rounded.Close,

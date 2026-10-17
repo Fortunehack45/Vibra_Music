@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -57,6 +58,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.fortune.vibramusic.data.model.artworkAt
+import com.fortune.vibramusic.data.YtMusicRepository
+import com.fortune.vibramusic.data.model.SearchFilter
+import com.fortune.vibramusic.data.model.SearchResult
+import com.fortune.vibramusic.data.model.Song
 import com.fortune.vibramusic.data.quiz.LeaderboardEntry
 import com.fortune.vibramusic.data.quiz.QuizArtist
 import com.fortune.vibramusic.data.social.formatHandle
@@ -73,6 +78,8 @@ fun ArtistLeaderboardScreen(
     artist: QuizArtist,
     onBack: () -> Unit,
     onChallengeArtist: () -> Unit,
+    onOpenArtistDetail: ((id: String, name: String, artworkUrl: String?) -> Unit)? = null,
+    onPlaySong: ((Song) -> Unit)? = null,
     contentPadding: PaddingValues,
     hazeState: HazeState,
     modifier: Modifier = Modifier,
@@ -84,6 +91,7 @@ fun ArtistLeaderboardScreen(
 
     var leaderboardEntries by remember { mutableStateOf<List<LeaderboardEntry>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
+    var topSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
 
     LaunchedEffect(artist.id) {
         isLoading = true
@@ -92,6 +100,30 @@ fun ArtistLeaderboardScreen(
                 leaderboardEntries = entries
             }
         isLoading = false
+
+        // Fetch actual artist songs from music catalogue
+        runCatching {
+            var songs = if (artist.id.startsWith("UC")) {
+                YtMusicRepository.artistPage(artist.id).getOrNull()?.songs.orEmpty()
+            } else {
+                emptyList()
+            }
+            if (songs.isEmpty()) {
+                val searchResults = YtMusicRepository.search("${artist.name} songs", SearchFilter.SONGS).getOrNull().orEmpty()
+                songs = searchResults.mapNotNull { result ->
+                    when (result) {
+                        is SearchResult.Track -> result.song
+                        is SearchResult.TopTrack -> result.song
+                        else -> null
+                    }
+                }
+            }
+            songs
+        }.onSuccess { songs ->
+            if (songs.isNotEmpty()) {
+                topSongs = songs.take(8)
+            }
+        }
     }
 
     Box(
@@ -120,19 +152,11 @@ fun ArtistLeaderboardScreen(
                     )
                 }
 
-                // Smooth progressive gradient scrim blending into the page wash
+                // Solid wash container behind artist header
                 Box(
                     Modifier
                         .matchParentSize()
-                        .background(
-                            Brush.verticalGradient(
-                                0.30f to Color.Transparent,
-                                0.55f to palette.wash.copy(alpha = 0.25f),
-                                0.72f to palette.wash.copy(alpha = 0.60f),
-                                0.88f to palette.wash.copy(alpha = 0.85f),
-                                1.00f to palette.wash,
-                            ),
-                        ),
+                        .background(palette.wash),
                 )
             }
         }
@@ -173,31 +197,127 @@ fun ArtistLeaderboardScreen(
 
                     Spacer(Modifier.height(16.dp))
 
-                    // Challenge Artist Button
-                    ElevatedButton(
-                        onClick = onChallengeArtist,
-                        shape = RoundedCornerShape(16.dp),
-                        colors = ButtonDefaults.elevatedButtonColors(
-                            containerColor = palette.accent,
-                            contentColor = if (palette.accent.luminance() > 0.5f) Color.Black else Color.White,
-                        ),
-                        modifier = Modifier
-                            .fillMaxWidth(0.7f)
-                            .height(48.dp),
+                    // Action Buttons Row: Challenge Artist + Open Discography
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Icon(
-                            imageVector = Icons.Rounded.PlayArrow,
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp),
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = "Challenge This Artist",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp,
-                        )
+                        ElevatedButton(
+                            onClick = onChallengeArtist,
+                            shape = RoundedCornerShape(16.dp),
+                            colors = ButtonDefaults.elevatedButtonColors(
+                                containerColor = palette.accent,
+                                contentColor = if (palette.accent.luminance() > 0.5f) Color.Black else Color.White,
+                            ),
+                            modifier = Modifier
+                                .weight(1.2f)
+                                .height(46.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.PlayArrow,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                text = "Challenge",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                            )
+                        }
+
+                        if (onOpenArtistDetail != null) {
+                            ElevatedButton(
+                                onClick = { onOpenArtistDetail(artist.id, artist.name, highResArtwork) },
+                                shape = RoundedCornerShape(16.dp),
+                                colors = ButtonDefaults.elevatedButtonColors(
+                                    containerColor = palette.elevated,
+                                    contentColor = palette.onBackground,
+                                ),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(46.dp),
+                            ) {
+                                Text(
+                                    text = "Discography",
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 13.sp,
+                                )
+                            }
+                        }
                     }
                 }
+            }
+
+            // Popular Songs from Artist Catalogue
+            if (topSongs.isNotEmpty()) {
+                item(key = "popular_songs_header") {
+                    Spacer(Modifier.height(18.dp))
+                    Text(
+                        text = "Popular Songs",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = palette.onBackground,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
+                    )
+                }
+
+                items(topSongs, key = { it.videoId }) { song ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 5.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(palette.elevated)
+                            .clickable { onPlaySong?.invoke(song) }
+                            .padding(10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        AsyncImage(
+                            model = song.thumbnailUrl,
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .size(42.dp)
+                                .clip(RoundedCornerShape(8.dp)),
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                text = song.title,
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                                color = palette.onBackground,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                text = song.artist,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = palette.onBackgroundVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        IconButton(onClick = { onPlaySong?.invoke(song) }, modifier = Modifier.size(32.dp)) {
+                            Icon(
+                                imageVector = Icons.Rounded.PlayArrow,
+                                contentDescription = "Play",
+                                tint = palette.accent,
+                                modifier = Modifier.size(20.dp),
+                            )
+                        }
+                    }
+                }
+            }
+
+            item(key = "leaderboard_header") {
+                Spacer(Modifier.height(20.dp))
+                Text(
+                    text = "Quiz Master Leaderboard",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = palette.onBackground,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
+                )
             }
 
             // Top 3 Podium (if we have entries)
@@ -239,7 +359,7 @@ fun ArtistLeaderboardScreen(
                             Icon(
                                 imageVector = Icons.Rounded.EmojiEvents,
                                 contentDescription = null,
-                                tint = palette.accent.copy(alpha = 0.6f),
+                                tint = palette.accent,
                                 modifier = Modifier.size(44.dp),
                             )
                             Spacer(Modifier.height(12.dp))
@@ -398,7 +518,7 @@ private fun PodiumPillar(
                 .fillMaxWidth()
                 .height(height)
                 .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
-                .background(color.copy(alpha = 0.22f)),
+                .background(color),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
@@ -408,7 +528,7 @@ private fun PodiumPillar(
                     else -> Icons.Rounded.MilitaryTech
                 },
                 contentDescription = "Rank #$rank",
-                tint = color,
+                tint = Color.White,
                 modifier = Modifier.size(32.dp),
             )
         }
@@ -429,7 +549,7 @@ private fun LeaderboardRow(
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(14.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
             .padding(horizontal = 14.dp, vertical = 10.dp),
     ) {
         Row(
@@ -472,7 +592,7 @@ private fun LeaderboardRow(
                 Text(
                     text = formatHandle(entry.userHandle),
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
 

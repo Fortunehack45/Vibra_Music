@@ -29,6 +29,7 @@ import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PersonAdd
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.Icon
@@ -132,7 +133,7 @@ fun UserProfileScreen(
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp)
                         .clip(RoundedCornerShape(24.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
                         .padding(20.dp),
                 ) {
                     Column(
@@ -144,7 +145,7 @@ fun UserProfileScreen(
                             modifier = Modifier
                                 .size(90.dp)
                                 .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                                .background(MaterialTheme.colorScheme.surface),
                             contentAlignment = Alignment.Center,
                         ) {
                             if (profile.avatarUrl != null) {
@@ -188,7 +189,7 @@ fun UserProfileScreen(
                         Text(
                             text = formatHandle(profile.handle),
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
 
                         if (!profile.bio.isNullOrBlank()) {
@@ -221,11 +222,12 @@ fun UserProfileScreen(
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
                         ) {
                             if (!isSelf) {
-                                ElevatedButton(
+                                Button(
                                     onClick = { viewModel.toggleFollowUser(profile.id) },
                                     shape = RoundedCornerShape(12.dp),
-                                    colors = ButtonDefaults.elevatedButtonColors(
-                                        containerColor = if (profile.isFollowing) MaterialTheme.colorScheme.surfaceVariant
+                                    border = null,
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (profile.isFollowing) MaterialTheme.colorScheme.surface
                                         else MaterialTheme.colorScheme.primary,
                                         contentColor = if (profile.isFollowing) MaterialTheme.colorScheme.onSurface
                                         else MaterialTheme.colorScheme.onPrimary,
@@ -241,9 +243,14 @@ fun UserProfileScreen(
                                     )
                                 }
 
-                                OutlinedButton(
+                                Button(
                                     onClick = { viewModel.sendFriendRequest(profile.id) },
                                     shape = RoundedCornerShape(12.dp),
+                                    border = null,
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.surface,
+                                        contentColor = MaterialTheme.colorScheme.onSurface,
+                                    ),
                                     modifier = Modifier.weight(1f),
                                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp),
                                 ) {
@@ -262,9 +269,14 @@ fun UserProfileScreen(
                             }
 
                             if (isSelf) {
-                                OutlinedButton(
+                                Button(
                                     onClick = { showEditProfile = true },
                                     shape = RoundedCornerShape(12.dp),
+                                    border = null,
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.surface,
+                                        contentColor = MaterialTheme.colorScheme.onSurface,
+                                    ),
                                     modifier = Modifier.weight(1f),
                                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp),
                                 ) {
@@ -283,7 +295,7 @@ fun UserProfileScreen(
                             }
 
                             // Share Profile Button
-                            OutlinedButton(
+                            Button(
                                 onClick = {
                                     val sendIntent = Intent(Intent.ACTION_SEND).apply {
                                         putExtra(
@@ -295,6 +307,11 @@ fun UserProfileScreen(
                                     context.startActivity(Intent.createChooser(sendIntent, "Share Profile"))
                                 },
                                 shape = RoundedCornerShape(12.dp),
+                                border = null,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.surface,
+                                    contentColor = MaterialTheme.colorScheme.onSurface,
+                                ),
                                 modifier = Modifier.weight(1f),
                                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp),
                             ) {
@@ -333,7 +350,7 @@ fun UserProfileScreen(
                         Text(
                             text = "No favorite artists chosen yet.",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     } else {
                         LazyRow(
@@ -395,7 +412,7 @@ fun UserProfileScreen(
                             Text(
                                 text = "No posts yet.",
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                     }
@@ -424,7 +441,7 @@ fun UserProfileScreen(
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp)
                             .clip(RoundedCornerShape(16.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
                             .padding(20.dp),
                         contentAlignment = Alignment.Center,
                     ) {

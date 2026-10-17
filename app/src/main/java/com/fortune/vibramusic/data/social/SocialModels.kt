@@ -87,6 +87,7 @@ data class PollOption(
     val id: String = "",
     val text: String,
     val votes: Int = 0,
+    val songAttachment: MusicTrackAttachment? = null,
 )
 
 /**
@@ -130,6 +131,10 @@ data class SocialPost(
     val imageUrls: List<String> = emptyList(),
     val videoUrl: String? = null,
     val gifUrl: String? = null,
+    val audioUrl: String? = null,
+    val isReview: Boolean = false,
+    val rating: Int = 0,
+    val taggedArtist: String? = null,
     val musicTrack: MusicTrackAttachment? = null,
     val pollData: PollData? = null,
     val quizResult: QuizResultAttachment? = null,
@@ -141,6 +146,7 @@ data class SocialPost(
     val commentsCount: Int = 0,
     val repostsCount: Int = 0,
     val isLikedByMe: Boolean = false,
+    val isRepostedByMe: Boolean = false,
     val createdAt: String = "",
 ) {
     val authorName: String get() = author?.displayName ?: "Listener"

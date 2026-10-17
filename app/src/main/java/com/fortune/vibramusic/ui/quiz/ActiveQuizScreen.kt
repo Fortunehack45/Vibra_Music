@@ -129,7 +129,7 @@ fun ActiveQuizScreen(
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(14.dp))
-                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
                                     .padding(horizontal = 14.dp, vertical = 6.dp),
                             ) {
                                 Text(
@@ -144,7 +144,7 @@ fun ActiveQuizScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(14.dp))
-                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.18f))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
                                     .padding(horizontal = 10.dp, vertical = 6.dp),
                             ) {
                                 Icon(
@@ -298,7 +298,7 @@ private fun MysteryVinylPlayer(
             modifier = Modifier
                 .size(130.dp)
                 .clip(CircleShape)
-                .background(Color.White.copy(alpha = 0.05f)),
+                .background(Color(0xFF161618)),
         )
 
         // Center Album Art
@@ -323,10 +323,10 @@ private fun QuizOptionCard(
 
     val backgroundColor by animateColorAsState(
         targetValue = when {
-            isAnswered && isCorrect -> Color(0xFF10B981).copy(alpha = 0.35f) // Emerald green
-            isAnswered && isSelected && !isCorrect -> Color(0xFFEF4444).copy(alpha = 0.35f) // Crimson red
-            isSelected -> MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
-            else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+            isAnswered && isCorrect -> Color(0xFF047857) // Solid emerald green
+            isAnswered && isSelected && !isCorrect -> Color(0xFFB91C1C) // Solid crimson red
+            isSelected -> MaterialTheme.colorScheme.primary
+            else -> MaterialTheme.colorScheme.surfaceVariant
         },
         label = "optionBg",
     )
@@ -350,9 +350,10 @@ private fun QuizOptionCard(
                     .clip(CircleShape)
                     .background(
                         when {
-                            isAnswered && isCorrect -> Color(0xFF10B981)
-                            isAnswered && isSelected && !isCorrect -> Color(0xFFEF4444)
-                            else -> MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
+                            isAnswered && isCorrect -> Color(0xFF065F46)
+                            isAnswered && isSelected && !isCorrect -> Color(0xFF991B1B)
+                            isSelected -> MaterialTheme.colorScheme.primaryContainer
+                            else -> MaterialTheme.colorScheme.surface
                         },
                     ),
                 contentAlignment = Alignment.Center,
@@ -375,7 +376,7 @@ private fun QuizOptionCard(
                     Text(
                         text = optionLetters.getOrElse(index) { "?" },
                         style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onSurface,
+                        color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
                     )
                 }
             }
@@ -387,7 +388,7 @@ private fun QuizOptionCard(
                 style = MaterialTheme.typography.bodyLarge.copy(
                     fontWeight = if (isSelected || (isAnswered && isCorrect)) FontWeight.Bold else FontWeight.Medium,
                 ),
-                color = MaterialTheme.colorScheme.onSurface,
+                color = if (isSelected && !isAnswered) MaterialTheme.colorScheme.onPrimary else if (isAnswered && (isCorrect || isSelected)) Color.White else MaterialTheme.colorScheme.onSurface,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),

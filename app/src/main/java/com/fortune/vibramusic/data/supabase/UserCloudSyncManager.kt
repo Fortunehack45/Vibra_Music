@@ -9,6 +9,7 @@ import com.fortune.vibramusic.data.model.Song
 import com.fortune.vibramusic.data.model.UserPlaylist
 import com.fortune.vibramusic.data.settings.AppSettings
 import com.fortune.vibramusic.data.settings.AudioQuality
+import com.fortune.vibramusic.data.stats.ListeningStats
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -58,6 +59,10 @@ object UserCloudSyncManager {
                                 AppSettings.setPreferredGenres(exp.preferredGenres.toSet())
                             }
                         }
+                        if (!exp.listeningStatsJson.isNullOrBlank()) {
+                            ListeningStats.importBucketsJson(exp.listeningStatsJson)
+                            Log.d(TAG, "Restored listening experience stats buckets from cloud.")
+                        }
                     }
                 }
 
@@ -105,6 +110,7 @@ object UserCloudSyncManager {
             val quality = AppSettings.effectiveAudioQuality.name
             val norm = AppSettings.loudnessNormalization.value
             val canvas = AppSettings.animatedCanvas.value
+            val statsJson = runCatching { ListeningStats.exportBucketsJson() }.getOrNull()
 
             SupabaseService.syncListeningExperience(
                 userId = userId,
@@ -122,6 +128,7 @@ object UserCloudSyncManager {
                 lyricsSource = "DEFAULT",
                 canvasEnabled = canvas,
                 preferredGenres = AppSettings.preferredGenres.value.toList(),
+                listeningStatsJson = statsJson,
             )
         }
     }

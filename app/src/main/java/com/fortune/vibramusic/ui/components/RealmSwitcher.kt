@@ -87,54 +87,47 @@ fun RealmSwitcher(
         Color.White.copy(alpha = 0.75f)
     }
 
-    val containerModifier = if (hazeState != null) {
-        modifier
-            .shadow(
-                elevation = if (isDark) 8.dp else 4.dp,
-                shape = RoundedCornerShape(percent = 50),
-                spotColor = Color.Black.copy(alpha = 0.35f),
-            )
-            .clip(RoundedCornerShape(percent = 50))
-            .hazeEffect(hazeState, HazeMaterials.thin()) {
-                tints = listOf(HazeTint(glassTint))
-                blurRadius = 28.dp
+    val shape = RoundedCornerShape(percent = 50)
+    val useLiquidGlass = LocalLiquidGlassEnabled.current && isGlassSupported()
+
+    val containerModifier = modifier
+        .shadow(
+            elevation = if (isDark) 8.dp else 4.dp,
+            shape = shape,
+            spotColor = Color.Black.copy(alpha = 0.35f),
+        )
+        .clip(shape)
+        .then(
+            if (useLiquidGlass) {
+                Modifier.liquidGlass(shape)
+            } else if (hazeState != null) {
+                Modifier.hazeEffect(hazeState, HazeMaterials.thin()) {
+                    tints = listOf(HazeTint(glassTint))
+                    blurRadius = 28.dp
+                }
+            } else {
+                Modifier
             }
-            .border(
-                width = 1.dp,
-                brush = Brush.verticalGradient(
-                    colors = if (isDark) listOf(
-                        Color.White.copy(alpha = 0.50f),
-                        Color.White.copy(alpha = 0.15f),
-                    ) else listOf(
-                        Color.White.copy(alpha = 0.90f),
-                        Color.Black.copy(alpha = 0.10f),
-                    ),
+        )
+        .background(
+            Brush.verticalGradient(
+                if (isDark) listOf(Color(0xB31E222E), Color(0xCC12141A))
+                else listOf(Color.White.copy(alpha = 0.95f), Color(0xEEEDEEF2))
+            )
+        )
+        .border(
+            width = 1.dp,
+            brush = Brush.verticalGradient(
+                colors = if (isDark) listOf(
+                    Color.White.copy(alpha = 0.50f),
+                    Color.White.copy(alpha = 0.15f),
+                ) else listOf(
+                    Color.White.copy(alpha = 0.90f),
+                    Color.Black.copy(alpha = 0.10f),
                 ),
-                shape = RoundedCornerShape(percent = 50),
-            )
-    } else {
-        modifier
-            .shadow(
-                elevation = if (isDark) 8.dp else 4.dp,
-                shape = RoundedCornerShape(percent = 50),
-                spotColor = Color.Black.copy(alpha = 0.35f),
-            )
-            .clip(RoundedCornerShape(percent = 50))
-            .background(
-                Brush.verticalGradient(
-                    if (isDark) listOf(Color(0xB31E222E), Color(0xCC12141A))
-                    else listOf(Color.White.copy(alpha = 0.95f), Color(0xEEEDEEF2))
-                )
-            )
-            .border(
-                width = 1.dp,
-                brush = Brush.verticalGradient(
-                    if (isDark) listOf(Color.White.copy(alpha = 0.50f), Color.White.copy(alpha = 0.15f))
-                    else listOf(Color.White, Color.Black.copy(alpha = 0.12f))
-                ),
-                shape = RoundedCornerShape(percent = 50),
-            )
-    }
+            ),
+            shape = shape,
+        )
 
     BoxWithConstraints(
         modifier = containerModifier

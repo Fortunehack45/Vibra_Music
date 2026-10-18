@@ -188,7 +188,7 @@ fun CreatePostSheet(
     // Poll builder
     var showPollBuilder by remember { mutableStateOf(false) }
     var pollQuestion by remember { mutableStateOf("") }
-    val pollOptions = remember { mutableStateListOf("Option 1", "Option 2") }
+    val pollOptions = remember { mutableStateListOf("", "") }
     val pollOptionTracks = remember { androidx.compose.runtime.mutableStateMapOf<Int, MusicTrackAttachment?>() }
     val pollOptionImages = remember { androidx.compose.runtime.mutableStateMapOf<Int, String?>() }
     var pollDurationDays by remember { mutableIntStateOf(1) }
@@ -1245,6 +1245,9 @@ fun CreatePostSheet(
 
                                     // 4. Construct poll
                                     val finalPoll = if (showPollBuilder && pollQuestion.isNotBlank() && pollOptions.size >= 2) {
+                                        val calculatedEndsAt = runCatching {
+                                            java.time.Instant.now().plus(pollDurationDays.toLong(), java.time.temporal.ChronoUnit.DAYS).toString()
+                                        }.getOrNull()
                                         PollData(
                                             question = pollQuestion.trim(),
                                             options = pollOptions.mapIndexedNotNull { idx, text ->
@@ -1258,6 +1261,7 @@ fun CreatePostSheet(
                                                     imageUrl = img,
                                                 )
                                             },
+                                            endsAt = calculatedEndsAt,
                                         )
                                     } else null
 

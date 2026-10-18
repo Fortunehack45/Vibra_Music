@@ -1,6 +1,10 @@
 package com.fortune.vibramusic.ui.social
 
 import android.content.Intent
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -37,15 +41,19 @@ import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.Gif
+import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Repeat
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.SubdirectoryArrowRight
 import androidx.compose.material.icons.rounded.Verified
+import androidx.compose.material.icons.rounded.Videocam
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -90,7 +98,9 @@ import com.fortune.vibramusic.data.social.formatRelativeTime
 import com.fortune.vibramusic.data.social.isWithinEditWindow
 import com.fortune.vibramusic.data.supabase.SupabaseService
 import com.fortune.vibramusic.ui.components.MentionSuggestionPopup
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun PostThreadScreen(
@@ -100,7 +110,7 @@ fun PostThreadScreen(
     onBack: () -> Unit,
     onLikePost: (SocialPost) -> Unit,
     onRepostPost: (SocialPost) -> Unit,
-    onAddComment: (content: String, parentId: String?, gifUrl: String?) -> Unit,
+    onAddComment: (content: String, parentId: String?, imageUrl: String?, videoUrl: String?, gifUrl: String?) -> Unit,
     onToggleLikeComment: (PostComment) -> Unit,
     onEditPost: ((postId: String, newContent: String) -> Unit)? = null,
     onDeletePost: ((SocialPost) -> Unit)? = null,
@@ -119,8 +129,31 @@ fun PostThreadScreen(
 
     var replyText by remember { mutableStateOf("") }
     var replyingTo by remember { mutableStateOf<PostComment?>(null) }
+    var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
+    var selectedVideoUri by remember { mutableStateOf<Uri?>(null) }
     var selectedGifUrl by remember { mutableStateOf<String?>(null) }
+    var isUploadingMedia by remember { mutableStateOf(false) }
     var showGifPicker by remember { mutableStateOf(false) }
+
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia(),
+    ) { uri ->
+        if (uri != null) {
+            selectedImageUri = uri
+            selectedVideoUri = null
+            selectedGifUrl = null
+        }
+    }
+
+    val videoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia(),
+    ) { uri ->
+        if (uri != null) {
+            selectedVideoUri = uri
+            selectedImageUri = null
+            selectedGifUrl = null
+        }
+    }
 
     // Mention suggestions state
     var mentionQuery by remember { mutableStateOf<String?>(null) }
@@ -360,6 +393,7 @@ fun PostThreadScreen(
                             onDeleteClick = { commentToDelete = it },
                             onOpenProfile = onOpenProfile,
                             onMentionClick = onMentionClick,
+                            onMediaClick = onMediaClick,
                         )
                     }
 
@@ -426,6 +460,70 @@ fun PostThreadScreen(
                     }
                 }
 
+                // Attachment Preview Strip
+                if (selectedImageUri != null || selectedVideoUri != null || selectedGifUrl != null) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(56.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(MaterialTheme.colorScheme.surface),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            if (selectedImageUri != null) {
+                                AsyncImage(
+                                    model = selectedImageUri,
+                                    contentDescription = "Selected image",
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                            } else if (selectedVideoUri != null) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Videocam,
+                                    contentDescription = "Selected video",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(28.dp),
+                                )
+                            } else if (selectedGifUrl != null) {
+                                AsyncImage(
+                                    model = selectedGifUrl,
+                                    contentDescription = "Selected GIF",
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                            }
+
+                            // Close / Remove icon overlay
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(2.dp)
+                                    .size(18.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.Black.copy(alpha = 0.7f))
+                                    .clickable {
+                                        selectedImageUri = null
+                                        selectedVideoUri = null
+                                        selectedGifUrl = null
+                                    },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Close,
+                                    contentDescription = "Remove attachment",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(12.dp),
+                                )
+                            }
+                        }
+                    }
+                }
+
                 // Input Controls Row
                 Row(
                     modifier = Modifier
@@ -458,7 +556,7 @@ fun PostThreadScreen(
                         }
                     }
 
-                    Spacer(Modifier.width(10.dp))
+                    Spacer(Modifier.width(8.dp))
 
                     // Text Input
                     Box(
@@ -487,41 +585,143 @@ fun PostThreadScreen(
                         )
                     }
 
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(6.dp))
 
-                    // Send Button
+                    // Photo Picker Button
                     IconButton(
                         onClick = {
+                            photoPickerLauncher.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                            )
+                        },
+                        modifier = Modifier.size(32.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Image,
+                            contentDescription = "Attach photo",
+                            tint = if (selectedImageUri != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+
+                    // Video Picker Button
+                    IconButton(
+                        onClick = {
+                            videoPickerLauncher.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)
+                            )
+                        },
+                        modifier = Modifier.size(32.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Videocam,
+                            contentDescription = "Attach video",
+                            tint = if (selectedVideoUri != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+
+                    // GIF Picker Button
+                    Box(
+                        modifier = Modifier
+                            .size(30.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (selectedGifUrl != null) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.surface
+                            )
+                            .clickable { showGifPicker = true },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = "GIF",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            color = if (selectedGifUrl != null) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 11.sp,
+                        )
+                    }
+
+                    Spacer(Modifier.width(6.dp))
+
+                    // Send Button
+                    val canSend = (replyText.isNotBlank() || selectedImageUri != null || selectedVideoUri != null || selectedGifUrl != null) && !isUploadingMedia
+                    IconButton(
+                        onClick = {
+                            if (!canSend) return@IconButton
                             val trimmed = replyText.trim()
-                            if (trimmed.isNotBlank() || selectedGifUrl != null) {
-                                onAddComment(trimmed, replyingTo?.id, selectedGifUrl)
-                                replyText = ""
-                                replyingTo = null
-                                selectedGifUrl = null
+                            val imageUri = selectedImageUri
+                            val videoUri = selectedVideoUri
+                            val gif = selectedGifUrl
+                            val parent = replyingTo?.id
+
+                            replyText = ""
+                            selectedImageUri = null
+                            selectedVideoUri = null
+                            selectedGifUrl = null
+                            replyingTo = null
+
+                            if (imageUri != null || videoUri != null) {
+                                isUploadingMedia = true
+                                scope.launch {
+                                    var uploadedImg: String? = null
+                                    var uploadedVid: String? = null
+                                    if (imageUri != null) {
+                                        runCatching {
+                                            val bytes = withContext(Dispatchers.IO) {
+                                                context.contentResolver.openInputStream(imageUri)?.use { it.readBytes() }
+                                            }
+                                            if (bytes != null) {
+                                                uploadedImg = SupabaseService.uploadMedia(bytes, "image/jpeg").getOrNull()
+                                            }
+                                        }
+                                    }
+                                    if (videoUri != null) {
+                                        runCatching {
+                                            val bytes = withContext(Dispatchers.IO) {
+                                                context.contentResolver.openInputStream(videoUri)?.use { it.readBytes() }
+                                            }
+                                            if (bytes != null) {
+                                                uploadedVid = SupabaseService.uploadMedia(bytes, "video/mp4").getOrNull()
+                                            }
+                                        }
+                                    }
+                                    isUploadingMedia = false
+                                    onAddComment(trimmed, parent, uploadedImg, uploadedVid, gif)
+                                }
+                            } else {
+                                onAddComment(trimmed, parent, null, null, gif)
                             }
                         },
-                        enabled = replyText.isNotBlank() || selectedGifUrl != null,
+                        enabled = canSend,
                         modifier = Modifier
                             .size(38.dp)
                             .clip(CircleShape)
                             .background(
-                                if (replyText.isNotBlank() || selectedGifUrl != null) {
+                                if (canSend) {
                                     MaterialTheme.colorScheme.primary
                                 } else {
                                     MaterialTheme.colorScheme.surface
                                 },
                             ),
                     ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.Send,
-                            contentDescription = "Send",
-                            tint = if (replyText.isNotBlank() || selectedGifUrl != null) {
-                                MaterialTheme.colorScheme.onPrimary
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                            },
-                            modifier = Modifier.size(18.dp),
-                        )
+                        if (isUploadingMedia) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.onPrimary,
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.Send,
+                                contentDescription = "Send",
+                                tint = if (canSend) {
+                                    MaterialTheme.colorScheme.onPrimary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                                },
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
                     }
                 }
             }
@@ -655,6 +855,18 @@ fun PostThreadScreen(
                 TextButton(onClick = { commentToDelete = null }) {
                     Text("Cancel")
                 }
+            },
+        )
+    }
+
+    if (showGifPicker) {
+        GifPickerSheet(
+            onDismiss = { showGifPicker = false },
+            onSelectGif = { gif ->
+                selectedGifUrl = gif
+                selectedImageUri = null
+                selectedVideoUri = null
+                showGifPicker = false
             },
         )
     }
@@ -970,6 +1182,7 @@ private fun ThreadCommentItem(
     onDeleteClick: (PostComment) -> Unit,
     onOpenProfile: (SocialProfile) -> Unit,
     onMentionClick: ((String) -> Unit)? = null,
+    onMediaClick: ((List<PostMediaItem>, Int) -> Unit)? = null,
 ) {
     val isCommentAuthor = comment.authorId == currentUserId
     val canEdit = isCommentAuthor && isWithinEditWindow(comment.createdAt, 10L)
@@ -1103,6 +1316,47 @@ private fun ThreadCommentItem(
                     onMentionClick = onMentionClick,
                 )
 
+                // Attached Image
+                if (!comment.imageUrl.isNullOrBlank()) {
+                    Spacer(Modifier.height(6.dp))
+                    AsyncImage(
+                        model = comment.imageUrl,
+                        contentDescription = "Comment image",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxWidth(0.85f)
+                            .height(180.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable {
+                                onMediaClick?.invoke(
+                                    listOf(PostMediaItem(url = comment.imageUrl, type = PostMediaType.IMAGE)),
+                                    0,
+                                )
+                            },
+                    )
+                }
+
+                // Attached Video
+                if (!comment.videoUrl.isNullOrBlank()) {
+                    Spacer(Modifier.height(6.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(0.85f)
+                            .height(180.dp)
+                            .clip(RoundedCornerShape(12.dp)),
+                    ) {
+                        PostVideoPlayer(
+                            videoUrl = comment.videoUrl,
+                            onFullScreenClick = {
+                                onMediaClick?.invoke(
+                                    listOf(PostMediaItem(url = comment.videoUrl, type = PostMediaType.VIDEO)),
+                                    0,
+                                )
+                            },
+                        )
+                    }
+                }
+
                 // GIF
                 if (!comment.gifUrl.isNullOrBlank()) {
                     Spacer(Modifier.height(6.dp))
@@ -1113,7 +1367,13 @@ private fun ThreadCommentItem(
                         modifier = Modifier
                             .fillMaxWidth(0.7f)
                             .height(140.dp)
-                            .clip(RoundedCornerShape(12.dp)),
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable {
+                                onMediaClick?.invoke(
+                                    listOf(PostMediaItem(url = comment.gifUrl, type = PostMediaType.IMAGE)),
+                                    0,
+                                )
+                            },
                     )
                 }
 
@@ -1229,6 +1489,67 @@ private fun ThreadCommentItem(
                         color = MaterialTheme.colorScheme.onSurface,
                         onMentionClick = onMentionClick,
                     )
+
+                    // Attached Image
+                    if (!reply.imageUrl.isNullOrBlank()) {
+                        Spacer(Modifier.height(4.dp))
+                        AsyncImage(
+                            model = reply.imageUrl,
+                            contentDescription = "Reply image",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .fillMaxWidth(0.85f)
+                                .height(140.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable {
+                                    onMediaClick?.invoke(
+                                        listOf(PostMediaItem(url = reply.imageUrl, type = PostMediaType.IMAGE)),
+                                        0,
+                                    )
+                                },
+                        )
+                    }
+
+                    // Attached Video
+                    if (!reply.videoUrl.isNullOrBlank()) {
+                        Spacer(Modifier.height(4.dp))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(0.85f)
+                                .height(140.dp)
+                                .clip(RoundedCornerShape(10.dp)),
+                        ) {
+                            PostVideoPlayer(
+                                videoUrl = reply.videoUrl,
+                                onFullScreenClick = {
+                                    onMediaClick?.invoke(
+                                        listOf(PostMediaItem(url = reply.videoUrl, type = PostMediaType.VIDEO)),
+                                        0,
+                                    )
+                                },
+                            )
+                        }
+                    }
+
+                    // GIF
+                    if (!reply.gifUrl.isNullOrBlank()) {
+                        Spacer(Modifier.height(4.dp))
+                        AsyncImage(
+                            model = reply.gifUrl,
+                            contentDescription = "GIF",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .fillMaxWidth(0.7f)
+                                .height(120.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable {
+                                    onMediaClick?.invoke(
+                                        listOf(PostMediaItem(url = reply.gifUrl, type = PostMediaType.IMAGE)),
+                                        0,
+                                    )
+                                },
+                        )
+                    }
                 }
             }
         }

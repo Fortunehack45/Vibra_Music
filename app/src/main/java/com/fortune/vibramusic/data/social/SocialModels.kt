@@ -87,6 +87,7 @@ data class PollData(
     val options: List<PollOption> = emptyList(),
     val totalVotes: Int = 0,
     val userVotedIndex: Int? = null,
+    val endsAt: String? = null,
 )
 
 @Serializable
@@ -297,6 +298,8 @@ data class PostComment(
     val author: SocialProfile? = null,
     val parentId: String? = null,
     val content: String,
+    val imageUrl: String? = null,
+    val videoUrl: String? = null,
     val gifUrl: String? = null,
     val likesCount: Int = 0,
     val isLikedByMe: Boolean = false,
@@ -417,4 +420,5 @@ data class UserListeningExperience(
     val lyricsSource: String = "DEFAULT",
     val canvasEnabled: Boolean = true,
     val preferredGenres: List<String> = emptyList(),
+    val listeningStatsJson: String? = null,
 )

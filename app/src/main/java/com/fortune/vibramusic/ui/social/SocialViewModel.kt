@@ -71,11 +71,19 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
     val conversations: StateFlow<List<ConversationSummary>> = _conversations.asStateFlow()
 
     private fun updatePostAcrossAllLists(postId: String, transform: (SocialPost) -> SocialPost) {
-        _posts.value = _posts.value.map { if (it.id == postId) transform(it) else it }
-        _viewingProfilePosts.value = _viewingProfilePosts.value.map { if (it.id == postId) transform(it) else it }
+        fun updateItem(p: SocialPost): SocialPost {
+            val updated = if (p.id == postId) transform(p) else p
+            return if (updated.repostOf?.id == postId) {
+                updated.copy(repostOf = transform(updated.repostOf!!))
+            } else {
+                updated
+            }
+        }
+        _posts.value = _posts.value.map(::updateItem)
+        _viewingProfilePosts.value = _viewingProfilePosts.value.map(::updateItem)
         val selected = _selectedPostForComments.value
-        if (selected?.id == postId) {
-            _selectedPostForComments.value = transform(selected)
+        if (selected != null) {
+            _selectedPostForComments.value = updateItem(selected)
         }
     }
 
@@ -429,6 +437,15 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun deletePost(postId: String) {
+        val user = _currentProfile.value ?: return
+        val post = _posts.value.find { it.id == postId }
+            ?: _viewingProfilePosts.value.find { it.id == postId }
+            ?: _selectedPostForComments.value?.takeIf { it.id == postId }
+            ?: SocialPost(id = postId, authorId = user.id, content = "")
+        deletePost(post)
+    }
+
     fun editPost(postId: String, newContent: String, onComplete: (Boolean) -> Unit = {}) {
         val user = _currentProfile.value ?: return
         val trimmed = newContent.trim()
@@ -636,10 +653,28 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
             bannerPlaylists = bannerPlaylists,
         )
 
+        val oldAvatar = current.avatarUrl
+        if (!avatarUrl.isNullOrBlank() && avatarUrl != oldAvatar && !oldAvatar.isNullOrBlank()) {
+            scheduleDelayedAvatarCleanup(oldAvatar)
+        }
+
         _currentProfile.value = updated
         if (_viewingProfile.value?.id == current.id) {
             _viewingProfile.value = updated
         }
+
+        val myId = current.id
+        fun updatePostAuthor(p: SocialPost): SocialPost {
+            val updatedP = if (p.authorId == myId) p.copy(author = updated) else p
+            return if (updatedP.repostOf?.authorId == myId) {
+                updatedP.copy(repostOf = updatedP.repostOf.copy(author = updated))
+            } else {
+                updatedP
+            }
+        }
+        _posts.value = _posts.value.map(::updatePostAuthor)
+        _viewingProfilePosts.value = _viewingProfilePosts.value.map(::updatePostAuthor)
+        _selectedPostForComments.value = _selectedPostForComments.value?.let(::updatePostAuthor)
 
         viewModelScope.launch {
             cacheStore.saveProfile(updated)
@@ -677,14 +712,37 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
         )
     }
 
+    fun scheduleDelayedAvatarCleanup(oldAvatarUrl: String?) {
+        if (oldAvatarUrl.isNullOrBlank()) return
+        if (!oldAvatarUrl.contains("/storage/v1/object/public/vibra_social/")) return
+        val fileName = oldAvatarUrl.substringAfter("/storage/v1/object/public/vibra_social/").substringBefore('?').trim()
+        if (fileName.isBlank()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // Wait 10 minutes (600,000 ms) before purging the previous avatar from Supabase Storage
+                kotlinx.coroutines.delay(10 * 60 * 1000L)
+                SupabaseService.deleteStorageFile("vibra_social", fileName)
+                Log.d("SocialViewModel", "Cleaned up old avatar after 10m delay: $fileName")
+            } catch (_: Exception) {
+            }
+        }
+    }
+
     fun closeComments() {
         _selectedPostForComments.value = null
         _comments.value = emptyList()
     }
 
-    fun addComment(postId: String, content: String, parentCommentId: String? = null, gifUrl: String? = null) {
+    fun addComment(
+        postId: String,
+        content: String,
+        parentCommentId: String? = null,
+        imageUrl: String? = null,
+        videoUrl: String? = null,
+        gifUrl: String? = null,
+    ) {
         val user = _currentProfile.value ?: return
-        if (content.isBlank() && gifUrl.isNullOrBlank()) return
+        if (content.isBlank() && imageUrl.isNullOrBlank() && videoUrl.isNullOrBlank() && gifUrl.isNullOrBlank()) return
 
         val optimisticComment = PostComment(
             id = java.util.UUID.randomUUID().toString(),
@@ -693,6 +751,8 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
             author = user,
             parentId = parentCommentId,
             content = content,
+            imageUrl = imageUrl,
+            videoUrl = videoUrl,
             gifUrl = gifUrl,
         )
         val updatedComments = _comments.value + optimisticComment
@@ -708,6 +768,8 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
                 user = user,
                 content = content,
                 parentCommentId = parentCommentId,
+                imageUrl = imageUrl,
+                videoUrl = videoUrl,
                 gifUrl = gifUrl,
             ).onSuccess { newComment ->
                 val reconciled = _comments.value.map { if (it.id == optimisticComment.id) newComment else it }
@@ -719,6 +781,8 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
                 if (!recipientId.isNullOrBlank() && recipientId != user.id) {
                     val snippet = when {
                         content.isNotBlank() -> "commented: \"${content.take(50)}\""
+                        !imageUrl.isNullOrBlank() -> "replied with a photo"
+                        !videoUrl.isNullOrBlank() -> "replied with a video"
                         !gifUrl.isNullOrBlank() -> "replied with a GIF"
                         else -> "commented on your post"
                     }
@@ -938,11 +1002,19 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun loadProfilePosts(userId: String) {
+        val myId = _currentProfile.value?.id.orEmpty()
         viewModelScope.launch {
-            SupabaseService.fetchUserPosts(userId)
+            SupabaseService.fetchUserPosts(userId, currentUserId = myId)
                 .onSuccess { list ->
                     val localUnsynced = _viewingProfilePosts.value.filter { c -> c.createdAt == "Just now" && list.none { it.id == c.id } }
-                    _viewingProfilePosts.value = (localUnsynced + list).distinctBy { it.id }
+                    val feedLikesMap = _posts.value.associate { it.id to Pair(it.isLikedByMe, it.likesCount) }
+                    val reconciledList = list.map { p ->
+                        val feedState = feedLikesMap[p.id]
+                        if (feedState != null) {
+                            p.copy(isLikedByMe = feedState.first, likesCount = feedState.second)
+                        } else p
+                    }
+                    _viewingProfilePosts.value = (localUnsynced + reconciledList).distinctBy { it.id }
                 }
         }
     }

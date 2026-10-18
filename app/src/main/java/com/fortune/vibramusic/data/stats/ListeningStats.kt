@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.data.stats
+package com.fortune.vibramusic.data.stats
 
 import android.content.Context
 import android.util.Log
@@ -412,6 +412,21 @@ object ListeningStats {
                 }.onFailure { Log.w(TAG, "Could not import bucket $key", it) }
             }
         }
+    }
+
+    /** Every bucket serialized as JSON for Supabase cloud sync. */
+    suspend fun exportBucketsJson(): String {
+        val list = exportAll()
+        return json.encodeToString(kotlinx.serialization.builtins.ListSerializer(StoredBucket.serializer()), list)
+    }
+
+    /** Restores buckets from Supabase cloud sync JSON. */
+    fun importBucketsJson(jsonStr: String) {
+        if (jsonStr.isBlank()) return
+        runCatching {
+            val list = json.decodeFromString(kotlinx.serialization.builtins.ListSerializer(StoredBucket.serializer()), jsonStr)
+            importAll(list)
+        }.onFailure { Log.w(TAG, "Could not import buckets from cloud JSON", it) }
     }
 
     // -- Shapes --------------------------------------------------------------

@@ -314,7 +314,8 @@ object SupabaseService {
                     val optImg = opt.imageUrl ?: opt.songAttachment?.artworkUrl ?: opt.songAttachment?.thumbnailUrl ?: ""
                     "{\"text\":${jsonQuote(opt.text)},\"votes\":${opt.votes},\"image_url\":${jsonQuote(optImg)}}"
                 }
-                "{\"question\":${jsonQuote(it.question)},\"options\":[$optionsArray]}"
+                val endsAtClause = it.endsAt?.let { ea -> ",\"ends_at\":${jsonQuote(ea)}" } ?: ""
+                "{\"question\":${jsonQuote(it.question)},\"options\":[$optionsArray]$endsAtClause}"
             }
 
             val allImages = if (gifUrl != null) listOf(gifUrl) + imageUrls else imageUrls
@@ -509,13 +510,22 @@ object SupabaseService {
         user: SocialProfile,
         content: String,
         parentCommentId: String? = null,
+        imageUrl: String? = null,
+        videoUrl: String? = null,
         gifUrl: String? = null,
     ): Result<PostComment> = withContext(Dispatchers.IO) {
         runCatching {
             val commentId = UUID.randomUUID().toString()
-            val finalContent = if (!gifUrl.isNullOrBlank()) {
-                if (content.isNotBlank()) "[gif:$gifUrl] $content" else "[gif:$gifUrl]"
-            } else content
+            var finalContent = content.trim()
+            if (!imageUrl.isNullOrBlank()) {
+                finalContent = "[image:$imageUrl] $finalContent".trim()
+            }
+            if (!videoUrl.isNullOrBlank()) {
+                finalContent = "[video:$videoUrl] $finalContent".trim()
+            }
+            if (!gifUrl.isNullOrBlank()) {
+                finalContent = "[gif:$gifUrl] $finalContent".trim()
+            }
 
             val body = buildString {
                 append("{")
@@ -563,7 +573,9 @@ object SupabaseService {
                 authorId = user.id,
                 author = user,
                 parentId = parentCommentId,
-                content = content,
+                content = content.trim(),
+                imageUrl = imageUrl,
+                videoUrl = videoUrl,
                 gifUrl = gifUrl,
             )
         }
@@ -974,6 +986,24 @@ object SupabaseService {
         mimeType: String = "image/jpeg",
         fileName: String = "${UUID.randomUUID()}.jpg",
     ): Result<String> = uploadMedia(bytes, mimeType, fileName)
+
+    /**
+     * Deletes a file from Supabase Storage (e.g. 'vibra_social' bucket).
+     */
+    suspend fun deleteStorageFile(bucket: String = "vibra_social", path: String): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            val cleanPath = path.trim().trimStart('/')
+            val deleteUrl = "${SupabaseConfig.url.trimEnd('/')}/storage/v1/object/$bucket/$cleanPath"
+            val response = client.delete(deleteUrl) {
+                header("apikey", SupabaseConfig.anonKey)
+                header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+            }
+            if (!response.status.isSuccess()) {
+                Log.w(TAG, "deleteStorageFile returned ${response.status}: ${response.bodyAsText().take(200)}")
+            }
+            Unit
+        }
+    }
 
     /**
      * Fetches conversations for the user with last message preview and unread count.
@@ -1820,6 +1850,7 @@ object SupabaseService {
         lyricsSource: String,
         canvasEnabled: Boolean,
         preferredGenres: List<String> = emptyList(),
+        listeningStatsJson: String? = null,
     ): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
             val genresJson = preferredGenres.joinToString(prefix = "[", postfix = "]", separator = ",") { jsonQuote(it) }
@@ -1840,6 +1871,7 @@ object SupabaseService {
                 append("\"lyrics_source\":${jsonQuote(lyricsSource)},")
                 append("\"canvas_enabled\":$canvasEnabled,")
                 append("\"preferred_genres\":$genresJson")
+                if (listeningStatsJson != null) append(",\"listening_stats_json\":${jsonQuote(listeningStatsJson)}")
                 append("}")
             }
             val res = client.post(baseUrl("user_listening_experience")) {
@@ -1894,6 +1926,7 @@ object SupabaseService {
                 lyricsSource = obj.str("lyrics_source") ?: "DEFAULT",
                 canvasEnabled = obj.bool("canvas_enabled") ?: true,
                 preferredGenres = genres,
+                listeningStatsJson = obj.str("listening_stats_json"),
             )
         }
     }
@@ -2339,6 +2372,7 @@ object SupabaseService {
         // Extract optional poll
         val poll = obj.obj("poll_data")?.let { p ->
             val question = p.str("question") ?: ""
+            val endsAt = p.str("ends_at") ?: p.str("endsAt")
             val options = p.arr("options")?.mapIndexedNotNull { idx, opt ->
                 val o = opt as? JsonObject ?: return@mapIndexedNotNull null
                 val optImageUrl = o.str("image_url")?.takeIf { it.isNotBlank() && it != "null" }
@@ -2349,7 +2383,12 @@ object SupabaseService {
                     imageUrl = optImageUrl,
                 )
             } ?: emptyList()
-            PollData(question = question, options = options, totalVotes = options.sumOf { it.votes })
+            PollData(
+                question = question,
+                options = options,
+                totalVotes = options.sumOf { it.votes },
+                endsAt = endsAt,
+            )
         }
 
         val audioUrl = obj.str("audio_url")?.takeIf { it.isNotBlank() && it != "null" }
@@ -2417,6 +2456,22 @@ object SupabaseService {
                 cleanContent = rawContent.replace(match.value, "").trim()
             }
         }
+        var imageUrl = obj.str("image_url")?.takeIf { it.isNotBlank() && it != "null" }
+        if (cleanContent.contains("[image:")) {
+            val match = "\\[image:(https?://[^\\]]+)\\]".toRegex().find(cleanContent)
+            if (match != null) {
+                if (imageUrl == null) imageUrl = match.groupValues[1]
+                cleanContent = cleanContent.replace(match.value, "").trim()
+            }
+        }
+        var videoUrl = obj.str("video_url")?.takeIf { it.isNotBlank() && it != "null" }
+        if (cleanContent.contains("[video:")) {
+            val match = "\\[video:(https?://[^\\]]+)\\]".toRegex().find(cleanContent)
+            if (match != null) {
+                if (videoUrl == null) videoUrl = match.groupValues[1]
+                cleanContent = cleanContent.replace(match.value, "").trim()
+            }
+        }
         val parentId = obj.str("parent_id")?.takeIf { it.isNotBlank() && it != "null" }
         val createdAt = obj.str("created_at") ?: ""
         val likesCount = obj["likes_count"]?.let { el ->
@@ -2443,6 +2498,8 @@ object SupabaseService {
             author = author,
             parentId = parentId,
             content = cleanContent,
+            imageUrl = imageUrl,
+            videoUrl = videoUrl,
             gifUrl = gifUrl,
             likesCount = likesCount,
             isEdited = isEdited,

@@ -695,8 +695,8 @@ fun SocialScreen(
                 viewModel.deletePost(postId)
                 viewModel.closeComments()
             },
-            onAddComment = { content, parentId, gifUrl ->
-                viewModel.addComment(post.id, content, parentId, gifUrl)
+            onAddComment = { content, parentId, imageUrl, videoUrl, gifUrl ->
+                viewModel.addComment(post.id, content, parentId, imageUrl, videoUrl, gifUrl)
             },
             onToggleLikeComment = { viewModel.toggleLikeComment(it) },
             onEditComment = { commentId, newContent ->
@@ -1792,6 +1792,28 @@ fun PollCard(
 
         val hasVoted = poll.userVotedIndex != null
         val totalVotes = poll.totalVotes.coerceAtLeast(1)
+        val isExpired = poll.endsAt?.let { raw ->
+            val parsed = runCatching { java.time.Instant.parse(raw) }.getOrNull()
+                ?: runCatching { java.time.OffsetDateTime.parse(raw).toInstant() }.getOrNull()
+            parsed != null && parsed.isBefore(java.time.Instant.now())
+        } ?: false
+        val timeRemainingText = if (!isExpired) {
+            poll.endsAt?.let { raw ->
+                val parsed = runCatching { java.time.Instant.parse(raw) }.getOrNull()
+                    ?: runCatching { java.time.OffsetDateTime.parse(raw).toInstant() }.getOrNull()
+                if (parsed != null && parsed.isAfter(java.time.Instant.now())) {
+                    val duration = java.time.Duration.between(java.time.Instant.now(), parsed)
+                    val days = duration.toDays()
+                    val hours = duration.toHours()
+                    when {
+                        days > 1 -> "${days}d left"
+                        hours >= 1 -> "${hours}h left"
+                        duration.toMinutes() > 1 -> "${duration.toMinutes()}m left"
+                        else -> "Ending soon"
+                    }
+                } else null
+            }
+        } else null
 
         poll.options.forEachIndexed { index, option ->
             val isMyVote = poll.userVotedIndex == index
@@ -1807,7 +1829,7 @@ fun PollCard(
                     .padding(vertical = 4.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant)
-                    .clickable(enabled = !hasVoted) { onVote(index) }
+                    .clickable(enabled = !hasVoted && !isExpired) { onVote(index) }
                     .padding(vertical = 8.dp, horizontal = 10.dp),
             ) {
                 if (hasVoted) {
@@ -1895,8 +1917,14 @@ fun PollCard(
 
         Spacer(Modifier.height(8.dp))
 
+        val voteSummary = when {
+            isExpired -> "${poll.totalVotes} votes · Poll ended"
+            hasVoted -> if (timeRemainingText != null) "${poll.totalVotes} votes · $timeRemainingText" else "${poll.totalVotes} votes"
+            else -> if (timeRemainingText != null) "${poll.totalVotes} votes · $timeRemainingText · Tap to vote" else "${poll.totalVotes} votes · Tap to vote"
+        }
+
         Text(
-            text = if (hasVoted) "${poll.totalVotes} votes · Poll ended" else "${poll.totalVotes} votes · Tap to vote",
+            text = voteSummary,
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

@@ -120,10 +120,17 @@ import androidx.compose.ui.graphics.ColorFilter
 import com.fortune.vibramusic.R
 import com.fortune.vibramusic.ui.realm.AppRealm
 import com.fortune.vibramusic.ui.components.RealmSwitcher
+import com.fortune.vibramusic.ui.components.LocalLiquidGlassEnabled
+import com.fortune.vibramusic.ui.components.isGlassSupported
+import com.fortune.vibramusic.ui.components.liquidGlass
 import com.fortune.vibramusic.ui.components.lightweightLiquidGlass
 import com.fortune.vibramusic.ui.components.liquidGlassButton
 import com.fortune.vibramusic.ui.components.glassContentColor
 import com.fortune.vibramusic.ui.haptics.Haptic
+import androidx.compose.ui.draw.shadow
+import dev.chrisbanes.haze.hazeSource
+import dev.chrisbanes.haze.hazeEffect
+import dev.chrisbanes.haze.materials.HazeMaterials
 
 @Composable
 fun UserProfileScreen(
@@ -145,6 +152,13 @@ fun UserProfileScreen(
     val currentProfile by viewModel.currentProfile.collectAsStateWithLifecycle()
     val viewingProfile by viewModel.viewingProfile.collectAsStateWithLifecycle()
     val activeProfile = if (isSelf) (currentProfile ?: profile) else (viewingProfile?.takeIf { it.id == profile.id } ?: profile)
+
+    val selectedPostForComments by viewModel.selectedPostForComments.collectAsStateWithLifecycle()
+    val comments by viewModel.comments.collectAsStateWithLifecycle()
+
+    val isDark = MaterialTheme.colorScheme.surface.let {
+        (it.red * 0.299f + it.green * 0.587f + it.blue * 0.114f) < 0.5f
+    }
 
     val posts by viewModel.viewingProfilePosts.collectAsStateWithLifecycle()
     val favoriteArtists by viewModel.favoriteArtists.collectAsStateWithLifecycle()
@@ -181,7 +195,9 @@ fun UserProfileScreen(
         modifier = modifier.fillMaxSize(),
     ) {
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .hazeSource(hazeState),
             contentPadding = PaddingValues(
                 top = 0.dp,
                 bottom = contentPadding.calculateBottomPadding() + 80.dp,
@@ -249,7 +265,7 @@ fun UserProfileScreen(
                             ),
                     )
 
-                    // Overlaid Liquid Glass Navigation Chrome
+                    // Overlaid Floating Liquid Glass Navigation Chrome
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -263,22 +279,45 @@ fun UserProfileScreen(
                             Box(
                                 modifier = Modifier
                                     .size(44.dp)
+                                    .shadow(
+                                        elevation = 6.dp,
+                                        shape = CircleShape,
+                                        spotColor = Color.Black.copy(alpha = 0.35f),
+                                    )
+                                    .clip(CircleShape)
+                                    .then(
+                                        if (LocalLiquidGlassEnabled.current && isGlassSupported()) {
+                                            Modifier.liquidGlass(CircleShape)
+                                        } else {
+                                            Modifier.hazeEffect(hazeState, HazeMaterials.thin())
+                                        }
+                                    )
+                                    .background(
+                                        if (isDark) Color(0xCC181A22) else Color.White.copy(alpha = 0.92f),
+                                        CircleShape,
+                                    )
+                                    .border(
+                                        width = 1.dp,
+                                        brush = Brush.verticalGradient(
+                                            colors = listOf(
+                                                Color.White.copy(alpha = 0.6f),
+                                                Color.White.copy(alpha = 0.15f),
+                                            )
+                                        ),
+                                        shape = CircleShape,
+                                    )
                                     .liquidGlassButton(
                                         onClick = onBack,
                                         haptic = Haptic.Tap,
                                         expandScale = 1.14f,
                                         pressScale = 0.91f,
-                                    )
-                                    .lightweightLiquidGlass(
-                                        shape = CircleShape,
-                                        fallbackColor = MaterialTheme.colorScheme.surfaceVariant,
                                     ),
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                                     contentDescription = "Back",
-                                    tint = glassContentColor(),
+                                    tint = if (isDark) Color.White else Color(0xFF111318),
                                     modifier = Modifier.size(20.dp),
                                 )
                             }
@@ -286,16 +325,39 @@ fun UserProfileScreen(
                             Box(
                                 modifier = Modifier
                                     .size(44.dp)
-                                    .lightweightLiquidGlass(
+                                    .shadow(
+                                        elevation = 6.dp,
                                         shape = CircleShape,
-                                        fallbackColor = MaterialTheme.colorScheme.surfaceVariant,
+                                        spotColor = Color.Black.copy(alpha = 0.35f),
+                                    )
+                                    .clip(CircleShape)
+                                    .then(
+                                        if (LocalLiquidGlassEnabled.current && isGlassSupported()) {
+                                            Modifier.liquidGlass(CircleShape)
+                                        } else {
+                                            Modifier.hazeEffect(hazeState, HazeMaterials.thin())
+                                        }
+                                    )
+                                    .background(
+                                        if (isDark) Color(0xCC181A22) else Color.White.copy(alpha = 0.92f),
+                                        CircleShape,
+                                    )
+                                    .border(
+                                        width = 1.dp,
+                                        brush = Brush.verticalGradient(
+                                            colors = listOf(
+                                                Color.White.copy(alpha = 0.6f),
+                                                Color.White.copy(alpha = 0.15f),
+                                            )
+                                        ),
+                                        shape = CircleShape,
                                     ),
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Image(
                                     painter = painterResource(R.drawable.ic_logo),
                                     contentDescription = null,
-                                    colorFilter = ColorFilter.tint(glassContentColor()),
+                                    colorFilter = ColorFilter.tint(if (isDark) Color.White else Color(0xFF111318)),
                                     modifier = Modifier.size(24.dp),
                                 )
                             }
@@ -312,6 +374,33 @@ fun UserProfileScreen(
                             Box(
                                 modifier = Modifier
                                     .size(44.dp)
+                                    .shadow(
+                                        elevation = 6.dp,
+                                        shape = CircleShape,
+                                        spotColor = Color.Black.copy(alpha = 0.35f),
+                                    )
+                                    .clip(CircleShape)
+                                    .then(
+                                        if (LocalLiquidGlassEnabled.current && isGlassSupported()) {
+                                            Modifier.liquidGlass(CircleShape)
+                                        } else {
+                                            Modifier.hazeEffect(hazeState, HazeMaterials.thin())
+                                        }
+                                    )
+                                    .background(
+                                        if (isDark) Color(0xCC181A22) else Color.White.copy(alpha = 0.92f),
+                                        CircleShape,
+                                    )
+                                    .border(
+                                        width = 1.dp,
+                                        brush = Brush.verticalGradient(
+                                            colors = listOf(
+                                                Color.White.copy(alpha = 0.6f),
+                                                Color.White.copy(alpha = 0.15f),
+                                            )
+                                        ),
+                                        shape = CircleShape,
+                                    )
                                     .liquidGlassButton(
                                         onClick = {
                                             val shareText = "Check out ${formatHandle(activeProfile.handle)}'s music profile on Vibra:\nhttps://vibramusic.app/u/${activeProfile.handle.removePrefix("@")}"
@@ -324,17 +413,13 @@ fun UserProfileScreen(
                                         haptic = Haptic.Tap,
                                         expandScale = 1.14f,
                                         pressScale = 0.91f,
-                                    )
-                                    .lightweightLiquidGlass(
-                                        shape = CircleShape,
-                                        fallbackColor = MaterialTheme.colorScheme.surfaceVariant,
                                     ),
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Icon(
                                     imageVector = Icons.Rounded.Share,
                                     contentDescription = "Share",
-                                    tint = glassContentColor(),
+                                    tint = if (isDark) Color.White else Color(0xFF111318),
                                     modifier = Modifier.size(18.dp),
                                 )
                             }
@@ -1211,6 +1296,61 @@ fun UserProfileScreen(
                     }
                 }
             }
+        }
+
+        // Dedicated Twitter (X) style Post Thread Screen when user expands a post
+        selectedPostForComments?.let { post ->
+            PostThreadScreen(
+                post = post,
+                comments = comments,
+                currentProfile = currentProfile,
+                onBack = { viewModel.closeComments() },
+                onLikePost = { viewModel.toggleLike(it) },
+                onRepostPost = {
+                    if (it.isRepostedByMe) {
+                        viewModel.toggleRepost(it)
+                    } else {
+                        viewModel.repost(it)
+                    }
+                },
+                onEditPost = { postId, newContent ->
+                    viewModel.editPost(postId, newContent)
+                },
+                onDeletePost = { targetPost ->
+                    viewModel.deletePost(targetPost)
+                    viewModel.closeComments()
+                },
+                onAddComment = { content, parentId, imageUrl, videoUrl, gifUrl ->
+                    viewModel.addComment(post.id, content, parentId, imageUrl, videoUrl, gifUrl)
+                },
+                onToggleLikeComment = { viewModel.toggleLikeComment(it) },
+                onEditComment = { commentId, newContent ->
+                    viewModel.editComment(commentId, newContent)
+                },
+                onDeleteComment = { commentId, postId ->
+                    viewModel.deleteComment(commentId, postId)
+                },
+                onOpenProfile = { clickedProfile ->
+                    viewModel.closeComments()
+                    if (clickedProfile.id != activeProfile.id) {
+                        viewModel.openUserProfile(clickedProfile)
+                    }
+                },
+                onPlayTrack = onPlayTrack,
+                onMediaClick = { list, idx ->
+                    activeMediaViewer = Pair(list, idx)
+                },
+                onMentionClick = { handle ->
+                    viewModel.closeComments()
+                    viewModel.openUserProfileByHandle(handle)
+                },
+                onVotePoll = { optionIdx ->
+                    viewModel.votePoll(post, optionIdx)
+                },
+                onQuoteClick = { quoted ->
+                    viewModel.openComments(quoted)
+                },
+            )
         }
     }
 }

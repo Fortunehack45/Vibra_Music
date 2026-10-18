@@ -488,11 +488,10 @@ private fun VibraMusicApp(
     val socialNotifications by socialViewModel.notifications.collectAsStateWithLifecycle()
     val socialIsNotificationsOpen by socialViewModel.isNotificationsOpen.collectAsStateWithLifecycle()
     val vmViewingProfile by socialViewModel.viewingProfile.collectAsStateWithLifecycle()
+    val socialSelectedPostForComments by socialViewModel.selectedPostForComments.collectAsStateWithLifecycle()
 
     LaunchedEffect(vmViewingProfile) {
-        if (vmViewingProfile != null && vmViewingProfile != viewingSocialProfile) {
-            viewingSocialProfile = vmViewingProfile
-        }
+        viewingSocialProfile = vmViewingProfile
     }
 
     val quizGameState by quizViewModel.gameState.collectAsStateWithLifecycle()
@@ -2443,20 +2442,23 @@ private fun VibraMusicApp(
         BackHandler(enabled = libraryShowAll != null && detail == null) { libraryShowAll = null }
         BackHandler(enabled = detailActiveShelf != null) { detailActiveShelf = null }
 
-        BackHandler(enabled = currentRealm == AppRealm.SOCIAL && detail == null && activeLeaderboardArtist != null) {
+        BackHandler(enabled = currentRealm == AppRealm.SOCIAL && detail == null && socialSelectedPostForComments != null) {
+            socialViewModel.closeComments()
+        }
+        BackHandler(enabled = currentRealm == AppRealm.SOCIAL && detail == null && socialSelectedPostForComments == null && activeLeaderboardArtist != null) {
             activeLeaderboardArtist = null
         }
-        BackHandler(enabled = currentRealm == AppRealm.SOCIAL && detail == null && viewingSocialProfile != null) {
+        BackHandler(enabled = currentRealm == AppRealm.SOCIAL && detail == null && socialSelectedPostForComments == null && viewingSocialProfile != null) {
             socialViewModel.closeUserProfile()
             viewingSocialProfile = null
         }
-        BackHandler(enabled = currentRealm == AppRealm.SOCIAL && activeLeaderboardArtist == null && viewingSocialProfile == null && socialActiveChatFriend != null) {
+        BackHandler(enabled = currentRealm == AppRealm.SOCIAL && activeLeaderboardArtist == null && viewingSocialProfile == null && socialSelectedPostForComments == null && socialActiveChatFriend != null) {
             socialViewModel.closeChat()
         }
-        BackHandler(enabled = currentRealm == AppRealm.SOCIAL && activeLeaderboardArtist == null && viewingSocialProfile == null && socialActiveChatFriend == null && socialNavTab != SocialTab.FEED) {
+        BackHandler(enabled = currentRealm == AppRealm.SOCIAL && activeLeaderboardArtist == null && viewingSocialProfile == null && socialSelectedPostForComments == null && socialActiveChatFriend == null && socialNavTab != SocialTab.FEED) {
             socialViewModel.setNavTab(SocialTab.FEED)
         }
-        BackHandler(enabled = currentRealm == AppRealm.SOCIAL && activeLeaderboardArtist == null && viewingSocialProfile == null && socialActiveChatFriend == null && socialNavTab == SocialTab.FEED && detail == null && !showSettings) {
+        BackHandler(enabled = currentRealm == AppRealm.SOCIAL && activeLeaderboardArtist == null && viewingSocialProfile == null && socialSelectedPostForComments == null && socialActiveChatFriend == null && socialNavTab == SocialTab.FEED && detail == null && !showSettings) {
             currentRealm = AppRealm.MUSIC
         }
 
@@ -3384,8 +3386,9 @@ private fun VibraMusicApp(
                 }
                 val isSocialChatActive = currentRealm == AppRealm.SOCIAL && socialActiveChatFriend != null
                 val isSocialProfileActive = currentRealm == AppRealm.SOCIAL && (viewingSocialProfile != null || socialNavTab == SocialTab.PROFILE)
-                // Suppress global top chrome when in direct chat, viewing a profile, or viewing artist leaderboard, but never when a detail page is open
-                val isSocialCustomTopActive = detail == null && (isSocialChatActive || (currentRealm == AppRealm.SOCIAL && activeLeaderboardArtist != null) || isSocialProfileActive)
+                val isSocialPostThreadActive = currentRealm == AppRealm.SOCIAL && socialSelectedPostForComments != null
+                // Suppress global top chrome when in direct chat, viewing a profile, post thread, or viewing artist leaderboard, but never when a detail page is open
+                val isSocialCustomTopActive = detail == null && (isSocialChatActive || (currentRealm == AppRealm.SOCIAL && activeLeaderboardArtist != null) || isSocialProfileActive || isSocialPostThreadActive)
 
                 if (!isSocialCustomTopActive) {
                     BottomFadeScrim(

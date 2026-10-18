@@ -7,6 +7,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -108,6 +109,9 @@ fun PostThreadScreen(
     onPlayTrack: ((MusicTrackAttachment) -> Unit)? = null,
     onOpenProfile: (SocialProfile) -> Unit,
     onMediaClick: ((List<PostMediaItem>, Int) -> Unit)? = null,
+    onMentionClick: ((String) -> Unit)? = null,
+    onVotePoll: ((Int) -> Unit)? = null,
+    onQuoteClick: ((SocialPost) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -139,7 +143,7 @@ fun PostThreadScreen(
     // Detect mention typing in reply field
     LaunchedEffect(replyText) {
         val lastWord = replyText.substringAfterLast(" ", missingDelimiterValue = replyText)
-        if (lastWord.startsWith("@") && lastWord.length > 1) {
+        if (lastWord.startsWith("@")) {
             val q = lastWord.removePrefix("@")
             mentionQuery = q
             scope.launch {
@@ -297,6 +301,9 @@ fun PostThreadScreen(
                             onOpenProfile = onOpenProfile,
                             onPlayTrack = onPlayTrack,
                             onMediaClick = onMediaClick,
+                            onMentionClick = onMentionClick,
+                            onVotePoll = onVotePoll,
+                            onQuoteClick = onQuoteClick,
                         )
                     }
 
@@ -352,6 +359,7 @@ fun PostThreadScreen(
                             },
                             onDeleteClick = { commentToDelete = it },
                             onOpenProfile = onOpenProfile,
+                            onMentionClick = onMentionClick,
                         )
                     }
 
@@ -662,6 +670,9 @@ private fun HeroPostItem(
     onOpenProfile: (SocialProfile) -> Unit,
     onPlayTrack: ((MusicTrackAttachment) -> Unit)?,
     onMediaClick: ((List<PostMediaItem>, Int) -> Unit)?,
+    onMentionClick: ((String) -> Unit)? = null,
+    onVotePoll: ((Int) -> Unit)? = null,
+    onQuoteClick: ((SocialPost) -> Unit)? = null,
 ) {
     Column(
         modifier = Modifier
@@ -743,70 +754,110 @@ private fun HeroPostItem(
                 content = post.content,
                 fontSize = 17.sp,
                 color = MaterialTheme.colorScheme.onSurface,
+                onMentionClick = onMentionClick,
             )
             Spacer(Modifier.height(12.dp))
         }
 
-        // Media (Images, Video, GIF)
-        val allImages = post.imageUrls.ifEmpty { listOfNotNull(post.imageUrl) }
-        if (allImages.isNotEmpty()) {
-            val mediaItems = allImages.map { PostMediaItem(url = it, type = PostMediaType.IMAGE) }
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(260.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .clickable {
-                        onMediaClick?.invoke(mediaItems, 0)
-                    },
-            ) {
-                AsyncImage(
-                    model = allImages.first(),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            }
+        // Attached Media Carousel (Swipeable HorizontalPager with indicator dots)
+        val images = post.effectiveImages
+        if (images.isNotEmpty()) {
+            PostMediaCarousel(
+                images = images,
+                onImageClick = { clickedUrl ->
+                    val idx = post.allMediaItems.indexOfFirst { it.url == clickedUrl }.coerceAtLeast(0)
+                    if (onMediaClick != null) {
+                        onMediaClick(post.allMediaItems, idx)
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
             Spacer(Modifier.height(12.dp))
         }
 
-        // Attached Music Track
-        post.musicTrack?.let { track ->
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                    .clickable { onPlayTrack?.invoke(track) }
-                    .padding(10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                AsyncImage(
-                    model = track.thumbnailUrl ?: track.artworkUrl,
-                    contentDescription = track.title,
-                    contentScale = ContentScale.Crop,
+        // Attached GIF
+        post.gifUrl?.takeIf { it.isNotBlank() && it != "null" }?.let { gifUrl ->
+            if (!images.contains(gifUrl)) {
+                val gifIdx = post.allMediaItems.indexOfFirst { it.url == gifUrl }.coerceAtLeast(0)
+                Box(
                     modifier = Modifier
-                        .size(46.dp)
-                        .clip(RoundedCornerShape(8.dp)),
-                )
-                Spacer(Modifier.width(12.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = track.title,
-                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text = track.artist,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(MaterialTheme.colorScheme.surface)
+                        .clickable {
+                            if (onMediaClick != null) {
+                                onMediaClick(post.allMediaItems, gifIdx)
+                            }
+                        },
+                ) {
+                    AsyncImage(
+                        model = gifUrl,
+                        contentDescription = "GIF",
+                        contentScale = ContentScale.FillWidth,
+                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
+                Spacer(Modifier.height(12.dp))
             }
+        }
+
+        // Attached Video Player
+        post.videoUrl?.takeIf { it.isNotBlank() && it != "null" }?.let { videoUrl ->
+            val videoIdx = post.allMediaItems.indexOfFirst { it.url == videoUrl }.coerceAtLeast(0)
+            PostVideoPlayer(
+                videoUrl = videoUrl,
+                onFullScreenClick = {
+                    if (onMediaClick != null) {
+                        onMediaClick(post.allMediaItems, videoIdx)
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(16f / 9f),
+            )
+            Spacer(Modifier.height(12.dp))
+        }
+
+        // Attached Voice Note Player
+        post.audioUrl?.takeIf { it.isNotBlank() && it != "null" }?.let { audioUrl ->
+            VoiceNotePlayerWidget(
+                audioUrl = audioUrl,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(12.dp))
+        }
+
+        // Attached Track Card
+        post.musicTrack?.let { track ->
+            PlayableTrackCard(
+                track = track,
+                onPlay = { onPlayTrack?.invoke(track) },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(12.dp))
+        }
+
+        // Interactive Poll Card
+        post.poll?.let { poll ->
+            PollCard(
+                poll = poll,
+                onVote = { onVotePoll?.invoke(it) },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(12.dp))
+        }
+
+        // Embedded Quoted Post
+        if (post.quoteOf != null || post.quoteOfId != null) {
+            QuotedPostCard(
+                quotedPost = post.quoteOf,
+                quotedId = post.quoteOfId,
+                onPlayTrack = { track -> onPlayTrack?.invoke(track) },
+                onClick = {
+                    post.quoteOf?.let { onQuoteClick?.invoke(it) }
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
             Spacer(Modifier.height(12.dp))
         }
 
@@ -918,6 +969,7 @@ private fun ThreadCommentItem(
     onEditClick: (PostComment) -> Unit,
     onDeleteClick: (PostComment) -> Unit,
     onOpenProfile: (SocialProfile) -> Unit,
+    onMentionClick: ((String) -> Unit)? = null,
 ) {
     val isCommentAuthor = comment.authorId == currentUserId
     val canEdit = isCommentAuthor && isWithinEditWindow(comment.createdAt, 10L)
@@ -1048,6 +1100,7 @@ private fun ThreadCommentItem(
                     content = comment.content,
                     fontSize = 15.sp,
                     color = MaterialTheme.colorScheme.onSurface,
+                    onMentionClick = onMentionClick,
                 )
 
                 // GIF
@@ -1174,6 +1227,7 @@ private fun ThreadCommentItem(
                         content = reply.content,
                         fontSize = 14.sp,
                         color = MaterialTheme.colorScheme.onSurface,
+                        onMentionClick = onMentionClick,
                     )
                 }
             }
@@ -1187,6 +1241,7 @@ fun ClickableMentionText(
     fontSize: androidx.compose.ui.unit.TextUnit = 15.sp,
     color: Color = MaterialTheme.colorScheme.onSurface,
     lineHeight: androidx.compose.ui.unit.TextUnit = 22.sp,
+    onMentionClick: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val primaryColor = MaterialTheme.colorScheme.primary
@@ -1202,9 +1257,12 @@ fun ClickableMentionText(
                         append(content.substring(lastIndex, start))
                     }
                 }
+                val handle = matchResult.value.removePrefix("@")
+                pushStringAnnotation(tag = "MENTION", annotation = handle)
                 withStyle(SpanStyle(color = primaryColor, fontWeight = FontWeight.SemiBold)) {
                     append(matchResult.value)
                 }
+                pop()
                 lastIndex = end
             }
             if (lastIndex < content.length) {
@@ -1215,9 +1273,23 @@ fun ClickableMentionText(
         }
     }
 
-    Text(
-        text = annotated,
-        style = MaterialTheme.typography.bodyMedium.copy(fontSize = fontSize, lineHeight = lineHeight),
-        modifier = modifier,
-    )
+    if (onMentionClick != null) {
+        androidx.compose.foundation.text.ClickableText(
+            text = annotated,
+            style = MaterialTheme.typography.bodyMedium.copy(fontSize = fontSize, lineHeight = lineHeight),
+            onClick = { offset ->
+                annotated.getStringAnnotations(tag = "MENTION", start = offset, end = offset)
+                    .firstOrNull()?.let { annotation ->
+                        onMentionClick(annotation.item)
+                    }
+            },
+            modifier = modifier,
+        )
+    } else {
+        Text(
+            text = annotated,
+            style = MaterialTheme.typography.bodyMedium.copy(fontSize = fontSize, lineHeight = lineHeight),
+            modifier = modifier,
+        )
+    }
 }

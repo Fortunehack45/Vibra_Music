@@ -385,6 +385,9 @@ fun SocialScreen(
                                         onQuoteClick = { quoted ->
                                             inspectedQuotedPost = quoted
                                         },
+                                        onMentionClick = { handle ->
+                                            viewModel.openUserProfileByHandle(handle)
+                                        },
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .padding(horizontal = 16.dp),
@@ -608,6 +611,9 @@ fun SocialScreen(
                             onQuoteClick = { quoted ->
                                 inspectedQuotedPost = quoted
                             },
+                            onMentionClick = { handle ->
+                                viewModel.openUserProfileByHandle(handle)
+                            },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 16.dp),
@@ -706,6 +712,16 @@ fun SocialScreen(
             onPlayTrack = onPlayTrack,
             onMediaClick = { list, idx ->
                 activeMediaViewer = Pair(list, idx)
+            },
+            onMentionClick = { handle ->
+                viewModel.closeComments()
+                viewModel.openUserProfileByHandle(handle)
+            },
+            onVotePoll = { optionIdx ->
+                viewModel.votePoll(post, optionIdx)
+            },
+            onQuoteClick = { quoted ->
+                viewModel.openComments(quoted)
             },
         )
     }
@@ -875,6 +891,10 @@ fun SocialScreen(
                                 val artwork = resolved?.second
                                 onOpenArtistDetail?.invoke(browseId, artistName, artwork)
                             }
+                        },
+                        onMentionClick = { handle ->
+                            inspectedQuotedPost = null
+                            viewModel.openUserProfileByHandle(handle)
                         },
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -1053,6 +1073,7 @@ fun SocialPostCard(
     onDeleteClick: (() -> Unit)? = null,
     onQuoteClick: ((SocialPost) -> Unit)? = null,
     onOpenProfile: ((SocialProfile) -> Unit)? = null,
+    onMentionClick: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val isPureRepost = (post.repostOf != null || post.repostOfId != null) && post.content.isBlank()
@@ -1292,6 +1313,7 @@ fun SocialPostCard(
                             fontSize = 16.sp,
                             color = MaterialTheme.colorScheme.onSurface,
                             lineHeight = 22.sp,
+                            onMentionClick = onMentionClick,
                         )
                         if (isLong) {
                             Spacer(Modifier.height(4.dp))

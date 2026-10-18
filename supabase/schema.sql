@@ -31,9 +31,12 @@ create table if not exists public.profiles (
 );
 
 -- Idempotent column migrations for existing instances
+alter table public.profiles add column if not exists banner_url text default '';
 alter table public.profiles add column if not exists followers_count int default 0;
 alter table public.profiles add column if not exists following_count int default 0;
 alter table public.profiles add column if not exists friends_count int default 0;
+alter table public.post_comments add column if not exists is_edited boolean default false;
+alter table public.direct_messages add column if not exists is_edited boolean default false;
 
 -- 2. User Listening Experience & Connected Spotify Settings
 create table if not exists public.user_listening_experience (

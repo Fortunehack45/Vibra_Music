@@ -111,6 +111,18 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
     private val _isNotificationsOpen = MutableStateFlow(false)
     val isNotificationsOpen: StateFlow<Boolean> = _isNotificationsOpen.asStateFlow()
 
+    private val _followingList = MutableStateFlow<List<SocialProfile>>(emptyList())
+    val followingList: StateFlow<List<SocialProfile>> = _followingList.asStateFlow()
+
+    private val _followersList = MutableStateFlow<List<SocialProfile>>(emptyList())
+    val followersList: StateFlow<List<SocialProfile>> = _followersList.asStateFlow()
+
+    private val _friendsList = MutableStateFlow<List<SocialProfile>>(emptyList())
+    val friendsList: StateFlow<List<SocialProfile>> = _friendsList.asStateFlow()
+
+    private val _suggestedUsersList = MutableStateFlow<List<SocialProfile>>(emptyList())
+    val suggestedUsersList: StateFlow<List<SocialProfile>> = _suggestedUsersList.asStateFlow()
+
     init {
         viewModelScope.launch {
             val cached = cacheStore.loadPosts()
@@ -614,6 +626,20 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun updateStatusBubble(status: String) {
+        val current = _currentProfile.value ?: return
+        updateUserProfile(
+            displayName = current.displayName,
+            handle = current.handle,
+            bio = current.bio,
+            avatarUrl = current.avatarUrl,
+            country = current.country,
+            age = current.age,
+            statusBubble = status.trim(),
+            bannerPlaylists = current.bannerPlaylists,
+        )
+    }
+
     fun closeComments() {
         _selectedPostForComments.value = null
         _comments.value = emptyList()
@@ -669,6 +695,38 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
                 }
             }
         }
+    }
+
+    fun editComment(commentId: String, newContent: String) {
+        val trimmed = newContent.trim()
+        if (trimmed.isBlank()) return
+        val updated = _comments.value.map {
+            if (it.id == commentId) it.copy(content = trimmed, isEdited = true) else it
+        }
+        _comments.value = updated
+        val postId = _selectedPostForComments.value?.id
+        if (postId != null) {
+            viewModelScope.launch {
+                cacheStore.saveComments(postId, updated)
+                SupabaseService.editComment(commentId, trimmed)
+            }
+        }
+    }
+
+    fun deleteComment(commentId: String, postId: String) {
+        val updated = _comments.value.filter { it.id != commentId }
+        _comments.value = updated
+        updatePostAcrossAllLists(postId) {
+            it.copy(commentsCount = (it.commentsCount - 1).coerceAtLeast(0))
+        }
+        viewModelScope.launch {
+            cacheStore.saveComments(postId, updated)
+            SupabaseService.deleteComment(commentId, postId)
+        }
+    }
+
+    fun deleteComment(comment: PostComment) {
+        deleteComment(comment.id, comment.postId)
     }
 
     fun loadConversations() {
@@ -839,16 +897,31 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun toggleFollowUser(targetUserId: String) {
+    fun toggleFollowUser(targetUserId: String, targetProfile: SocialProfile? = null) {
         val myId = _currentProfile.value?.id ?: return
-        val currentProfile = _viewingProfile.value ?: return
-        val isFollowing = currentProfile.isFollowing
+        val viewing = targetProfile ?: _viewingProfile.value?.takeIf { it.id == targetUserId }
+        val isFollowing = viewing?.isFollowing ?: false
 
-        val updated = currentProfile.copy(
-            isFollowing = !isFollowing,
-            followersCount = if (isFollowing) (currentProfile.followersCount - 1).coerceAtLeast(0) else currentProfile.followersCount + 1,
-        )
-        _viewingProfile.value = updated
+        if (_viewingProfile.value?.id == targetUserId) {
+            val currentProfile = _viewingProfile.value!!
+            _viewingProfile.value = currentProfile.copy(
+                isFollowing = !isFollowing,
+                followersCount = if (isFollowing) (currentProfile.followersCount - 1).coerceAtLeast(0) else currentProfile.followersCount + 1,
+            )
+        }
+
+        _followingList.value = _followingList.value.map {
+            if (it.id == targetUserId) it.copy(isFollowing = !isFollowing) else it
+        }
+        _followersList.value = _followersList.value.map {
+            if (it.id == targetUserId) it.copy(isFollowing = !isFollowing) else it
+        }
+        _friendsList.value = _friendsList.value.map {
+            if (it.id == targetUserId) it.copy(isFollowing = !isFollowing) else it
+        }
+        _suggestedUsersList.value = _suggestedUsersList.value.map {
+            if (it.id == targetUserId) it.copy(isFollowing = !isFollowing) else it
+        }
 
         viewModelScope.launch {
             SupabaseService.toggleFollow(myId, targetUserId, !isFollowing)
@@ -864,7 +937,33 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
                             )
                         }
                     }
+                    loadConnections(myId)
                 }
+        }
+    }
+
+    fun loadConnections(userId: String) {
+        viewModelScope.launch {
+            launch {
+                SupabaseService.getFollowers(userId).onSuccess { list ->
+                    _followersList.value = list
+                }
+            }
+            launch {
+                SupabaseService.getFollowing(userId).onSuccess { list ->
+                    _followingList.value = list
+                }
+            }
+            launch {
+                SupabaseService.getFriends(userId).onSuccess { list ->
+                    _friendsList.value = list
+                }
+            }
+            launch {
+                SupabaseService.getSuggestedUsers(userId).onSuccess { list ->
+                    _suggestedUsersList.value = list
+                }
+            }
         }
     }
 

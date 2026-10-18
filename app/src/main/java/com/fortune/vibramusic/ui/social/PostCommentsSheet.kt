@@ -30,13 +30,18 @@ import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.SubdirectoryArrowRight
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -67,9 +72,12 @@ import androidx.compose.ui.graphics.luminance
 fun PostCommentsSheet(
     post: SocialPost,
     comments: List<PostComment>,
+    currentUserId: String? = null,
     onDismiss: () -> Unit,
     onAddComment: (content: String, parentId: String?, gifUrl: String?) -> Unit,
     onToggleLikeComment: (PostComment) -> Unit,
+    onEditComment: ((commentId: String, newContent: String) -> Unit)? = null,
+    onDeleteComment: ((commentId: String, postId: String) -> Unit)? = null,
     onAuthorClick: ((SocialProfile) -> Unit)? = null,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -77,6 +85,10 @@ fun PostCommentsSheet(
     var replyingTo by remember { mutableStateOf<PostComment?>(null) }
     var selectedGifUrl by remember { mutableStateOf<String?>(null) }
     var showGifPicker by remember { mutableStateOf(false) }
+
+    var editingComment by remember { mutableStateOf<PostComment?>(null) }
+    var editCommentText by remember { mutableStateOf("") }
+    var commentToDelete by remember { mutableStateOf<PostComment?>(null) }
 
     // Organize comments into root comments and replies grouped by parentId
     val repliesByParent = remember(comments) {
@@ -179,8 +191,16 @@ fun PostCommentsSheet(
                                 comment = rootComment,
                                 replies = childReplies,
                                 allRepliesByParent = repliesByParent,
+                                currentUserId = currentUserId,
                                 onReply = { replyingTo = it },
                                 onToggleLike = onToggleLikeComment,
+                                onEdit = { comment ->
+                                    editingComment = comment
+                                    editCommentText = comment.content
+                                },
+                                onDelete = { comment ->
+                                    commentToDelete = comment
+                                },
                                 onAuthorClick = onAuthorClick,
                             )
                         }
@@ -368,6 +388,93 @@ fun PostCommentsSheet(
             },
         )
     }
+
+    // Edit Comment Dialog
+    editingComment?.let { target ->
+        AlertDialog(
+            onDismissRequest = { editingComment = null },
+            containerColor = surfaceColor,
+            title = {
+                Text(
+                    text = "Edit comment",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = onSurfaceColor,
+                )
+            },
+            text = {
+                OutlinedTextField(
+                    value = editCommentText,
+                    onValueChange = { editCommentText = it },
+                    placeholder = { Text("Edit your comment...") },
+                    singleLine = false,
+                    maxLines = 4,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val trimmed = editCommentText.trim()
+                        if (trimmed.isNotBlank()) {
+                            onEditComment?.invoke(target.id, trimmed)
+                            editingComment = null
+                        }
+                    },
+                    shape = RoundedCornerShape(10.dp),
+                ) {
+                    Text("Save")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { editingComment = null }) {
+                    Text("Cancel")
+                }
+            },
+        )
+    }
+
+    // Delete Comment Dialog
+    commentToDelete?.let { target ->
+        AlertDialog(
+            onDismissRequest = { commentToDelete = null },
+            containerColor = surfaceColor,
+            title = {
+                Text(
+                    text = "Delete comment",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = onSurfaceColor,
+                )
+            },
+            text = {
+                Text(
+                    text = "Are you sure you want to delete this comment? This action cannot be undone.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = onSurfaceVariantColor,
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onDeleteComment?.invoke(target.id, target.postId)
+                        commentToDelete = null
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError,
+                    ),
+                    shape = RoundedCornerShape(10.dp),
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { commentToDelete = null }) {
+                    Text("Cancel")
+                }
+            },
+        )
+    }
 }
 
 /**
@@ -378,8 +485,11 @@ private fun ThreadedCommentItem(
     comment: PostComment,
     replies: List<PostComment>,
     allRepliesByParent: Map<String, List<PostComment>>,
+    currentUserId: String?,
     onReply: (PostComment) -> Unit,
     onToggleLike: (PostComment) -> Unit,
+    onEdit: (PostComment) -> Unit,
+    onDelete: (PostComment) -> Unit,
     onAuthorClick: ((SocialProfile) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
@@ -389,8 +499,11 @@ private fun ThreadedCommentItem(
         // Parent Comment Row
         SingleCommentRow(
             comment = comment,
+            isAuthor = !currentUserId.isNullOrBlank() && comment.authorId == currentUserId,
             onReply = { onReply(comment) },
             onToggleLike = { onToggleLike(comment) },
+            onEdit = { onEdit(comment) },
+            onDelete = { onDelete(comment) },
             onAuthorClick = onAuthorClick,
         )
 
@@ -425,8 +538,11 @@ private fun ThreadedCommentItem(
                             SingleCommentRow(
                                 comment = reply,
                                 isReply = true,
+                                isAuthor = !currentUserId.isNullOrBlank() && reply.authorId == currentUserId,
                                 onReply = { onReply(reply) },
                                 onToggleLike = { onToggleLike(reply) },
+                                onEdit = { onEdit(reply) },
+                                onDelete = { onDelete(reply) },
                                 onAuthorClick = onAuthorClick,
                             )
 
@@ -442,8 +558,11 @@ private fun ThreadedCommentItem(
                                         SingleCommentRow(
                                             comment = subReply,
                                             isReply = true,
+                                            isAuthor = !currentUserId.isNullOrBlank() && subReply.authorId == currentUserId,
                                             onReply = { onReply(subReply) },
                                             onToggleLike = { onToggleLike(subReply) },
+                                            onEdit = { onEdit(subReply) },
+                                            onDelete = { onDelete(subReply) },
                                             onAuthorClick = onAuthorClick,
                                         )
                                         Spacer(Modifier.height(6.dp))
@@ -467,6 +586,9 @@ private fun SingleCommentRow(
     comment: PostComment,
     onReply: () -> Unit,
     onToggleLike: () -> Unit,
+    isAuthor: Boolean = false,
+    onEdit: () -> Unit = {},
+    onDelete: () -> Unit = {},
     onAuthorClick: ((SocialProfile) -> Unit)? = null,
     isReply: Boolean = false,
     modifier: Modifier = Modifier,
@@ -542,14 +664,30 @@ private fun SingleCommentRow(
 
             Spacer(Modifier.height(3.dp))
 
-            // Text
+            // Text + (edited) tag
             if (comment.content.isNotBlank()) {
-                Text(
-                    text = comment.content,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = onSurfaceColor,
-                    lineHeight = 20.sp,
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Text(
+                        text = comment.content,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = onSurfaceColor,
+                        lineHeight = 20.sp,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    if (comment.isEdited) {
+                        Text(
+                            text = "(edited)",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Normal,
+                            ),
+                            color = onSurfaceVariantColor.copy(alpha = 0.7f),
+                        )
+                    }
+                }
             }
 
             // GIF attachment if present
@@ -568,7 +706,7 @@ private fun SingleCommentRow(
 
             Spacer(Modifier.height(6.dp))
 
-            // Action row: Reply + Like button
+            // Action row: Reply + Like button + Edit/Delete for author
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -606,6 +744,28 @@ private fun SingleCommentRow(
                             color = if (comment.isLikedByMe) Color(0xFFE53935) else onSurfaceVariantColor,
                         )
                     }
+                }
+
+                if (isAuthor) {
+                    Text(
+                        text = "Edit",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                        color = onSurfaceVariantColor,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .clickable(onClick = onEdit)
+                            .padding(vertical = 2.dp, horizontal = 2.dp),
+                    )
+
+                    Text(
+                        text = "Delete",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                        color = MaterialTheme.colorScheme.error.copy(alpha = 0.85f),
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .clickable(onClick = onDelete)
+                            .padding(vertical = 2.dp, horizontal = 2.dp),
+                    )
                 }
             }
         }

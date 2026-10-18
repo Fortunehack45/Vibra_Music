@@ -672,11 +672,18 @@ fun SocialScreen(
         PostCommentsSheet(
             post = post,
             comments = comments,
+            currentUserId = viewModel.currentProfile.value?.id,
             onDismiss = { viewModel.closeComments() },
             onAddComment = { content, parentId, gifUrl ->
                 viewModel.addComment(post.id, content, parentId, gifUrl)
             },
             onToggleLikeComment = { viewModel.toggleLikeComment(it) },
+            onEditComment = { commentId, newContent ->
+                viewModel.editComment(commentId, newContent)
+            },
+            onDeleteComment = { commentId, postId ->
+                viewModel.deleteComment(commentId, postId)
+            },
             onAuthorClick = { profile ->
                 viewModel.closeComments()
                 onOpenProfile(profile)

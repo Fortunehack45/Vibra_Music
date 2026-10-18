@@ -1505,11 +1505,27 @@ private fun MessageBubble(
 
                 // Text Content
                 if (message.message.isNotBlank()) {
-                    Text(
-                        text = message.message,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = if (isMine) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
-                    )
+                    Row(
+                        verticalAlignment = Alignment.Bottom,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text(
+                            text = message.message,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (isMine) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.weight(1f, fill = false),
+                        )
+                        if (message.isEdited) {
+                            Text(
+                                text = "(edited)",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Normal,
+                                ),
+                                color = if (isMine) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            )
+                        }
+                    }
                 }
 
                 // Track Attachment inside DM

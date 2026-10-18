@@ -13,6 +13,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -285,28 +286,75 @@ private fun MysteryVinylPlayer(
         label = "rotation",
     )
 
+    val pulseScale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.18f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "soundwavePulse",
+    )
+
     Box(
-        modifier = Modifier
-            .size(170.dp)
-            .clip(CircleShape)
-            .background(Color(0xFF141416))
-            .rotate(if (isPlaying) rotation else 0f),
+        modifier = Modifier.size(200.dp),
         contentAlignment = Alignment.Center,
     ) {
-        // Grooves
+        // Glowing animated soundwave rings when audio snippet is playing
+        if (isPlaying) {
+            Box(
+                modifier = Modifier
+                    .size(190.dp)
+                    .scale(pulseScale)
+                    .clip(CircleShape)
+                    .border(
+                        2.dp,
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
+                        CircleShape,
+                    ),
+            )
+            Box(
+                modifier = Modifier
+                    .size(175.dp)
+                    .scale(pulseScale * 0.95f)
+                    .clip(CircleShape)
+                    .background(
+                        Brush.radialGradient(
+                            colors = listOf(
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.25f),
+                                Color.Transparent,
+                            ),
+                        ),
+                    ),
+            )
+        }
+
+        // Vinyl Disc
         Box(
             modifier = Modifier
-                .size(130.dp)
+                .size(165.dp)
                 .clip(CircleShape)
-                .background(Color(0xFF161618)),
-        )
+                .background(Color(0xFF141416))
+                .border(2.dp, Color(0xFF282830), CircleShape)
+                .rotate(if (isPlaying) rotation else 0f),
+            contentAlignment = Alignment.Center,
+        ) {
+            // Grooves
+            Box(
+                modifier = Modifier
+                    .size(126.dp)
+                    .clip(CircleShape)
+                    .border(1.dp, Color(0xFF222226), CircleShape)
+                    .background(Color(0xFF161618)),
+            )
 
-        // Center Album Art
-        ArtistAvatar(
-            artistName = artistName,
-            artworkUrl = artistArtworkUrl,
-            size = 76.dp,
-        )
+            // Center Album Art
+            ArtistAvatar(
+                artistName = artistName,
+                artworkUrl = artistArtworkUrl,
+                size = 76.dp,
+            )
+        }
     }
 }
 
@@ -326,16 +374,24 @@ private fun QuizOptionCard(
             isAnswered && isCorrect -> Color(0xFF047857) // Solid emerald green
             isAnswered && isSelected && !isCorrect -> Color(0xFFB91C1C) // Solid crimson red
             isSelected -> MaterialTheme.colorScheme.primary
-            else -> MaterialTheme.colorScheme.surfaceVariant
+            else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)
         },
         label = "optionBg",
     )
+
+    val borderColor = when {
+        isAnswered && isCorrect -> Color(0xFF10B981)
+        isAnswered && isSelected && !isCorrect -> Color(0xFFEF4444)
+        isSelected -> MaterialTheme.colorScheme.primary
+        else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
+    }
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
             .background(backgroundColor)
+            .border(1.dp, borderColor, RoundedCornerShape(16.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 14.dp),
     ) {
@@ -346,7 +402,7 @@ private fun QuizOptionCard(
             // Letter Indicator (A, B, C, D)
             Box(
                 modifier = Modifier
-                    .size(32.dp)
+                    .size(34.dp)
                     .clip(CircleShape)
                     .background(
                         when {

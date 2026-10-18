@@ -30,6 +30,7 @@ data class SocialProfile(
     val country: String = "",
     val age: Int? = null,
     val statusBubble: String = "",
+    val bannerUrl: String? = null,
     val bannerPlaylists: List<String> = emptyList(),
     val createdAt: String = "",
 )
@@ -256,6 +257,7 @@ data class PostComment(
     val gifUrl: String? = null,
     val likesCount: Int = 0,
     val isLikedByMe: Boolean = false,
+    val isEdited: Boolean = false,
     val createdAt: String = "",
 ) {
     val authorName: String get() = author?.displayName ?: "Listener"
@@ -279,6 +281,7 @@ data class DirectMessage(
     val sharedMusic: MusicTrackAttachment? = null,
     val sharedPlaylist: SharedPlaylistAttachment? = null,
     val isRead: Boolean = false,
+    val isEdited: Boolean = false,
     val replyToId: String? = null,
     val replyToSender: String? = null,
     val replyToText: String? = null,

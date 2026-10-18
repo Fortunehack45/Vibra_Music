@@ -549,6 +549,64 @@ object SupabaseService {
         }
 
     /**
+     * Updates content of a comment and marks it as edited.
+     */
+    suspend fun editComment(commentId: String, newContent: String): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            val response = client.patch(baseUrl("post_comments")) {
+                header("apikey", SupabaseConfig.anonKey)
+                header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                contentType(ContentType.Application.Json)
+                parameter("id", "eq.$commentId")
+                setBody("{\"content\":${jsonQuote(newContent)},\"is_edited\":true}")
+            }
+            if (!response.status.isSuccess()) {
+                val errorText = response.bodyAsText().take(300)
+                Log.w(TAG, "editComment failed: ${response.status}: $errorText")
+                throw RuntimeException("Failed to edit comment: HTTP ${response.status.value}")
+            }
+            Unit
+        }
+    }
+
+    /**
+     * Deletes a comment and updates the post's comments_count.
+     */
+    suspend fun deleteComment(commentId: String, postId: String): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            val response = client.delete(baseUrl("post_comments")) {
+                header("apikey", SupabaseConfig.anonKey)
+                header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                parameter("id", "eq.$commentId")
+            }
+            if (!response.status.isSuccess()) {
+                val errorText = response.bodyAsText().take(300)
+                Log.w(TAG, "deleteComment failed: ${response.status}: $errorText")
+                throw RuntimeException("Failed to delete comment: HTTP ${response.status.value}")
+            }
+            runCatching {
+                val countRes = client.get(baseUrl("post_comments")) {
+                    header("apikey", SupabaseConfig.anonKey)
+                    header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                    parameter("post_id", "eq.$postId")
+                    parameter("select", "id")
+                }
+                if (countRes.status.isSuccess()) {
+                    val count = (json.parseToJsonElement(countRes.bodyAsText()) as? JsonArray)?.size ?: 0
+                    client.patch(baseUrl("posts")) {
+                        header("apikey", SupabaseConfig.anonKey)
+                        header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                        contentType(ContentType.Application.Json)
+                        parameter("id", "eq.$postId")
+                        setBody("{\"comments_count\":$count}")
+                    }
+                }
+            }
+            Unit
+        }
+    }
+
+    /**
      * Fetches the set of comment IDs liked by the specified user.
      */
     suspend fun fetchLikedCommentIds(userId: String): Result<Set<String>> = withContext(Dispatchers.IO) {
@@ -1130,7 +1188,7 @@ object SupabaseService {
         newContent: String,
     ): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
-            val body = "{\"content\":${jsonQuote(newContent)}}"
+            val body = "{\"content\":${jsonQuote(newContent)},\"is_edited\":true}"
             val response = client.patch(baseUrl("direct_messages")) {
                 header("apikey", SupabaseConfig.anonKey)
                 header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
@@ -1238,6 +1296,94 @@ object SupabaseService {
                 Unit
             }
         }
+
+    /**
+     * Fetches accounts following the given user.
+     */
+    suspend fun getFollowers(userId: String): Result<List<SocialProfile>> = withContext(Dispatchers.IO) {
+        runCatching {
+            val response = client.get(baseUrl("follows")) {
+                header("apikey", SupabaseConfig.anonKey)
+                header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                parameter("following_id", "eq.$userId")
+                parameter("select", "profiles:follower_id(*)")
+            }
+            if (!response.status.isSuccess()) {
+                val err = response.bodyAsText().take(300)
+                Log.w(TAG, "getFollowers error ${response.status}: $err")
+                return@runCatching emptyList()
+            }
+            val arr = json.parseToJsonElement(response.bodyAsText()) as? JsonArray ?: return@runCatching emptyList()
+            arr.mapNotNull { item ->
+                val obj = item as? JsonObject ?: return@mapNotNull null
+                val pObj = obj.embeddedProfile("profiles") ?: obj.obj("profiles")
+                pObj?.let { parseProfileRow(it) }
+            }
+        }
+    }
+
+    /**
+     * Fetches accounts the given user is following.
+     */
+    suspend fun getFollowing(userId: String): Result<List<SocialProfile>> = withContext(Dispatchers.IO) {
+        runCatching {
+            val response = client.get(baseUrl("follows")) {
+                header("apikey", SupabaseConfig.anonKey)
+                header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                parameter("follower_id", "eq.$userId")
+                parameter("select", "profiles:following_id(*)")
+            }
+            if (!response.status.isSuccess()) {
+                val err = response.bodyAsText().take(300)
+                Log.w(TAG, "getFollowing error ${response.status}: $err")
+                return@runCatching emptyList()
+            }
+            val arr = json.parseToJsonElement(response.bodyAsText()) as? JsonArray ?: return@runCatching emptyList()
+            arr.mapNotNull { item ->
+                val obj = item as? JsonObject ?: return@mapNotNull null
+                val pObj = obj.embeddedProfile("profiles") ?: obj.obj("profiles")
+                pObj?.let { parseProfileRow(it) }
+            }
+        }
+    }
+
+    /**
+     * Fetches friends (mutual follows between users).
+     */
+    suspend fun getFriends(userId: String): Result<List<SocialProfile>> = withContext(Dispatchers.IO) {
+        runCatching {
+            val following = getFollowing(userId).getOrDefault(emptyList())
+            val followers = getFollowers(userId).getOrDefault(emptyList())
+            val followerIds = followers.map { it.id }.toSet()
+            following.filter { followerIds.contains(it.id) }.map {
+                it.copy(isFriend = true, isFollowing = true)
+            }
+        }
+    }
+
+    /**
+     * Fetches suggested users to follow.
+     */
+    suspend fun getSuggestedUsers(userId: String): Result<List<SocialProfile>> = withContext(Dispatchers.IO) {
+        runCatching {
+            val following = getFollowing(userId).getOrDefault(emptyList())
+            val excludedIds = following.map { it.id }.toSet() + userId
+
+            val response = client.get(baseUrl("profiles")) {
+                header("apikey", SupabaseConfig.anonKey)
+                header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                parameter("limit", "20")
+                parameter("order", "followers_count.desc,created_at.desc")
+            }
+            if (!response.status.isSuccess()) {
+                return@runCatching emptyList()
+            }
+            val arr = json.parseToJsonElement(response.bodyAsText()) as? JsonArray ?: return@runCatching emptyList()
+            arr.mapNotNull { item ->
+                (item as? JsonObject)?.let { parseProfileRow(it) }
+            }.filter { !excludedIds.contains(it.id) }
+        }
+    }
 
     /**
      * Sends a friend request.
@@ -1922,6 +2068,7 @@ object SupabaseService {
         val country = obj.str("country") ?: ""
         val age = obj.int("age")
         val statusBubble = obj.str("status_bubble") ?: ""
+        val bannerUrl = obj.str("banner_url")?.takeIf { it.isNotBlank() && it != "null" }
         val bannerPlaylists = obj.arr("banner_playlists")?.mapNotNull {
             (it as? JsonPrimitive)?.takeIf { p -> p !is JsonNull }?.content?.takeIf { s -> s.isNotBlank() }
         } ?: emptyList()
@@ -1947,6 +2094,7 @@ object SupabaseService {
             country = country,
             age = age,
             statusBubble = statusBubble,
+            bannerUrl = bannerUrl,
             bannerPlaylists = bannerPlaylists,
             createdAt = createdAt,
         )
@@ -2106,6 +2254,8 @@ object SupabaseService {
             )
         } ?: SocialProfile(id = authorId, handle = "", displayName = "Listener")
 
+        val isEdited = obj.bool("is_edited") ?: false
+
         return PostComment(
             id = id,
             postId = postId,
@@ -2115,6 +2265,7 @@ object SupabaseService {
             content = cleanContent,
             gifUrl = gifUrl,
             likesCount = likesCount,
+            isEdited = isEdited,
             createdAt = createdAt,
         )
     }
@@ -2231,6 +2382,8 @@ object SupabaseService {
 
         val effectivePlaylist = sharedPlaylistObj ?: parsedPlaylist
 
+        val isEdited = obj.bool("is_edited") ?: false
+
         return DirectMessage(
             id = id,
             senderId = senderId,
@@ -2246,6 +2399,7 @@ object SupabaseService {
             replyToSender = replyToSender,
             replyToText = replyToText,
             isRead = isRead,
+            isEdited = isEdited,
             createdAt = createdAt,
         )
     }

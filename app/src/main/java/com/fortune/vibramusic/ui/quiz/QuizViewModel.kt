@@ -129,12 +129,23 @@ class QuizViewModel(application: Application) : AndroidViewModel(application) {
             currentQuestion.value = questionList.firstOrNull()
             _isPreparingQuiz.value = false
 
-            // Countdown Phase - Pre-buffer Question 0 during countdown so playback is 0ms instant!
+            // Concurrently pre-resolve stream URLs for ALL questions in background
+            questionList.forEach { q ->
+                launch(Dispatchers.IO) {
+                    val url = runCatching { StreamResolver.resolve(q.targetSong.videoId) }.getOrNull()
+                    if (url != null) {
+                        streamCache[q.targetSong.videoId] = url
+                    }
+                }
+            }
+
+            // Countdown Phase - Pre-buffer Question 0 during countdown so playback is 0ms instant
             _gameState.value = QuizGameState.COUNTDOWN
             val firstQuestion = questionList.firstOrNull()
             launch(Dispatchers.IO) {
                 if (firstQuestion != null) {
-                    val url = runCatching { StreamResolver.resolve(firstQuestion.targetSong.videoId) }.getOrNull()
+                    val url = streamCache[firstQuestion.targetSong.videoId]
+                        ?: runCatching { StreamResolver.resolve(firstQuestion.targetSong.videoId) }.getOrNull()
                     if (url != null) {
                         streamCache[firstQuestion.targetSong.videoId] = url
                         withContext(Dispatchers.Main) {
@@ -174,8 +185,8 @@ class QuizViewModel(application: Application) : AndroidViewModel(application) {
         questionStartTimestamp = SystemClock.elapsedRealtime()
         startLiveTimer()
 
-        // 1. Play mystery 15s audio snippet immediately
-        if (index == 0 && audioEngine.isSnippetPrepared()) {
+        // 1. Play mystery 15s audio snippet immediately if prepared
+        if (audioEngine.isSnippetPrepared()) {
             audioEngine.startPreparedSnippet()
         } else {
             val cachedUrl = streamCache[q.targetSong.videoId]
@@ -195,17 +206,6 @@ class QuizViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         }
-
-        // 2. Pre-fetch the NEXT question's audio stream in background so question N+1 is instant
-        val nextQ = _questions.value.getOrNull(index + 1)
-        if (nextQ != null && !streamCache.containsKey(nextQ.targetSong.videoId)) {
-            viewModelScope.launch(Dispatchers.IO) {
-                val nextUrl = runCatching { StreamResolver.resolve(nextQ.targetSong.videoId) }.getOrNull()
-                if (nextUrl != null) {
-                    streamCache[nextQ.targetSong.videoId] = nextUrl
-                }
-            }
-        }
     }
 
     fun selectOption(index: Int) {
@@ -221,8 +221,26 @@ class QuizViewModel(application: Application) : AndroidViewModel(application) {
         audioEngine.stop()
 
         viewModelScope.launch {
-            delay(1200) // Delay to show feedback before moving to next question
             val nextIdx = _currentQuestionIndex.value + 1
+            val nextQ = _questions.value.getOrNull(nextIdx)
+
+            // Pre-buffer next question's snippet DURING the 1200ms feedback transition
+            if (nextQ != null) {
+                launch(Dispatchers.IO) {
+                    val nextUrl = streamCache[nextQ.targetSong.videoId]
+                        ?: runCatching { StreamResolver.resolve(nextQ.targetSong.videoId) }.getOrNull()
+                    if (nextUrl != null) {
+                        streamCache[nextQ.targetSong.videoId] = nextUrl
+                        withContext(Dispatchers.Main) {
+                            if (_gameState.value == QuizGameState.QUESTION_ANSWERED) {
+                                audioEngine.prepareSnippet(nextUrl, startPositionMs = 25_000L)
+                            }
+                        }
+                    }
+                }
+            }
+
+            delay(1200) // Feedback delay before advancing
             if (nextIdx < _questions.value.size) {
                 startQuestion(nextIdx)
             } else {

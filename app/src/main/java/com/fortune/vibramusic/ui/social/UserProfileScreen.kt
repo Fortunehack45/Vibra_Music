@@ -1,7 +1,9 @@
 package com.fortune.vibramusic.ui.social
 
 import android.content.Intent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -11,6 +13,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -30,7 +33,10 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PersonAdd
@@ -38,6 +44,7 @@ import androidx.compose.material.icons.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Repeat
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ElevatedButton
@@ -45,7 +52,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -60,6 +69,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.max
@@ -67,12 +77,12 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.fortune.vibramusic.data.quiz.QuizArtist
+import com.fortune.vibramusic.data.quiz.VERIFIED_CURATED_ARTISTS
 import com.fortune.vibramusic.data.social.MusicTrackAttachment
 import com.fortune.vibramusic.data.social.PostMediaItem
 import com.fortune.vibramusic.data.social.SocialProfile
 import com.fortune.vibramusic.data.social.formatHandle
 import com.fortune.vibramusic.ui.components.ArtistAvatar
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.material.icons.rounded.PlayArrow
@@ -115,10 +125,18 @@ fun UserProfileScreen(
 
     val posts by viewModel.viewingProfilePosts.collectAsStateWithLifecycle()
     val favoriteArtists by viewModel.favoriteArtists.collectAsStateWithLifecycle()
+    val followingList by viewModel.followingList.collectAsStateWithLifecycle()
+    val followersList by viewModel.followersList.collectAsStateWithLifecycle()
+    val friendsList by viewModel.friendsList.collectAsStateWithLifecycle()
+    val suggestedUsers by viewModel.suggestedUsersList.collectAsStateWithLifecycle()
+
     val context = LocalContext.current
     var selectedSubTab by remember { mutableStateOf("Posts") }
     var showEditProfile by remember { mutableStateOf(false) }
-    var showAddArtistDialog by remember { mutableStateOf(false) }
+    var showAddArtistScreen by remember { mutableStateOf(false) }
+    var showEditStatusDialog by remember { mutableStateOf(false) }
+    var showSuggestedCarousel by remember { mutableStateOf(false) }
+    var activeConnectionsTab by remember { mutableStateOf<ConnectionsTab?>(null) }
     var postToDelete by remember { mutableStateOf<SocialPost?>(null) }
     var inspectedQuotedPost by remember { mutableStateOf<SocialPost?>(null) }
     var activeMediaViewer by remember { mutableStateOf<Pair<List<PostMediaItem>, Int>?>(null) }
@@ -126,516 +144,470 @@ fun UserProfileScreen(
     LaunchedEffect(activeProfile.id) {
         if (activeProfile.id.isNotBlank() && activeProfile.id != "me") {
             viewModel.loadProfileData(activeProfile.id)
+            viewModel.loadConnections(activeProfile.id)
+        } else {
+            viewModel.currentProfile.value?.id?.let {
+                viewModel.loadConnections(it)
+            }
         }
     }
 
     Box(
         modifier = modifier.fillMaxSize(),
     ) {
-        val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-        val topPadding = if (onBack != null) {
-            0.dp
-        } else {
-            max(contentPadding.calculateTopPadding(), statusBarTop + 64.dp)
-        }
-
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
-                top = topPadding,
+                top = 0.dp,
                 bottom = contentPadding.calculateBottomPadding() + 80.dp,
             ),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            // Header Bar (Back button when viewing another user's profile or subprofile)
-            if (onBack != null) {
-                item(key = "back_nav") {
+            // 1. Wide Header Banner with Overlaid Navigation (reference image 2 & 5)
+            item(key = "profile_banner_header") {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(175.dp),
+                ) {
+                    val bannerImage = activeProfile.bannerUrl?.takeIf { it.isNotBlank() }
+                        ?: activeProfile.bannerPlaylists.firstOrNull()?.split("|")?.lastOrNull()?.takeIf { it.startsWith("http") }
+
+                    if (!bannerImage.isNullOrBlank()) {
+                        AsyncImage(
+                            model = bannerImage,
+                            contentDescription = "Profile Banner",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    } else {
+                        // Atmospheric Vibra soundwave gradient banner
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(
+                                    Brush.verticalGradient(
+                                        colors = listOf(
+                                            Color(0xFF2E1C38),
+                                            Color(0xFF1B1F2C),
+                                            Color(0xFF10121A),
+                                        ),
+                                    ),
+                                ),
+                        )
+                    }
+
+                    // Bottom gradient fade into page background
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(60.dp)
+                            .align(Alignment.BottomCenter)
+                            .background(
+                                Brush.verticalGradient(
+                                    colors = listOf(Color.Transparent, MaterialTheme.colorScheme.background),
+                                ),
+                            ),
+                    )
+
+                    // Overlaid Navigation Chrome
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .statusBarsPadding()
-                            .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 12.dp),
+                            .padding(horizontal = 16.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
+                        if (onBack != null) {
+                            IconButton(
+                                onClick = onBack,
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0x66000000)),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                    contentDescription = "Back",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp),
+                                )
+                            }
+                        } else {
+                            Spacer(Modifier.size(38.dp))
+                        }
+
+                        // Top right share action over banner
                         IconButton(
-                            onClick = onBack,
+                            onClick = {
+                                val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                    putExtra(
+                                        Intent.EXTRA_TEXT,
+                                        "Check out ${formatHandle(activeProfile.handle)}'s music profile on Vibra:\nhttps://vibramusic.app/u/${activeProfile.handle.removePrefix("@")}",
+                                    )
+                                    type = "text/plain"
+                                }
+                                context.startActivity(Intent.createChooser(sendIntent, "Share Profile"))
+                            },
                             modifier = Modifier
-                                .size(40.dp)
+                                .size(38.dp)
                                 .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                                .background(Color(0x66000000)),
                         ) {
                             Icon(
-                                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                                contentDescription = "Back",
-                                tint = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.size(20.dp),
+                                imageVector = Icons.Rounded.Share,
+                                contentDescription = "Share",
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp),
                             )
                         }
-                        Spacer(Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
+                    }
+                }
+            }
+
+            // 2. Profile Details & Stats Row (reference image 2 & 5)
+            item(key = "profile_identity_and_stats") {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    // Left Column: Name, Handle, Country/Age badges, Stacked Stats
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
                             Text(
                                 text = activeProfile.displayName,
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                style = MaterialTheme.typography.titleLarge.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 22.sp,
+                                ),
                                 color = MaterialTheme.colorScheme.onSurface,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
-                            Text(
-                                text = formatHandle(activeProfile.handle),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Profile Card Header (Solid Surface with Banner & Status Bubble)
-            item(key = "profile_header") {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
-                        .clip(RoundedCornerShape(24.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
-                ) {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        // 1. Banner Playlists Showcase (Up to 15 covers)
-                        if (activeProfile.bannerPlaylists.isNotEmpty()) {
-                            LazyRow(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(116.dp)
-                                    .background(MaterialTheme.colorScheme.surface),
-                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
-                                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            ) {
-                                itemsIndexed(
-                                    items = activeProfile.bannerPlaylists.take(15),
-                                    key = { index, entry -> "banner_${entry.hashCode()}_$index" },
-                                ) { _, entry ->
-                                    val parts = entry.split("|")
-                                    val pId = if (parts.size >= 3) parts[0] else ""
-                                    val pTitle = if (parts.size >= 3) parts[1] else "Playlist"
-                                    val pThumb = if (parts.size >= 3) parts[2] else entry
-
-                                    Box(
-                                        modifier = Modifier
-                                            .width(100.dp)
-                                            .fillMaxHeight()
-                                            .clip(RoundedCornerShape(12.dp))
-                                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                                            .clickable {
-                                                if (pId.isNotBlank()) {
-                                                    if (onOpenPlaylist != null) {
-                                                        onOpenPlaylist(pId, pTitle, pThumb)
-                                                    } else {
-                                                        onOpenArtistDetail?.invoke(pId, pTitle, pThumb)
-                                                    }
-                                                }
-                                            },
-                                    ) {
-                                        AsyncImage(
-                                            model = pThumb,
-                                            contentDescription = pTitle,
-                                            contentScale = ContentScale.Crop,
-                                            modifier = Modifier.fillMaxSize(),
-                                        )
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .align(Alignment.BottomCenter)
-                                                .background(
-                                                    Brush.verticalGradient(
-                                                        colors = listOf(Color.Transparent, Color(0xCC000000)),
-                                                    ),
-                                                )
-                                                .padding(horizontal = 6.dp, vertical = 4.dp),
-                                        ) {
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                verticalAlignment = Alignment.CenterVertically,
-                                            ) {
-                                                Text(
-                                                    text = pTitle,
-                                                    style = MaterialTheme.typography.labelSmall.copy(
-                                                        fontWeight = FontWeight.SemiBold,
-                                                        fontSize = 10.sp,
-                                                    ),
-                                                    color = Color.White,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis,
-                                                    modifier = Modifier.weight(1f),
-                                                )
-                                                Spacer(Modifier.width(4.dp))
-                                                Icon(
-                                                    imageVector = Icons.Rounded.PlayArrow,
-                                                    contentDescription = "Play",
-                                                    tint = Color.White,
-                                                    modifier = Modifier.size(14.dp),
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        } else if (isSelf) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 12.dp, vertical = 10.dp)
-                                    .clip(RoundedCornerShape(16.dp))
-                                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.6f))
-                                    .clickable { showEditProfile = true }
-                                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.QueueMusic,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(20.dp),
-                                    )
-                                    Text(
-                                        text = "Add up to 15 playlist covers to your banner",
-                                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
+                            if (activeProfile.verifiedBadge) {
+                                Icon(
+                                    imageVector = Icons.Rounded.CheckCircle,
+                                    contentDescription = "Verified",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(18.dp),
+                                )
                             }
                         }
 
-                        // 2. Profile Details & Avatar
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 20.dp, vertical = 18.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                        ) {
-                            // Avatar & Authentic Thought Bubble Status
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier.fillMaxWidth(),
-                            ) {
-                                if (activeProfile.statusBubble.isNotBlank()) {
-                                    Column(
-                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                        modifier = Modifier.padding(bottom = 6.dp),
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .clip(RoundedCornerShape(16.dp))
-                                                .background(Color(0xFF232631))
-                                                .padding(horizontal = 14.dp, vertical = 7.dp),
-                                            contentAlignment = Alignment.Center,
-                                        ) {
-                                            Text(
-                                                text = activeProfile.statusBubble,
-                                                style = MaterialTheme.typography.labelSmall.copy(
-                                                    fontWeight = FontWeight.SemiBold,
-                                                    fontSize = 12.sp,
-                                                ),
-                                                color = Color.White,
-                                                maxLines = 2,
-                                                overflow = TextOverflow.Ellipsis,
-                                            )
-                                        }
-                                        Spacer(Modifier.height(3.dp))
-                                        Box(
-                                            modifier = Modifier
-                                                .size(7.dp)
-                                                .clip(CircleShape)
-                                                .background(Color(0xFF232631)),
-                                        )
-                                        Spacer(Modifier.height(2.dp))
-                                        Box(
-                                            modifier = Modifier
-                                                .size(4.dp)
-                                                .clip(CircleShape)
-                                                .background(Color(0xFF232631)),
-                                        )
-                                    }
-                                }
+                        Text(
+                            text = formatHandle(activeProfile.handle),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
 
-                                Box(
-                                    modifier = Modifier
-                                        .size(90.dp)
-                                        .clip(CircleShape)
-                                        .background(MaterialTheme.colorScheme.surface),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    if (!activeProfile.avatarUrl.isNullOrBlank() && activeProfile.avatarUrl != "null") {
-                                        AsyncImage(
-                                            model = activeProfile.avatarUrl,
-                                            contentDescription = null,
-                                            contentScale = ContentScale.Crop,
-                                            modifier = Modifier.fillMaxSize(),
-                                        )
-                                    } else {
-                                        Icon(
-                                            imageVector = Icons.Rounded.Person,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.size(44.dp),
-                                        )
-                                    }
-                                }
-                            }
-
-                            Spacer(Modifier.height(12.dp))
-
+                        if (activeProfile.country.isNotBlank() || activeProfile.age != null) {
+                            Spacer(Modifier.height(4.dp))
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                             ) {
-                                Text(
-                                    text = activeProfile.displayName,
-                                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                )
-                                if (activeProfile.verifiedBadge) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.CheckCircle,
-                                        contentDescription = "Verified",
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(18.dp),
-                                    )
-                                }
-                            }
-
-                            Text(
-                                text = formatHandle(activeProfile.handle),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-
-                            // Country & Age Badges
-                            if (activeProfile.country.isNotBlank() || activeProfile.age != null) {
-                                Spacer(Modifier.height(6.dp))
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                ) {
-                                    if (activeProfile.country.isNotBlank()) {
-                                        Box(
-                                            modifier = Modifier
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .background(MaterialTheme.colorScheme.surface)
-                                                .padding(horizontal = 8.dp, vertical = 3.dp),
-                                        ) {
-                                            Text(
-                                                text = activeProfile.country,
-                                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            )
-                                        }
+                                if (activeProfile.country.isNotBlank()) {
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                                            .padding(horizontal = 7.dp, vertical = 2.dp),
+                                    ) {
+                                        Text(
+                                            text = activeProfile.country,
+                                            style = MaterialTheme.typography.labelSmall.copy(
+                                                fontWeight = FontWeight.SemiBold,
+                                                fontSize = 10.sp,
+                                            ),
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
                                     }
-                                    if (activeProfile.age != null) {
-                                        Box(
-                                            modifier = Modifier
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .background(MaterialTheme.colorScheme.surface)
-                                                .padding(horizontal = 8.dp, vertical = 3.dp),
-                                        ) {
-                                            Text(
-                                                text = "${activeProfile.age} yrs",
-                                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            )
-                                        }
+                                }
+                                if (activeProfile.age != null) {
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                                            .padding(horizontal = 7.dp, vertical = 2.dp),
+                                    ) {
+                                        Text(
+                                            text = "${activeProfile.age} yrs",
+                                            style = MaterialTheme.typography.labelSmall.copy(
+                                                fontWeight = FontWeight.SemiBold,
+                                                fontSize = 10.sp,
+                                            ),
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
                                     }
                                 }
                             }
-
-                            if (!activeProfile.bio.isNullOrBlank()) {
-                                Spacer(Modifier.height(8.dp))
-                                Text(
-                                    text = activeProfile.bio,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    maxLines = 3,
-                                )
-                            }
-
-                        Spacer(Modifier.height(16.dp))
-
-                        // Stats Row
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceEvenly,
-                        ) {
-                            ProfileStatItem(count = activeProfile.followingCount, label = "Following")
-                            ProfileStatItem(count = activeProfile.followersCount, label = "Followers")
-                            ProfileStatItem(count = activeProfile.friendsCount, label = "Friends")
                         }
 
-                        Spacer(Modifier.height(18.dp))
+                        Spacer(Modifier.height(14.dp))
 
-                        // Action Buttons
+                        // Stacked Stats Row (Following, Followers, Friends) - Clickable to open ConnectionsScreen
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            horizontalArrangement = Arrangement.spacedBy(20.dp),
+                            verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            if (!isSelf) {
-                                Button(
-                                    onClick = { viewModel.toggleFollowUser(activeProfile.id) },
-                                    shape = RoundedCornerShape(12.dp),
-                                    border = null,
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = if (activeProfile.isFollowing) MaterialTheme.colorScheme.surface
-                                        else MaterialTheme.colorScheme.primary,
-                                        contentColor = if (activeProfile.isFollowing) MaterialTheme.colorScheme.onSurface
-                                        else MaterialTheme.colorScheme.onPrimary,
-                                    ),
-                                    modifier = Modifier.weight(1f),
-                                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 10.dp),
-                                ) {
-                                    Text(
-                                        text = if (activeProfile.isFollowing) "Following" else "Follow",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 12.sp,
-                                        maxLines = 1,
-                                    )
-                                }
+                            ProfileStatStacked(
+                                count = activeProfile.followingCount,
+                                label = "Following",
+                                onClick = { activeConnectionsTab = ConnectionsTab.FOLLOWING },
+                            )
+                            ProfileStatStacked(
+                                count = activeProfile.followersCount,
+                                label = "Followers",
+                                onClick = { activeConnectionsTab = ConnectionsTab.FOLLOWERS },
+                            )
+                            ProfileStatStacked(
+                                count = activeProfile.friendsCount,
+                                label = "Friends",
+                                onClick = { activeConnectionsTab = ConnectionsTab.FRIENDS },
+                            )
+                        }
+                    }
 
-                                val isFriend = activeProfile.isFriend || activeProfile.friendshipStatus.equals("ACCEPTED", ignoreCase = true)
-                                val isRequested = activeProfile.friendshipStatus.equals("PENDING", ignoreCase = true)
-                                val friendText = when {
-                                    isFriend -> "Friends"
-                                    isRequested -> "Requested"
-                                    else -> "Add Friend"
-                                }
+                    Spacer(Modifier.width(14.dp))
 
-                                Button(
-                                    onClick = {
-                                        if (!isFriend && !isRequested) {
-                                            viewModel.sendFriendRequest(activeProfile.id)
-                                        }
-                                    },
-                                    shape = RoundedCornerShape(12.dp),
-                                    border = null,
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = if (isFriend) MaterialTheme.colorScheme.surfaceVariant
-                                        else MaterialTheme.colorScheme.surface,
-                                        contentColor = if (isFriend) MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.onSurface,
-                                    ),
-                                    modifier = Modifier.weight(1f),
-                                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 10.dp),
-                                ) {
-                                    Icon(
-                                        imageVector = if (isFriend) Icons.Rounded.CheckCircle else Icons.Rounded.PersonAdd,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(15.dp),
-                                    )
-                                    Spacer(Modifier.width(4.dp))
-                                    Text(
-                                        text = friendText,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        maxLines = 1,
-                                    )
-                                }
+                    // Right Column: Comic Thought Bubble and Avatar (reference image 5)
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.width(104.dp),
+                    ) {
+                        ComicThoughtBubble(
+                            status = activeProfile.statusBubble,
+                            onClick = if (isSelf) { { showEditStatusDialog = true } } else null,
+                        )
 
-                                Button(
-                                    onClick = {
-                                        viewModel.openChat(activeProfile)
-                                        viewModel.setNavTab(SocialTab.MESSAGES)
-                                        onBack?.invoke()
-                                    },
-                                    shape = RoundedCornerShape(12.dp),
-                                    border = null,
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = MaterialTheme.colorScheme.surface,
-                                        contentColor = MaterialTheme.colorScheme.onSurface,
-                                    ),
-                                    modifier = Modifier.weight(1f),
-                                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 10.dp),
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Rounded.Send,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(15.dp),
-                                    )
-                                    Spacer(Modifier.width(4.dp))
-                                    Text(
-                                        text = "Message",
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        maxLines = 1,
-                                    )
-                                }
-                            }
-
-                            if (isSelf) {
-                                Button(
-                                    onClick = { showEditProfile = true },
-                                    shape = RoundedCornerShape(12.dp),
-                                    border = null,
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = MaterialTheme.colorScheme.surface,
-                                        contentColor = MaterialTheme.colorScheme.onSurface,
-                                    ),
-                                    modifier = Modifier.weight(1f),
-                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp),
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.Edit,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(16.dp),
-                                    )
-                                    Spacer(Modifier.width(6.dp))
-                                    Text(
-                                        text = "Edit Profile",
-                                        fontSize = 13.sp,
-                                        maxLines = 1,
-                                    )
-                                }
-                            }
-
-                            // Share Profile Button
-                            Button(
-                                onClick = {
-                                    val sendIntent = Intent(Intent.ACTION_SEND).apply {
-                                        putExtra(
-                                            Intent.EXTRA_TEXT,
-                                            "Check out ${formatHandle(activeProfile.handle)}'s music profile on Vibra:\nhttps://vibramusic.app/u/${activeProfile.handle.removePrefix("@")}",
-                                        )
-                                        type = "text/plain"
-                                    }
-                                    context.startActivity(Intent.createChooser(sendIntent, "Share Profile"))
-                                },
-                                shape = RoundedCornerShape(12.dp),
-                                border = null,
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.surface,
-                                    contentColor = MaterialTheme.colorScheme.onSurface,
-                                ),
-                                modifier = Modifier.weight(1f),
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp),
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Share,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp),
+                        Box(
+                            modifier = Modifier
+                                .size(86.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                .border(2.dp, MaterialTheme.colorScheme.surfaceVariant, CircleShape),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            if (!activeProfile.avatarUrl.isNullOrBlank() && activeProfile.avatarUrl != "null") {
+                                AsyncImage(
+                                    model = activeProfile.avatarUrl,
+                                    contentDescription = activeProfile.displayName,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize(),
                                 )
-                                Spacer(Modifier.width(6.dp))
-                                Text(
-                                    text = "Share",
-                                    fontSize = 13.sp,
-                                    maxLines = 1,
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Rounded.Person,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(44.dp),
                                 )
                             }
                         }
                     }
                 }
             }
-        }
+
+            // 3. Action Buttons Row (reference image 2 & 3)
+            item(key = "profile_action_buttons") {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (!isSelf) {
+                        val followButtonText = when {
+                            activeProfile.isFriend -> "Friends"
+                            activeProfile.isFollowing -> "Following"
+                            else -> "Follow"
+                        }
+                        Button(
+                            onClick = { viewModel.toggleFollowUser(activeProfile.id) },
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (activeProfile.isFollowing || activeProfile.isFriend) {
+                                    MaterialTheme.colorScheme.surfaceVariant
+                                } else {
+                                    MaterialTheme.colorScheme.primary
+                                },
+                                contentColor = if (activeProfile.isFollowing || activeProfile.isFriend) {
+                                    MaterialTheme.colorScheme.onSurface
+                                } else {
+                                    MaterialTheme.colorScheme.onPrimary
+                                },
+                            ),
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(vertical = 11.dp),
+                        ) {
+                            Text(
+                                text = followButtonText,
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                            )
+                        }
+
+                        Button(
+                            onClick = {
+                                viewModel.openChat(activeProfile)
+                                viewModel.setNavTab(SocialTab.MESSAGES)
+                                onBack?.invoke()
+                            },
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                                contentColor = MaterialTheme.colorScheme.onSurface,
+                            ),
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(vertical = 11.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.Send,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                text = "Message",
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                            )
+                        }
+
+                        IconButton(
+                            onClick = { showSuggestedCarousel = !showSuggestedCarousel },
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)),
+                        ) {
+                            Icon(
+                                imageVector = if (showSuggestedCarousel) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown,
+                                contentDescription = "Suggested",
+                                tint = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(20.dp),
+                            )
+                        }
+                    } else {
+                        Button(
+                            onClick = { showEditProfile = true },
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                                contentColor = MaterialTheme.colorScheme.onSurface,
+                            ),
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(vertical = 11.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Edit,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                text = "Edit Profile",
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                            )
+                        }
+
+                        Button(
+                            onClick = {
+                                val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                    putExtra(
+                                        Intent.EXTRA_TEXT,
+                                        "Check out ${formatHandle(activeProfile.handle)}'s music profile on Vibra:\nhttps://vibramusic.app/u/${activeProfile.handle.removePrefix("@")}",
+                                    )
+                                    type = "text/plain"
+                                }
+                                context.startActivity(Intent.createChooser(sendIntent, "Share Profile"))
+                            },
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                                contentColor = MaterialTheme.colorScheme.onSurface,
+                            ),
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(vertical = 11.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Share,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                text = "Share",
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                            )
+                        }
+                    }
+                }
+            }
+
+            // 4. Expandable Suggested Accounts Carousel (reference image 3)
+            if (showSuggestedCarousel && suggestedUsers.isNotEmpty()) {
+                item(key = "suggested_accounts_section") {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp),
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = "Suggested accounts",
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                            Text(
+                                text = "View all >",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier
+                                    .clickable { activeConnectionsTab = ConnectionsTab.SUGGESTED }
+                                    .padding(vertical = 4.dp),
+                            )
+                        }
+
+                        Spacer(Modifier.height(8.dp))
+
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            contentPadding = PaddingValues(vertical = 4.dp),
+                        ) {
+                            items(suggestedUsers, key = { it.id }) { suggested ->
+                                SuggestedAccountCard(
+                                    profile = suggested,
+                                    onOpen = { viewModel.openUserProfile(suggested) },
+                                    onFollow = { viewModel.toggleFollowUser(suggested.id, suggested) },
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 5. Bio Description
+            if (!activeProfile.bio.isNullOrBlank()) {
+                item(key = "profile_bio") {
+                    Text(
+                        text = activeProfile.bio,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(horizontal = 20.dp),
+                        maxLines = 4,
+                    )
+                }
+            }
 
             // Favorite Artists Section
             item(key = "favorite_artists_header") {
@@ -661,14 +633,22 @@ fun UserProfileScreen(
                                 color = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(6.dp))
-                                    .clickable { showAddArtistDialog = true }
+                                    .clickable { showAddArtistScreen = true }
                                     .padding(horizontal = 8.dp, vertical = 4.dp),
                             )
                         }
                     }
                     Spacer(Modifier.height(10.dp))
 
-                    if (favoriteArtists.isEmpty() && !isSelf) {
+                    val effectiveFavoriteArtists = if (favoriteArtists.isNotEmpty()) {
+                        favoriteArtists
+                    } else if (!isSelf) {
+                        VERIFIED_CURATED_ARTISTS.take(4)
+                    } else {
+                        emptyList()
+                    }
+
+                    if (effectiveFavoriteArtists.isEmpty() && !isSelf) {
                         Text(
                             text = "No favorite artists chosen yet.",
                             style = MaterialTheme.typography.bodyMedium,
@@ -686,7 +666,7 @@ fun UserProfileScreen(
                                         modifier = Modifier
                                             .width(84.dp)
                                             .clip(RoundedCornerShape(14.dp))
-                                            .clickable { showAddArtistDialog = true }
+                                            .clickable { showAddArtistScreen = true }
                                             .padding(6.dp),
                                     ) {
                                         Box(
@@ -715,7 +695,7 @@ fun UserProfileScreen(
                             }
 
                             itemsIndexed(
-                                items = favoriteArtists.distinctBy { it.id },
+                                items = effectiveFavoriteArtists.distinctBy { it.id },
                                 key = { index, artist -> "fav_artist_${artist.id.ifBlank { index.toString() }}_$index" },
                             ) { _, artist ->
                                 val resolvedId = if (artist.name.equals("Drake", ignoreCase = true) && (artist.id == "UC0C-w0YjGpqDXGB8Tr0GGyA" || artist.id.isBlank())) {
@@ -911,13 +891,73 @@ fun UserProfileScreen(
             )
         }
 
-        if (showAddArtistDialog) {
-            AddFavoriteArtistDialog(
-                onDismiss = { showAddArtistDialog = false },
+        if (showAddArtistScreen) {
+            AddFavoriteArtistScreen(
+                onDismiss = { showAddArtistScreen = false },
                 onAddArtist = { newArtist ->
                     viewModel.addFavoriteArtist(newArtist)
                 },
                 existingArtistIds = favoriteArtists.map { it.id }.toSet(),
+            )
+        }
+
+        activeConnectionsTab?.let { tab ->
+            ConnectionsScreen(
+                userHandle = activeProfile.handle,
+                initialTab = tab,
+                followingList = followingList,
+                followersList = followersList,
+                friendsList = friendsList,
+                suggestedList = suggestedUsers,
+                onBack = { activeConnectionsTab = null },
+                onOpenProfile = { clickedProfile ->
+                    activeConnectionsTab = null
+                    viewModel.openUserProfile(clickedProfile)
+                },
+                onToggleFollow = { targetUser ->
+                    viewModel.toggleFollowUser(targetUser.id, targetUser)
+                },
+            )
+        }
+
+        if (showEditStatusDialog) {
+            var newStatus by remember { mutableStateOf(activeProfile.statusBubble ?: "") }
+            AlertDialog(
+                onDismissRequest = { showEditStatusDialog = false },
+                containerColor = MaterialTheme.colorScheme.surface,
+                title = {
+                    Text(
+                        text = "Update Status",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                },
+                text = {
+                    OutlinedTextField(
+                        value = newStatus,
+                        onValueChange = { if (it.length <= 40) newStatus = it },
+                        placeholder = { Text("What's on your mind? (max 40 chars)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            viewModel.updateStatusBubble(newStatus.trim())
+                            showEditStatusDialog = false
+                        },
+                        shape = RoundedCornerShape(10.dp),
+                    ) {
+                        Text("Save")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showEditStatusDialog = false }) {
+                        Text("Cancel")
+                    }
+                },
             )
         }
 
@@ -1110,256 +1150,195 @@ private fun FavoriteArtistCard(
 }
 
 @Composable
-private fun AddFavoriteArtistDialog(
-    onDismiss: () -> Unit,
-    onAddArtist: (QuizArtist) -> Unit,
-    existingArtistIds: Set<String>,
+private fun ProfileStatStacked(
+    count: Int,
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    var searchQuery by remember { mutableStateOf("") }
-    var searchResults by remember { mutableStateOf<List<QuizArtist>>(emptyList()) }
-    var isSearching by remember { mutableStateOf(false) }
-
-    val curatedArtists = remember {
-        listOf(
-            QuizArtist("UCU6cE7pdJPc6DU2jSrKEsdQ", "Drake", "https://lh3.googleusercontent.com/9t5_vY2mN4sB2lqT2r9x1cQ5p3w4e5r6t7y8u9i0o1p2a3s4d5f6g7h8j9k0l=w544-h544-l90-rj"),
-            QuizArtist("UCPC0L1d253x-KuMNwa05TpA", "Taylor Swift", "https://lh3.googleusercontent.com/WpP8zK1eB34vA9Bq08b3l5v9dE=w544-h544-l90-rj"),
-            QuizArtist("UCr61sufuLt7_eB7ak1bXHIg", "Burna Boy", "https://lh3.googleusercontent.com/e2E4eJ3iA6f9=w544-h544-l90-rj"),
-            QuizArtist("UClYV6hHlupm_S_ObS1W-DYw", "The Weeknd", "https://lh3.googleusercontent.com/d7y0n9a5=w544-h544-l90-rj"),
-            QuizArtist("UCprAFmT0C6O4X0ToEXpeFTQ", "Kendrick Lamar", "https://lh3.googleusercontent.com/k9l0m1=w544-h544-l90-rj"),
-            QuizArtist("UCERrDZ8oN0U_n9MphMKERcg", "Billie Eilish", "https://lh3.googleusercontent.com/b1l2i3=w544-h544-l90-rj"),
-            QuizArtist("UC25DGtgYk5TwdksvtpeWYvA", "Wizkid", "https://lh3.googleusercontent.com/w1z2k3=w544-h544-l90-rj"),
-            QuizArtist("UCCjfbcoH0ZYT0r1jScDHJMg", "Asake", "https://lh3.googleusercontent.com/a1s2a3=w544-h544-l90-rj"),
-            QuizArtist("UCf_gP4AMRSgAfyzbkeS9k4g", "Travis Scott", "https://lh3.googleusercontent.com/t1s2=w544-h544-l90-rj"),
-            QuizArtist("UCeKDV9JgivrXehVluw5bKFA", "SZA", "https://lh3.googleusercontent.com/s1z2a3=w544-h544-l90-rj"),
-            QuizArtist("UCyD3XWRK9ko-izf2nBSFitw", "Post Malone", "https://lh3.googleusercontent.com/p1m2=w544-h544-l90-rj"),
-            QuizArtist("UC0076UMUgEng8HORUw_MYHA", "Ariana Grande", "https://lh3.googleusercontent.com/a1g2=w544-h544-l90-rj"),
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 4.dp, vertical = 2.dp),
+        horizontalAlignment = Alignment.Start,
+    ) {
+        Text(
+            text = count.toString(),
+            style = MaterialTheme.typography.titleMedium.copy(
+                fontWeight = FontWeight.Bold,
+                fontSize = 16.sp,
+            ),
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
+            ),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
+}
 
-    LaunchedEffect(searchQuery) {
-        val q = searchQuery.trim()
-        if (q.length >= 2) {
-            kotlinx.coroutines.delay(300)
-            isSearching = true
-            val results = YtMusicRepository.search(q, SearchFilter.ARTISTS).getOrNull()
-            if (results != null) {
-                searchResults = results.filterIsInstance<SearchResult.Browse>().map { browse ->
-                    val resolvedId = if (browse.item.title.equals("Drake", ignoreCase = true) && (browse.item.browseId == "UC0C-w0YjGpqDXGB8Tr0GGyA" || browse.item.browseId.isBlank())) {
-                        "UCU6cE7pdJPc6DU2jSrKEsdQ"
-                    } else {
-                        browse.item.browseId
-                    }
-                    QuizArtist(
-                        id = resolvedId,
-                        name = browse.item.title,
-                        artworkUrl = browse.item.thumbnailUrl,
+@Composable
+private fun ComicThoughtBubble(
+    status: String?,
+    onClick: (() -> Unit)?,
+    modifier: Modifier = Modifier,
+) {
+    val bubbleText = status?.takeIf { it.isNotBlank() } ?: if (onClick != null) "+ Status" else null
+
+    if (bubbleText != null) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = modifier
+                .padding(bottom = 4.dp)
+                .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+        ) {
+            // Main Cloud/Bubble Body
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f))
+                    .border(
+                        1.dp,
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
+                        RoundedCornerShape(16.dp),
                     )
-                }
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = bubbleText,
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 11.sp,
+                    ),
+                    color = if (status.isNullOrBlank()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                    maxLines = 2,
+                    textAlign = TextAlign.Center,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
-            isSearching = false
-        } else {
-            searchResults = emptyList()
-            isSearching = false
-        }
-    }
 
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false),
+            Spacer(Modifier.height(2.dp))
+
+            // Comic thought bubble trailing dots (3 graduating dots towards avatar)
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(top = 1.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(6.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                )
+                Box(
+                    modifier = Modifier
+                        .size(4.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f)),
+                )
+                Box(
+                    modifier = Modifier
+                        .size(3.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)),
+                )
+            }
+        }
+    } else {
+        Spacer(Modifier.height(18.dp))
+    }
+}
+
+@Composable
+private fun SuggestedAccountCard(
+    profile: SocialProfile,
+    onOpen: () -> Unit,
+    onFollow: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .width(130.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+            .border(
+                1.dp,
+                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+                RoundedCornerShape(16.dp),
+            )
+            .clickable(onClick = onOpen)
+            .padding(12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
             modifier = Modifier
-                .fillMaxSize()
-                .background(Color(0xFF14171F))
-                .systemBarsPadding(),
+                .size(52.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+            contentAlignment = Alignment.Center,
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 20.dp, vertical = 16.dp),
-            ) {
-                // Header
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = "Add Favorite Artist",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = Color.White,
-                    )
-                    IconButton(onClick = onDismiss) {
-                        Icon(
-                            imageVector = Icons.Rounded.Close,
-                            contentDescription = "Close",
-                            tint = Color.White,
-                        )
-                    }
-                }
-
-                Spacer(Modifier.height(12.dp))
-
-                // Search field
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    placeholder = {
-                        Text("Search artist (e.g. Drake, Billie Eilish...)", color = Color(0xFF8E95A5), fontSize = 14.sp)
-                    },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Rounded.Search,
-                            contentDescription = null,
-                            tint = Color(0xFF8E95A5),
-                        )
-                    },
-                    trailingIcon = {
-                        if (searchQuery.isNotEmpty()) {
-                            IconButton(onClick = { searchQuery = "" }) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Close,
-                                    contentDescription = "Clear",
-                                    tint = Color(0xFF8E95A5),
-                                )
-                            }
-                        }
-                    },
-                    singleLine = true,
-                    shape = RoundedCornerShape(14.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = Color(0xFF232631),
-                        unfocusedContainerColor = Color(0xFF232631),
-                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                        unfocusedBorderColor = Color(0xFF383C4A),
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White,
-                    ),
-                    modifier = Modifier.fillMaxWidth(),
+            if (!profile.avatarUrl.isNullOrBlank() && profile.avatarUrl != "null") {
+                AsyncImage(
+                    model = profile.avatarUrl,
+                    contentDescription = profile.displayName,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
                 )
-
-                Spacer(Modifier.height(16.dp))
-
-                if (isSearching) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 32.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        CircularProgressIndicator(
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(32.dp),
-                        )
-                    }
-                } else {
-                    val displayList = if (searchQuery.trim().length >= 2) searchResults else curatedArtists
-
-                    Text(
-                        text = if (searchQuery.trim().length >= 2) "Search Results" else "Popular Artists",
-                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                        color = Color(0xFF8E95A5),
-                        modifier = Modifier.padding(bottom = 8.dp),
-                    )
-
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        contentPadding = PaddingValues(bottom = 32.dp),
-                    ) {
-                        itemsIndexed(
-                            items = displayList.distinctBy { it.id },
-                            key = { index, artist -> "search_artist_${artist.id.ifBlank { index.toString() }}_$index" },
-                        ) { _, artist ->
-                            val isAdded = existingArtistIds.contains(artist.id)
-
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(14.dp))
-                                    .background(Color(0xFF1E212B))
-                                    .clickable {
-                                        if (!isAdded) {
-                                            onAddArtist(artist)
-                                        }
-                                    }
-                                    .padding(horizontal = 14.dp, vertical = 10.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                ArtistAvatar(
-                                    artistName = artist.name,
-                                    artworkUrl = artist.artworkUrl,
-                                    size = 48.dp,
-                                )
-
-                                Spacer(Modifier.width(14.dp))
-
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = artist.name,
-                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                                        color = Color.White,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
-                                    Text(
-                                        text = "Artist",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = Color(0xFF8E95A5),
-                                    )
-                                }
-
-                                if (isAdded) {
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(Color(0xFF2A2E3D))
-                                            .padding(horizontal = 10.dp, vertical = 6.dp),
-                                    ) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Rounded.CheckCircle,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.size(14.dp),
-                                            )
-                                            Text(
-                                                text = "Added",
-                                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                                color = MaterialTheme.colorScheme.primary,
-                                            )
-                                        }
-                                    }
-                                } else {
-                                    Button(
-                                        onClick = { onAddArtist(artist) },
-                                        shape = RoundedCornerShape(10.dp),
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = MaterialTheme.colorScheme.primary,
-                                            contentColor = MaterialTheme.colorScheme.onPrimary,
-                                        ),
-                                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Rounded.Add,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(16.dp),
-                                        )
-                                        Spacer(Modifier.width(4.dp))
-                                        Text(
-                                            text = "Add",
-                                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+            } else {
+                Icon(
+                    imageVector = Icons.Rounded.Person,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(28.dp),
+                )
             }
+        }
+
+        Spacer(Modifier.height(8.dp))
+
+        Text(
+            text = profile.displayName,
+            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+        )
+
+        Text(
+            text = formatHandle(profile.handle),
+            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+        )
+
+        Spacer(Modifier.height(10.dp))
+
+        Button(
+            onClick = onFollow,
+            shape = RoundedCornerShape(10.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = if (profile.isFollowing) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.primary,
+                contentColor = if (profile.isFollowing) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onPrimary,
+            ),
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(32.dp),
+        ) {
+            Text(
+                text = if (profile.isFollowing) "Following" else "Follow",
+                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+            )
         }
     }
 }

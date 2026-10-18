@@ -82,45 +82,55 @@ fun RealmSwitcher(
     }
 
     val glassTint = if (isDark) {
-        Color(0x38101218)
+        Color(0x80181A22)
     } else {
-        Color.White.copy(alpha = 0.55f)
+        Color.White.copy(alpha = 0.75f)
     }
 
     val containerModifier = if (hazeState != null) {
         modifier
+            .shadow(
+                elevation = if (isDark) 8.dp else 4.dp,
+                shape = RoundedCornerShape(percent = 50),
+                spotColor = Color.Black.copy(alpha = 0.35f),
+            )
             .clip(RoundedCornerShape(percent = 50))
             .hazeEffect(hazeState, HazeMaterials.thin()) {
                 tints = listOf(HazeTint(glassTint))
-                blurRadius = 24.dp
+                blurRadius = 28.dp
             }
             .border(
                 width = 1.dp,
                 brush = Brush.verticalGradient(
                     colors = if (isDark) listOf(
-                        Color.White.copy(alpha = 0.35f),
-                        Color.White.copy(alpha = 0.08f),
+                        Color.White.copy(alpha = 0.50f),
+                        Color.White.copy(alpha = 0.15f),
                     ) else listOf(
-                        Color.White.copy(alpha = 0.85f),
-                        Color.Black.copy(alpha = 0.08f),
+                        Color.White.copy(alpha = 0.90f),
+                        Color.Black.copy(alpha = 0.10f),
                     ),
                 ),
                 shape = RoundedCornerShape(percent = 50),
             )
     } else {
         modifier
+            .shadow(
+                elevation = if (isDark) 8.dp else 4.dp,
+                shape = RoundedCornerShape(percent = 50),
+                spotColor = Color.Black.copy(alpha = 0.35f),
+            )
             .clip(RoundedCornerShape(percent = 50))
             .background(
                 Brush.verticalGradient(
-                    if (isDark) listOf(Color(0x551C1E26), Color(0x660E1015))
-                    else listOf(Color.White.copy(alpha = 0.85f), Color(0xDDEDEEF2))
+                    if (isDark) listOf(Color(0xB31E222E), Color(0xCC12141A))
+                    else listOf(Color.White.copy(alpha = 0.95f), Color(0xEEEDEEF2))
                 )
             )
             .border(
                 width = 1.dp,
                 brush = Brush.verticalGradient(
-                    if (isDark) listOf(Color.White.copy(alpha = 0.30f), Color.White.copy(alpha = 0.06f))
-                    else listOf(Color.White, Color.Black.copy(alpha = 0.10f))
+                    if (isDark) listOf(Color.White.copy(alpha = 0.50f), Color.White.copy(alpha = 0.15f))
+                    else listOf(Color.White, Color.Black.copy(alpha = 0.12f))
                 ),
                 shape = RoundedCornerShape(percent = 50),
             )
@@ -151,11 +161,11 @@ fun RealmSwitcher(
                 .background(
                     Brush.verticalGradient(
                         colors = if (isDark) listOf(
-                            Color.White.copy(alpha = 0.26f),
-                            Color.White.copy(alpha = 0.12f),
+                            Color.White.copy(alpha = 0.35f),
+                            Color.White.copy(alpha = 0.18f),
                         ) else listOf(
                             Color.White,
-                            Color(0xFFF3F4F8),
+                            Color(0xFFE8E9F0),
                         ),
                     )
                 )
@@ -163,11 +173,11 @@ fun RealmSwitcher(
                     width = 1.dp,
                     brush = Brush.verticalGradient(
                         colors = if (isDark) listOf(
-                            Color.White.copy(alpha = 0.50f),
-                            Color.White.copy(alpha = 0.15f),
+                            Color.White.copy(alpha = 0.65f),
+                            Color.White.copy(alpha = 0.20f),
                         ) else listOf(
                             Color.White,
-                            Color.Black.copy(alpha = 0.06f),
+                            Color.Black.copy(alpha = 0.08f),
                         ),
                     ),
                     shape = RoundedCornerShape(percent = 50),

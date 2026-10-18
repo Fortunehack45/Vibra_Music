@@ -174,7 +174,7 @@ fun DirectMessagesScreen(
 
     LaunchedEffect(mentionQuery) {
         val query = mentionQuery
-        if (query != null && query.length >= 1) {
+        if (query != null) {
             isSearchingMentions = true
             SupabaseService.searchUsersForMention(query).onSuccess { list ->
                 mentionSuggestions = list
@@ -381,6 +381,7 @@ fun DirectMessagesScreen(
                         MessageBubble(
                             message = msg,
                             isMine = isMine,
+                            friendDisplayName = friend.displayName,
                             onPlayTrack = onPlayTrack,
                             voiceRecorderManager = voiceRecorderManager,
                             currentlyPlayingAudioUrl = currentlyPlayingAudioUrl,
@@ -681,7 +682,7 @@ fun DirectMessagesScreen(
                     }
                 } else {
                     // Mention Suggestions Popup above Input Bar
-                    if (!mentionQuery.isNullOrBlank() && (mentionSuggestions.isNotEmpty() || isSearchingMentions)) {
+                    if (mentionQuery != null && (mentionSuggestions.isNotEmpty() || isSearchingMentions)) {
                         MentionSuggestionPopup(
                             suggestions = mentionSuggestions,
                             isLoading = isSearchingMentions,
@@ -1348,6 +1349,7 @@ private fun ConversationRow(
 private fun MessageBubble(
     message: DirectMessage,
     isMine: Boolean,
+    friendDisplayName: String = "",
     onPlayTrack: (MusicTrackAttachment) -> Unit,
     voiceRecorderManager: VoiceRecorderManager,
     currentlyPlayingAudioUrl: String?,
@@ -1452,8 +1454,14 @@ private fun MessageBubble(
                         )
                         Spacer(Modifier.width(8.dp))
                         Column(modifier = Modifier.weight(1f)) {
+                            val resolvedSender = when {
+                                message.replyToSender == "You" -> "You"
+                                !message.replyToSender.isNullOrBlank() && message.replyToSender != "Friend" -> message.replyToSender
+                                friendDisplayName.isNotBlank() -> friendDisplayName
+                                else -> "Reply"
+                            }
                             Text(
-                                text = message.replyToSender ?: "Reply",
+                                text = resolvedSender,
                                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                                 color = replyAccent,
                             )

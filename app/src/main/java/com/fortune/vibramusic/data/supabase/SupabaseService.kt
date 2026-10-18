@@ -39,6 +39,8 @@ import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -168,39 +170,47 @@ object SupabaseService {
         offset: Int = 0,
     ): Result<List<SocialPost>> = withContext(Dispatchers.IO) {
         runCatching {
-            val url = baseUrl("posts")
-            val response = client.get(url) {
-                header("apikey", SupabaseConfig.anonKey)
-                header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
-                parameter("select", "*,profiles:author_id(*)")
-                parameter("order", "created_at.desc")
-                parameter("limit", limit)
-                parameter("offset", offset)
-            }
-
-            if (!response.status.isSuccess()) {
-                val errorText = response.bodyAsText().take(300)
-                Log.w(TAG, "fetchPosts failed with ${response.status}: $errorText")
-                throw RuntimeException("HTTP ${response.status.value}: $errorText")
-            }
-
-            val likedPostIds = if (!forUserId.isNullOrBlank()) {
-                runCatching {
-                    val likesRes = client.get(baseUrl("post_likes")) {
+            coroutineScope {
+                val postsDeferred = async {
+                    val url = baseUrl("posts")
+                    client.get(url) {
                         header("apikey", SupabaseConfig.anonKey)
                         header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
-                        parameter("user_id", "eq.$forUserId")
-                        parameter("select", "post_id")
+                        parameter("select", "*,profiles:author_id(*)")
+                        parameter("order", "created_at.desc")
+                        parameter("limit", limit)
+                        parameter("offset", offset)
                     }
-                    if (likesRes.status.isSuccess()) {
-                        val arr = json.parseToJsonElement(likesRes.bodyAsText()) as? JsonArray
-                        arr?.mapNotNull { (it as? JsonObject)?.str("post_id") }?.toSet() ?: emptySet()
-                    } else emptySet()
-                }.getOrDefault(emptySet())
-            } else emptySet()
+                }
 
-            val rawPosts = parsePosts(response.bodyAsText(), forUserId ?: "", likedPostIds)
-            resolveReferencedPosts(rawPosts, forUserId ?: "", likedPostIds)
+                val likesDeferred = async {
+                    if (!forUserId.isNullOrBlank()) {
+                        runCatching {
+                            val likesRes = client.get(baseUrl("post_likes")) {
+                                header("apikey", SupabaseConfig.anonKey)
+                                header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                                parameter("user_id", "eq.$forUserId")
+                                parameter("select", "post_id")
+                            }
+                            if (likesRes.status.isSuccess()) {
+                                val arr = json.parseToJsonElement(likesRes.bodyAsText()) as? JsonArray
+                                arr?.mapNotNull { (it as? JsonObject)?.str("post_id") }?.toSet() ?: emptySet()
+                            } else emptySet()
+                        }.getOrDefault(emptySet())
+                    } else emptySet()
+                }
+
+                val response = postsDeferred.await()
+                if (!response.status.isSuccess()) {
+                    val errorText = response.bodyAsText().take(300)
+                    Log.w(TAG, "fetchPosts failed with ${response.status}: $errorText")
+                    throw RuntimeException("HTTP ${response.status.value}: $errorText")
+                }
+
+                val likedPostIds = likesDeferred.await()
+                val rawPosts = parsePosts(response.bodyAsText(), forUserId ?: "", likedPostIds)
+                resolveReferencedPosts(rawPosts, forUserId ?: "", likedPostIds)
+            }
         }
     }
 
@@ -802,9 +812,10 @@ object SupabaseService {
                 if (fRes.status.isSuccess()) {
                     val arr = json.parseToJsonElement(fRes.bodyAsText()) as? JsonArray
                     if (arr != null) {
-                        realFollowers = arr.size
+                        val validFollowers = arr.filter { (it as? JsonObject)?.str("follower_id") != userId }
+                        realFollowers = validFollowers.size
                         if (currentUserId.isNotBlank()) {
-                            isFollowing = arr.any { (it as? JsonObject)?.str("follower_id") == currentUserId }
+                            isFollowing = validFollowers.any { (it as? JsonObject)?.str("follower_id") == currentUserId }
                         }
                     }
                 }
@@ -820,7 +831,7 @@ object SupabaseService {
                 if (ingRes.status.isSuccess()) {
                     val arr = json.parseToJsonElement(ingRes.bodyAsText()) as? JsonArray
                     if (arr != null) {
-                        realFollowing = arr.size
+                        realFollowing = arr.filter { (it as? JsonObject)?.str("following_id") != userId }.size
                     }
                 }
             }
@@ -1135,6 +1146,7 @@ object SupabaseService {
         audioUrl: String? = null,
         gifUrl: String? = null,
         replyTo: DirectMessage? = null,
+        recipientDisplayName: String? = null,
     ): Result<DirectMessage> = withContext(Dispatchers.IO) {
         runCatching {
             val messageId = UUID.randomUUID().toString()
@@ -1160,7 +1172,7 @@ object SupabaseService {
                 }.take(80).replace("\n", " ")
             }
             val replySender = replyTo?.let { rep ->
-                if (rep.senderId == senderId) "You" else (rep.replyToSender ?: "Friend")
+                if (rep.senderId == senderId) "You" else (recipientDisplayName ?: rep.replyToSender ?: "Friend")
             }
 
             val finalContent = buildString {
@@ -1394,11 +1406,12 @@ object SupabaseService {
     suspend fun searchUsersForMention(query: String, limit: Int = 8): Result<List<SocialProfile>> = withContext(Dispatchers.IO) {
         runCatching {
             val cleanQuery = query.trim().removePrefix("@")
-            if (cleanQuery.isBlank()) return@runCatching emptyList()
             val response = client.get(baseUrl("profiles")) {
                 header("apikey", SupabaseConfig.anonKey)
                 header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
-                parameter("or", "(handle.ilike.%$cleanQuery%,display_name.ilike.%$cleanQuery%)")
+                if (cleanQuery.isNotBlank()) {
+                    parameter("or", "(handle.ilike.%$cleanQuery%,display_name.ilike.%$cleanQuery%)")
+                }
                 parameter("limit", limit.toString())
                 parameter("order", "followers_count.desc,handle.asc")
             }
@@ -1448,7 +1461,7 @@ object SupabaseService {
                 }.getOrDefault(emptySet())
             } else emptySet()
 
-            profiles.map { p ->
+            profiles.filter { it.id != userId }.map { p ->
                 p.copy(isFollowing = myFollowing.contains(p.id))
             }
         }
@@ -1477,9 +1490,10 @@ object SupabaseService {
                 pObj?.let { parseProfileRow(it) }
             }
 
+            val validProfiles = profiles.filter { it.id != userId }
             val activeUser = currentUserId.ifBlank { userId }
             if (activeUser == userId) {
-                profiles.map { it.copy(isFollowing = true) }
+                validProfiles.map { it.copy(isFollowing = true) }
             } else {
                 val myFollowing = runCatching {
                     val fRes = client.get(baseUrl("follows")) {
@@ -1493,7 +1507,7 @@ object SupabaseService {
                         fArr?.mapNotNull { (it as? JsonObject)?.str("following_id") }?.toSet() ?: emptySet()
                     } else emptySet()
                 }.getOrDefault(emptySet())
-                profiles.map { p ->
+                validProfiles.map { p ->
                     p.copy(isFollowing = myFollowing.contains(p.id))
                 }
             }

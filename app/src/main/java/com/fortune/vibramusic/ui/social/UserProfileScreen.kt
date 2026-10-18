@@ -80,9 +80,13 @@ import com.fortune.vibramusic.data.quiz.QuizArtist
 import com.fortune.vibramusic.data.quiz.VERIFIED_CURATED_ARTISTS
 import com.fortune.vibramusic.data.social.MusicTrackAttachment
 import com.fortune.vibramusic.data.social.PostMediaItem
+import com.fortune.vibramusic.data.social.SocialPost
 import com.fortune.vibramusic.data.social.SocialProfile
 import com.fortune.vibramusic.data.social.formatHandle
+import com.fortune.vibramusic.data.YtMusicRepository
 import com.fortune.vibramusic.ui.components.ArtistAvatar
+import dev.chrisbanes.haze.HazeState
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.material.icons.rounded.PlayArrow
@@ -98,11 +102,26 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import com.fortune.vibramusic.data.YtMusicRepository
-import com.fortune.vibramusic.data.social.SocialPost
-import kotlinx.coroutines.launch
-import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.hazeSource
+import com.fortune.vibramusic.data.social.isWithinEditWindow
+import com.fortune.vibramusic.ui.theme.rememberArtworkPalette
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.PlayerView
+import androidx.compose.ui.viewinterop.AndroidView
+import android.view.ViewGroup
+import android.widget.FrameLayout
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.graphics.ColorFilter
+import com.fortune.vibramusic.R
+import com.fortune.vibramusic.ui.realm.AppRealm
+import com.fortune.vibramusic.ui.components.RealmSwitcher
+import com.fortune.vibramusic.ui.components.lightweightLiquidGlass
+import com.fortune.vibramusic.ui.components.liquidGlassButton
+import com.fortune.vibramusic.ui.components.glassContentColor
+import com.fortune.vibramusic.ui.haptics.Haptic
 
 @Composable
 fun UserProfileScreen(
@@ -114,6 +133,8 @@ fun UserProfileScreen(
     onArtistQuizClick: (QuizArtist) -> Unit,
     onOpenArtistDetail: ((id: String, name: String, artworkUrl: String?) -> Unit)? = null,
     onOpenPlaylist: ((id: String, title: String, coverUrl: String?) -> Unit)? = null,
+    activeRealm: AppRealm = AppRealm.SOCIAL,
+    onRealmSelected: ((AppRealm) -> Unit)? = null,
     contentPadding: PaddingValues,
     hazeState: HazeState,
     modifier: Modifier = Modifier,
@@ -138,6 +159,8 @@ fun UserProfileScreen(
     var showSuggestedCarousel by remember { mutableStateOf(false) }
     var activeConnectionsTab by remember { mutableStateOf<ConnectionsTab?>(null) }
     var postToDelete by remember { mutableStateOf<SocialPost?>(null) }
+    var editingPost by remember { mutableStateOf<SocialPost?>(null) }
+    var editPostContent by remember { mutableStateOf("") }
     var inspectedQuotedPost by remember { mutableStateOf<SocialPost?>(null) }
     var activeMediaViewer by remember { mutableStateOf<Pair<List<PostMediaItem>, Int>?>(null) }
 
@@ -165,43 +188,48 @@ fun UserProfileScreen(
         ) {
             // 1. Wide Header Banner with Overlaid Navigation (reference image 2 & 5)
             item(key = "profile_banner_header") {
+                val bannerUrl = activeProfile.bannerUrl?.takeIf { it.isNotBlank() }
+                    ?: activeProfile.bannerPlaylists.firstOrNull()?.split("|")?.lastOrNull()?.takeIf { it.startsWith("http") }
+
+                val palette = rememberArtworkPalette(bannerUrl ?: activeProfile.avatarUrl)
+                val ambientColor = palette.background
+
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(175.dp),
-                ) {
-                    val bannerImage = activeProfile.bannerUrl?.takeIf { it.isNotBlank() }
-                        ?: activeProfile.bannerPlaylists.firstOrNull()?.split("|")?.lastOrNull()?.takeIf { it.startsWith("http") }
-
-                    if (!bannerImage.isNullOrBlank()) {
-                        AsyncImage(
-                            model = bannerImage,
-                            contentDescription = "Profile Banner",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize(),
-                        )
-                    } else {
-                        // Atmospheric Vibra soundwave gradient banner
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(
-                                    Brush.verticalGradient(
-                                        colors = listOf(
-                                            Color(0xFF2E1C38),
-                                            Color(0xFF1B1F2C),
-                                            Color(0xFF10121A),
-                                        ),
-                                    ),
+                        .height(185.dp)
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    ambientColor.copy(alpha = 0.95f),
+                                    ambientColor.copy(alpha = 0.6f),
+                                    MaterialTheme.colorScheme.background,
                                 ),
-                        )
+                            ),
+                        ),
+                ) {
+                    if (!bannerUrl.isNullOrBlank()) {
+                        val isVideo = bannerUrl.endsWith(".mp4", ignoreCase = true) || bannerUrl.contains("video", ignoreCase = true)
+                        if (isVideo) {
+                            ProfileBannerVideo(
+                                videoUrl = bannerUrl,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        } else {
+                            AsyncImage(
+                                model = bannerUrl,
+                                contentDescription = "Profile Banner",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
                     }
 
                     // Bottom gradient fade into page background
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(60.dp)
+                            .height(70.dp)
                             .align(Alignment.BottomCenter)
                             .background(
                                 Brush.verticalGradient(
@@ -210,7 +238,7 @@ fun UserProfileScreen(
                             ),
                     )
 
-                    // Overlaid Navigation Chrome
+                    // Overlaid Liquid Glass Navigation Chrome
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -219,48 +247,86 @@ fun UserProfileScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
+                        // Left: Back button or Vibra app mark
                         if (onBack != null) {
-                            IconButton(
-                                onClick = onBack,
+                            Box(
                                 modifier = Modifier
-                                    .size(38.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(0x66000000)),
+                                    .size(44.dp)
+                                    .liquidGlassButton(
+                                        onClick = onBack,
+                                        haptic = Haptic.Tap,
+                                        expandScale = 1.14f,
+                                        pressScale = 0.91f,
+                                    )
+                                    .lightweightLiquidGlass(
+                                        shape = CircleShape,
+                                        fallbackColor = MaterialTheme.colorScheme.surfaceVariant,
+                                    ),
+                                contentAlignment = Alignment.Center,
                             ) {
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                                     contentDescription = "Back",
-                                    tint = Color.White,
+                                    tint = glassContentColor(),
                                     modifier = Modifier.size(20.dp),
                                 )
                             }
                         } else {
-                            Spacer(Modifier.size(38.dp))
+                            Box(
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .lightweightLiquidGlass(
+                                        shape = CircleShape,
+                                        fallbackColor = MaterialTheme.colorScheme.surfaceVariant,
+                                    ),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Image(
+                                    painter = painterResource(R.drawable.ic_logo),
+                                    contentDescription = null,
+                                    colorFilter = ColorFilter.tint(glassContentColor()),
+                                    modifier = Modifier.size(24.dp),
+                                )
+                            }
                         }
 
-                        // Top right share action over banner
-                        IconButton(
-                            onClick = {
-                                val sendIntent = Intent(Intent.ACTION_SEND).apply {
-                                    putExtra(
-                                        Intent.EXTRA_TEXT,
-                                        "Check out ${formatHandle(activeProfile.handle)}'s music profile on Vibra:\nhttps://vibramusic.app/u/${activeProfile.handle.removePrefix("@")}",
-                                    )
-                                    type = "text/plain"
-                                }
-                                context.startActivity(Intent.createChooser(sendIntent, "Share Profile"))
-                            },
-                            modifier = Modifier
-                                .size(38.dp)
-                                .clip(CircleShape)
-                                .background(Color(0x66000000)),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Share,
-                                contentDescription = "Share",
-                                tint = Color.White,
-                                modifier = Modifier.size(18.dp),
+                        // Right: Realm Switcher for own profile, or Share button for other users
+                        if (isSelf) {
+                            RealmSwitcher(
+                                activeRealm = activeRealm,
+                                onRealmSelected = { onRealmSelected?.invoke(it) },
+                                hazeState = hazeState,
                             )
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .liquidGlassButton(
+                                        onClick = {
+                                            val shareText = "Check out ${formatHandle(activeProfile.handle)}'s music profile on Vibra:\nhttps://vibramusic.app/u/${activeProfile.handle.removePrefix("@")}"
+                                            val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                                putExtra(Intent.EXTRA_TEXT, shareText)
+                                                type = "text/plain"
+                                            }
+                                            context.startActivity(Intent.createChooser(sendIntent, "Share Profile"))
+                                        },
+                                        haptic = Haptic.Tap,
+                                        expandScale = 1.14f,
+                                        pressScale = 0.91f,
+                                    )
+                                    .lightweightLiquidGlass(
+                                        shape = CircleShape,
+                                        fallbackColor = MaterialTheme.colorScheme.surfaceVariant,
+                                    ),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Share,
+                                    contentDescription = "Share",
+                                    tint = glassContentColor(),
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            }
                         }
                     }
                 }
@@ -816,6 +882,12 @@ fun UserProfileScreen(
                                     onOpenArtistDetail?.invoke(browseId, artistName, artwork)
                                 }
                             },
+                            onEditClick = if (isSelf && isWithinEditWindow(post.createdAt, 10L)) {
+                                {
+                                    editingPost = post
+                                    editPostContent = post.content
+                                }
+                            } else null,
                             onDeleteClick = if (isSelf) {
                                 { postToDelete = post }
                             } else null,
@@ -876,7 +948,7 @@ fun UserProfileScreen(
             EditProfileSheet(
                 profile = activeProfile,
                 onDismiss = { showEditProfile = false },
-                onSaveProfile = { name, handle, bio, avatar, country, age, statusBubble, bannerPlaylists ->
+                onSaveProfile = { name, handle, bio, avatar, country, age, statusBubble, bannerPlaylists, bannerUrl ->
                     viewModel.updateUserProfile(
                         displayName = name,
                         handle = handle,
@@ -886,7 +958,43 @@ fun UserProfileScreen(
                         age = age,
                         statusBubble = statusBubble,
                         bannerPlaylists = bannerPlaylists,
+                        bannerUrl = bannerUrl,
                     )
+                },
+            )
+        }
+
+        editingPost?.let { targetPost ->
+            AlertDialog(
+                onDismissRequest = { editingPost = null },
+                title = { Text("Edit Post", fontWeight = FontWeight.Bold) },
+                text = {
+                    OutlinedTextField(
+                        value = editPostContent,
+                        onValueChange = { editPostContent = it },
+                        label = { Text("Content") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            val trimmed = editPostContent.trim()
+                            if (trimmed.isNotBlank()) {
+                                viewModel.editPost(targetPost.id, trimmed) {
+                                    editingPost = null
+                                }
+                            }
+                        },
+                    ) {
+                        Text("Save")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { editingPost = null }) {
+                        Text("Cancel")
+                    }
                 },
             )
         }
@@ -909,6 +1017,7 @@ fun UserProfileScreen(
                 followersList = followersList,
                 friendsList = friendsList,
                 suggestedList = suggestedUsers,
+                currentUserId = currentProfile?.id ?: "",
                 onBack = { activeConnectionsTab = null },
                 onOpenProfile = { clickedProfile ->
                     activeConnectionsTab = null
@@ -1225,27 +1334,27 @@ private fun ComicThoughtBubble(
 
             Spacer(Modifier.height(2.dp))
 
-            // Comic thought bubble trailing dots (3 graduating dots towards avatar)
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(2.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(top = 1.dp),
+            // Comic thought bubble trailing dots (graduating descending dots towards avatar)
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+                modifier = Modifier.padding(top = 2.dp),
             ) {
                 Box(
                     modifier = Modifier
-                        .size(6.dp)
+                        .size(5.dp)
                         .clip(CircleShape)
                         .background(MaterialTheme.colorScheme.surfaceVariant),
                 )
                 Box(
                     modifier = Modifier
-                        .size(4.dp)
+                        .size(3.5.dp)
                         .clip(CircleShape)
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f)),
                 )
                 Box(
                     modifier = Modifier
-                        .size(3.dp)
+                        .size(2.dp)
                         .clip(CircleShape)
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)),
                 )
@@ -1342,3 +1451,37 @@ private fun SuggestedAccountCard(
         }
     }
 }
+
+@Composable
+private fun ProfileBannerVideo(videoUrl: String, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val exoPlayer = remember(videoUrl) {
+        ExoPlayer.Builder(context.applicationContext).build().apply {
+            repeatMode = Player.REPEAT_MODE_ALL
+            volume = 0f
+            setMediaItem(MediaItem.fromUri(videoUrl))
+            prepare()
+            playWhenReady = true
+        }
+    }
+    DisposableEffect(exoPlayer) {
+        onDispose {
+            exoPlayer.release()
+        }
+    }
+    AndroidView(
+        factory = { ctx ->
+            PlayerView(ctx).apply {
+                player = exoPlayer
+                useController = false
+                resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                layoutParams = FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                )
+            }
+        },
+        modifier = modifier,
+    )
+}
+

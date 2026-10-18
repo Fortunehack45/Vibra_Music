@@ -155,6 +155,8 @@ fun AddFavoriteArtistScreen(
                         text = "Search artist (e.g. Drake, Billie Eilish...)",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 14.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 },
                 leadingIcon = {

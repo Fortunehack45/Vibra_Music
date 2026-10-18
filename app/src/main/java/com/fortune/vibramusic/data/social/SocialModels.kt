@@ -166,6 +166,48 @@ fun formatRelativeTime(raw: String?): String {
     }
 }
 
+fun isWithinEditWindow(rawCreatedAt: String?, maxMinutes: Long = 10L): Boolean {
+    if (rawCreatedAt.isNullOrBlank() || rawCreatedAt == "Just now" || rawCreatedAt.endsWith("s")) return true
+    return try {
+        val trimmed = rawCreatedAt.trim()
+        val normalized = trimmed.replace(' ', 'T')
+        val instant = runCatching { java.time.Instant.parse(normalized) }.getOrNull()
+            ?: runCatching { java.time.OffsetDateTime.parse(normalized).toInstant() }.getOrNull()
+            ?: runCatching { java.time.ZonedDateTime.parse(normalized).toInstant() }.getOrNull()
+            ?: runCatching {
+                val withZ = if (!normalized.endsWith("Z") && !normalized.contains("+") && !normalized.substringAfter('T', "").contains("-")) {
+                    "${normalized}Z"
+                } else normalized
+                java.time.Instant.parse(withZ)
+            }.getOrNull()
+            ?: runCatching {
+                val cleanDate = normalized.substringBefore('+').substringBefore('Z')
+                val parsedLdt = if (cleanDate.contains('.')) {
+                    val dotIdx = cleanDate.indexOf('.')
+                    val nanos = cleanDate.substring(dotIdx + 1).take(9).padEnd(9, '0')
+                    java.time.LocalDateTime.parse(cleanDate.substring(0, dotIdx) + "." + nanos)
+                } else {
+                    java.time.LocalDateTime.parse(cleanDate)
+                }
+                parsedLdt.atZone(java.time.ZoneOffset.UTC).toInstant()
+            }.getOrNull()
+
+        if (instant != null) {
+            val seconds = java.time.Duration.between(instant, java.time.Instant.now()).seconds
+            seconds <= (maxMinutes * 60L)
+        } else {
+            if (trimmed.endsWith("m")) {
+                val m = trimmed.removeSuffix("m").toLongOrNull() ?: 0L
+                m <= maxMinutes
+            } else {
+                false
+            }
+        }
+    } catch (_: Exception) {
+        false
+    }
+}
+
 @Serializable
 data class SharedPlaylistAttachment(
     val playlistId: String,
@@ -204,6 +246,7 @@ data class SocialPost(
     val repostsCount: Int = 0,
     val isLikedByMe: Boolean = false,
     val isRepostedByMe: Boolean = false,
+    val isEdited: Boolean = false,
     val createdAt: String = "",
 ) {
     val authorName: String get() = author?.displayName ?: "Listener"

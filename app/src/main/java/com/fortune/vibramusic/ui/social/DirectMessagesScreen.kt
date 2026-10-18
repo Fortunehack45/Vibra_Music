@@ -108,15 +108,20 @@ import com.fortune.vibramusic.data.YtMusicRepository
 import com.fortune.vibramusic.data.model.SearchFilter
 import com.fortune.vibramusic.data.model.SearchResult
 import com.fortune.vibramusic.data.model.Song
+import androidx.compose.runtime.mutableIntStateOf
 import com.fortune.vibramusic.data.social.ConversationSummary
 import com.fortune.vibramusic.data.social.DirectMessage
 import com.fortune.vibramusic.data.social.MusicTrackAttachment
+import com.fortune.vibramusic.data.social.PostMediaItem
+import com.fortune.vibramusic.data.social.PostMediaType
 import com.fortune.vibramusic.data.social.SharedPlaylistAttachment
 import com.fortune.vibramusic.data.social.SocialProfile
 import com.fortune.vibramusic.data.social.formatHandle
 import com.fortune.vibramusic.data.social.formatRelativeTime
+import com.fortune.vibramusic.data.social.isWithinEditWindow
 import com.fortune.vibramusic.data.supabase.SupabaseService
 import com.fortune.vibramusic.ui.components.ArtistAvatar
+import com.fortune.vibramusic.ui.components.MentionSuggestionPopup
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 import kotlinx.coroutines.Dispatchers
@@ -159,6 +164,29 @@ fun DirectMessagesScreen(
     var editingMessage by remember { mutableStateOf<DirectMessage?>(null) }
     var editedMessageText by remember { mutableStateOf("") }
     var messageToDelete by remember { mutableStateOf<DirectMessage?>(null) }
+
+    var fullScreenMediaList by remember { mutableStateOf<List<PostMediaItem>?>(null) }
+    var fullScreenMediaIndex by remember { mutableIntStateOf(0) }
+
+    var mentionQuery by remember { mutableStateOf<String?>(null) }
+    var mentionSuggestions by remember { mutableStateOf<List<SocialProfile>>(emptyList()) }
+    var isSearchingMentions by remember { mutableStateOf(false) }
+
+    LaunchedEffect(mentionQuery) {
+        val query = mentionQuery
+        if (query != null && query.length >= 1) {
+            isSearchingMentions = true
+            SupabaseService.searchUsersForMention(query).onSuccess { list ->
+                mentionSuggestions = list
+            }.onFailure {
+                mentionSuggestions = emptyList()
+            }
+            isSearchingMentions = false
+        } else {
+            mentionSuggestions = emptyList()
+            isSearchingMentions = false
+        }
+    }
 
     // Audio recording & playback manager
     val voiceRecorderManager = remember { VoiceRecorderManager(context) }
@@ -359,6 +387,10 @@ fun DirectMessagesScreen(
                             isAudioPlaying = isAudioPlaying,
                             onReply = { replyingToMessage = it },
                             onLongClick = { actionTargetMessage = it },
+                            onMediaClick = { list, idx ->
+                                fullScreenMediaList = list
+                                fullScreenMediaIndex = idx
+                            },
                         )
                     }
                 }
@@ -648,6 +680,28 @@ fun DirectMessagesScreen(
                         }
                     }
                 } else {
+                    // Mention Suggestions Popup above Input Bar
+                    if (!mentionQuery.isNullOrBlank() && (mentionSuggestions.isNotEmpty() || isSearchingMentions)) {
+                        MentionSuggestionPopup(
+                            suggestions = mentionSuggestions,
+                            isLoading = isSearchingMentions,
+                            onSelectUser = { user ->
+                                val lastAt = messageText.lastIndexOf('@')
+                                if (lastAt >= 0) {
+                                    val prefix = messageText.substring(0, lastAt)
+                                    messageText = "$prefix@${user.handle} "
+                                }
+                                mentionQuery = null
+                                mentionSuggestions = emptyList()
+                            },
+                            onDismiss = {
+                                mentionQuery = null
+                                mentionSuggestions = emptyList()
+                            },
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                        )
+                    }
+
                     // Chat Input Bar (Docked directly above keyboard via imePadding)
                     Row(
                         modifier = Modifier
@@ -707,7 +761,7 @@ fun DirectMessagesScreen(
                             }
                         }
 
-                        Spacer(Modifier.width(6.dp))
+                        Spacer(Modifier.width(8.dp))
 
                         // GIF Button
                         IconButton(
@@ -725,7 +779,7 @@ fun DirectMessagesScreen(
                             )
                         }
 
-                        Spacer(Modifier.width(6.dp))
+                        Spacer(Modifier.width(8.dp))
 
                         // Text Input
                         Box(
@@ -747,7 +801,20 @@ fun DirectMessagesScreen(
                             }
                             BasicTextField(
                                 value = messageText,
-                                onValueChange = { messageText = it },
+                                onValueChange = { newText ->
+                                    messageText = newText
+                                    val lastAt = newText.lastIndexOf('@')
+                                    if (lastAt >= 0 && (lastAt == 0 || newText[lastAt - 1].isWhitespace())) {
+                                        val candidate = newText.substring(lastAt + 1)
+                                        if (!candidate.contains(" ") && !candidate.contains("\n")) {
+                                            mentionQuery = candidate
+                                        } else {
+                                            mentionQuery = null
+                                        }
+                                    } else {
+                                        mentionQuery = null
+                                    }
+                                },
                                 textStyle = TextStyle(
                                     color = MaterialTheme.colorScheme.onSurface,
                                     fontSize = 14.sp,
@@ -757,7 +824,7 @@ fun DirectMessagesScreen(
                             )
                         }
 
-                        Spacer(Modifier.width(6.dp))
+                        Spacer(Modifier.width(8.dp))
 
                         // Send or Mic Action Button
                         val hasDraft = messageText.isNotBlank() || stagedImageUri != null || stagedVideoUri != null || stagedGifUrl != null || attachedTrack != null || attachedPlaylist != null
@@ -967,8 +1034,8 @@ fun DirectMessagesScreen(
                     }
                 }
 
-                // Edit Message Option (only for messages authored by the current user)
-                if (isMine && targetMsg.content.isNotBlank()) {
+                // Edit Message Option (only for messages authored by the current user within 10 minutes)
+                if (isMine && targetMsg.content.isNotBlank() && isWithinEditWindow(targetMsg.createdAt, 10L)) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1170,6 +1237,15 @@ fun DirectMessagesScreen(
             shape = RoundedCornerShape(16.dp),
         )
     }
+
+    // Fullscreen media dialog for expanding chat photos, GIFs, and videos
+    fullScreenMediaList?.let { mediaList ->
+        FullScreenMediaViewerDialog(
+            mediaList = mediaList,
+            initialIndex = fullScreenMediaIndex,
+            onDismiss = { fullScreenMediaList = null },
+        )
+    }
 }
 
 @Composable
@@ -1278,6 +1354,7 @@ private fun MessageBubble(
     isAudioPlaying: Boolean,
     onReply: (DirectMessage) -> Unit,
     onLongClick: (DirectMessage) -> Unit,
+    onMediaClick: ((List<PostMediaItem>, Int) -> Unit)? = null,
 ) {
     var dragOffset by remember { mutableFloatStateOf(0f) }
     val animatedOffset by animateFloatAsState(
@@ -1354,14 +1431,15 @@ private fun MessageBubble(
             Column {
                 // Quoted reply snippet if this message replies to another message
                 if (!message.replyToText.isNullOrBlank()) {
+                    val replyBoxBg = if (isMine) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surface
+                    val replyAccent = if (isMine) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary
+                    val replyText = if (isMine) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f) else MaterialTheme.colorScheme.onSurfaceVariant
+
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(8.dp))
-                            .background(
-                                if (isMine) Color(0xFF1E1E22)
-                                else MaterialTheme.colorScheme.surface,
-                            )
+                            .background(replyBoxBg)
                             .padding(8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -1370,20 +1448,20 @@ private fun MessageBubble(
                                 .width(3.dp)
                                 .height(28.dp)
                                 .clip(RoundedCornerShape(2.dp))
-                                .background(MaterialTheme.colorScheme.primary),
+                                .background(replyAccent),
                         )
                         Spacer(Modifier.width(8.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = message.replyToSender ?: "Reply",
                                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.primary,
+                                color = replyAccent,
                             )
                             Spacer(Modifier.height(1.dp))
                             Text(
                                 text = message.replyToText,
                                 style = MaterialTheme.typography.bodySmall,
-                                color = if (isMine) Color(0xFFE2E2E6) else MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = replyText,
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis,
                             )
@@ -1401,7 +1479,13 @@ private fun MessageBubble(
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(max = 220.dp)
-                            .clip(RoundedCornerShape(12.dp)),
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable {
+                                onMediaClick?.invoke(
+                                    listOf(PostMediaItem(url = message.gifUrl, type = PostMediaType.IMAGE)),
+                                    0,
+                                )
+                            },
                     )
                     if (message.message.isNotBlank()) Spacer(Modifier.height(8.dp))
                 }
@@ -1415,7 +1499,13 @@ private fun MessageBubble(
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(max = 240.dp)
-                            .clip(RoundedCornerShape(12.dp)),
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable {
+                                onMediaClick?.invoke(
+                                    listOf(PostMediaItem(url = message.imageUrl, type = PostMediaType.IMAGE)),
+                                    0,
+                                )
+                            },
                     )
                     if (message.message.isNotBlank()) Spacer(Modifier.height(8.dp))
                 }
@@ -1427,7 +1517,13 @@ private fun MessageBubble(
                             .fillMaxWidth()
                             .height(180.dp)
                             .clip(RoundedCornerShape(12.dp))
-                            .background(Color.Black),
+                            .background(Color.Black)
+                            .clickable {
+                                onMediaClick?.invoke(
+                                    listOf(PostMediaItem(url = message.videoUrl, type = PostMediaType.VIDEO)),
+                                    0,
+                                )
+                            },
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
@@ -1443,13 +1539,15 @@ private fun MessageBubble(
                 // Voice Note audio attachment
                 if (!message.audioUrl.isNullOrBlank() && message.audioUrl != "null") {
                     val isPlayingThis = currentlyPlayingAudioUrl == message.audioUrl && isAudioPlaying
+                    val vnBoxBg = if (isMine) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surface
+                    val vnPlayBtnBg = if (isMine) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary
+                    val vnPlayBtnTint = if (isMine) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onPrimary
+                    val vnContentColor = if (isMine) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+
                     Row(
                         modifier = Modifier
                             .clip(RoundedCornerShape(12.dp))
-                            .background(
-                                if (isMine) Color(0xFF242428)
-                                else MaterialTheme.colorScheme.surface,
-                            )
+                            .background(vnBoxBg)
                             .padding(horizontal = 10.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -1461,12 +1559,12 @@ private fun MessageBubble(
                             modifier = Modifier
                                 .size(34.dp)
                                 .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.primary),
+                                .background(vnPlayBtnBg),
                         ) {
                             Icon(
                                 imageVector = if (isPlayingThis) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
                                 contentDescription = if (isPlayingThis) "Pause" else "Play",
-                                tint = MaterialTheme.colorScheme.onPrimary,
+                                tint = vnPlayBtnTint,
                                 modifier = Modifier.size(18.dp),
                             )
                         }
@@ -1484,10 +1582,7 @@ private fun MessageBubble(
                                         .width(3.dp)
                                         .height(h.dp)
                                         .clip(RoundedCornerShape(2.dp))
-                                        .background(
-                                            if (isMine) Color.White
-                                            else MaterialTheme.colorScheme.primary,
-                                        ),
+                                        .background(vnContentColor),
                                 )
                             }
                         }
@@ -1497,7 +1592,7 @@ private fun MessageBubble(
                         Text(
                             text = "Voice Note",
                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                            color = if (isMine) Color.White else MaterialTheme.colorScheme.onSurface,
+                            color = vnContentColor,
                         )
                     }
                     if (message.message.isNotBlank()) Spacer(Modifier.height(8.dp))

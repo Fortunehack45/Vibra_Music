@@ -3018,6 +3018,8 @@ private fun VibraMusicApp(
                                 onOpenPlaylist = { id, title, coverUrl ->
                                     viewModel.openDetail(id, title, "Playlist", coverUrl, BrowseType.PLAYLIST)
                                 },
+                                activeRealm = currentRealm,
+                                onRealmSelected = { currentRealm = it },
                                 contentPadding = listPadding,
                                 hazeState = hazeState,
                             )
@@ -3094,6 +3096,8 @@ private fun VibraMusicApp(
                                     onOpenPlaylist = { id, title, coverUrl ->
                                         viewModel.openDetail(id, title, "Playlist", coverUrl, BrowseType.PLAYLIST)
                                     },
+                                    activeRealm = currentRealm,
+                                    onRealmSelected = { currentRealm = it },
                                     contentPadding = listPadding,
                                     hazeState = hazeState,
                                 )
@@ -3379,8 +3383,9 @@ private fun VibraMusicApp(
                     MaterialTheme.colorScheme.background
                 }
                 val isSocialChatActive = currentRealm == AppRealm.SOCIAL && socialActiveChatFriend != null
-                // Suppress global top chrome when in direct chat or inspecting another user's profile, but never when a detail page is open
-                val isSocialCustomTopActive = detail == null && (isSocialChatActive || (currentRealm == AppRealm.SOCIAL && viewingSocialProfile != null))
+                val isSocialProfileActive = currentRealm == AppRealm.SOCIAL && (viewingSocialProfile != null || socialNavTab == SocialTab.PROFILE)
+                // Suppress global top chrome when in direct chat, viewing a profile, or viewing artist leaderboard, but never when a detail page is open
+                val isSocialCustomTopActive = detail == null && (isSocialChatActive || (currentRealm == AppRealm.SOCIAL && activeLeaderboardArtist != null) || isSocialProfileActive)
 
                 if (!isSocialCustomTopActive) {
                     BottomFadeScrim(

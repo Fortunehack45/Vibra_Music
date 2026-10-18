@@ -422,6 +422,33 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun editPost(postId: String, newContent: String, onComplete: (Boolean) -> Unit = {}) {
+        val user = _currentProfile.value ?: return
+        val trimmed = newContent.trim()
+        if (trimmed.isBlank()) return
+
+        fun updateList(list: List<SocialPost>) = list.map {
+            if (it.id == postId) it.copy(content = trimmed, isEdited = true) else it
+        }
+
+        _posts.value = updateList(_posts.value)
+        forYouPostsCache = updateList(forYouPostsCache)
+        friendsPostsCache = updateList(friendsPostsCache)
+        _viewingProfilePosts.value = updateList(_viewingProfilePosts.value)
+
+        viewModelScope.launch {
+            cacheStore.savePosts(_posts.value)
+            SupabaseService.updatePost(postId, user.id, trimmed)
+                .onSuccess {
+                    onComplete(true)
+                }
+                .onFailure { error ->
+                    Log.w("SocialViewModel", "Failed to update post: ${error.message}")
+                    onComplete(false)
+                }
+        }
+    }
+
     fun openQuotePost(post: SocialPost) {
         _quotingPost.value = post
     }
@@ -584,6 +611,7 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
         age: Int? = null,
         statusBubble: String = "",
         bannerPlaylists: List<String> = emptyList(),
+        bannerUrl: String? = null,
         onComplete: (Boolean) -> Unit = {},
     ) {
         val current = _currentProfile.value ?: return
@@ -594,6 +622,7 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
             handle = cleanHandle.ifBlank { current.handle },
             bio = bio.trim(),
             avatarUrl = avatarUrl ?: current.avatarUrl,
+            bannerUrl = bannerUrl ?: current.bannerUrl,
             country = country.trim(),
             age = age,
             statusBubble = statusBubble.trim(),
@@ -617,6 +646,7 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
                 age = updated.age,
                 statusBubble = updated.statusBubble,
                 bannerPlaylists = updated.bannerPlaylists,
+                bannerUrl = updated.bannerUrl,
             ).onSuccess {
                 onComplete(true)
             }.onFailure {
@@ -899,6 +929,7 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
 
     fun toggleFollowUser(targetUserId: String, targetProfile: SocialProfile? = null) {
         val myId = _currentProfile.value?.id ?: return
+        if (myId == targetUserId) return
         val viewing = targetProfile ?: _viewingProfile.value?.takeIf { it.id == targetUserId }
         val isFollowing = viewing?.isFollowing ?: false
 
@@ -943,19 +974,20 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun loadConnections(userId: String) {
+        val myId = _currentProfile.value?.id ?: ""
         viewModelScope.launch {
             launch {
-                SupabaseService.getFollowers(userId).onSuccess { list ->
+                SupabaseService.getFollowers(userId, myId).onSuccess { list ->
                     _followersList.value = list
                 }
             }
             launch {
-                SupabaseService.getFollowing(userId).onSuccess { list ->
+                SupabaseService.getFollowing(userId, myId).onSuccess { list ->
                     _followingList.value = list
                 }
             }
             launch {
-                SupabaseService.getFriends(userId).onSuccess { list ->
+                SupabaseService.getFriends(userId, myId).onSuccess { list ->
                     _friendsList.value = list
                 }
             }

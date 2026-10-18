@@ -76,6 +76,7 @@ fun ConnectionsScreen(
     followersList: List<SocialProfile>,
     friendsList: List<SocialProfile>,
     suggestedList: List<SocialProfile>,
+    currentUserId: String = "",
     onBack: () -> Unit,
     onOpenProfile: (SocialProfile) -> Unit,
     onToggleFollow: (SocialProfile) -> Unit,
@@ -266,6 +267,7 @@ fun ConnectionsScreen(
                     ) { profile ->
                         ConnectionUserRow(
                             profile = profile,
+                            isSelf = profile.id == currentUserId,
                             onOpenProfile = { onOpenProfile(profile) },
                             onToggleFollow = { onToggleFollow(profile) },
                         )
@@ -279,6 +281,7 @@ fun ConnectionsScreen(
 @Composable
 private fun ConnectionUserRow(
     profile: SocialProfile,
+    isSelf: Boolean = false,
     onOpenProfile: () -> Unit,
     onToggleFollow: () -> Unit,
 ) {
@@ -339,41 +342,44 @@ private fun ConnectionUserRow(
         Spacer(Modifier.width(8.dp))
 
         // Action Button
-        val buttonText = when {
-            profile.isFriend -> "Friends"
-            profile.isFollowing -> "Following"
-            else -> "Follow"
-        }
-
-        Button(
-            onClick = onToggleFollow,
-            shape = RoundedCornerShape(12.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = when {
-                    profile.isFriend -> MaterialTheme.colorScheme.surfaceVariant
-                    profile.isFollowing -> MaterialTheme.colorScheme.surfaceVariant
-                    else -> MaterialTheme.colorScheme.primary
-                },
-                contentColor = when {
-                    profile.isFriend -> MaterialTheme.colorScheme.primary
-                    profile.isFollowing -> MaterialTheme.colorScheme.onSurface
-                    else -> MaterialTheme.colorScheme.onPrimary
-                },
-            ),
-            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
-        ) {
-            if (!profile.isFollowing && !profile.isFriend) {
-                Icon(
-                    imageVector = Icons.Rounded.PersonAdd,
-                    contentDescription = null,
-                    modifier = Modifier.size(15.dp),
-                )
-                Spacer(Modifier.width(4.dp))
+        if (!isSelf) {
+            val buttonText = when {
+                profile.isFriend -> "Friends"
+                profile.isFollowing -> "Following"
+                else -> "Follow"
             }
-            Text(
-                text = buttonText,
-                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-            )
+
+            Button(
+                onClick = onToggleFollow,
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = when {
+                        profile.isFriend -> MaterialTheme.colorScheme.surfaceVariant
+                        profile.isFollowing -> MaterialTheme.colorScheme.surfaceVariant
+                        else -> MaterialTheme.colorScheme.primary
+                    },
+                    contentColor = when {
+                        profile.isFriend -> MaterialTheme.colorScheme.primary
+                        profile.isFollowing -> MaterialTheme.colorScheme.onSurface
+                        else -> MaterialTheme.colorScheme.onPrimary
+                    },
+                ),
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+            ) {
+                if (!profile.isFollowing && !profile.isFriend) {
+                    Icon(
+                        imageVector = Icons.Rounded.PersonAdd,
+                        contentDescription = null,
+                        modifier = Modifier.size(15.dp),
+                    )
+                    Spacer(Modifier.width(4.dp))
+                }
+                Text(
+                    text = buttonText,
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                )
+            }
         }
     }
 }
+

@@ -667,13 +667,28 @@ fun SocialScreen(
         )
     }
 
-    // Comments Sheet
+    // Dedicated Twitter (X) style Post Thread Screen (Hero post on top, comments below, quick reply docked at bottom)
     selectedPostForComments?.let { post ->
-        PostCommentsSheet(
+        PostThreadScreen(
             post = post,
             comments = comments,
-            currentUserId = viewModel.currentProfile.value?.id,
-            onDismiss = { viewModel.closeComments() },
+            currentProfile = currentProfile,
+            onBack = { viewModel.closeComments() },
+            onLikePost = { viewModel.toggleLike(it) },
+            onRepostPost = {
+                if (it.isRepostedByMe) {
+                    viewModel.toggleRepost(it)
+                } else {
+                    repostActionTarget = it
+                }
+            },
+            onEditPost = { postId, newContent ->
+                viewModel.editPost(postId, newContent)
+            },
+            onDeletePost = { postId ->
+                viewModel.deletePost(postId)
+                viewModel.closeComments()
+            },
             onAddComment = { content, parentId, gifUrl ->
                 viewModel.addComment(post.id, content, parentId, gifUrl)
             },
@@ -684,9 +699,13 @@ fun SocialScreen(
             onDeleteComment = { commentId, postId ->
                 viewModel.deleteComment(commentId, postId)
             },
-            onAuthorClick = { profile ->
+            onOpenProfile = { profile ->
                 viewModel.closeComments()
                 onOpenProfile(profile)
+            },
+            onPlayTrack = onPlayTrack,
+            onMediaClick = { list, idx ->
+                activeMediaViewer = Pair(list, idx)
             },
         )
     }
@@ -1030,6 +1049,7 @@ fun SocialPostCard(
     onVotePoll: (Int) -> Unit,
     onAuthorClick: () -> Unit,
     onTaggedArtistClick: ((String) -> Unit)? = null,
+    onEditClick: (() -> Unit)? = null,
     onDeleteClick: (() -> Unit)? = null,
     onQuoteClick: ((SocialPost) -> Unit)? = null,
     onOpenProfile: ((SocialProfile) -> Unit)? = null,
@@ -1084,6 +1104,7 @@ fun SocialPostCard(
         modifier = modifier
             .clip(RoundedCornerShape(20.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant)
+            .clickable(onClick = onCommentClick)
             .padding(16.dp),
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
@@ -1205,6 +1226,20 @@ fun SocialPostCard(
                         )
                     }
 
+                    if (onEditClick != null) {
+                        IconButton(
+                            onClick = onEditClick,
+                            modifier = Modifier.size(32.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Edit,
+                                contentDescription = "Edit Post",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
+                    }
+
                     if (onDeleteClick != null) {
                         IconButton(
                             onClick = onDeleteClick,
@@ -1242,12 +1277,35 @@ fun SocialPostCard(
 
                 // Text Content
                 if (displayPost.content.isNotBlank()) {
-                    Text(
-                        text = displayPost.content,
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        lineHeight = 22.sp,
-                    )
+                    val isLong = displayPost.content.length > 259
+                    var isExpanded by remember(displayPost.id) { mutableStateOf(false) }
+
+                    val displayText = if (isLong && !isExpanded) {
+                        displayPost.content.take(259).trimEnd() + "..."
+                    } else {
+                        displayPost.content
+                    }
+
+                    Column {
+                        ClickableMentionText(
+                            content = displayText,
+                            fontSize = 16.sp,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            lineHeight = 22.sp,
+                        )
+                        if (isLong) {
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = if (isExpanded) "Show less" else "Read more",
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .clickable { isExpanded = !isExpanded }
+                                    .padding(vertical = 2.dp, horizontal = 2.dp),
+                            )
+                        }
+                    }
                     Spacer(Modifier.height(12.dp))
                 }
 
@@ -1732,9 +1790,9 @@ fun PollCard(
             ) {
                 if (hasVoted) {
                     val progressFillColor = if (isMyVote) {
-                        MaterialTheme.colorScheme.primary
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.22f)
                     } else {
-                        Color(0xFF38383D)
+                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
                     }
                     Box(
                         modifier = Modifier

@@ -86,27 +86,26 @@ fun QuizHubScreen(
     var isSearching by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
-    // Default Popular / Trending Quiz Artists with automatic thumbnail resolution
+    // Default Popular / Trending Quiz Artists with automatic YouTube Music API thumbnail resolution
     val trendingArtists = remember {
         mutableStateListOf(
             QuizArtist("UCU6cE7pdJPc6DU2jSrKEsdQ", "Drake", null),
-            QuizArtist("UCqECaJ8Gagnn7YCbPEzWH6g", "Taylor Swift", "https://yt3.googleusercontent.com/ZpWD37EEQE_LVuQ_O03cRmz5mZA7jG0gKGLt-49uHNDX6DycysijGGSOX9woU-OfQR5jyahz3aEdmBmm3A=w540-h540-l90-rj"),
-            QuizArtist("UCOmHUn--16B90oW2L6FRR3A", "Burna Boy", "https://yt3.googleusercontent.com/9h5EMc3LktccxFy-3bznozFCwYSU1YnU0agJZssvGqDj3UDrtFC7FgPHjDrtUG3dGAP45uEPBxDYLBg=w540-h540-l90-rj"),
-            QuizArtist("UC0WP5P-ufpRfjbNrmOWwLBQ", "The Weeknd", "https://yt3.googleusercontent.com/mxqDOrw4zbfDBdd4kOnD2qBUtMklnAucEfrQUbr30pRLie0P3JIhJhBJ9wJq3NEeg2yVrT9lgrYid-w=w540-h540-l90-rj"),
-            QuizArtist("UCiGm_E4DwYcU-gEyZv29eJA", "Billie Eilish", null),
-            QuizArtist("UCCgsKDzkjI6kHjG22r7Lq2w", "Kendrick Lamar", null),
+            QuizArtist("UCPC0L1d253x-KuMNwa05TpA", "Taylor Swift", null),
+            QuizArtist("UCr61sufuLt7_eB7ak1bXHIg", "Burna Boy", null),
+            QuizArtist("UClYV6hHlupm_S_ObS1W-DYw", "The Weeknd", null),
+            QuizArtist("UCERrDZ8oN0U_n9MphMKERcg", "Billie Eilish", null),
+            QuizArtist("UCprAFmT0C6O4X0ToEXpeFTQ", "Kendrick Lamar", null),
         )
     }
 
-    // Auto-resolve any missing artist thumbnails in the background
+    // Auto-resolve real-time artist thumbnails directly from YouTube Music API in the background
     LaunchedEffect(Unit) {
         trendingArtists.forEachIndexed { index, artist ->
-            if (artist.artworkUrl.isNullOrBlank()) {
-                launch {
-                    val thumb = YtMusicRepository.getArtistThumbnail(artist.id, artist.name)
-                    if (!thumb.isNullOrBlank() && index < trendingArtists.size) {
-                        trendingArtists[index] = trendingArtists[index].copy(artworkUrl = thumb)
-                    }
+            launch {
+                val thumb = YtMusicRepository.getArtistThumbnail(artist.id, artist.name)
+                    ?: YtMusicRepository.resolveArtist(artist.name)?.second
+                if (!thumb.isNullOrBlank() && index < trendingArtists.size) {
+                    trendingArtists[index] = trendingArtists[index].copy(artworkUrl = thumb)
                 }
             }
         }

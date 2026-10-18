@@ -62,6 +62,7 @@ import coil3.compose.AsyncImage
 import com.fortune.vibramusic.data.social.PostComment
 import com.fortune.vibramusic.data.social.SocialPost
 import com.fortune.vibramusic.data.social.SocialProfile
+import com.fortune.vibramusic.data.social.isWithinEditWindow
 import androidx.compose.foundation.lazy.itemsIndexed
 
 import androidx.compose.foundation.layout.WindowInsets
@@ -746,7 +747,7 @@ private fun SingleCommentRow(
                     }
                 }
 
-                if (isAuthor) {
+                if (isAuthor && isWithinEditWindow(comment.createdAt, 10L)) {
                     Text(
                         text = "Edit",
                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
@@ -756,7 +757,9 @@ private fun SingleCommentRow(
                             .clickable(onClick = onEdit)
                             .padding(vertical = 2.dp, horizontal = 2.dp),
                     )
+                }
 
+                if (isAuthor) {
                     Text(
                         text = "Delete",
                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),

@@ -34,13 +34,28 @@ fun ArtistAvatar(
     name: String = "",
     artistName: String = name,
     artworkUrl: String? = null,
+    artistId: String? = null,
     size: Dp = 48.dp,
     modifier: Modifier = Modifier,
     shape: Shape = CircleShape,
 ) {
     val finalName = if (artistName.isNotBlank()) artistName else name
+    var resolvedUrl by remember(artworkUrl, finalName, artistId) { mutableStateOf(artworkUrl) }
+
+    androidx.compose.runtime.LaunchedEffect(artworkUrl, finalName, artistId) {
+        if (resolvedUrl.isNullOrBlank() && (finalName.isNotBlank() || !artistId.isNullOrBlank())) {
+            val thumb = com.fortune.vibramusic.data.YtMusicRepository.getArtistThumbnail(
+                artistId = artistId.orEmpty(),
+                artistName = finalName,
+            )
+            if (!thumb.isNullOrBlank()) {
+                resolvedUrl = thumb
+            }
+        }
+    }
+
     ArtistAvatar(
-        imageUrl = artworkUrl,
+        imageUrl = resolvedUrl,
         name = finalName,
         modifier = modifier.size(size),
         shape = shape,

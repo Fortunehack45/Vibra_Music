@@ -98,7 +98,9 @@ import com.fortune.vibramusic.data.social.MusicTrackAttachment
 import com.fortune.vibramusic.data.social.PollData
 import com.fortune.vibramusic.data.social.PollOption
 import com.fortune.vibramusic.data.social.SocialPost
+import com.fortune.vibramusic.data.social.SocialProfile
 import com.fortune.vibramusic.data.supabase.SupabaseService
+import com.fortune.vibramusic.ui.components.MentionSuggestionPopup
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -142,6 +144,26 @@ fun CreatePostSheet(
     var selectedVideoUri by remember { mutableStateOf<Uri?>(null) }
     var selectedGifUrl by remember { mutableStateOf<String?>(null) }
     var showGifPicker by remember { mutableStateOf(false) }
+
+    var mentionQuery by remember { mutableStateOf<String?>(null) }
+    var mentionSuggestions by remember { mutableStateOf<List<SocialProfile>>(emptyList()) }
+    var isSearchingMentions by remember { mutableStateOf(false) }
+
+    LaunchedEffect(mentionQuery) {
+        val query = mentionQuery
+        if (query != null && query.length >= 1) {
+            isSearchingMentions = true
+            SupabaseService.searchUsersForMention(query).onSuccess { list ->
+                mentionSuggestions = list
+            }.onFailure {
+                mentionSuggestions = emptyList()
+            }
+            isSearchingMentions = false
+        } else {
+            mentionSuggestions = emptyList()
+            isSearchingMentions = false
+        }
+    }
 
     // Review fields
     var reviewRating by remember { mutableIntStateOf(5) }
@@ -454,10 +476,45 @@ fun CreatePostSheet(
 
                         Spacer(Modifier.height(14.dp))
 
+                        // Mention Suggestions Popup
+                        if (!mentionQuery.isNullOrBlank() && (mentionSuggestions.isNotEmpty() || isSearchingMentions)) {
+                            MentionSuggestionPopup(
+                                suggestions = mentionSuggestions,
+                                isLoading = isSearchingMentions,
+                                onSelectUser = { user ->
+                                    val lastAt = textContent.lastIndexOf('@')
+                                    if (lastAt >= 0) {
+                                        val prefix = textContent.substring(0, lastAt)
+                                        textContent = "$prefix@${user.handle} "
+                                    }
+                                    mentionQuery = null
+                                    mentionSuggestions = emptyList()
+                                },
+                                onDismiss = {
+                                    mentionQuery = null
+                                    mentionSuggestions = emptyList()
+                                },
+                                modifier = Modifier.padding(bottom = 8.dp),
+                            )
+                        }
+
                         // Text Input
                         BasicTextField(
                             value = textContent,
-                            onValueChange = { textContent = it },
+                            onValueChange = { newText ->
+                                textContent = newText
+                                val lastAt = newText.lastIndexOf('@')
+                                if (lastAt >= 0 && (lastAt == 0 || newText[lastAt - 1].isWhitespace())) {
+                                    val candidate = newText.substring(lastAt + 1)
+                                    if (!candidate.contains(" ") && !candidate.contains("\n")) {
+                                        mentionQuery = candidate
+                                    } else {
+                                        mentionQuery = null
+                                    }
+                                } else {
+                                    mentionQuery = null
+                                }
+                            },
                             textStyle = TextStyle(
                                 color = MaterialTheme.colorScheme.onSurface,
                                 fontSize = 16.sp,

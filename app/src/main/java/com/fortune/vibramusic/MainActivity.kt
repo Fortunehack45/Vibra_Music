@@ -3702,7 +3702,8 @@ private fun VibraMusicApp(
                 )
                 }
 
-                if (!isSocialChatActive) {
+                val isSocialBottomSuppressed = isSocialChatActive || (currentRealm == AppRealm.SOCIAL && socialSelectedPostForComments != null)
+                if (!isSocialBottomSuppressed) {
                 // Drawn before the bars so their own glass reads on top of it.
                 BottomFadeScrim(
                     withMiniPlayer = player.song != null,

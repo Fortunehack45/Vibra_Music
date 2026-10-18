@@ -105,6 +105,20 @@ We welcome contributions to Vibra Music! Please review our [Contributing Guide](
 </div>
 
 ---
+
+<div align="center">
+
+<h1><a id="configuration"></a>Secrets & Configuration</h1>
+
+</div>
+
+Vibra Music loads sensitive service configurations at build time and runtime without committing secrets to source control.
+
+- **Local Development**: Copy `secrets.properties.example` into `local.properties` (which is gitignored) and provide your `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and optional `SPOTIFY_SPDC` session token.
+- **Continuous Integration (CI)**: Configure `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SPOTIFY_SPDC` as repository secrets in GitHub Actions.
+- **Security & Key Rotation**: See [SECURITY.md](SECURITY.md) for credential rotation instructions and vulnerability disclosure policies.
+
+---
 <div align="center">
 
 <h1><a id="credits"></a>Credits & Attribution</h1>

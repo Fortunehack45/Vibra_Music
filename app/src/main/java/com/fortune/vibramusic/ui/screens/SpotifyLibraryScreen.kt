@@ -105,8 +105,8 @@ fun SpotifyLibraryScreen(
     var error by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(cookie) {
-        val builtIn = com.fortune.vibramusic.data.canvas.SpotifyTokenSecret.getBuiltInSpdc()
-        if (cookie.isNotBlank() && cookie.trim() == builtIn) {
+        val builtIn = com.fortune.vibramusic.data.canvas.TokenProvider.getSpdcToken()
+        if (builtIn != null && cookie.isNotBlank() && cookie.trim() == builtIn) {
             clearSpotifyWebSession()
             AppSettings.setSpotifySpdcToken("")
             playlists = emptyList()
@@ -481,8 +481,8 @@ fun SpotifyLoginScreen(
                                     ?.substringAfter("=")
                                     ?.takeIf { it.isNotBlank() }
                                     ?: return
-                                val builtIn = com.fortune.vibramusic.data.canvas.SpotifyTokenSecret.getBuiltInSpdc()
-                                if (token == builtIn) {
+                                val builtIn = com.fortune.vibramusic.data.canvas.TokenProvider.getSpdcToken()
+                                if (builtIn != null && token == builtIn) {
                                     // Ignore built-in token if somehow present; wait for user's own credentials
                                     return
                                 }

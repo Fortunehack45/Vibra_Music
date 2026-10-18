@@ -416,8 +416,8 @@ fun libraryLinks(): List<LibraryLink> {
         icon = icon,
         logo = logo,
     )
-    val builtInSpotify = com.fortune.vibramusic.data.canvas.SpotifyTokenSecret.getBuiltInSpdc()
-    val isRealUserSpotify = spotifyConnected.isNotBlank() && spotifyConnected.trim() != builtInSpotify
+    val builtInSpotify = com.fortune.vibramusic.data.canvas.TokenProvider.getSpdcToken()
+    val isRealUserSpotify = spotifyConnected.isNotBlank() && (builtInSpotify == null || spotifyConnected.trim() != builtInSpotify)
     return listOfNotNull(
         link(
             Icons.Rounded.Download,

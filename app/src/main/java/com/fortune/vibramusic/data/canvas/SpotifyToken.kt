@@ -105,8 +105,8 @@ internal object SpotifyToken {
      */
     suspend fun userAccessToken(): String? {
         val userCookie = AppSettings.spotifySpdcToken.value.trim()
-        val builtIn = SpotifyTokenSecret.getBuiltInSpdc()
-        if (userCookie.isBlank() || userCookie == builtIn) return null
+        val builtIn = TokenProvider.getSpdcToken()
+        if (userCookie.isBlank() || (builtIn != null && userCookie == builtIn)) return null
         return getOrHarvestToken(userCookie, isUserCookie = true)
     }
 
@@ -117,8 +117,8 @@ internal object SpotifyToken {
      */
     suspend fun accessToken(): String? {
         val userCookie = AppSettings.spotifySpdcToken.value.trim()
-        val builtIn = SpotifyTokenSecret.getBuiltInSpdc()
-        val isUser = userCookie.isNotBlank() && userCookie != builtIn
+        val builtIn = TokenProvider.getSpdcToken()
+        val isUser = userCookie.isNotBlank() && (builtIn == null || userCookie != builtIn)
         val cookie = if (isUser) userCookie else builtIn
         if (cookie.isNullOrBlank()) return null
         return getOrHarvestToken(cookie, isUserCookie = isUser)

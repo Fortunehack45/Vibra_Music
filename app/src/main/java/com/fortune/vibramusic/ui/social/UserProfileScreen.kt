@@ -64,8 +64,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -188,7 +190,15 @@ fun UserProfileScreen(
         ) {
             // 1. Wide Header Banner with Overlaid Navigation (reference image 2 & 5)
             item(key = "profile_banner_header") {
+                val localBanner = remember(activeProfile.id) {
+                    val fJpg = java.io.File(context.filesDir, "custom_banner_${activeProfile.id}.jpg")
+                    if (fJpg.exists()) return@remember fJpg.toURI().toString()
+                    val fMp4 = java.io.File(context.filesDir, "custom_banner_${activeProfile.id}.mp4")
+                    if (fMp4.exists()) return@remember fMp4.toURI().toString()
+                    null
+                }
                 val bannerUrl = activeProfile.bannerUrl?.takeIf { it.isNotBlank() }
+                    ?: localBanner
                     ?: activeProfile.bannerPlaylists.firstOrNull()?.split("|")?.lastOrNull()?.takeIf { it.startsWith("http") }
 
                 val palette = rememberArtworkPalette(bannerUrl ?: activeProfile.avatarUrl)
@@ -198,6 +208,7 @@ fun UserProfileScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(185.dp)
+                        .clipToBounds()
                         .background(
                             Brush.verticalGradient(
                                 colors = listOf(
@@ -692,17 +703,6 @@ fun UserProfileScreen(
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                             color = MaterialTheme.colorScheme.onSurface,
                         )
-                        if (isSelf) {
-                            Text(
-                                text = "+ Add",
-                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .clickable { showAddArtistScreen = true }
-                                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                            )
-                        }
                     }
                     Spacer(Modifier.height(10.dp))
 
@@ -725,6 +725,27 @@ fun UserProfileScreen(
                             horizontalArrangement = Arrangement.spacedBy(14.dp),
                             modifier = Modifier.fillMaxWidth(),
                         ) {
+                            itemsIndexed(
+                                items = effectiveFavoriteArtists.distinctBy { it.id },
+                                key = { index, artist -> "fav_artist_${artist.id.ifBlank { index.toString() }}_$index" },
+                            ) { _, artist ->
+                                val resolvedId = if (artist.name.equals("Drake", ignoreCase = true) && (artist.id == "UC0C-w0YjGpqDXGB8Tr0GGyA" || artist.id.isBlank())) {
+                                    "UCU6cE7pdJPc6DU2jSrKEsdQ"
+                                } else {
+                                    artist.id
+                                }
+                                FavoriteArtistCard(
+                                    artist = artist.copy(id = resolvedId),
+                                    onClick = {
+                                        if (onOpenArtistDetail != null) {
+                                            onOpenArtistDetail(resolvedId, artist.name, artist.artworkUrl)
+                                        } else {
+                                            onArtistQuizClick(artist.copy(id = resolvedId))
+                                        }
+                                    },
+                                )
+                            }
+
                             if (isSelf) {
                                 item(key = "add_artist_button") {
                                     Column(
@@ -758,27 +779,6 @@ fun UserProfileScreen(
                                         )
                                     }
                                 }
-                            }
-
-                            itemsIndexed(
-                                items = effectiveFavoriteArtists.distinctBy { it.id },
-                                key = { index, artist -> "fav_artist_${artist.id.ifBlank { index.toString() }}_$index" },
-                            ) { _, artist ->
-                                val resolvedId = if (artist.name.equals("Drake", ignoreCase = true) && (artist.id == "UC0C-w0YjGpqDXGB8Tr0GGyA" || artist.id.isBlank())) {
-                                    "UCU6cE7pdJPc6DU2jSrKEsdQ"
-                                } else {
-                                    artist.id
-                                }
-                                FavoriteArtistCard(
-                                    artist = artist.copy(id = resolvedId),
-                                    onClick = {
-                                        if (onOpenArtistDetail != null) {
-                                            onOpenArtistDetail(resolvedId, artist.name, artist.artworkUrl)
-                                        } else {
-                                            onArtistQuizClick(artist.copy(id = resolvedId))
-                                        }
-                                    },
-                                )
                             }
                         }
                     }
@@ -900,6 +900,9 @@ fun UserProfileScreen(
                                     verifiedBadge = quoted.authorVerified,
                                 )
                                 viewModel.openUserProfile(target)
+                            },
+                            onMentionClick = { handle ->
+                                viewModel.openUserProfileByHandle(handle)
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -1199,6 +1202,10 @@ fun UserProfileScreen(
                                     onOpenArtistDetail?.invoke(browseId, artistName, artwork)
                                 }
                             },
+                            onMentionClick = { handle ->
+                                inspectedQuotedPost = null
+                                viewModel.openUserProfileByHandle(handle)
+                            },
                             modifier = Modifier.fillMaxWidth(),
                         )
                     }
@@ -1452,9 +1459,26 @@ private fun SuggestedAccountCard(
     }
 }
 
+private data class VideoBannerTransform(
+    val rotation: Float = 0f,
+    val scale: Float = 1f,
+    val panX: Float = 0f,
+    val panY: Float = 0f,
+)
+
+private fun extractVideoBannerTransforms(videoUrl: String): VideoBannerTransform {
+    val uri = runCatching { android.net.Uri.parse(videoUrl) }.getOrNull()
+    val rot = uri?.getQueryParameter("rot")?.toFloatOrNull() ?: 0f
+    val scale = uri?.getQueryParameter("scale")?.toFloatOrNull() ?: 1f
+    val panX = uri?.getQueryParameter("panX")?.toFloatOrNull() ?: 0f
+    val panY = uri?.getQueryParameter("panY")?.toFloatOrNull() ?: 0f
+    return VideoBannerTransform(rot, scale, panX, panY)
+}
+
 @Composable
 private fun ProfileBannerVideo(videoUrl: String, modifier: Modifier = Modifier) {
     val context = LocalContext.current
+    val transforms = remember(videoUrl) { extractVideoBannerTransforms(videoUrl) }
     val exoPlayer = remember(videoUrl) {
         ExoPlayer.Builder(context.applicationContext).build().apply {
             repeatMode = Player.REPEAT_MODE_ALL
@@ -1469,19 +1493,34 @@ private fun ProfileBannerVideo(videoUrl: String, modifier: Modifier = Modifier) 
             exoPlayer.release()
         }
     }
-    AndroidView(
-        factory = { ctx ->
-            PlayerView(ctx).apply {
-                player = exoPlayer
-                useController = false
-                resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                layoutParams = FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                )
-            }
-        },
-        modifier = modifier,
-    )
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .clipToBounds(),
+        contentAlignment = Alignment.Center,
+    ) {
+        AndroidView(
+            factory = { ctx ->
+                PlayerView(ctx).apply {
+                    player = exoPlayer
+                    useController = false
+                    resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                    layoutParams = FrameLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                    )
+                }
+            },
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    rotationZ = transforms.rotation
+                    scaleX = transforms.scale
+                    scaleY = transforms.scale
+                    translationX = transforms.panX
+                    translationY = transforms.panY
+                },
+        )
+    }
 }
 

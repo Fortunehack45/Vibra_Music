@@ -246,8 +246,8 @@ class VibraMusicApplication : Application(), SingletonImageLoader.Factory {
         // one to hand — see SpotifyToken's doc for why.
 
         // Purge built-in Spotify token if it was erroneously saved to user preferences by previous builds
-        val builtIn = com.fortune.vibramusic.data.canvas.SpotifyTokenSecret.getBuiltInSpdc()
-        if (AppSettings.spotifySpdcToken.value.isNotBlank() && AppSettings.spotifySpdcToken.value.trim() == builtIn) {
+        val builtIn = com.fortune.vibramusic.data.canvas.TokenProvider.getSpdcToken()
+        if (builtIn != null && AppSettings.spotifySpdcToken.value.isNotBlank() && AppSettings.spotifySpdcToken.value.trim() == builtIn) {
             AppSettings.setSpotifySpdcToken("")
         }
 

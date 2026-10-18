@@ -156,8 +156,8 @@ object SpotifyLibrary {
 
     private suspend fun authHeaders(): Map<String, String> {
         val userCookie = com.fortune.vibramusic.data.settings.AppSettings.spotifySpdcToken.value.trim()
-        val builtIn = com.fortune.vibramusic.data.canvas.SpotifyTokenSecret.getBuiltInSpdc()
-        if (userCookie.isBlank() || userCookie == builtIn) {
+        val builtIn = com.fortune.vibramusic.data.canvas.TokenProvider.getSpdcToken()
+        if (userCookie.isBlank() || (builtIn != null && userCookie == builtIn)) {
             throw IllegalStateException("Spotify account not connected")
         }
         val token = SpotifyToken.userAccessToken()

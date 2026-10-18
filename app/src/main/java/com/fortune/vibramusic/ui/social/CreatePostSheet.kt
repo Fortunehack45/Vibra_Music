@@ -151,7 +151,7 @@ fun CreatePostSheet(
 
     LaunchedEffect(mentionQuery) {
         val query = mentionQuery
-        if (query != null && query.length >= 1) {
+        if (query != null) {
             isSearchingMentions = true
             SupabaseService.searchUsersForMention(query).onSuccess { list ->
                 mentionSuggestions = list
@@ -477,7 +477,7 @@ fun CreatePostSheet(
                         Spacer(Modifier.height(14.dp))
 
                         // Mention Suggestions Popup
-                        if (!mentionQuery.isNullOrBlank() && (mentionSuggestions.isNotEmpty() || isSearchingMentions)) {
+                        if (mentionQuery != null && (mentionSuggestions.isNotEmpty() || isSearchingMentions)) {
                             MentionSuggestionPopup(
                                 suggestions = mentionSuggestions,
                                 isLoading = isSearchingMentions,

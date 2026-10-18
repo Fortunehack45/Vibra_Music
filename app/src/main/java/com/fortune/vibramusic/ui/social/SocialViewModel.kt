@@ -20,6 +20,7 @@ import com.fortune.vibramusic.data.supabase.SupabaseService
 import com.fortune.vibramusic.data.supabase.UserCloudSyncManager
 import com.fortune.vibramusic.data.YtMusicRepository
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -269,6 +270,12 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
 
     fun loadFeed() {
         viewModelScope.launch {
+            if (_posts.value.isEmpty()) {
+                val diskCached = withContext(Dispatchers.IO) { cacheStore.loadPosts() }
+                if (diskCached.isNotEmpty() && _posts.value.isEmpty()) {
+                    _posts.value = diskCached
+                }
+            }
             _isLoadingFeed.value = true
             val userId = _currentProfile.value?.id
             val isFriendsOnly = _feedTab.value == FeedTab.FRIENDS
@@ -819,6 +826,7 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
                 audioUrl = audioUrl,
                 gifUrl = gifUrl,
                 replyTo = replyTo,
+                recipientDisplayName = recipient.displayName,
             ).onSuccess { newMsg ->
                 _chatMessages.value = (_chatMessages.value + newMsg).distinctBy { it.id }
                 loadConversations()
@@ -886,29 +894,41 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    private var loadProfileJob: Job? = null
+
     fun openUserProfile(profile: SocialProfile) {
         _viewingProfile.value = profile
         loadProfileData(profile.id)
     }
 
     fun closeUserProfile() {
+        loadProfileJob?.cancel()
+        loadProfileJob = null
         _viewingProfile.value = null
         _viewingProfilePosts.value = emptyList()
     }
 
     fun loadProfileData(userId: String) {
+        loadProfileJob?.cancel()
         val currentUserId = _currentProfile.value?.id.orEmpty()
-        viewModelScope.launch {
+        loadProfileJob = viewModelScope.launch {
             val cached = cacheStore.loadProfile(userId)
             if (cached != null && _viewingProfile.value?.id == userId) {
                 _viewingProfile.value = cached
             }
             SupabaseService.fetchUserProfile(userId, currentUserId = currentUserId).onSuccess { fresh ->
                 if (fresh != null) {
-                    _viewingProfile.value = fresh
-                    cacheStore.saveProfile(fresh)
+                    val resolvedFresh = if (fresh.bannerUrl.isNullOrBlank() && _currentProfile.value?.id == userId && !_currentProfile.value?.bannerUrl.isNullOrBlank()) {
+                        fresh.copy(bannerUrl = _currentProfile.value?.bannerUrl)
+                    } else {
+                        fresh
+                    }
+                    if (_viewingProfile.value?.id == userId) {
+                        _viewingProfile.value = resolvedFresh
+                    }
+                    cacheStore.saveProfile(resolvedFresh)
                     if (_currentProfile.value?.id == userId) {
-                        _currentProfile.value = fresh
+                        _currentProfile.value = resolvedFresh
                     }
                 }
             }
@@ -978,22 +998,35 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             launch {
                 SupabaseService.getFollowers(userId, myId).onSuccess { list ->
-                    _followersList.value = list
+                    _followersList.value = list.filter { it.id != userId }
                 }
             }
             launch {
                 SupabaseService.getFollowing(userId, myId).onSuccess { list ->
-                    _followingList.value = list
+                    _followingList.value = list.filter { it.id != userId }
                 }
             }
             launch {
                 SupabaseService.getFriends(userId, myId).onSuccess { list ->
-                    _friendsList.value = list
+                    _friendsList.value = list.filter { it.id != userId }
                 }
             }
             launch {
                 SupabaseService.getSuggestedUsers(userId).onSuccess { list ->
-                    _suggestedUsersList.value = list
+                    _suggestedUsersList.value = list.filter { it.id != userId }
+                }
+            }
+        }
+    }
+
+    fun openUserProfileByHandle(handle: String) {
+        val clean = handle.trim().removePrefix("@")
+        if (clean.isBlank()) return
+        viewModelScope.launch {
+            SupabaseService.searchUsersForMention(clean, limit = 1).onSuccess { list ->
+                val match = list.firstOrNull { it.handle.equals(clean, ignoreCase = true) } ?: list.firstOrNull()
+                if (match != null) {
+                    openUserProfile(match)
                 }
             }
         }

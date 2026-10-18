@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.desktop
+package com.fortune.vibramusic.desktop
 
 import com.fortune.vibramusic.desktop.secrets.SecretServiceApi
 import org.freedesktop.dbus.DBusPath
@@ -86,4 +86,28 @@ internal object DesktopSecretStore {
 
     /** Whether a store is actually reachable, for the settings screen to say so. */
     fun isAvailable(): Boolean = withService { _, _, _ -> true } == true
+
+    /** String-oriented lookup for secret attributes. */
+    fun lookupString(attributes: Map<String, String>): String? =
+        lookup(attributes)?.toString(Charsets.UTF_8)?.takeIf { it.isNotBlank() }
+
+    /** String-oriented store for secret attributes. */
+    fun storeString(label: String, attributes: Map<String, String>, secret: String): Boolean =
+        store(label, attributes, secret.toByteArray(Charsets.UTF_8))
+
+    /** Helper for looking up the stored Spotify sp_dc token. */
+    @JvmStatic
+    fun lookupSpotifySpdc(): String? =
+        lookupString(mapOf("service" to "spotify", "account" to "sp_dc"))
+            ?: lookupString(mapOf("account" to "spotify_spdc"))
+
+    /** Helper for storing the Spotify sp_dc token in the platform secret store. */
+    @JvmStatic
+    fun storeSpotifySpdc(token: String): Boolean =
+        storeString("Spotify SP_DC Token", mapOf("service" to "spotify", "account" to "sp_dc"), token)
+
+    /** Helper for removing the Spotify sp_dc token from the platform secret store. */
+    @JvmStatic
+    fun removeSpotifySpdc(): Boolean =
+        remove(mapOf("service" to "spotify", "account" to "sp_dc"))
 }

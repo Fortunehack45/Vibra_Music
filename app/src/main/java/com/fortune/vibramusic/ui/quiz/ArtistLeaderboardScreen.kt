@@ -68,6 +68,10 @@ import com.fortune.vibramusic.ui.components.ArtworkWash
 import com.fortune.vibramusic.ui.theme.rememberArtworkPalette
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
+import com.fortune.vibramusic.ui.components.lightweightLiquidGlass
+import com.fortune.vibramusic.ui.components.liquidGlassButton
+import com.fortune.vibramusic.ui.components.glassContentColor
+import com.fortune.vibramusic.ui.haptics.Haptic
 
 fun formatLeaderboardTime(totalTimeMillis: Long): String {
     val minutes = (totalTimeMillis / 60000)
@@ -187,38 +191,79 @@ fun ArtistLeaderboardScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .statusBarsPadding()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
-                    IconButton(onClick = onBack) {
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .liquidGlassButton(
+                                onClick = onBack,
+                                haptic = Haptic.Tap,
+                                expandScale = 1.14f,
+                                pressScale = 0.91f,
+                            )
+                            .lightweightLiquidGlass(
+                                shape = CircleShape,
+                                fallbackColor = MaterialTheme.colorScheme.surfaceVariant,
+                            ),
+                        contentAlignment = Alignment.Center,
+                    ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                             contentDescription = "Back",
-                            tint = palette.onBackground,
+                            tint = glassContentColor(),
+                            modifier = Modifier.size(20.dp),
                         )
                     }
 
-                    Text(
-                        text = "Leaderboard",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = palette.onBackground,
-                    )
-
-                    IconButton(onClick = {
-                        val sendIntent = Intent(Intent.ACTION_SEND).apply {
-                            putExtra(
-                                Intent.EXTRA_TEXT,
-                                "Check out the Quiz Leaderboard for ${artist.name} on Vibra Music!\nCan you beat the record?",
+                    Box(
+                        modifier = Modifier
+                            .height(38.dp)
+                            .lightweightLiquidGlass(
+                                shape = RoundedCornerShape(19.dp),
+                                fallbackColor = MaterialTheme.colorScheme.surfaceVariant,
                             )
-                            type = "text/plain"
-                        }
-                        context.startActivity(Intent.createChooser(sendIntent, "Share Leaderboard"))
-                    }) {
+                            .padding(horizontal = 16.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = "Leaderboard",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = glassContentColor(),
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .liquidGlassButton(
+                                onClick = {
+                                    val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                        putExtra(
+                                            Intent.EXTRA_TEXT,
+                                            "Check out the Quiz Leaderboard for ${artist.name} on Vibra Music!\nCan you beat the record?",
+                                        )
+                                        type = "text/plain"
+                                    }
+                                    context.startActivity(Intent.createChooser(sendIntent, "Share Leaderboard"))
+                                },
+                                haptic = Haptic.Tap,
+                                expandScale = 1.14f,
+                                pressScale = 0.91f,
+                            )
+                            .lightweightLiquidGlass(
+                                shape = CircleShape,
+                                fallbackColor = MaterialTheme.colorScheme.surfaceVariant,
+                            ),
+                        contentAlignment = Alignment.Center,
+                    ) {
                         Icon(
                             imageVector = Icons.Rounded.Share,
                             contentDescription = "Share",
-                            tint = palette.onBackground,
+                            tint = glassContentColor(),
+                            modifier = Modifier.size(20.dp),
                         )
                     }
                 }

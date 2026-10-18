@@ -74,6 +74,13 @@ import coil3.compose.AsyncImage
 import com.fortune.vibramusic.data.social.SocialProfile
 import com.fortune.vibramusic.data.supabase.SupabaseService
 import com.fortune.vibramusic.ui.components.MediaCropAdjustDialog
+import com.fortune.vibramusic.ui.components.VideoBannerAdjustDialog
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.runtime.DisposableEffect
+import android.view.ViewGroup
+import android.widget.FrameLayout
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -121,6 +128,7 @@ fun EditProfileSheet(
 
     // Crop dialog trigger
     var activeCropTarget by remember { mutableStateOf<Pair<Uri, CropTarget>?>(null) }
+    var activeVideoAdjustUri by remember { mutableStateOf<Uri?>(null) }
 
     // Unique handle checking
     var isCheckingHandle by remember { mutableStateOf(false) }
@@ -194,8 +202,7 @@ fun EditProfileSheet(
                 }
 
                 if (isValid) {
-                    stagedBannerVideoUri = uri
-                    stagedBannerBitmap = null
+                    activeVideoAdjustUri = uri
                 } else {
                     Toast.makeText(
                         context,
@@ -265,6 +272,11 @@ fun EditProfileSheet(
                                     val stream = ByteArrayOutputStream()
                                     bmp.compress(Bitmap.CompressFormat.JPEG, 90, stream)
                                     val bytes = stream.toByteArray()
+                                    runCatching {
+                                        val localFile = java.io.File(context.filesDir, "custom_avatar_${profile.id}.jpg")
+                                        localFile.writeBytes(bytes)
+                                        finalAvatarUrl = localFile.toURI().toString()
+                                    }
                                     SupabaseService.uploadImage(
                                         bytes = bytes,
                                         mimeType = "image/jpeg",
@@ -277,6 +289,11 @@ fun EditProfileSheet(
                                     val stream = ByteArrayOutputStream()
                                     bmp.compress(Bitmap.CompressFormat.JPEG, 88, stream)
                                     val bytes = stream.toByteArray()
+                                    runCatching {
+                                        val localFile = java.io.File(context.filesDir, "custom_banner_${profile.id}.jpg")
+                                        localFile.writeBytes(bytes)
+                                        finalBannerUrl = localFile.toURI().toString()
+                                    }
                                     SupabaseService.uploadImage(
                                         bytes = bytes,
                                         mimeType = "image/jpeg",
@@ -289,12 +306,25 @@ fun EditProfileSheet(
                                     val bytes = withContext(Dispatchers.IO) {
                                         context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
                                     }
+                                    val rot = uri.getQueryParameter("rot") ?: "0"
+                                    val scale = uri.getQueryParameter("scale") ?: "1.00"
+                                    val panX = uri.getQueryParameter("panX") ?: "0.0"
+                                    val panY = uri.getQueryParameter("panY") ?: "0.0"
+                                    val querySuffix = "?rot=$rot&scale=$scale&panX=$panX&panY=$panY"
+
                                     if (bytes != null) {
+                                        runCatching {
+                                            val localFile = java.io.File(context.filesDir, "custom_banner_${profile.id}.mp4")
+                                            localFile.writeBytes(bytes)
+                                            finalBannerUrl = localFile.toURI().toString() + querySuffix
+                                        }
                                         SupabaseService.uploadMedia(
                                             bytes = bytes,
                                             mimeType = "video/mp4",
                                             fileName = "banner_vid_${profile.id}_${UUID.randomUUID()}.mp4",
-                                        ).onSuccess { finalBannerUrl = it }
+                                        ).onSuccess {
+                                            finalBannerUrl = "$it$querySuffix"
+                                        }
                                     }
                                 }
 
@@ -366,16 +396,50 @@ fun EditProfileSheet(
                                     modifier = Modifier.fillMaxSize(),
                                 )
                             } else if (stagedBannerVideoUri != null) {
+                                val videoUri = stagedBannerVideoUri!!
+                                val rot = videoUri.getQueryParameter("rot")?.toFloatOrNull() ?: 0f
+                                val scale = videoUri.getQueryParameter("scale")?.toFloatOrNull() ?: 1f
+                                val panX = videoUri.getQueryParameter("panX")?.toFloatOrNull() ?: 0f
+                                val panY = videoUri.getQueryParameter("panY")?.toFloatOrNull() ?: 0f
                                 Box(
                                     modifier = Modifier
                                         .fillMaxSize()
-                                        .background(Color.Black),
+                                        .clipToBounds(),
                                     contentAlignment = Alignment.Center,
                                 ) {
-                                    Text(
-                                        text = "Video Banner Selected (Looping <= 10s)",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = Color.White,
+                                    val exoPlayer = remember(videoUri) {
+                                        androidx.media3.exoplayer.ExoPlayer.Builder(context.applicationContext).build().apply {
+                                            repeatMode = androidx.media3.common.Player.REPEAT_MODE_ALL
+                                            volume = 0f
+                                            setMediaItem(androidx.media3.common.MediaItem.fromUri(videoUri))
+                                            prepare()
+                                            playWhenReady = true
+                                        }
+                                    }
+                                    DisposableEffect(exoPlayer) {
+                                        onDispose { exoPlayer.release() }
+                                    }
+                                    AndroidView(
+                                        factory = { ctx ->
+                                            androidx.media3.ui.PlayerView(ctx).apply {
+                                                player = exoPlayer
+                                                useController = false
+                                                resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                                                layoutParams = FrameLayout.LayoutParams(
+                                                    ViewGroup.LayoutParams.MATCH_PARENT,
+                                                    ViewGroup.LayoutParams.MATCH_PARENT,
+                                                )
+                                            }
+                                        },
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .graphicsLayer {
+                                                rotationZ = rot
+                                                scaleX = scale
+                                                scaleY = scale
+                                                translationX = panX
+                                                translationY = panY
+                                            },
                                     )
                                 }
                             } else if (!bannerUrl.isNullOrBlank()) {
@@ -738,6 +802,20 @@ fun EditProfileSheet(
                     stagedBannerVideoUri = null
                 }
                 activeCropTarget = null
+            },
+        )
+    }
+
+    activeVideoAdjustUri?.let { uri ->
+        VideoBannerAdjustDialog(
+            videoUri = uri,
+            targetAspectRatio = 16f / 9f,
+            title = "Adjust Video Banner",
+            onDismiss = { activeVideoAdjustUri = null },
+            onConfirm = { adjustedUri, rotation, scale, panX, panY ->
+                stagedBannerVideoUri = adjustedUri
+                stagedBannerBitmap = null
+                activeVideoAdjustUri = null
             },
         )
     }

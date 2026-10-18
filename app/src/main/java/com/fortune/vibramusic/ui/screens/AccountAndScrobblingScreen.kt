@@ -96,8 +96,8 @@ fun AccountAndScrobblingScreen(
             }
         }
 
-        val builtIn = com.fortune.vibramusic.data.canvas.SpotifyTokenSecret.getBuiltInSpdc()
-        val isRealUserSpotify = spotifyConnected.isNotBlank() && spotifyConnected.trim() != builtIn
+        val builtIn = com.fortune.vibramusic.data.canvas.TokenProvider.getSpdcToken()
+        val isRealUserSpotify = spotifyConnected.isNotBlank() && (builtIn == null || spotifyConnected.trim() != builtIn)
 
         SettingsGroup(
             header = stringResource(R.string.spotify),

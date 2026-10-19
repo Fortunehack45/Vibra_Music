@@ -99,7 +99,10 @@ fun RealmSwitcher(
         .clip(shape)
         .then(
             if (useLiquidGlass) {
-                Modifier.liquidGlass(shape)
+                Modifier.lightweightLiquidGlass(
+                    shape = shape,
+                    fallbackColor = if (isDark) Color(0xB31E222E) else Color.White.copy(alpha = 0.95f),
+                )
             } else if (hazeState != null) {
                 Modifier.hazeEffect(hazeState, HazeMaterials.thin()) {
                     tints = listOf(HazeTint(glassTint))

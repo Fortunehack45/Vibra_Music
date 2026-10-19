@@ -110,4 +110,35 @@ class SocialCacheStore(private val context: Context) {
             }.getOrNull()
         }
     }
+
+    private val pollVotesFile = File(cacheDir, "user_poll_votes.json")
+
+    suspend fun saveUserPollVote(postId: String, optionIndex: Int) = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            runCatching {
+                val current = loadUserPollVotesInternal().toMutableMap()
+                current[postId] = optionIndex
+                val text = json.encodeToString(current)
+                atomicWrite(pollVotesFile, text)
+            }.onFailure { e ->
+                Log.w("SocialCacheStore", "Failed to cache poll vote: ${e.message}")
+            }
+        }
+    }
+
+    suspend fun getUserPollVotes(): Map<String, Int> = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            loadUserPollVotesInternal()
+        }
+    }
+
+    private fun loadUserPollVotesInternal(): Map<String, Int> {
+        return runCatching {
+            if (!pollVotesFile.exists()) emptyMap()
+            else {
+                val text = pollVotesFile.readText()
+                if (text.isBlank()) emptyMap() else json.decodeFromString<Map<String, Int>>(text)
+            }
+        }.getOrDefault(emptyMap())
+    }
 }

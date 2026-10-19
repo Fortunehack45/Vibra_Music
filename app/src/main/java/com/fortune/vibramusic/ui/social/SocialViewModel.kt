@@ -80,6 +80,8 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
             }
         }
         _posts.value = _posts.value.map(::updateItem)
+        forYouPostsCache = forYouPostsCache.map(::updateItem)
+        friendsPostsCache = friendsPostsCache.map(::updateItem)
         _viewingProfilePosts.value = _viewingProfilePosts.value.map(::updateItem)
         val selected = _selectedPostForComments.value
         if (selected != null) {
@@ -135,9 +137,28 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
     init {
         viewModelScope.launch {
             val cached = cacheStore.loadPosts()
-            if (cached.isNotEmpty()) {
-                forYouPostsCache = cached
-                _posts.value = cached
+            val localVotes = cacheStore.getUserPollVotes()
+            val reconciled = if (localVotes.isNotEmpty()) {
+                cached.map { post ->
+                    val voteIdx = localVotes[post.id]
+                    val poll = post.poll
+                    if (voteIdx != null && poll != null) {
+                        val updatedOptions = poll.options.mapIndexed { idx, opt ->
+                            if (idx == voteIdx && poll.userVotedIndex == null) opt.copy(votes = opt.votes + 1) else opt
+                        }
+                        post.copy(
+                            pollData = poll.copy(
+                                userVotedIndex = voteIdx,
+                                options = updatedOptions,
+                                totalVotes = if (poll.userVotedIndex == null) poll.totalVotes + 1 else poll.totalVotes,
+                            ),
+                        )
+                    } else post
+                }
+            } else cached
+            if (reconciled.isNotEmpty()) {
+                forYouPostsCache = reconciled
+                _posts.value = reconciled
             }
         }
         initUserProfile()
@@ -260,6 +281,9 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
                     )
                 }
                 _currentProfile.value = guestProfile
+                if (existing == null) {
+                    SupabaseService.updateUserProfile(guestProfile)
+                }
                 loadProfileData(guestId)
                 UserCloudSyncManager.restoreUserData(guestId)
             }
@@ -276,24 +300,49 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
         initUserProfile()
     }
 
+    private suspend fun reconcilePostsWithLocalVotes(posts: List<SocialPost>): List<SocialPost> {
+        val localVotes = withContext(Dispatchers.IO) { cacheStore.getUserPollVotes() }
+        if (localVotes.isEmpty()) return posts
+        return posts.map { post ->
+            val voteIdx = localVotes[post.id]
+            val poll = post.poll
+            if (voteIdx != null && poll != null) {
+                val hasVotedOnServer = poll.userVotedIndex != null
+                val updatedOptions = if (!hasVotedOnServer) {
+                    poll.options.mapIndexed { idx, opt ->
+                        if (idx == voteIdx) opt.copy(votes = opt.votes + 1) else opt
+                    }
+                } else poll.options
+                post.copy(
+                    pollData = poll.copy(
+                        userVotedIndex = poll.userVotedIndex ?: voteIdx,
+                        options = updatedOptions,
+                        totalVotes = if (!hasVotedOnServer) poll.totalVotes + 1 else poll.totalVotes,
+                    ),
+                )
+            } else post
+        }
+    }
+
     fun loadFeed() {
         viewModelScope.launch {
             if (_posts.value.isEmpty()) {
                 val diskCached = withContext(Dispatchers.IO) { cacheStore.loadPosts() }
                 if (diskCached.isNotEmpty() && _posts.value.isEmpty()) {
-                    _posts.value = diskCached
+                    _posts.value = reconcilePostsWithLocalVotes(diskCached)
                 }
             }
             _isLoadingFeed.value = true
-            val userId = _currentProfile.value?.id
+            val userId = _currentProfile.value?.id ?: AppSettings.deviceUserId
             val isFriendsOnly = _feedTab.value == FeedTab.FRIENDS
 
             SupabaseService.fetchPosts(forUserId = userId, friendsOnly = isFriendsOnly)
                 .onSuccess { loadedPosts ->
                     _errorMessage.value = null
+                    val reconciled = reconcilePostsWithLocalVotes(loadedPosts)
                     val cached = if (_feedTab.value == FeedTab.FOR_YOU) forYouPostsCache else friendsPostsCache
-                    val localUnsynced = cached.filter { c -> c.createdAt == "Just now" && loadedPosts.none { it.id == c.id } }
-                    val merged = (localUnsynced + loadedPosts).distinctBy { it.id }
+                    val localUnsynced = cached.filter { c -> c.createdAt == "Just now" && reconciled.none { it.id == c.id } }
+                    val merged = (localUnsynced + reconciled).distinctBy { it.id }
                     if (_feedTab.value == FeedTab.FOR_YOU) {
                         forYouPostsCache = merged
                     } else {
@@ -313,15 +362,16 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
     fun refreshFeed() {
         viewModelScope.launch {
             _isRefreshing.value = true
-            val userId = _currentProfile.value?.id
+            val userId = _currentProfile.value?.id ?: AppSettings.deviceUserId
             val isFriendsOnly = _feedTab.value == FeedTab.FRIENDS
 
             SupabaseService.fetchPosts(forUserId = userId, friendsOnly = isFriendsOnly)
                 .onSuccess { loadedPosts ->
                     _errorMessage.value = null
+                    val reconciled = reconcilePostsWithLocalVotes(loadedPosts)
                     val cached = if (_feedTab.value == FeedTab.FOR_YOU) forYouPostsCache else friendsPostsCache
-                    val localUnsynced = cached.filter { c -> c.createdAt == "Just now" && loadedPosts.none { it.id == c.id } }
-                    val merged = (localUnsynced + loadedPosts).distinctBy { it.id }
+                    val localUnsynced = cached.filter { c -> c.createdAt == "Just now" && reconciled.none { it.id == c.id } }
+                    val merged = (localUnsynced + reconciled).distinctBy { it.id }
                     if (_feedTab.value == FeedTab.FOR_YOU) {
                         forYouPostsCache = merged
                     } else {
@@ -421,18 +471,63 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
         val user = _currentProfile.value ?: return
         if (post.authorId != user.id) return
 
-        // Optimistically remove from feeds and profile
-        _posts.value = _posts.value.filterNot { it.id == post.id }.distinctBy { it.id }
-        forYouPostsCache = forYouPostsCache.filterNot { it.id == post.id }.distinctBy { it.id }
-        friendsPostsCache = friendsPostsCache.filterNot { it.id == post.id }.distinctBy { it.id }
-        _viewingProfilePosts.value = _viewingProfilePosts.value.filterNot { it.id == post.id }.distinctBy { it.id }
+        val hasComments = post.commentsCount > 0 || _comments.value.any { it.postId == post.id }
 
-        viewModelScope.launch {
-            cacheStore.savePosts(_posts.value)
-            SupabaseService.deletePost(post.id, user.id).onFailure { error ->
-                Log.w("SocialViewModel", "Failed to delete post: ${error.message}")
-                _errorMessage.value = "Failed to delete post. Please try again."
-                loadFeed()
+        if (hasComments) {
+            fun updateList(list: List<SocialPost>) = list.map {
+                if (it.id == post.id) {
+                    it.copy(
+                        content = "[This post was deleted by the author]",
+                        imageUrl = null,
+                        imageUrls = emptyList(),
+                        videoUrl = null,
+                        gifUrl = null,
+                        musicTrack = null,
+                        pollData = null,
+                        quoteOf = null,
+                        repostOf = null,
+                        isDeleted = true,
+                    )
+                } else it
+            }
+
+            _posts.value = updateList(_posts.value)
+            forYouPostsCache = updateList(forYouPostsCache)
+            friendsPostsCache = updateList(friendsPostsCache)
+            _viewingProfilePosts.value = updateList(_viewingProfilePosts.value)
+            if (_selectedPostForComments.value?.id == post.id) {
+                _selectedPostForComments.value = _selectedPostForComments.value?.copy(
+                    content = "[This post was deleted by the author]",
+                    imageUrl = null,
+                    imageUrls = emptyList(),
+                    videoUrl = null,
+                    gifUrl = null,
+                    musicTrack = null,
+                    pollData = null,
+                    quoteOf = null,
+                    repostOf = null,
+                    isDeleted = true,
+                )
+            }
+
+            viewModelScope.launch {
+                cacheStore.savePosts(_posts.value)
+                SupabaseService.updatePost(post.id, user.id, "[This post was deleted by the author]")
+            }
+        } else {
+            // Optimistically remove from feeds and profile
+            _posts.value = _posts.value.filterNot { it.id == post.id }.distinctBy { it.id }
+            forYouPostsCache = forYouPostsCache.filterNot { it.id == post.id }.distinctBy { it.id }
+            friendsPostsCache = friendsPostsCache.filterNot { it.id == post.id }.distinctBy { it.id }
+            _viewingProfilePosts.value = _viewingProfilePosts.value.filterNot { it.id == post.id }.distinctBy { it.id }
+
+            viewModelScope.launch {
+                cacheStore.savePosts(_posts.value)
+                SupabaseService.deletePost(post.id, user.id).onFailure { error ->
+                    Log.w("SocialViewModel", "Failed to delete post: ${error.message}")
+                    _errorMessage.value = "Failed to delete post. Please try again."
+                    loadFeed()
+                }
             }
         }
     }
@@ -553,7 +648,7 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
 
     fun votePoll(post: SocialPost, optionIndex: Int) {
         val poll = post.poll ?: return
-        val userId = _currentProfile.value?.id ?: return
+        val userId = _currentProfile.value?.id ?: AppSettings.deviceUserId
         if (poll.userVotedIndex != null) return
 
         val updatedOptions = poll.options.mapIndexed { idx, opt ->
@@ -565,13 +660,20 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
             userVotedIndex = optionIndex,
         )
 
-        // Optimistic update
-        _posts.value = _posts.value.map {
-            if (it.id == post.id) it.copy(pollData = updatedPoll) else it
+        // Optimistic update across all lists
+        updatePostAcrossAllLists(post.id) {
+            it.copy(pollData = updatedPoll)
         }
 
         viewModelScope.launch {
-            SupabaseService.votePoll(postId = post.id, optionIndex = optionIndex, userId = userId)
+            cacheStore.saveUserPollVote(post.id, optionIndex)
+            cacheStore.savePosts(_posts.value)
+            SupabaseService.votePoll(
+                postId = post.id,
+                optionIndex = optionIndex,
+                userId = userId,
+                updatedPollData = updatedPoll,
+            )
         }
     }
 
@@ -815,14 +917,33 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun deleteComment(commentId: String, postId: String) {
-        val updated = _comments.value.filter { it.id != commentId }
+        val hasReplies = _comments.value.any { it.parentId == commentId }
+        val updated = if (hasReplies) {
+            _comments.value.map {
+                if (it.id == commentId) {
+                    it.copy(
+                        content = "[This comment was deleted by the user]",
+                        imageUrl = null,
+                        videoUrl = null,
+                        gifUrl = null,
+                        isDeleted = true,
+                    )
+                } else it
+            }
+        } else {
+            _comments.value.filter { it.id != commentId }
+        }
         _comments.value = updated
         updatePostAcrossAllLists(postId) {
             it.copy(commentsCount = (it.commentsCount - 1).coerceAtLeast(0))
         }
         viewModelScope.launch {
             cacheStore.saveComments(postId, updated)
-            SupabaseService.deleteComment(commentId, postId)
+            if (hasReplies) {
+                SupabaseService.editComment(commentId, "[This comment was deleted by the user]")
+            } else {
+                SupabaseService.deleteComment(commentId, postId)
+            }
         }
     }
 

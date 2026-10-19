@@ -195,9 +195,7 @@ fun UserProfileScreen(
         modifier = modifier.fillMaxSize(),
     ) {
         LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .hazeSource(hazeState),
+            modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
                 top = 0.dp,
                 bottom = contentPadding.calculateBottomPadding() + 80.dp,
@@ -217,7 +215,9 @@ fun UserProfileScreen(
                     ?: localBanner
                     ?: activeProfile.bannerPlaylists.firstOrNull()?.split("|")?.lastOrNull()?.takeIf { it.startsWith("http") }
 
-                val palette = rememberArtworkPalette(bannerUrl ?: activeProfile.avatarUrl)
+                val isBannerVideo = bannerUrl?.endsWith(".mp4", ignoreCase = true) == true || bannerUrl?.contains("video", ignoreCase = true) == true
+                val paletteImage = if (isBannerVideo) activeProfile.avatarUrl else (bannerUrl ?: activeProfile.avatarUrl)
+                val palette = rememberArtworkPalette(paletteImage)
                 val ambientColor = palette.background
 
                 Box(
@@ -285,12 +285,9 @@ fun UserProfileScreen(
                                         spotColor = Color.Black.copy(alpha = 0.35f),
                                     )
                                     .clip(CircleShape)
-                                    .then(
-                                        if (LocalLiquidGlassEnabled.current && isGlassSupported()) {
-                                            Modifier.liquidGlass(CircleShape)
-                                        } else {
-                                            Modifier.hazeEffect(hazeState, HazeMaterials.thin())
-                                        }
+                                    .lightweightLiquidGlass(
+                                        shape = CircleShape,
+                                        fallbackColor = if (isDark) Color(0xCC181A22) else Color.White.copy(alpha = 0.92f),
                                     )
                                     .background(
                                         if (isDark) Color(0xCC181A22) else Color.White.copy(alpha = 0.92f),
@@ -331,12 +328,9 @@ fun UserProfileScreen(
                                         spotColor = Color.Black.copy(alpha = 0.35f),
                                     )
                                     .clip(CircleShape)
-                                    .then(
-                                        if (LocalLiquidGlassEnabled.current && isGlassSupported()) {
-                                            Modifier.liquidGlass(CircleShape)
-                                        } else {
-                                            Modifier.hazeEffect(hazeState, HazeMaterials.thin())
-                                        }
+                                    .lightweightLiquidGlass(
+                                        shape = CircleShape,
+                                        fallbackColor = if (isDark) Color(0xCC181A22) else Color.White.copy(alpha = 0.92f),
                                     )
                                     .background(
                                         if (isDark) Color(0xCC181A22) else Color.White.copy(alpha = 0.92f),
@@ -380,12 +374,9 @@ fun UserProfileScreen(
                                         spotColor = Color.Black.copy(alpha = 0.35f),
                                     )
                                     .clip(CircleShape)
-                                    .then(
-                                        if (LocalLiquidGlassEnabled.current && isGlassSupported()) {
-                                            Modifier.liquidGlass(CircleShape)
-                                        } else {
-                                            Modifier.hazeEffect(hazeState, HazeMaterials.thin())
-                                        }
+                                    .lightweightLiquidGlass(
+                                        shape = CircleShape,
+                                        fallbackColor = if (isDark) Color(0xCC181A22) else Color.White.copy(alpha = 0.92f),
                                     )
                                     .background(
                                         if (isDark) Color(0xCC181A22) else Color.White.copy(alpha = 0.92f),

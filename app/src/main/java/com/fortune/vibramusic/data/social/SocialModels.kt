@@ -248,6 +248,7 @@ data class SocialPost(
     val isLikedByMe: Boolean = false,
     val isRepostedByMe: Boolean = false,
     val isEdited: Boolean = false,
+    val isDeleted: Boolean = false,
     val createdAt: String = "",
 ) {
     val authorName: String get() = author?.displayName ?: "Listener"
@@ -304,6 +305,7 @@ data class PostComment(
     val likesCount: Int = 0,
     val isLikedByMe: Boolean = false,
     val isEdited: Boolean = false,
+    val isDeleted: Boolean = false,
     val createdAt: String = "",
 ) {
     val authorName: String get() = author?.displayName ?: "Listener"

@@ -2,12 +2,14 @@ package com.fortune.vibramusic.ui.social
 
 import android.content.Intent
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -21,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -190,6 +193,33 @@ fun PostThreadScreen(
         }
     }
 
+    // Twitter(X)-style comment thread drill-down state
+    var focusedCommentStack by remember { mutableStateOf<List<PostComment>>(emptyList()) }
+    val focusedCommentRaw = focusedCommentStack.lastOrNull()
+    val focusedComment = focusedCommentRaw?.let { fc -> comments.find { it.id == fc.id } ?: fc }
+
+    val ancestorChain = remember(focusedComment, comments) {
+        if (focusedComment == null) emptyList<PostComment>()
+        else {
+            val list = mutableListOf<PostComment>()
+            var currParentId = focusedComment.parentId
+            while (currParentId != null) {
+                val p = comments.find { it.id == currParentId }
+                if (p != null) {
+                    list.add(0, p)
+                    currParentId = p.parentId
+                } else {
+                    break
+                }
+            }
+            list
+        }
+    }
+
+    BackHandler(enabled = focusedCommentStack.isNotEmpty()) {
+        focusedCommentStack = focusedCommentStack.dropLast(1)
+    }
+
     // Organize root comments and replies
     val rootComments = remember(comments) {
         comments.filter { it.parentId == null }
@@ -217,7 +247,13 @@ fun PostThreadScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(
-                    onClick = onBack,
+                    onClick = {
+                        if (focusedCommentStack.isNotEmpty()) {
+                            focusedCommentStack = focusedCommentStack.dropLast(1)
+                        } else {
+                            onBack()
+                        }
+                    },
                     modifier = Modifier
                         .size(38.dp)
                         .clip(CircleShape)
@@ -234,14 +270,14 @@ fun PostThreadScreen(
                 Spacer(Modifier.width(14.dp))
 
                 Text(
-                    text = "Post",
+                    text = if (focusedComment != null) "Thread" else "Post",
                     style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f),
                 )
 
-                // More menu if post author
-                if (isPostAuthor) {
+                // More menu if post author and viewing root post
+                if (focusedComment == null && isPostAuthor) {
                     var showPostMenu by remember { mutableStateOf(false) }
                     Box {
                         IconButton(onClick = { showPostMenu = true }) {
@@ -314,87 +350,207 @@ fun PostThreadScreen(
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                 ) {
-                    // Hero Post
-                    item(key = "hero_post") {
-                        HeroPostItem(
-                            post = post,
-                            isAuthor = isPostAuthor,
-                            onLikeClick = { onLikePost(post) },
-                            onRepostClick = { onRepostPost(post) },
-                            onShareClick = {
-                                val sendIntent = Intent(Intent.ACTION_SEND).apply {
-                                    putExtra(
-                                        Intent.EXTRA_TEXT,
-                                        "Check out @${post.authorHandle}'s music post on Vibra:\n\n${post.content}",
-                                    )
-                                    type = "text/plain"
-                                }
-                                context.startActivity(Intent.createChooser(sendIntent, "Share Post"))
-                            },
-                            onOpenProfile = onOpenProfile,
-                            onPlayTrack = onPlayTrack,
-                            onMediaClick = onMediaClick,
-                            onMentionClick = onMentionClick,
-                            onVotePoll = onVotePoll,
-                            onQuoteClick = onQuoteClick,
-                        )
-                    }
-
-                    // Comments Section Header
-                    item(key = "comments_header") {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                text = "Replies (${comments.size})",
-                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    if (focusedComment == null) {
+                        // Hero Post
+                        item(key = "hero_post") {
+                            HeroPostItem(
+                                post = post,
+                                isAuthor = isPostAuthor,
+                                onLikeClick = { onLikePost(post) },
+                                onRepostClick = { onRepostPost(post) },
+                                onShareClick = {
+                                    val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                        putExtra(
+                                            Intent.EXTRA_TEXT,
+                                            "Check out @${post.authorHandle}'s music post on Vibra:\n\n${post.content}",
+                                        )
+                                        type = "text/plain"
+                                    }
+                                    context.startActivity(Intent.createChooser(sendIntent, "Share Post"))
+                                },
+                                onOpenProfile = onOpenProfile,
+                                onPlayTrack = onPlayTrack,
+                                onMediaClick = onMediaClick,
+                                onMentionClick = onMentionClick,
+                                onVotePoll = onVotePoll,
+                                onQuoteClick = onQuoteClick,
                             )
                         }
-                    }
 
-                    // Empty Comments Message
-                    if (rootComments.isEmpty()) {
-                        item(key = "empty_comments") {
-                            Box(
+                        // Comments Section Header
+                        item(key = "comments_header") {
+                            Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(vertical = 40.dp, horizontal = 24.dp),
-                                contentAlignment = Alignment.Center,
+                                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Text(
-                                    text = "No replies yet. Be the first to share your thoughts!",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                    text = "Replies (${comments.size})",
+                                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
                         }
-                    }
 
-                    // Root Comments with Threaded Replies
-                    items(
-                        items = rootComments,
-                        key = { it.id },
-                    ) { comment ->
-                        val replies = repliesByParent[comment.id].orEmpty()
-                        ThreadCommentItem(
-                            comment = comment,
-                            replies = replies,
-                            currentUserId = currentUserId,
-                            onReplyClick = { replyingTo = it },
-                            onToggleLike = { onToggleLikeComment(it) },
-                            onEditClick = {
-                                editingComment = it
-                                editCommentContent = it.content
-                            },
-                            onDeleteClick = { commentToDelete = it },
-                            onOpenProfile = onOpenProfile,
-                            onMentionClick = onMentionClick,
-                            onMediaClick = onMediaClick,
-                        )
+                        // Empty Comments Message
+                        if (rootComments.isEmpty()) {
+                            item(key = "empty_comments") {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 40.dp, horizontal = 24.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Text(
+                                        text = "No replies yet. Be the first to share your thoughts!",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                    )
+                                }
+                            }
+                        }
+
+                        // Root Comments with Threaded Replies
+                        items(
+                            items = rootComments,
+                            key = { it.id },
+                        ) { comment ->
+                            val replies = repliesByParent[comment.id].orEmpty()
+                            ThreadCommentItem(
+                                comment = comment,
+                                replies = replies,
+                                currentUserId = currentUserId,
+                                onReplyClick = { replyingTo = it },
+                                onToggleLike = { onToggleLikeComment(it) },
+                                onEditClick = {
+                                    editingComment = it
+                                    editCommentContent = it.content
+                                },
+                                onDeleteClick = { commentToDelete = it },
+                                onOpenProfile = onOpenProfile,
+                                onMentionClick = onMentionClick,
+                                onMediaClick = onMediaClick,
+                                onCommentClick = { focusedCommentStack = focusedCommentStack + it },
+                                onReplyClickRow = { focusedCommentStack = focusedCommentStack + it },
+                            )
+                        }
+                    } else {
+                        // Ancestor Chain
+                        item(key = "ancestor_post") {
+                            ThreadAncestorPostItem(
+                                post = post,
+                                onOpenProfile = onOpenProfile,
+                                onClick = { focusedCommentStack = emptyList() },
+                            )
+                        }
+
+                        items(
+                            items = ancestorChain,
+                            key = { "ancestor_${it.id}" },
+                        ) { ancestor ->
+                            ThreadAncestorCommentItem(
+                                comment = ancestor,
+                                onOpenProfile = onOpenProfile,
+                                onClick = {
+                                    val idx = focusedCommentStack.indexOfFirst { fc -> fc.id == ancestor.id }
+                                    if (idx >= 0) {
+                                        focusedCommentStack = focusedCommentStack.take(idx + 1)
+                                    }
+                                },
+                            )
+                        }
+
+                        val directReplies = repliesByParent[focusedComment.id].orEmpty()
+
+                        // Hero Focused Comment
+                        item(key = "hero_comment_${focusedComment.id}") {
+                            val isAuthor = focusedComment.authorId == currentUserId
+                            val canEdit = isAuthor && isWithinEditWindow(focusedComment.createdAt, 10L)
+                            HeroCommentItem(
+                                comment = focusedComment,
+                                isAuthor = isAuthor,
+                                canEdit = canEdit,
+                                onReplyClick = { replyingTo = focusedComment },
+                                onLikeClick = { onToggleLikeComment(focusedComment) },
+                                onShareClick = {
+                                    val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                        putExtra(
+                                            Intent.EXTRA_TEXT,
+                                            "Reply by @${focusedComment.authorHandle} on Vibra:\n\n${focusedComment.content}",
+                                        )
+                                        type = "text/plain"
+                                    }
+                                    context.startActivity(Intent.createChooser(sendIntent, "Share Reply"))
+                                },
+                                onOpenProfile = onOpenProfile,
+                                onMediaClick = onMediaClick,
+                                onMentionClick = onMentionClick,
+                                onEditClick = {
+                                    editingComment = focusedComment
+                                    editCommentContent = focusedComment.content
+                                },
+                                onDeleteClick = { commentToDelete = focusedComment },
+                                repliesCount = directReplies.size,
+                            )
+                        }
+
+                        // Direct Replies Header
+                        item(key = "focused_replies_header") {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    text = "Replies (${directReplies.size})",
+                                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+
+                        if (directReplies.isEmpty()) {
+                            item(key = "empty_focused_replies") {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 36.dp, horizontal = 24.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Text(
+                                        text = "No replies yet. Be the first to reply!",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                    )
+                                }
+                            }
+                        } else {
+                            items(
+                                items = directReplies,
+                                key = { it.id },
+                            ) { reply ->
+                                val childReplies = repliesByParent[reply.id].orEmpty()
+                                ThreadCommentItem(
+                                    comment = reply,
+                                    replies = childReplies,
+                                    currentUserId = currentUserId,
+                                    onReplyClick = { replyingTo = it },
+                                    onToggleLike = { onToggleLikeComment(it) },
+                                    onEditClick = {
+                                        editingComment = it
+                                        editCommentContent = it.content
+                                    },
+                                    onDeleteClick = { commentToDelete = it },
+                                    onOpenProfile = onOpenProfile,
+                                    onMentionClick = onMentionClick,
+                                    onMediaClick = onMediaClick,
+                                    onCommentClick = { focusedCommentStack = focusedCommentStack + it },
+                                    onReplyClickRow = { focusedCommentStack = focusedCommentStack + it },
+                                )
+                            }
+                        }
                     }
 
                     // Bottom padding to clear docked reply bar
@@ -435,7 +591,8 @@ fun PostThreadScreen(
                     .imePadding(),
             ) {
                 // Replying To indicator
-                replyingTo?.let { target ->
+                val effectiveReplyingTo = replyingTo ?: focusedComment
+                effectiveReplyingTo?.let { target ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -449,14 +606,25 @@ fun PostThreadScreen(
                             style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
                             color = MaterialTheme.colorScheme.primary,
                         )
-                        Icon(
-                            imageVector = Icons.Rounded.Close,
-                            contentDescription = "Cancel reply",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier
-                                .size(16.dp)
-                                .clickable { replyingTo = null },
-                        )
+                        if (replyingTo != null && focusedComment != null) {
+                            Icon(
+                                imageVector = Icons.Rounded.Close,
+                                contentDescription = "Clear specific reply target",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier
+                                    .size(16.dp)
+                                    .clickable { replyingTo = null },
+                            )
+                        } else if (replyingTo != null) {
+                            Icon(
+                                imageVector = Icons.Rounded.Close,
+                                contentDescription = "Cancel reply",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier
+                                    .size(16.dp)
+                                    .clickable { replyingTo = null },
+                            )
+                        }
                     }
                 }
 
@@ -652,7 +820,7 @@ fun PostThreadScreen(
                             val imageUri = selectedImageUri
                             val videoUri = selectedVideoUri
                             val gif = selectedGifUrl
-                            val parent = replyingTo?.id
+                            val parent = replyingTo?.id ?: focusedComment?.id
 
                             replyText = ""
                             selectedImageUri = null
@@ -960,117 +1128,128 @@ private fun HeroPostItem(
 
         Spacer(Modifier.height(14.dp))
 
-        // Post Text with clickable @mentions highlighted
-        if (post.content.isNotBlank()) {
-            ClickableMentionText(
-                content = post.content,
-                fontSize = 17.sp,
-                color = MaterialTheme.colorScheme.onSurface,
-                onMentionClick = onMentionClick,
+        val isDeleted = post.isDeleted || post.content.trim() == "[This post was deleted by the author]"
+
+        if (isDeleted) {
+            Text(
+                text = "[This post was deleted by the author]",
+                style = MaterialTheme.typography.bodyLarge.copy(fontStyle = FontStyle.Italic),
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
             )
             Spacer(Modifier.height(12.dp))
-        }
-
-        // Attached Media Carousel (Swipeable HorizontalPager with indicator dots)
-        val images = post.effectiveImages
-        if (images.isNotEmpty()) {
-            PostMediaCarousel(
-                images = images,
-                onImageClick = { clickedUrl ->
-                    val idx = post.allMediaItems.indexOfFirst { it.url == clickedUrl }.coerceAtLeast(0)
-                    if (onMediaClick != null) {
-                        onMediaClick(post.allMediaItems, idx)
-                    }
-                },
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(Modifier.height(12.dp))
-        }
-
-        // Attached GIF
-        post.gifUrl?.takeIf { it.isNotBlank() && it != "null" }?.let { gifUrl ->
-            if (!images.contains(gifUrl)) {
-                val gifIdx = post.allMediaItems.indexOfFirst { it.url == gifUrl }.coerceAtLeast(0)
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(MaterialTheme.colorScheme.surface)
-                        .clickable {
-                            if (onMediaClick != null) {
-                                onMediaClick(post.allMediaItems, gifIdx)
-                            }
-                        },
-                ) {
-                    AsyncImage(
-                        model = gifUrl,
-                        contentDescription = "GIF",
-                        contentScale = ContentScale.FillWidth,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
+        } else {
+            // Post Text with clickable @mentions highlighted
+            if (post.content.isNotBlank()) {
+                ClickableMentionText(
+                    content = post.content,
+                    fontSize = 17.sp,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    onMentionClick = onMentionClick,
+                )
                 Spacer(Modifier.height(12.dp))
             }
-        }
 
-        // Attached Video Player
-        post.videoUrl?.takeIf { it.isNotBlank() && it != "null" }?.let { videoUrl ->
-            val videoIdx = post.allMediaItems.indexOfFirst { it.url == videoUrl }.coerceAtLeast(0)
-            PostVideoPlayer(
-                videoUrl = videoUrl,
-                onFullScreenClick = {
-                    if (onMediaClick != null) {
-                        onMediaClick(post.allMediaItems, videoIdx)
+            // Attached Media Carousel (Swipeable HorizontalPager with indicator dots)
+            val images = post.effectiveImages
+            if (images.isNotEmpty()) {
+                PostMediaCarousel(
+                    images = images,
+                    onImageClick = { clickedUrl ->
+                        val idx = post.allMediaItems.indexOfFirst { it.url == clickedUrl }.coerceAtLeast(0)
+                        if (onMediaClick != null) {
+                            onMediaClick(post.allMediaItems, idx)
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(12.dp))
+            }
+
+            // Attached GIF
+            post.gifUrl?.takeIf { it.isNotBlank() && it != "null" }?.let { gifUrl ->
+                if (!images.contains(gifUrl)) {
+                    val gifIdx = post.allMediaItems.indexOfFirst { it.url == gifUrl }.coerceAtLeast(0)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(MaterialTheme.colorScheme.surface)
+                            .clickable {
+                                if (onMediaClick != null) {
+                                    onMediaClick(post.allMediaItems, gifIdx)
+                                }
+                            },
+                    ) {
+                        AsyncImage(
+                            model = gifUrl,
+                            contentDescription = "GIF",
+                            contentScale = ContentScale.FillWidth,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
                     }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(16f / 9f),
-            )
-            Spacer(Modifier.height(12.dp))
-        }
+                    Spacer(Modifier.height(12.dp))
+                }
+            }
 
-        // Attached Voice Note Player
-        post.audioUrl?.takeIf { it.isNotBlank() && it != "null" }?.let { audioUrl ->
-            VoiceNotePlayerWidget(
-                audioUrl = audioUrl,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(Modifier.height(12.dp))
-        }
+            // Attached Video Player
+            post.videoUrl?.takeIf { it.isNotBlank() && it != "null" }?.let { videoUrl ->
+                val videoIdx = post.allMediaItems.indexOfFirst { it.url == videoUrl }.coerceAtLeast(0)
+                PostVideoPlayer(
+                    videoUrl = videoUrl,
+                    onFullScreenClick = {
+                        if (onMediaClick != null) {
+                            onMediaClick(post.allMediaItems, videoIdx)
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(16f / 9f),
+                )
+                Spacer(Modifier.height(12.dp))
+            }
 
-        // Attached Track Card
-        post.musicTrack?.let { track ->
-            PlayableTrackCard(
-                track = track,
-                onPlay = { onPlayTrack?.invoke(track) },
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(Modifier.height(12.dp))
-        }
+            // Attached Voice Note Player
+            post.audioUrl?.takeIf { it.isNotBlank() && it != "null" }?.let { audioUrl ->
+                VoiceNotePlayerWidget(
+                    audioUrl = audioUrl,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(12.dp))
+            }
 
-        // Interactive Poll Card
-        post.poll?.let { poll ->
-            PollCard(
-                poll = poll,
-                onVote = { onVotePoll?.invoke(it) },
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(Modifier.height(12.dp))
-        }
+            // Attached Track Card
+            post.musicTrack?.let { track ->
+                PlayableTrackCard(
+                    track = track,
+                    onPlay = { onPlayTrack?.invoke(track) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(12.dp))
+            }
 
-        // Embedded Quoted Post
-        if (post.quoteOf != null || post.quoteOfId != null) {
-            QuotedPostCard(
-                quotedPost = post.quoteOf,
-                quotedId = post.quoteOfId,
-                onPlayTrack = { track -> onPlayTrack?.invoke(track) },
-                onClick = {
-                    post.quoteOf?.let { onQuoteClick?.invoke(it) }
-                },
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(Modifier.height(12.dp))
+            // Interactive Poll Card
+            post.poll?.let { poll ->
+                PollCard(
+                    poll = poll,
+                    onVote = { onVotePoll?.invoke(it) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(12.dp))
+            }
+
+            // Embedded Quoted Post
+            if (post.quoteOf != null || post.quoteOfId != null) {
+                QuotedPostCard(
+                    quotedPost = post.quoteOf,
+                    quotedId = post.quoteOfId,
+                    onPlayTrack = { track -> onPlayTrack?.invoke(track) },
+                    onClick = {
+                        post.quoteOf?.let { onQuoteClick?.invoke(it) }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(12.dp))
+            }
         }
 
         // Timestamp & (edited) indicator
@@ -1172,6 +1351,509 @@ private fun HeroPostItem(
 }
 
 @Composable
+private fun ThreadAncestorPostItem(
+    post: SocialPost,
+    onOpenProfile: (SocialProfile) -> Unit,
+    onClick: () -> Unit,
+) {
+    val isDeleted = post.isDeleted || post.content.trim() == "[This post was deleted by the author]" || post.content.trim() == "This post was deleted by the author."
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.width(40.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(38.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .clickable { post.author?.let { onOpenProfile(it) } },
+                contentAlignment = Alignment.Center,
+            ) {
+                if (!post.authorAvatar.isNullOrBlank() && !isDeleted) {
+                    AsyncImage(
+                        model = post.authorAvatar,
+                        contentDescription = post.authorName,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Rounded.Person,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(4.dp))
+            Box(
+                modifier = Modifier
+                    .width(2.dp)
+                    .weight(1f, fill = false)
+                    .heightIn(min = 24.dp)
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)),
+            )
+        }
+
+        Spacer(Modifier.width(12.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = if (isDeleted) "User" else post.authorName,
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Spacer(Modifier.width(6.dp))
+                if (!isDeleted) {
+                    Text(
+                        text = formatHandle(post.authorHandle),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.width(6.dp))
+                }
+                Text(
+                    text = "· ${formatRelativeTime(post.createdAt)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            Spacer(Modifier.height(4.dp))
+
+            if (isDeleted) {
+                Text(
+                    text = "[This post was deleted by the author]",
+                    style = MaterialTheme.typography.bodyMedium.copy(fontStyle = FontStyle.Italic),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                )
+            } else {
+                Text(
+                    text = post.content,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ThreadAncestorCommentItem(
+    comment: PostComment,
+    onOpenProfile: (SocialProfile) -> Unit,
+    onClick: () -> Unit,
+) {
+    val isDeleted = comment.isDeleted || comment.content.trim() == "[This comment was deleted by the user]"
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.width(40.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(38.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .clickable { comment.author?.let { onOpenProfile(it) } },
+                contentAlignment = Alignment.Center,
+            ) {
+                if (!comment.authorAvatar.isNullOrBlank() && !isDeleted) {
+                    AsyncImage(
+                        model = comment.authorAvatar,
+                        contentDescription = comment.authorName,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Rounded.Person,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(4.dp))
+            Box(
+                modifier = Modifier
+                    .width(2.dp)
+                    .weight(1f, fill = false)
+                    .heightIn(min = 24.dp)
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)),
+            )
+        }
+
+        Spacer(Modifier.width(12.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = if (isDeleted) "User" else comment.authorName,
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Spacer(Modifier.width(6.dp))
+                if (!isDeleted) {
+                    Text(
+                        text = formatHandle(comment.authorHandle),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.width(6.dp))
+                }
+                Text(
+                    text = "· ${formatRelativeTime(comment.createdAt)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            Spacer(Modifier.height(4.dp))
+
+            if (isDeleted) {
+                Text(
+                    text = "[This comment was deleted by the user]",
+                    style = MaterialTheme.typography.bodyMedium.copy(fontStyle = FontStyle.Italic),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                )
+            } else {
+                Text(
+                    text = comment.content,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun HeroCommentItem(
+    comment: PostComment,
+    isAuthor: Boolean,
+    canEdit: Boolean,
+    onReplyClick: () -> Unit,
+    onLikeClick: () -> Unit,
+    onShareClick: () -> Unit,
+    onOpenProfile: (SocialProfile) -> Unit,
+    onMediaClick: ((List<PostMediaItem>, Int) -> Unit)? = null,
+    onMentionClick: ((String) -> Unit)? = null,
+    onEditClick: (() -> Unit)? = null,
+    onDeleteClick: (() -> Unit)? = null,
+    repliesCount: Int = 0,
+) {
+    val isDeleted = comment.isDeleted || comment.content.trim() == "[This comment was deleted by the user]"
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .clickable {
+                        if (!isDeleted) comment.author?.let { onOpenProfile(it) }
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                if (!comment.authorAvatar.isNullOrBlank() && !isDeleted) {
+                    AsyncImage(
+                        model = comment.authorAvatar,
+                        contentDescription = comment.authorName,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Rounded.Person,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(26.dp),
+                    )
+                }
+            }
+
+            Spacer(Modifier.width(12.dp))
+
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable { if (!isDeleted) comment.author?.let { onOpenProfile(it) } },
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = if (isDeleted) "User" else comment.authorName,
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    if (!isDeleted && comment.author?.verifiedBadge == true) {
+                        Spacer(Modifier.width(4.dp))
+                        Icon(
+                            imageVector = Icons.Rounded.Verified,
+                            contentDescription = "Verified",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(16.dp),
+                        )
+                    }
+                }
+                if (!isDeleted) {
+                    Text(
+                        text = formatHandle(comment.authorHandle),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            if (isAuthor && !isDeleted) {
+                var showMenu by remember { mutableStateOf(false) }
+                Box {
+                    IconButton(onClick = { showMenu = true }) {
+                        Icon(
+                            imageVector = Icons.Rounded.MoreVert,
+                            contentDescription = "More",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false },
+                        modifier = Modifier.background(MaterialTheme.colorScheme.surfaceVariant),
+                    ) {
+                        if (canEdit) {
+                            DropdownMenuItem(
+                                text = {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Edit,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(18.dp),
+                                        )
+                                        Spacer(Modifier.width(8.dp))
+                                        Text("Edit Reply", color = MaterialTheme.colorScheme.onSurface)
+                                    }
+                                },
+                                onClick = {
+                                    showMenu = false
+                                    onEditClick?.invoke()
+                                },
+                            )
+                        }
+                        DropdownMenuItem(
+                            text = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.DeleteOutline,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.size(18.dp),
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Delete Reply", color = MaterialTheme.colorScheme.error)
+                                }
+                            },
+                            onClick = {
+                                showMenu = false
+                                onDeleteClick?.invoke()
+                            },
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(14.dp))
+
+        if (isDeleted) {
+            Text(
+                text = "[This comment was deleted by the user]",
+                style = MaterialTheme.typography.bodyLarge.copy(fontStyle = FontStyle.Italic),
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+            )
+        } else {
+            ClickableMentionText(
+                content = comment.content,
+                fontSize = 18.sp,
+                lineHeight = 26.sp,
+                color = MaterialTheme.colorScheme.onSurface,
+                onMentionClick = onMentionClick,
+            )
+
+            if (!comment.imageUrl.isNullOrBlank()) {
+                Spacer(Modifier.height(12.dp))
+                AsyncImage(
+                    model = comment.imageUrl,
+                    contentDescription = "Comment image",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(240.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .clickable {
+                            onMediaClick?.invoke(
+                                listOf(PostMediaItem(url = comment.imageUrl, type = PostMediaType.IMAGE)),
+                                0,
+                            )
+                        },
+                )
+            }
+
+            if (!comment.videoUrl.isNullOrBlank()) {
+                Spacer(Modifier.height(12.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(240.dp)
+                        .clip(RoundedCornerShape(14.dp)),
+                ) {
+                    PostVideoPlayer(
+                        videoUrl = comment.videoUrl,
+                        onFullScreenClick = {
+                            onMediaClick?.invoke(
+                                listOf(PostMediaItem(url = comment.videoUrl, type = PostMediaType.VIDEO)),
+                                0,
+                            )
+                        },
+                    )
+                }
+            }
+
+            if (!comment.gifUrl.isNullOrBlank()) {
+                Spacer(Modifier.height(12.dp))
+                AsyncImage(
+                    model = comment.gifUrl,
+                    contentDescription = "GIF",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .clickable {
+                            onMediaClick?.invoke(
+                                listOf(PostMediaItem(url = comment.gifUrl, type = PostMediaType.IMAGE)),
+                                0,
+                            )
+                        },
+                )
+            }
+        }
+
+        Spacer(Modifier.height(12.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = formatRelativeTime(comment.createdAt),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (comment.isEdited && !isDeleted) {
+                Text(
+                    text = " (edited)",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                )
+            }
+        }
+
+        Spacer(Modifier.height(10.dp))
+
+        HorizontalDivider(
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+            thickness = 0.5.dp,
+        )
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Text(
+                text = "${comment.likesCount} Likes",
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = "$repliesCount Replies",
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+
+        HorizontalDivider(
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+            thickness = 0.5.dp,
+        )
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 6.dp),
+            horizontalArrangement = Arrangement.SpaceAround,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onClick = onReplyClick) {
+                Icon(
+                    imageVector = Icons.Rounded.SubdirectoryArrowRight,
+                    contentDescription = "Reply",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            IconButton(onClick = onLikeClick) {
+                Icon(
+                    imageVector = if (comment.isLikedByMe) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                    contentDescription = "Like",
+                    tint = if (comment.isLikedByMe) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            IconButton(onClick = onShareClick) {
+                Icon(
+                    imageVector = Icons.Rounded.Share,
+                    contentDescription = "Share",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+
+        HorizontalDivider(
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+            thickness = 0.5.dp,
+        )
+    }
+}
+
+@Composable
 private fun ThreadCommentItem(
     comment: PostComment,
     replies: List<PostComment>,
@@ -1183,17 +1865,20 @@ private fun ThreadCommentItem(
     onOpenProfile: (SocialProfile) -> Unit,
     onMentionClick: ((String) -> Unit)? = null,
     onMediaClick: ((List<PostMediaItem>, Int) -> Unit)? = null,
+    onCommentClick: ((PostComment) -> Unit)? = null,
+    onReplyClickRow: ((PostComment) -> Unit)? = null,
 ) {
     val isCommentAuthor = comment.authorId == currentUserId
     val canEdit = isCommentAuthor && isWithinEditWindow(comment.createdAt, 10L)
+    val isDeleted = comment.isDeleted || comment.content.trim() == "[This comment was deleted by the user]"
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .clickable { onCommentClick?.invoke(comment) }
                 .padding(horizontal = 16.dp, vertical = 8.dp),
         ) {
-            // Left Column: Avatar + Connector line if replies exist
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier.width(40.dp),
@@ -1203,10 +1888,12 @@ private fun ThreadCommentItem(
                         .size(38.dp)
                         .clip(CircleShape)
                         .background(MaterialTheme.colorScheme.surfaceVariant)
-                        .clickable { comment.author?.let { onOpenProfile(it) } },
+                        .clickable {
+                            if (!isDeleted) comment.author?.let { onOpenProfile(it) }
+                        },
                     contentAlignment = Alignment.Center,
                 ) {
-                    if (!comment.authorAvatar.isNullOrBlank()) {
+                    if (!comment.authorAvatar.isNullOrBlank() && !isDeleted) {
                         AsyncImage(
                             model = comment.authorAvatar,
                             contentDescription = comment.authorName,
@@ -1236,30 +1923,31 @@ private fun ThreadCommentItem(
 
             Spacer(Modifier.width(12.dp))
 
-            // Right Column: Details & Body
             Column(modifier = Modifier.weight(1f)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        text = comment.authorName,
+                        text = if (isDeleted) "User" else comment.authorName,
                         style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onSurface,
                     )
                     Spacer(Modifier.width(6.dp))
-                    Text(
-                        text = formatHandle(comment.authorHandle),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Spacer(Modifier.width(6.dp))
+                    if (!isDeleted) {
+                        Text(
+                            text = formatHandle(comment.authorHandle),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.width(6.dp))
+                    }
                     Text(
                         text = "· ${formatRelativeTime(comment.createdAt)}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    if (comment.isEdited) {
+                    if (comment.isEdited && !isDeleted) {
                         Text(
                             text = " (edited)",
                             style = MaterialTheme.typography.bodySmall,
@@ -1269,8 +1957,7 @@ private fun ThreadCommentItem(
 
                     Spacer(Modifier.weight(1f))
 
-                    // Menu for comment author
-                    if (isCommentAuthor) {
+                    if (isCommentAuthor && !isDeleted) {
                         var showMenu by remember { mutableStateOf(false) }
                         Box {
                             Icon(
@@ -1309,77 +1996,81 @@ private fun ThreadCommentItem(
 
                 Spacer(Modifier.height(4.dp))
 
-                ClickableMentionText(
-                    content = comment.content,
-                    fontSize = 15.sp,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    onMentionClick = onMentionClick,
-                )
-
-                // Attached Image
-                if (!comment.imageUrl.isNullOrBlank()) {
-                    Spacer(Modifier.height(6.dp))
-                    AsyncImage(
-                        model = comment.imageUrl,
-                        contentDescription = "Comment image",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .fillMaxWidth(0.85f)
-                            .height(180.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .clickable {
-                                onMediaClick?.invoke(
-                                    listOf(PostMediaItem(url = comment.imageUrl, type = PostMediaType.IMAGE)),
-                                    0,
-                                )
-                            },
+                if (isDeleted) {
+                    Text(
+                        text = "[This comment was deleted by the user]",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontStyle = FontStyle.Italic),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                     )
-                }
+                } else {
+                    ClickableMentionText(
+                        content = comment.content,
+                        fontSize = 15.sp,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        onMentionClick = onMentionClick,
+                    )
 
-                // Attached Video
-                if (!comment.videoUrl.isNullOrBlank()) {
-                    Spacer(Modifier.height(6.dp))
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth(0.85f)
-                            .height(180.dp)
-                            .clip(RoundedCornerShape(12.dp)),
-                    ) {
-                        PostVideoPlayer(
-                            videoUrl = comment.videoUrl,
-                            onFullScreenClick = {
-                                onMediaClick?.invoke(
-                                    listOf(PostMediaItem(url = comment.videoUrl, type = PostMediaType.VIDEO)),
-                                    0,
-                                )
-                            },
+                    if (!comment.imageUrl.isNullOrBlank()) {
+                        Spacer(Modifier.height(6.dp))
+                        AsyncImage(
+                            model = comment.imageUrl,
+                            contentDescription = "Comment image",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .fillMaxWidth(0.85f)
+                                .height(180.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable {
+                                    onMediaClick?.invoke(
+                                        listOf(PostMediaItem(url = comment.imageUrl, type = PostMediaType.IMAGE)),
+                                        0,
+                                    )
+                                },
+                        )
+                    }
+
+                    if (!comment.videoUrl.isNullOrBlank()) {
+                        Spacer(Modifier.height(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(0.85f)
+                                .height(180.dp)
+                                .clip(RoundedCornerShape(12.dp)),
+                        ) {
+                            PostVideoPlayer(
+                                videoUrl = comment.videoUrl,
+                                onFullScreenClick = {
+                                    onMediaClick?.invoke(
+                                        listOf(PostMediaItem(url = comment.videoUrl, type = PostMediaType.VIDEO)),
+                                        0,
+                                    )
+                                },
+                            )
+                        }
+                    }
+
+                    if (!comment.gifUrl.isNullOrBlank()) {
+                        Spacer(Modifier.height(6.dp))
+                        AsyncImage(
+                            model = comment.gifUrl,
+                            contentDescription = "GIF",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .fillMaxWidth(0.7f)
+                                .height(140.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable {
+                                    onMediaClick?.invoke(
+                                        listOf(PostMediaItem(url = comment.gifUrl, type = PostMediaType.IMAGE)),
+                                        0,
+                                    )
+                                },
                         )
                     }
                 }
 
-                // GIF
-                if (!comment.gifUrl.isNullOrBlank()) {
-                    Spacer(Modifier.height(6.dp))
-                    AsyncImage(
-                        model = comment.gifUrl,
-                        contentDescription = "GIF",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .fillMaxWidth(0.7f)
-                            .height(140.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .clickable {
-                                onMediaClick?.invoke(
-                                    listOf(PostMediaItem(url = comment.gifUrl, type = PostMediaType.IMAGE)),
-                                    0,
-                                )
-                            },
-                    )
-                }
-
                 Spacer(Modifier.height(8.dp))
 
-                // Actions: Reply & Like
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -1427,9 +2118,11 @@ private fun ThreadCommentItem(
 
         // Nested Replies
         replies.forEach { reply ->
+            val isReplyDeleted = reply.isDeleted || reply.content.trim() == "[This comment was deleted by the user]"
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .clickable { onReplyClickRow?.invoke(reply) }
                     .padding(start = 52.dp, end = 16.dp, top = 4.dp, bottom = 6.dp),
             ) {
                 Box(
@@ -1437,10 +2130,12 @@ private fun ThreadCommentItem(
                         .size(28.dp)
                         .clip(CircleShape)
                         .background(MaterialTheme.colorScheme.surfaceVariant)
-                        .clickable { reply.author?.let { onOpenProfile(it) } },
+                        .clickable {
+                            if (!isReplyDeleted) reply.author?.let { onOpenProfile(it) }
+                        },
                     contentAlignment = Alignment.Center,
                 ) {
-                    if (!reply.authorAvatar.isNullOrBlank()) {
+                    if (!reply.authorAvatar.isNullOrBlank() && !isReplyDeleted) {
                         AsyncImage(
                             model = reply.authorAvatar,
                             contentDescription = reply.authorName,
@@ -1462,17 +2157,25 @@ private fun ThreadCommentItem(
                 Column(modifier = Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = reply.authorName,
+                            text = if (isReplyDeleted) "User" else reply.authorName,
                             style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
                             color = MaterialTheme.colorScheme.onSurface,
                         )
                         Spacer(Modifier.width(4.dp))
+                        if (!isReplyDeleted) {
+                            Text(
+                                text = formatHandle(reply.authorHandle),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Spacer(Modifier.width(4.dp))
+                        }
                         Text(
                             text = "· ${formatRelativeTime(reply.createdAt)}",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        if (reply.isEdited) {
+                        if (reply.isEdited && !isReplyDeleted) {
                             Text(
                                 text = " (edited)",
                                 style = MaterialTheme.typography.labelSmall,
@@ -1483,72 +2186,77 @@ private fun ThreadCommentItem(
 
                     Spacer(Modifier.height(2.dp))
 
-                    ClickableMentionText(
-                        content = reply.content,
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        onMentionClick = onMentionClick,
-                    )
-
-                    // Attached Image
-                    if (!reply.imageUrl.isNullOrBlank()) {
-                        Spacer(Modifier.height(4.dp))
-                        AsyncImage(
-                            model = reply.imageUrl,
-                            contentDescription = "Reply image",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .fillMaxWidth(0.85f)
-                                .height(140.dp)
-                                .clip(RoundedCornerShape(10.dp))
-                                .clickable {
-                                    onMediaClick?.invoke(
-                                        listOf(PostMediaItem(url = reply.imageUrl, type = PostMediaType.IMAGE)),
-                                        0,
-                                    )
-                                },
+                    if (isReplyDeleted) {
+                        Text(
+                            text = "[This comment was deleted by the user]",
+                            style = MaterialTheme.typography.bodySmall.copy(fontStyle = FontStyle.Italic),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                         )
-                    }
+                    } else {
+                        ClickableMentionText(
+                            content = reply.content,
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            onMentionClick = onMentionClick,
+                        )
 
-                    // Attached Video
-                    if (!reply.videoUrl.isNullOrBlank()) {
-                        Spacer(Modifier.height(4.dp))
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth(0.85f)
-                                .height(140.dp)
-                                .clip(RoundedCornerShape(10.dp)),
-                        ) {
-                            PostVideoPlayer(
-                                videoUrl = reply.videoUrl,
-                                onFullScreenClick = {
-                                    onMediaClick?.invoke(
-                                        listOf(PostMediaItem(url = reply.videoUrl, type = PostMediaType.VIDEO)),
-                                        0,
-                                    )
-                                },
+                        if (!reply.imageUrl.isNullOrBlank()) {
+                            Spacer(Modifier.height(4.dp))
+                            AsyncImage(
+                                model = reply.imageUrl,
+                                contentDescription = "Reply image",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .fillMaxWidth(0.85f)
+                                    .height(140.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .clickable {
+                                        onMediaClick?.invoke(
+                                            listOf(PostMediaItem(url = reply.imageUrl, type = PostMediaType.IMAGE)),
+                                            0,
+                                        )
+                                    },
                             )
                         }
-                    }
 
-                    // GIF
-                    if (!reply.gifUrl.isNullOrBlank()) {
-                        Spacer(Modifier.height(4.dp))
-                        AsyncImage(
-                            model = reply.gifUrl,
-                            contentDescription = "GIF",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .fillMaxWidth(0.7f)
-                                .height(120.dp)
-                                .clip(RoundedCornerShape(10.dp))
-                                .clickable {
-                                    onMediaClick?.invoke(
-                                        listOf(PostMediaItem(url = reply.gifUrl, type = PostMediaType.IMAGE)),
-                                        0,
-                                    )
-                                },
-                        )
+                        if (!reply.videoUrl.isNullOrBlank()) {
+                            Spacer(Modifier.height(4.dp))
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth(0.85f)
+                                    .height(140.dp)
+                                    .clip(RoundedCornerShape(10.dp)),
+                            ) {
+                                PostVideoPlayer(
+                                    videoUrl = reply.videoUrl,
+                                    onFullScreenClick = {
+                                        onMediaClick?.invoke(
+                                            listOf(PostMediaItem(url = reply.videoUrl, type = PostMediaType.VIDEO)),
+                                            0,
+                                        )
+                                    },
+                                )
+                            }
+                        }
+
+                        if (!reply.gifUrl.isNullOrBlank()) {
+                            Spacer(Modifier.height(4.dp))
+                            AsyncImage(
+                                model = reply.gifUrl,
+                                contentDescription = "GIF",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .fillMaxWidth(0.7f)
+                                    .height(120.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .clickable {
+                                        onMediaClick?.invoke(
+                                            listOf(PostMediaItem(url = reply.gifUrl, type = PostMediaType.IMAGE)),
+                                            0,
+                                        )
+                                    },
+                            )
+                        }
                     }
                 }
             }

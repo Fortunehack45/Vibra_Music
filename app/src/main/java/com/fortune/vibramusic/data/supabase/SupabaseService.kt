@@ -200,6 +200,28 @@ object SupabaseService {
                     } else emptySet()
                 }
 
+                val pollVotesDeferred = async {
+                    if (!forUserId.isNullOrBlank()) {
+                        runCatching {
+                            val pollRes = client.get(baseUrl("poll_votes")) {
+                                header("apikey", SupabaseConfig.anonKey)
+                                header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                                parameter("user_id", "eq.$forUserId")
+                                parameter("select", "post_id,option_index")
+                            }
+                            if (pollRes.status.isSuccess()) {
+                                val arr = json.parseToJsonElement(pollRes.bodyAsText()) as? JsonArray
+                                arr?.mapNotNull { el ->
+                                    val o = el as? JsonObject ?: return@mapNotNull null
+                                    val pid = o.str("post_id") ?: return@mapNotNull null
+                                    val optIdx = o.int("option_index") ?: return@mapNotNull null
+                                    pid to optIdx
+                                }?.toMap() ?: emptyMap()
+                            } else emptyMap()
+                        }.getOrDefault(emptyMap())
+                    } else emptyMap()
+                }
+
                 val response = postsDeferred.await()
                 if (!response.status.isSuccess()) {
                     val errorText = response.bodyAsText().take(300)
@@ -208,8 +230,9 @@ object SupabaseService {
                 }
 
                 val likedPostIds = likesDeferred.await()
-                val rawPosts = parsePosts(response.bodyAsText(), forUserId ?: "", likedPostIds)
-                resolveReferencedPosts(rawPosts, forUserId ?: "", likedPostIds)
+                val userPollVotes = pollVotesDeferred.await()
+                val rawPosts = parsePosts(response.bodyAsText(), forUserId ?: "", likedPostIds, userPollVotes)
+                resolveReferencedPosts(rawPosts, forUserId ?: "", likedPostIds, userPollVotes)
             }
         }
     }
@@ -218,6 +241,7 @@ object SupabaseService {
         posts: List<SocialPost>,
         currentUserId: String,
         userLikedPostIds: Set<String> = emptySet(),
+        userPollVotes: Map<String, Int> = emptyMap(),
     ): List<SocialPost> {
         val missingIds = posts.mapNotNull { it.repostOfId }.plus(posts.mapNotNull { it.quoteOfId })
             .filter { refId -> posts.none { it.id == refId } }
@@ -235,7 +259,7 @@ object SupabaseService {
                     parameter("select", "*,profiles:author_id(*)")
                 }
                 if (response.status.isSuccess()) {
-                    val batch = parsePosts(response.bodyAsText(), currentUserId, userLikedPostIds)
+                    val batch = parsePosts(response.bodyAsText(), currentUserId, userLikedPostIds, userPollVotes)
                     batch.forEach { resolvedMap[it.id] = it }
                 }
             }
@@ -281,8 +305,28 @@ object SupabaseService {
                 }.getOrDefault(emptySet())
             } else emptySet()
 
-            val rawPosts = parsePosts(response.bodyAsText(), activeUser, likedPostIds)
-            resolveReferencedPosts(rawPosts, activeUser, likedPostIds)
+            val userPollVotes = if (activeUser.isNotBlank()) {
+                runCatching {
+                    val pollRes = client.get(baseUrl("poll_votes")) {
+                        header("apikey", SupabaseConfig.anonKey)
+                        header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                        parameter("user_id", "eq.$activeUser")
+                        parameter("select", "post_id,option_index")
+                    }
+                    if (pollRes.status.isSuccess()) {
+                        val arr = json.parseToJsonElement(pollRes.bodyAsText()) as? JsonArray
+                        arr?.mapNotNull { el ->
+                            val o = el as? JsonObject ?: return@mapNotNull null
+                            val pid = o.str("post_id") ?: return@mapNotNull null
+                            val optIdx = o.int("option_index") ?: return@mapNotNull null
+                            pid to optIdx
+                        }?.toMap() ?: emptyMap()
+                    } else emptyMap()
+                }.getOrDefault(emptyMap())
+            } else emptyMap()
+
+            val rawPosts = parsePosts(response.bodyAsText(), activeUser, likedPostIds, userPollVotes)
+            resolveReferencedPosts(rawPosts, activeUser, likedPostIds, userPollVotes)
         }
     }
 
@@ -486,7 +530,12 @@ object SupabaseService {
     /**
      * Casts a vote on a poll.
      */
-    suspend fun votePoll(postId: String, optionIndex: Int, userId: String): Result<Unit> =
+    suspend fun votePoll(
+        postId: String,
+        optionIndex: Int,
+        userId: String,
+        updatedPollData: PollData? = null,
+    ): Result<Unit> =
         withContext(Dispatchers.IO) {
             runCatching {
                 val response = client.post(baseUrl("poll_votes")) {
@@ -497,6 +546,38 @@ object SupabaseService {
                 }
                 if (!response.status.isSuccess()) {
                     Log.w(TAG, "votePoll ${response.status}: ${response.bodyAsText().take(300)}")
+                }
+                if (updatedPollData != null) {
+                    val pollJson = buildString {
+                        append("{")
+                        append("\"question\":${jsonQuote(updatedPollData.question)},")
+                        if (updatedPollData.endsAt != null) {
+                            append("\"ends_at\":${jsonQuote(updatedPollData.endsAt)},")
+                        }
+                        append("\"options\":[")
+                        updatedPollData.options.forEachIndexed { i, opt ->
+                            if (i > 0) append(",")
+                            append("{")
+                            append("\"text\":${jsonQuote(opt.text)},")
+                            append("\"votes\":${opt.votes}")
+                            if (opt.imageUrl != null) {
+                                append(",\"image_url\":${jsonQuote(opt.imageUrl)}")
+                            }
+                            append("}")
+                        }
+                        append("]")
+                        append("}")
+                    }
+                    val postResponse = client.patch(baseUrl("posts")) {
+                        header("apikey", SupabaseConfig.anonKey)
+                        header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                        contentType(ContentType.Application.Json)
+                        parameter("id", "eq.$postId")
+                        setBody("{\"poll_data\":$pollJson}")
+                    }
+                    if (!postResponse.status.isSuccess()) {
+                        Log.w(TAG, "votePoll update poll_data ${postResponse.status}: ${postResponse.bodyAsText().take(300)}")
+                    }
                 }
                 Unit
             }
@@ -727,6 +808,19 @@ object SupabaseService {
      * Updates editable fields of a user's social profile.
      * Uses POST with merge-duplicates so the profile is always created if it did not exist yet.
      */
+    suspend fun updateUserProfile(profile: SocialProfile): Result<Unit> = updateUserProfile(
+        userId = profile.id,
+        displayName = profile.displayName,
+        handle = profile.handle,
+        bio = profile.bio,
+        avatarUrl = profile.avatarUrl,
+        country = profile.country,
+        age = profile.age,
+        statusBubble = profile.statusBubble,
+        bannerPlaylists = profile.bannerPlaylists,
+        bannerUrl = profile.bannerUrl,
+    )
+
     suspend fun updateUserProfile(
         userId: String,
         displayName: String,
@@ -2304,6 +2398,7 @@ object SupabaseService {
         raw: String,
         currentUserId: String,
         userLikedPostIds: Set<String> = emptySet(),
+        userPollVotes: Map<String, Int> = emptyMap(),
     ): List<SocialPost> {
         val root = runCatching { json.parseToJsonElement(raw) }.getOrNull()
         if (root !is JsonArray) {
@@ -2311,7 +2406,7 @@ object SupabaseService {
             return emptyList()
         }
         return root.mapNotNull { element ->
-            runCatching { parsePostRow(element as JsonObject, currentUserId, userLikedPostIds) }
+            runCatching { parsePostRow(element as JsonObject, currentUserId, userLikedPostIds, userPollVotes) }
                 .onFailure { Log.w(TAG, "parsePosts: skipping bad row: ${it.message}") }
                 .getOrNull()
         }
@@ -2321,6 +2416,7 @@ object SupabaseService {
         obj: JsonObject,
         currentUserId: String,
         userLikedPostIds: Set<String> = emptySet(),
+        userPollVotes: Map<String, Int> = emptyMap(),
     ): SocialPost {
         val id = obj.str("id") ?: throw IllegalArgumentException("Missing post id")
         val authorId = obj.str("author_id") ?: throw IllegalArgumentException("Missing author_id")
@@ -2387,6 +2483,7 @@ object SupabaseService {
                 question = question,
                 options = options,
                 totalVotes = options.sumOf { it.votes },
+                userVotedIndex = userPollVotes[id],
                 endsAt = endsAt,
             )
         }
@@ -2401,6 +2498,7 @@ object SupabaseService {
         val isLikedByMe = userLikedPostIds.contains(id)
         if (isLikedByMe && likesCount == 0) likesCount = 1
         val isEdited = obj.bool("is_edited") ?: false
+        val isDeleted = obj.bool("is_deleted") ?: (content.trim() == "[This post was deleted by the author]" || content.trim() == "This post was deleted by the author." || content.contains("deleted by the author", ignoreCase = true))
 
         return SocialPost(
             id = id,
@@ -2425,6 +2523,7 @@ object SupabaseService {
             isLikedByMe = isLikedByMe,
             isRepostedByMe = isRepostedByMe,
             isEdited = isEdited,
+            isDeleted = isDeleted,
             createdAt = createdAt,
         )
     }
@@ -2490,6 +2589,7 @@ object SupabaseService {
         } ?: SocialProfile(id = authorId, handle = "", displayName = "Listener")
 
         val isEdited = obj.bool("is_edited") ?: false
+        val isDeleted = obj.bool("is_deleted") ?: (cleanContent.trim() == "[This comment was deleted by the user]" || cleanContent.trim() == "This comment has been deleted by the user." || cleanContent.contains("deleted by the user", ignoreCase = true))
 
         return PostComment(
             id = id,
@@ -2503,6 +2603,7 @@ object SupabaseService {
             gifUrl = gifUrl,
             likesCount = likesCount,
             isEdited = isEdited,
+            isDeleted = isDeleted,
             createdAt = createdAt,
         )
     }

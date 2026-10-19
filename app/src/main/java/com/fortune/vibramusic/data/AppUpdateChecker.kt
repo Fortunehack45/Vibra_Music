@@ -1,11 +1,13 @@
 package com.fortune.vibramusic.data
 
+import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
+import android.os.Process
 import android.provider.Settings
 import androidx.core.content.FileProvider
 import com.fortune.vibramusic.BuildConfig
@@ -141,10 +143,7 @@ object AppUpdateChecker {
     }
 
     private fun getUpdatesDir(context: Context): File {
-        val baseDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
-            ?: context.externalCacheDir
-            ?: File(context.filesDir, CACHE_SUBDIR)
-        val dir = if (baseDir.name == CACHE_SUBDIR) baseDir else File(baseDir, CACHE_SUBDIR)
+        val dir = File(context.cacheDir, CACHE_SUBDIR)
         if (!dir.exists()) {
             dir.mkdirs()
         }
@@ -154,9 +153,9 @@ object AppUpdateChecker {
     }
 
     /**
-     * Finds the most appropriate `.apk` asset for this device's ABI, prioritizing
-     * the universal build so that it installs reliably on all devices (preventing
-     * 32/64-bit OS ABI mismatch package parse errors).
+     * Finds the most appropriate `.apk` asset for this device's ABI.
+     * Uses the active process architecture (64-bit vs 32-bit) to pick the matching
+     * optimized APK, with fallback to universal build.
      * Returns Pair(downloadUrl, fileName).
      */
     private fun apkAsset(release: JsonObject): Pair<String, String>? = runCatching {
@@ -167,15 +166,15 @@ object AppUpdateChecker {
             } ?: emptyList()
         if (assets.isEmpty()) return null
 
-        val supportedAbis = Build.SUPPORTED_ABIS ?: emptyArray()
+        val is64Bit = Process.is64Bit()
+        val preferredAbi = if (is64Bit) "arm64-v8a" else "armeabi-v7a"
+
         val best = assets.firstOrNull { asset ->
             val name = asset["name"]?.jsonPrimitive?.contentOrNull ?: ""
+            name.contains(preferredAbi, ignoreCase = true)
+        } ?: assets.firstOrNull { asset ->
+            val name = asset["name"]?.jsonPrimitive?.contentOrNull ?: ""
             name.contains("universal", ignoreCase = true)
-        } ?: supportedAbis.firstNotNullOfOrNull { abi ->
-            assets.firstOrNull { asset ->
-                val name = asset["name"]?.jsonPrimitive?.contentOrNull ?: ""
-                name.contains(abi, ignoreCase = true)
-            }
         } ?: assets.first()
 
         val downloadUrl = best["browser_download_url"]?.jsonPrimitive?.contentOrNull ?: return null
@@ -376,6 +375,8 @@ object AppUpdateChecker {
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            clipData = ClipData.newUri(context.contentResolver, "VibraUpdate", uri)
+            putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true)
         }
 
         val resolveInfoList = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {

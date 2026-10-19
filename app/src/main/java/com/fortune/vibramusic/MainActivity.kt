@@ -241,6 +241,7 @@ import com.fortune.vibramusic.data.sources.SourceKind
 import com.fortune.vibramusic.data.sources.SourceRegistry
 import com.fortune.vibramusic.ui.components.ListenBrainzTokenAlert
 import com.fortune.vibramusic.ui.components.MiniPlayer
+import com.fortune.vibramusic.ui.player.SongInfoSheet
 import com.fortune.vibramusic.ui.components.QueueActionNotice
 import com.fortune.vibramusic.ui.components.QueueActionNoticeHost
 import com.fortune.vibramusic.ui.components.TopBarAccountButton
@@ -506,6 +507,7 @@ private fun VibraMusicApp(
      * permanent pane.
      */
     var showNowPlaying by remember { mutableStateOf(false) }
+    var dismissNowPlaying by remember { mutableStateOf<(() -> Unit)?>(null) }
     // The far end of the relay from a widget's artwork. Cleared here rather than
     // where it was set, so the request is spent by being served — see
     // [PlayerDeepLink.handled]. The sheet itself is gated on there being a track,
@@ -583,6 +585,7 @@ private fun VibraMusicApp(
     var showDiscordLogin by remember { mutableStateOf(false) }
     var discordDialog by remember { mutableStateOf<DiscordDialog?>(null) }
     var songActions by remember { mutableStateOf<Song?>(null) }
+    var songInfoTarget by remember { mutableStateOf<Song?>(null) }
     var shareOptionsTarget by remember { mutableStateOf<Song?>(null) }
     var showLyricsOffset by remember { mutableStateOf(false) }
     /**
@@ -2353,11 +2356,11 @@ private fun VibraMusicApp(
             lyricsUnavailable = lyricsChecked && lyrics.isNullOrEmpty(),
             lyricsOffsetOpen = showLyricsOffset,
             onDismissLyricsOffset = { showLyricsOffset = false },
-            onMinimize = { showNowPlaying = false },
+            onMinimize = { dismissNowPlaying?.invoke() ?: run { showNowPlaying = false } },
             onListenTogether = {
                 // The player is a sheet over the page, so it has to come down
                 // for the page to be read at all.
-                showNowPlaying = false
+                dismissNowPlaying?.invoke() ?: run { showNowPlaying = false }
                 showSettings = true
                 showListenTogether = true
             },
@@ -3940,13 +3943,27 @@ private fun VibraMusicApp(
         // ---- Now Playing ----
         if (playerRaised) {
             val nowPlayingSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+            val sheetScope = rememberCoroutineScope()
+            LaunchedEffect(nowPlayingSheetState) {
+                dismissNowPlaying = {
+                    sheetScope.launch {
+                        try {
+                            nowPlayingSheetState.hide()
+                        } finally {
+                            showNowPlaying = false
+                        }
+                    }
+                }
+            }
+            DisposableEffect(Unit) {
+                onDispose {
+                    dismissNowPlaying = null
+                }
+            }
             ModalBottomSheet(
                 onDismissRequest = { showNowPlaying = false },
                 sheetState = nowPlayingSheetState,
-                // The player fills the screen and paints its own background to
-                // the very top, so the sheet's default 28.dp top corners would
-                // only cut two notches out of the artwork behind the status bar.
-                shape = RectangleShape,
+                shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
                 containerColor = Color.Transparent,
                 dragHandle = null,
                 contentWindowInsets = { WindowInsets(0, 0, 0, 0) },
@@ -4322,8 +4339,20 @@ private fun VibraMusicApp(
                     } else {
                         null
                     },
+                    onOpenSongInfo = {
+                        val target = song
+                        songActions = null
+                        songInfoTarget = target
+                    },
                 )
             }
+        }
+
+        songInfoTarget?.let { song ->
+            SongInfoSheet(
+                song = song,
+                onDismiss = { songInfoTarget = null },
+            )
         }
 
         shareOptionsTarget?.let { song ->

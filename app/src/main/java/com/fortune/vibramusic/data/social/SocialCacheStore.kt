@@ -24,6 +24,7 @@ class SocialCacheStore(private val context: Context) {
 
     private val cacheDir = File(context.filesDir, "social_cache").apply { mkdirs() }
     private val postsFile = File(cacheDir, "cached_posts.json")
+    private val storiesFile = File(cacheDir, "cached_stories.json")
     private val mutex = kotlinx.coroutines.sync.Mutex()
 
     private fun atomicWrite(target: File, content: String) {
@@ -140,5 +141,29 @@ class SocialCacheStore(private val context: Context) {
                 if (text.isBlank()) emptyMap() else json.decodeFromString<Map<String, Int>>(text)
             }
         }.getOrDefault(emptyMap())
+    }
+
+    suspend fun saveStories(stories: List<UserStory>) = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            runCatching {
+                val text = json.encodeToString(stories)
+                atomicWrite(storiesFile, text)
+            }.onFailure { e ->
+                Log.w("SocialCacheStore", "Failed to cache stories: ${e.message}")
+            }
+        }
+    }
+
+    suspend fun loadStories(): List<UserStory> = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            runCatching {
+                if (!storiesFile.exists()) {
+                    emptyList()
+                } else {
+                    val text = storiesFile.readText()
+                    if (text.isBlank()) emptyList() else json.decodeFromString<List<UserStory>>(text)
+                }
+            }.getOrDefault(emptyList())
+        }
     }
 }

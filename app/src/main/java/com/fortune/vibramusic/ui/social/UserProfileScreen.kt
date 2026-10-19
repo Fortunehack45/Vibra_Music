@@ -48,6 +48,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ElevatedButton
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -92,6 +93,9 @@ import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.material.icons.rounded.PlayArrow
+import com.fortune.vibramusic.data.social.UserStoryGroup
+import com.fortune.vibramusic.ui.social.StoryViewerDialog
+import com.fortune.vibramusic.ui.social.purpleStoryRing
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.OutlinedTextField
@@ -166,6 +170,10 @@ fun UserProfileScreen(
     val followersList by viewModel.followersList.collectAsStateWithLifecycle()
     val friendsList by viewModel.friendsList.collectAsStateWithLifecycle()
     val suggestedUsers by viewModel.suggestedUsersList.collectAsStateWithLifecycle()
+    val userStoryGroups by viewModel.userStoryGroups.collectAsStateWithLifecycle()
+    val activeProfileStoryGroup = userStoryGroups.firstOrNull { it.user.id == activeProfile.id }
+    val hasStory = activeProfileStoryGroup != null && activeProfileStoryGroup.stories.isNotEmpty()
+    var activeStoryGroupForViewer by remember { mutableStateOf<UserStoryGroup?>(null) }
 
     val context = LocalContext.current
     var selectedSubTab by remember { mutableStateOf("Posts") }
@@ -178,6 +186,8 @@ fun UserProfileScreen(
     var editingPost by remember { mutableStateOf<SocialPost?>(null) }
     var editPostContent by remember { mutableStateOf("") }
     var inspectedQuotedPost by remember { mutableStateOf<SocialPost?>(null) }
+    var showCreatePostSheet by remember { mutableStateOf(false) }
+    var showFriendsDiscovery by remember { mutableStateOf(false) }
     var activeMediaViewer by remember { mutableStateOf<Pair<List<PostMediaItem>, Int>?>(null) }
 
     LaunchedEffect(activeProfile.id) {
@@ -264,158 +274,6 @@ fun UserProfileScreen(
                                 ),
                             ),
                     )
-
-                    // Overlaid Floating Liquid Glass Navigation Chrome
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .statusBarsPadding()
-                            .padding(horizontal = 16.dp, vertical = 6.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        // Left: Back button or Vibra app mark
-                        if (onBack != null) {
-                            Box(
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .shadow(
-                                        elevation = 6.dp,
-                                        shape = CircleShape,
-                                        spotColor = Color.Black.copy(alpha = 0.35f),
-                                    )
-                                    .clip(CircleShape)
-                                    .lightweightLiquidGlass(
-                                        shape = CircleShape,
-                                        fallbackColor = if (isDark) Color(0xCC181A22) else Color.White.copy(alpha = 0.92f),
-                                    )
-                                    .background(
-                                        if (isDark) Color(0xCC181A22) else Color.White.copy(alpha = 0.92f),
-                                        CircleShape,
-                                    )
-                                    .border(
-                                        width = 1.dp,
-                                        brush = Brush.verticalGradient(
-                                            colors = listOf(
-                                                Color.White.copy(alpha = 0.6f),
-                                                Color.White.copy(alpha = 0.15f),
-                                            )
-                                        ),
-                                        shape = CircleShape,
-                                    )
-                                    .liquidGlassButton(
-                                        onClick = onBack,
-                                        haptic = Haptic.Tap,
-                                        expandScale = 1.14f,
-                                        pressScale = 0.91f,
-                                    ),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                                    contentDescription = "Back",
-                                    tint = if (isDark) Color.White else Color(0xFF111318),
-                                    modifier = Modifier.size(20.dp),
-                                )
-                            }
-                        } else {
-                            Box(
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .shadow(
-                                        elevation = 6.dp,
-                                        shape = CircleShape,
-                                        spotColor = Color.Black.copy(alpha = 0.35f),
-                                    )
-                                    .clip(CircleShape)
-                                    .lightweightLiquidGlass(
-                                        shape = CircleShape,
-                                        fallbackColor = if (isDark) Color(0xCC181A22) else Color.White.copy(alpha = 0.92f),
-                                    )
-                                    .background(
-                                        if (isDark) Color(0xCC181A22) else Color.White.copy(alpha = 0.92f),
-                                        CircleShape,
-                                    )
-                                    .border(
-                                        width = 1.dp,
-                                        brush = Brush.verticalGradient(
-                                            colors = listOf(
-                                                Color.White.copy(alpha = 0.6f),
-                                                Color.White.copy(alpha = 0.15f),
-                                            )
-                                        ),
-                                        shape = CircleShape,
-                                    ),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Image(
-                                    painter = painterResource(R.drawable.ic_logo),
-                                    contentDescription = null,
-                                    colorFilter = ColorFilter.tint(if (isDark) Color.White else Color(0xFF111318)),
-                                    modifier = Modifier.size(24.dp),
-                                )
-                            }
-                        }
-
-                        // Right: Realm Switcher for own profile, or Share button for other users
-                        if (isSelf) {
-                            RealmSwitcher(
-                                activeRealm = activeRealm,
-                                onRealmSelected = { onRealmSelected?.invoke(it) },
-                                hazeState = hazeState,
-                            )
-                        } else {
-                            Box(
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .shadow(
-                                        elevation = 6.dp,
-                                        shape = CircleShape,
-                                        spotColor = Color.Black.copy(alpha = 0.35f),
-                                    )
-                                    .clip(CircleShape)
-                                    .lightweightLiquidGlass(
-                                        shape = CircleShape,
-                                        fallbackColor = if (isDark) Color(0xCC181A22) else Color.White.copy(alpha = 0.92f),
-                                    )
-                                    .background(
-                                        if (isDark) Color(0xCC181A22) else Color.White.copy(alpha = 0.92f),
-                                        CircleShape,
-                                    )
-                                    .border(
-                                        width = 1.dp,
-                                        brush = Brush.verticalGradient(
-                                            colors = listOf(
-                                                Color.White.copy(alpha = 0.6f),
-                                                Color.White.copy(alpha = 0.15f),
-                                            )
-                                        ),
-                                        shape = CircleShape,
-                                    )
-                                    .liquidGlassButton(
-                                        onClick = {
-                                            val shareText = "Check out ${formatHandle(activeProfile.handle)}'s music profile on Vibra:\nhttps://vibramusic.app/u/${activeProfile.handle.removePrefix("@")}"
-                                            val sendIntent = Intent(Intent.ACTION_SEND).apply {
-                                                putExtra(Intent.EXTRA_TEXT, shareText)
-                                                type = "text/plain"
-                                            }
-                                            context.startActivity(Intent.createChooser(sendIntent, "Share Profile"))
-                                        },
-                                        haptic = Haptic.Tap,
-                                        expandScale = 1.14f,
-                                        pressScale = 0.91f,
-                                    ),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Share,
-                                    contentDescription = "Share",
-                                    tint = if (isDark) Color.White else Color(0xFF111318),
-                                    modifier = Modifier.size(18.dp),
-                                )
-                            }
-                        }
-                    }
                 }
             }
 
@@ -522,7 +380,13 @@ fun UserProfileScreen(
                             ProfileStatStacked(
                                 count = activeProfile.friendsCount,
                                 label = "Friends",
-                                onClick = { activeConnectionsTab = ConnectionsTab.FRIENDS },
+                                onClick = {
+                                    if (isSelf) {
+                                        showFriendsDiscovery = true
+                                    } else {
+                                        activeConnectionsTab = ConnectionsTab.FRIENDS
+                                    }
+                                },
                             )
                         }
                     }
@@ -542,9 +406,15 @@ fun UserProfileScreen(
                         Box(
                             modifier = Modifier
                                 .size(86.dp)
+                                .purpleStoryRing(hasStory)
                                 .clip(CircleShape)
                                 .background(MaterialTheme.colorScheme.surfaceVariant)
-                                .border(2.dp, MaterialTheme.colorScheme.surfaceVariant, CircleShape),
+                                .border(2.dp, MaterialTheme.colorScheme.surfaceVariant, CircleShape)
+                                .clickable {
+                                    if (hasStory) {
+                                        activeStoryGroupForViewer = activeProfileStoryGroup
+                                    }
+                                },
                             contentAlignment = Alignment.Center,
                         ) {
                             if (!activeProfile.avatarUrl.isNullOrBlank() && activeProfile.avatarUrl != "null") {
@@ -1105,6 +975,10 @@ fun UserProfileScreen(
                 onToggleFollow = { targetUser ->
                     viewModel.toggleFollowUser(targetUser.id, targetUser)
                 },
+                onOpenDiscovery = {
+                    activeConnectionsTab = null
+                    showFriendsDiscovery = true
+                },
             )
         }
 
@@ -1341,6 +1215,244 @@ fun UserProfileScreen(
                 onQuoteClick = { quoted ->
                     viewModel.openComments(quoted)
                 },
+            )
+        }
+
+        // Floating Top Liquid Glass Navigation Bar (stays fixed while content scrolls behind)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // Left: Back button or Vibra app mark
+            if (onBack != null) {
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .shadow(
+                            elevation = 6.dp,
+                            shape = CircleShape,
+                            spotColor = Color.Black.copy(alpha = 0.35f),
+                        )
+                        .clip(CircleShape)
+                        .lightweightLiquidGlass(
+                            shape = CircleShape,
+                            fallbackColor = if (isDark) Color(0xCC181A22) else Color.White.copy(alpha = 0.92f),
+                        )
+                        .background(
+                            if (isDark) Color(0xCC181A22) else Color.White.copy(alpha = 0.92f),
+                            CircleShape,
+                        )
+                        .border(
+                            width = 1.dp,
+                            brush = Brush.verticalGradient(
+                                colors = listOf(
+                                    Color.White.copy(alpha = 0.6f),
+                                    Color.White.copy(alpha = 0.15f),
+                                )
+                            ),
+                            shape = CircleShape,
+                        )
+                        .liquidGlassButton(
+                            onClick = onBack,
+                            haptic = Haptic.Tap,
+                            expandScale = 1.14f,
+                            pressScale = 0.91f,
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                        contentDescription = "Back",
+                        tint = if (isDark) Color.White else Color(0xFF111318),
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .shadow(
+                            elevation = 6.dp,
+                            shape = CircleShape,
+                            spotColor = Color.Black.copy(alpha = 0.35f),
+                        )
+                        .clip(CircleShape)
+                        .lightweightLiquidGlass(
+                            shape = CircleShape,
+                            fallbackColor = if (isDark) Color(0xCC181A22) else Color.White.copy(alpha = 0.92f),
+                        )
+                        .background(
+                            if (isDark) Color(0xCC181A22) else Color.White.copy(alpha = 0.92f),
+                            CircleShape,
+                        )
+                        .border(
+                            width = 1.dp,
+                            brush = Brush.verticalGradient(
+                                colors = listOf(
+                                    Color.White.copy(alpha = 0.6f),
+                                    Color.White.copy(alpha = 0.15f),
+                                )
+                            ),
+                            shape = CircleShape,
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Image(
+                        painter = painterResource(R.drawable.ic_logo),
+                        contentDescription = null,
+                        colorFilter = ColorFilter.tint(if (isDark) Color.White else Color(0xFF111318)),
+                        modifier = Modifier.size(24.dp),
+                    )
+                }
+            }
+
+            // Right: Realm Switcher for own profile, or Share button for other users
+            if (isSelf) {
+                RealmSwitcher(
+                    activeRealm = activeRealm,
+                    onRealmSelected = { onRealmSelected?.invoke(it) },
+                    hazeState = hazeState,
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .shadow(
+                            elevation = 6.dp,
+                            shape = CircleShape,
+                            spotColor = Color.Black.copy(alpha = 0.35f),
+                        )
+                        .clip(CircleShape)
+                        .lightweightLiquidGlass(
+                            shape = CircleShape,
+                            fallbackColor = if (isDark) Color(0xCC181A22) else Color.White.copy(alpha = 0.92f),
+                        )
+                        .background(
+                            if (isDark) Color(0xCC181A22) else Color.White.copy(alpha = 0.92f),
+                            CircleShape,
+                        )
+                        .border(
+                            width = 1.dp,
+                            brush = Brush.verticalGradient(
+                                colors = listOf(
+                                    Color.White.copy(alpha = 0.6f),
+                                    Color.White.copy(alpha = 0.15f),
+                                )
+                            ),
+                            shape = CircleShape,
+                        )
+                        .liquidGlassButton(
+                            onClick = {
+                                val shareText = "Check out ${formatHandle(activeProfile.handle)}'s music profile on Vibra:\nhttps://vibramusic.app/u/${activeProfile.handle.removePrefix("@")}"
+                                val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                    putExtra(Intent.EXTRA_TEXT, shareText)
+                                    type = "text/plain"
+                                }
+                                context.startActivity(Intent.createChooser(sendIntent, "Share Profile"))
+                            },
+                            haptic = Haptic.Tap,
+                            expandScale = 1.14f,
+                            pressScale = 0.91f,
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Share,
+                        contentDescription = "Share",
+                        tint = if (isDark) Color.White else Color(0xFF111318),
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+            }
+        }
+
+        // Floating Action Button to Create Post from Profile
+        if (isSelf) {
+            FloatingActionButton(
+                onClick = { showCreatePostSheet = true },
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+                shape = CircleShape,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(
+                        end = 20.dp,
+                        bottom = (contentPadding.calculateBottomPadding() - 40.dp).coerceAtLeast(16.dp),
+                    )
+                    .size(54.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Add,
+                    contentDescription = "Create Post",
+                    modifier = Modifier.size(26.dp),
+                )
+            }
+        }
+
+        // Create Post Sheet when initiated from profile
+        if (showCreatePostSheet) {
+            CreatePostSheet(
+                currentlyPlayingSong = null,
+                quotedPost = null,
+                isPosting = false,
+                onDismiss = { showCreatePostSheet = false },
+                onSubmitPost = { content, imageUrls, videoUrl, gifUrl, audioUrl, isReview, rating, taggedArtist, track, poll, quoteOfId ->
+                    viewModel.createPost(
+                        content = content,
+                        imageUrls = imageUrls,
+                        videoUrl = videoUrl,
+                        gifUrl = gifUrl,
+                        audioUrl = audioUrl,
+                        isReview = isReview,
+                        rating = rating,
+                        taggedArtist = taggedArtist,
+                        musicAttachment = track,
+                        poll = poll,
+                        quoteOfId = quoteOfId,
+                    ) {
+                        showCreatePostSheet = false
+                    }
+                },
+            )
+        }
+
+        // Dedicated Music Soulmate Swipe Discovery Screen
+        if (showFriendsDiscovery) {
+            FriendsDiscoveryScreen(
+                currentProfile = currentProfile,
+                suggestedProfiles = suggestedUsers,
+                onBack = { showFriendsDiscovery = false },
+                onSendFriendRequest = { profile ->
+                    viewModel.sendFriendRequest(profile.id)
+                },
+                onOpenProfile = { profile ->
+                    showFriendsDiscovery = false
+                    if (profile.id != activeProfile.id) {
+                        viewModel.openUserProfile(profile)
+                    }
+                },
+                onRefreshSuggestions = {
+                    currentProfile?.id?.let { viewModel.loadConnections(it) }
+                },
+                hazeState = hazeState,
+            )
+        }
+
+        // Fullscreen Story Viewer Dialog
+        activeStoryGroupForViewer?.let { group ->
+            StoryViewerDialog(
+                storyGroup = group,
+                allGroups = userStoryGroups,
+                currentUserId = currentProfile?.id,
+                onDismiss = { activeStoryGroupForViewer = null },
+                onDeleteStory = { storyId ->
+                    viewModel.deleteStory(storyId)
+                },
+                onPlayTrack = onPlayTrack,
             )
         }
     }

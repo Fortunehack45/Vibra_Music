@@ -1,0 +1,727 @@
+package com.fortune.vibramusic.ui.social
+
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.Undo
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.GraphicEq
+import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.PersonAdd
+import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.SkipNext
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ElevatedButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import coil3.compose.AsyncImage
+import com.fortune.vibramusic.data.social.FavoriteArtist
+import com.fortune.vibramusic.data.social.SocialProfile
+import com.fortune.vibramusic.data.social.formatHandle
+import com.fortune.vibramusic.ui.components.lightweightLiquidGlass
+import com.fortune.vibramusic.ui.components.liquidGlassButton
+import com.fortune.vibramusic.ui.haptics.Haptic
+import com.fortune.vibramusic.ui.theme.VibraPurple
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeEffect
+import dev.chrisbanes.haze.materials.HazeMaterials
+import kotlinx.coroutines.launch
+import kotlin.math.cos
+import kotlin.math.roundToInt
+import kotlin.math.sin
+
+/**
+ * Calculated match candidate model containing similarity score and shared favorite artists.
+ */
+data class MusicMatchCandidate(
+    val profile: SocialProfile,
+    val similarityPercent: Int,
+    val sharedArtists: List<FavoriteArtist>,
+    val satelliteArtists: List<FavoriteArtist>,
+)
+
+@Composable
+fun FriendsDiscoveryScreen(
+    currentProfile: SocialProfile?,
+    suggestedProfiles: List<SocialProfile>,
+    onBack: () -> Unit,
+    onSendFriendRequest: (SocialProfile) -> Unit,
+    onOpenProfile: (SocialProfile) -> Unit,
+    onRefreshSuggestions: () -> Unit,
+    hazeState: HazeState,
+    modifier: Modifier = Modifier,
+) {
+    val coroutineScope = rememberCoroutineScope()
+    val myFavoriteArtistNames = remember(currentProfile) {
+        currentProfile?.favoriteArtists?.map { it.name.trim().lowercase() }?.toSet().orEmpty()
+    }
+
+    // Build match candidates with dynamic similarity %
+    val candidatesList = remember(suggestedProfiles, currentProfile) {
+        suggestedProfiles
+            .filter { it.id != currentProfile?.id }
+            .map { candidate ->
+                val candArtists = candidate.favoriteArtists
+                val shared = candArtists.filter { myFavoriteArtistNames.contains(it.name.trim().lowercase()) }
+                val score = if (myFavoriteArtistNames.isEmpty() || candArtists.isEmpty()) {
+                    (25..45).random() // fallback baseline music affinity
+                } else {
+                    val ratio = (shared.size.toFloat() / candArtists.size.coerceAtLeast(1).toFloat())
+                    (ratio * 70f + 20f).toInt().coerceIn(15, 98)
+                }
+                MusicMatchCandidate(
+                    profile = candidate,
+                    similarityPercent = score,
+                    sharedArtists = shared,
+                    satelliteArtists = candArtists.take(5),
+                )
+            }
+    }
+
+    val activeDeck = remember { mutableStateListOf<MusicMatchCandidate>() }
+    val historyStack = remember { mutableStateListOf<MusicMatchCandidate>() }
+
+    LaunchedEffect(candidatesList) {
+        activeDeck.clear()
+        activeDeck.addAll(candidatesList)
+    }
+
+    val topCandidate = activeDeck.firstOrNull()
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(Color(0xFF0C0D12))
+            .statusBarsPadding()
+            .navigationBarsPadding(),
+    ) {
+        // Top Navigation Bar
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .lightweightLiquidGlass(
+                        shape = CircleShape,
+                        fallbackColor = Color(0xCC1A1C24),
+                    )
+                    .background(Color(0xCC1A1C24), CircleShape)
+                    .border(1.dp, Color.White.copy(alpha = 0.2f), CircleShape)
+                    .liquidGlassButton(
+                        onClick = onBack,
+                        haptic = Haptic.Tap,
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                    contentDescription = "Back",
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = "Music Soulmates",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = Color.White,
+                )
+                Text(
+                    text = "Swipe to match with friends",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White.copy(alpha = 0.65f),
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .lightweightLiquidGlass(
+                        shape = CircleShape,
+                        fallbackColor = Color(0xCC1A1C24),
+                    )
+                    .background(Color(0xCC1A1C24), CircleShape)
+                    .border(1.dp, Color.White.copy(alpha = 0.2f), CircleShape)
+                    .clickable { onRefreshSuggestions() },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Refresh,
+                    contentDescription = "Refresh",
+                    tint = VibraPurple,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        }
+
+        // Center: Cards Deck or Empty State
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = 70.dp, bottom = 16.dp, start = 16.dp, end = 16.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (topCandidate != null) {
+                // Secondary card preview in background
+                if (activeDeck.size > 1) {
+                    val nextCandidate = activeDeck[1]
+                    MusicSoulmateCard(
+                        candidate = nextCandidate,
+                        isTopCard = false,
+                        onSkip = {},
+                        onAddFriend = {},
+                        onOpenProfile = {},
+                        modifier = Modifier
+                            .graphicsLayer {
+                                scaleX = 0.94f
+                                scaleY = 0.94f
+                                translationY = 32.dp.toPx()
+                                alpha = 0.5f
+                            },
+                    )
+                }
+
+                // Top active card with swipe interaction
+                MusicSoulmateCard(
+                    candidate = topCandidate,
+                    isTopCard = true,
+                    onSkip = {
+                        historyStack.add(topCandidate)
+                        activeDeck.removeAt(0)
+                    },
+                    onAddFriend = {
+                        onSendFriendRequest(topCandidate.profile)
+                        historyStack.add(topCandidate)
+                        activeDeck.removeAt(0)
+                    },
+                    onOpenProfile = { onOpenProfile(topCandidate.profile) },
+                    onRewind = {
+                        if (historyStack.isNotEmpty()) {
+                            val last = historyStack.removeAt(historyStack.lastIndex)
+                            activeDeck.add(0, last)
+                        }
+                    },
+                    canRewind = historyStack.isNotEmpty(),
+                )
+            } else {
+                // Empty State
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(32.dp),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(90.dp)
+                            .clip(CircleShape)
+                            .background(VibraPurple.copy(alpha = 0.15f))
+                            .border(1.5.dp, VibraPurple.copy(alpha = 0.4f), CircleShape),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.GraphicEq,
+                            contentDescription = null,
+                            tint = VibraPurple,
+                            modifier = Modifier.size(44.dp),
+                        )
+                    }
+
+                    Spacer(Modifier.height(20.dp))
+
+                    Text(
+                        text = "All Caught Up!",
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                        color = Color.White,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = "You've reviewed all available music soulmates. Refresh to discover new listeners or invite your crew!",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.White.copy(alpha = 0.65f),
+                        textAlign = TextAlign.Center,
+                    )
+
+                    Spacer(Modifier.height(24.dp))
+
+                    ElevatedButton(
+                        onClick = { onRefreshSuggestions() },
+                        colors = ButtonDefaults.elevatedButtonColors(
+                            containerColor = VibraPurple,
+                            contentColor = Color.White,
+                        ),
+                        shape = RoundedCornerShape(22.dp),
+                        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Refresh,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = "Refresh Recommendations",
+                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Liquid glass match card displaying candidate details, orbiting artist satellites, and actions.
+ */
+@Composable
+private fun MusicSoulmateCard(
+    candidate: MusicMatchCandidate,
+    isTopCard: Boolean,
+    onSkip: () -> Unit,
+    onAddFriend: () -> Unit,
+    onOpenProfile: () -> Unit,
+    onRewind: (() -> Unit)? = null,
+    canRewind: Boolean = false,
+    modifier: Modifier = Modifier,
+) {
+    val coroutineScope = rememberCoroutineScope()
+    val profile = candidate.profile
+
+    val offsetX = remember { Animatable(0f) }
+    val offsetY = remember { Animatable(0f) }
+
+    BoxWithConstraints(
+        modifier = modifier
+            .fillMaxWidth()
+            .offset { IntOffset(offsetX.value.roundToInt(), offsetY.value.roundToInt()) }
+            .graphicsLayer {
+                rotationZ = (offsetX.value / 350f) * 12f
+            }
+            .clip(RoundedCornerShape(32.dp))
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFF222430),
+                        Color(0xFF161720),
+                        Color(0xFF101118),
+                    ),
+                ),
+            )
+            .border(
+                width = 1.2.dp,
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color.White.copy(alpha = 0.28f),
+                        VibraPurple.copy(alpha = 0.35f),
+                        Color.White.copy(alpha = 0.08f),
+                    ),
+                ),
+                shape = RoundedCornerShape(32.dp),
+            )
+            .then(
+                if (isTopCard) {
+                    Modifier.pointerInput(Unit) {
+                        detectDragGestures(
+                            onDragEnd = {
+                                coroutineScope.launch {
+                                    if (offsetX.value > 250f) {
+                                        offsetX.animateTo(1000f, spring(stiffness = Spring.StiffnessMedium))
+                                        onAddFriend()
+                                    } else if (offsetX.value < -250f) {
+                                        offsetX.animateTo(-1000f, spring(stiffness = Spring.StiffnessMedium))
+                                        onSkip()
+                                    } else {
+                                        offsetX.animateTo(0f, spring(stiffness = Spring.StiffnessMediumLow))
+                                        offsetY.animateTo(0f, spring(stiffness = Spring.StiffnessMediumLow))
+                                    }
+                                }
+                            },
+                            onDrag = { change, dragAmount ->
+                                change.consume()
+                                coroutineScope.launch {
+                                    offsetX.snapTo(offsetX.value + dragAmount.x)
+                                    offsetY.snapTo(offsetY.value + dragAmount.y * 0.4f)
+                                }
+                            },
+                        )
+                    }
+                } else Modifier,
+            )
+            .padding(22.dp),
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.SpaceBetween,
+        ) {
+            // Card Top Row: Name, Verified Badge, Age, Location
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        text = profile.displayName.ifBlank { formatHandle(profile.handle) },
+                        style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.ExtraBold),
+                        color = Color.White,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (profile.verifiedBadge) {
+                        Icon(
+                            imageVector = Icons.Rounded.CheckCircle,
+                            contentDescription = "Verified",
+                            tint = Color(0xFF38BDF8),
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(2.dp))
+
+                val locationParts = mutableListOf<String>()
+                if (profile.age != null) locationParts.add("${profile.age}")
+                if (profile.country.isNotBlank()) locationParts.add(profile.country)
+                if (locationParts.isNotEmpty()) {
+                    Text(
+                        text = locationParts.joinToString(", "),
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                        color = Color.White.copy(alpha = 0.70f),
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            // Card Center: Main Avatar + Status Bubble + Satellite Orbiting Artists
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(260.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                // Orbiting Artist Satellites
+                val satelliteArtists = candidate.satelliteArtists
+                val orbitRadius = 100.dp
+
+                satelliteArtists.forEachIndexed { idx, artist ->
+                    val angleDeg = when (idx) {
+                        0 -> 210.0 // Top Left
+                        1 -> 330.0 // Top Right
+                        2 -> 150.0 // Mid Left
+                        3 -> 30.0  // Mid Right
+                        else -> 90.0 // Bottom
+                    }
+                    val angleRad = Math.toRadians(angleDeg)
+                    val xOffset = (cos(angleRad) * orbitRadius.value).dp
+                    val yOffset = (sin(angleRad) * orbitRadius.value).dp
+
+                    Box(
+                        modifier = Modifier
+                            .offset(x = xOffset, y = yOffset)
+                            .size(52.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF1C1D28))
+                            .border(1.5.dp, Color.White.copy(alpha = 0.35f), CircleShape)
+                            .shadow(8.dp, CircleShape),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (!artist.artworkUrl.isNullOrBlank()) {
+                            AsyncImage(
+                                model = artist.artworkUrl,
+                                contentDescription = artist.name,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        } else {
+                            Text(
+                                text = artist.name.take(1).uppercase(),
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = Color.White,
+                            )
+                        }
+                    }
+                }
+
+                // Center Main Avatar
+                Box(
+                    modifier = Modifier
+                        .size(136.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF252636))
+                        .border(3.dp, VibraPurple, CircleShape)
+                        .clickable(onClick = onOpenProfile),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (!profile.avatarUrl.isNullOrBlank() && profile.avatarUrl != "null") {
+                        AsyncImage(
+                            model = profile.avatarUrl,
+                            contentDescription = profile.displayName,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Rounded.Person,
+                            contentDescription = null,
+                            tint = Color.White.copy(alpha = 0.7f),
+                            modifier = Modifier.size(64.dp),
+                        )
+                    }
+                }
+
+                // Status Speech Bubble over Avatar
+                if (profile.statusBubble.isNotBlank()) {
+                    Box(
+                        modifier = Modifier
+                            .offset(x = 42.dp, y = (-54).dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color(0xEE2A2C3C))
+                            .border(1.dp, Color.White.copy(alpha = 0.25f), RoundedCornerShape(16.dp))
+                            .padding(horizontal = 14.dp, vertical = 8.dp),
+                    ) {
+                        Text(
+                            text = profile.statusBubble,
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                            color = Color.White,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            // Card Lower Section: Similarity Score + Shared Artists
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        text = "${candidate.similarityPercent}% similar",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.ExtraBold,
+                            color = VibraPurple,
+                        ),
+                    )
+                    Text(
+                        text = if (candidate.sharedArtists.isNotEmpty()) "music taste" else "sound profile",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.White.copy(alpha = 0.65f),
+                    )
+                }
+
+                if (candidate.sharedArtists.isNotEmpty()) {
+                    Spacer(Modifier.height(8.dp))
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        items(candidate.sharedArtists) { artist ->
+                            Row(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(Color.White.copy(alpha = 0.10f))
+                                    .border(0.8.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(14.dp))
+                                    .padding(horizontal = 10.dp, vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                if (!artist.artworkUrl.isNullOrBlank()) {
+                                    AsyncImage(
+                                        model = artist.artworkUrl,
+                                        contentDescription = null,
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier
+                                            .size(18.dp)
+                                            .clip(CircleShape),
+                                    )
+                                }
+                                Text(
+                                    text = artist.name,
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                                    color = Color.White,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(20.dp))
+
+            // Card Bottom Actions: Rewind, Skip, + Add Friend
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                // Rewind Button
+                if (onRewind != null) {
+                    Box(
+                        modifier = Modifier
+                            .size(54.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(Color(0xFF222432))
+                            .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(20.dp))
+                            .alpha(if (canRewind) 1f else 0.4f)
+                            .clickable(enabled = canRewind) { onRewind() },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.Undo,
+                                contentDescription = "Rewind",
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp),
+                            )
+                            Text(
+                                text = "Rewind",
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                                color = Color.White.copy(alpha = 0.75f),
+                            )
+                        }
+                    }
+                }
+
+                // Skip Button
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(54.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Color(0xFF262736))
+                        .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(20.dp))
+                        .clickable {
+                            coroutineScope.launch {
+                                offsetX.animateTo(-800f, spring(stiffness = Spring.StiffnessMedium))
+                                onSkip()
+                            }
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.SkipNext,
+                            contentDescription = "Skip",
+                            tint = Color.White.copy(alpha = 0.85f),
+                            modifier = Modifier.size(20.dp),
+                        )
+                        Text(
+                            text = "Skip",
+                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                            color = Color.White.copy(alpha = 0.85f),
+                        )
+                    }
+                }
+
+                // Add Friend Button
+                Box(
+                    modifier = Modifier
+                        .weight(1.3f)
+                        .height(54.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(
+                            Brush.horizontalGradient(
+                                listOf(VibraPurple, Color(0xFFA855F7)),
+                            ),
+                        )
+                        .shadow(elevation = 10.dp, shape = RoundedCornerShape(20.dp), spotColor = VibraPurple)
+                        .clickable {
+                            coroutineScope.launch {
+                                offsetX.animateTo(800f, spring(stiffness = Spring.StiffnessMedium))
+                                onAddFriend()
+                            }
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.PersonAdd,
+                            contentDescription = "Add Friend",
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp),
+                        )
+                        Text(
+                            text = "Add Friend",
+                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.ExtraBold),
+                            color = Color.White,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}

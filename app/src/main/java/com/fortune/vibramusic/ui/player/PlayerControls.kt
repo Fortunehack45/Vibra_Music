@@ -1010,29 +1010,50 @@ internal fun OutputCaption(
     val jamName = badge.hostFirstName
         ?.let { stringResource(R.string.listen_together_jam, it) }
         ?: stringResource(R.string.listen_together_jam_unnamed)
-    val captionModifier = Modifier
-        .fillMaxWidth(0.65f)
-        .clickable { if (badge.inParty) onOpenMembers() else onOpenOutput() }
-    if (!badge.inParty && isHiResOutput) {
-        ShimmerText(
-            text = outputName,
-            style = MaterialTheme.typography.labelSmall.copy(
-                fontSize = 11.sp,
-                fontWeight = FontWeight.SemiBold,
-                textAlign = TextAlign.Center,
-            ),
-            modifier = captionModifier,
-        )
-    } else {
-        Text(
-            text = if (badge.inParty) jamName else outputName,
-            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-            color = Color.White.copy(alpha = 0.55f),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Center,
-            modifier = captionModifier,
-        )
+    val displayName = if (badge.inParty) jamName else outputName
+    val deviceIcon = if (badge.inParty) Icons.Rounded.Person else Icons.Rounded.Headphones
+
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color.White.copy(alpha = 0.08f))
+            .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(16.dp))
+            .clickable { if (badge.inParty) onOpenMembers() else onOpenOutput() }
+            .padding(horizontal = 14.dp, vertical = 6.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+        ) {
+            Icon(
+                imageVector = deviceIcon,
+                contentDescription = null,
+                tint = Color(0xFF8B5CF6),
+                modifier = Modifier.size(13.dp),
+            )
+            Spacer(Modifier.width(6.dp))
+            if (!badge.inParty && isHiResOutput) {
+                ShimmerText(
+                    text = displayName,
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    ),
+                )
+            } else {
+                Text(
+                    text = displayName,
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                    ),
+                    color = Color.White.copy(alpha = 0.9f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
     }
 }
 

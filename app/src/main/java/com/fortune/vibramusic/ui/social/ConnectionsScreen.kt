@@ -26,6 +26,10 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PersonAdd
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.foundation.border
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.material3.ElevatedButton
+import com.fortune.vibramusic.ui.theme.VibraPurple
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -80,6 +84,7 @@ fun ConnectionsScreen(
     onBack: () -> Unit,
     onOpenProfile: (SocialProfile) -> Unit,
     onToggleFollow: (SocialProfile) -> Unit,
+    onOpenDiscovery: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     var selectedTabIndex by remember { mutableIntStateOf(initialTab.ordinal) }
@@ -241,17 +246,36 @@ fun ConnectionsScreen(
 
             // List of Users
             if (filteredList.isEmpty()) {
-                Box(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(1f),
-                    contentAlignment = Alignment.Center,
+                        .weight(1f)
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
                 ) {
                     Text(
-                        text = if (searchQuery.isBlank()) "No users found" else "No matching results for '$searchQuery'",
+                        text = if (searchQuery.isBlank()) {
+                            if (selectedTabIndex == 2) "You don't have any mutual friends yet" else "No users found"
+                        } else "No matching results for '$searchQuery'",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    if (onOpenDiscovery != null && selectedTabIndex == 2) {
+                        Spacer(Modifier.height(16.dp))
+                        ElevatedButton(
+                            onClick = onOpenDiscovery,
+                            colors = ButtonDefaults.elevatedButtonColors(
+                                containerColor = VibraPurple,
+                                contentColor = Color.White,
+                            ),
+                            shape = RoundedCornerShape(20.dp),
+                        ) {
+                            Icon(Icons.Rounded.PersonAdd, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Discover Music Soulmates", fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
             } else {
                 LazyColumn(
@@ -261,6 +285,65 @@ fun ConnectionsScreen(
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
+                    if (onOpenDiscovery != null && (selectedTabIndex == 2 || selectedTabIndex == 3)) {
+                        item(key = "discover_soulmates_banner") {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .background(
+                                        Brush.horizontalGradient(
+                                            listOf(
+                                                VibraPurple.copy(alpha = 0.25f),
+                                                Color(0xFF1E202E),
+                                            ),
+                                        ),
+                                    )
+                                    .border(1.dp, VibraPurple.copy(alpha = 0.45f), RoundedCornerShape(20.dp))
+                                    .clickable { onOpenDiscovery() }
+                                    .padding(16.dp),
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                        modifier = Modifier.weight(1f),
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(42.dp)
+                                                .clip(CircleShape)
+                                                .background(VibraPurple),
+                                            contentAlignment = Alignment.Center,
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.PersonAdd,
+                                                contentDescription = null,
+                                                tint = Color.White,
+                                                modifier = Modifier.size(20.dp),
+                                            )
+                                        }
+                                        Column {
+                                            Text(
+                                                text = "Music Soulmates",
+                                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                                color = Color.White,
+                                            )
+                                            Text(
+                                                text = "Swipe to match with listeners who share your vibe",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = Color.White.copy(alpha = 0.70f),
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                     items(
                         items = filteredList,
                         key = { it.id },

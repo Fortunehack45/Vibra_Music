@@ -17,6 +17,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /**
@@ -298,7 +299,7 @@ object ListeningStats {
 
         val merged = MergedBucket()
         months().filter { period.covers(it, today) }
-            .forEach { month -> read(month.toString())?.let(merged::add) }
+            .forEach { month -> read(month.toString())?.let { merged.add(it, period, today) } }
         merged.toSummary(period, today).also {
             cached = Cached(period, version, facts, today, it)
         }
@@ -482,7 +483,11 @@ object ListeningStats {
         val days = HashMap<String, Long>()
         var earliest: String? = null
 
-        fun add(bucket: StoredBucket) {
+        fun add(bucket: StoredBucket, period: ReplayPeriod? = null, today: LocalDate? = null) {
+            val weekStart = if (period == ReplayPeriod.THIS_WEEK && today != null) {
+                today.minusDays(today.dayOfWeek.value.toLong() - 1)
+            } else null
+
             bucket.tracks.forEach { entry ->
                 tracks.merge(entry.id, entry.copy()) { a, b -> a.also { it.absorb(b) } }
             }
@@ -496,8 +501,11 @@ object ListeningStats {
             }
             repeat(24) { hours[it] += bucket.hours.getOrElse(it) { 0L } }
             bucket.days.forEach { (day, ms) ->
-                val date = "${bucket.month}-%02d".format(day)
-                days[date] = (days[date] ?: 0L) + ms
+                val dateStr = "${bucket.month}-%02d".format(day)
+                val date = runCatching { LocalDate.parse(dateStr) }.getOrNull()
+                if (weekStart == null || (date != null && !date.isBefore(weekStart) && !date.isAfter(today!!))) {
+                    days[dateStr] = (days[dateStr] ?: 0L) + ms
+                }
             }
             if (earliest == null || bucket.month < earliest!!) earliest = bucket.month
         }
@@ -577,10 +585,15 @@ object ListeningStats {
                 }
 
             val busiest = days.entries.maxByOrNull { it.value }
+            val computedTotalMs = if (period == ReplayPeriod.THIS_WEEK && days.isNotEmpty()) {
+                days.values.sum()
+            } else {
+                tracks.values.sumOf { it.ms }
+            }
             return ReplaySummary(
                 period = period,
                 label = period.label(today),
-                totalMs = tracks.values.sumOf { it.ms },
+                totalMs = computedTotalMs,
                 totalPlays = tracks.values.sumOf { it.plays },
                 songs = rankedSongs,
                 artists = rankedArtists,
@@ -761,18 +774,30 @@ data class RankedSong(val song: Song, val ms: Long, val plays: Int)
 
 /** How far back a Replay reaches. */
 enum class ReplayPeriod(val chip: String) {
+    THIS_WEEK("This week"),
     THIS_MONTH("This month"),
     THIS_YEAR("This year"),
     ALL_TIME("All time"),
     ;
 
     fun covers(month: YearMonth, today: LocalDate): Boolean = when (this) {
+        THIS_WEEK -> {
+            val weekStart = today.minusDays(today.dayOfWeek.value.toLong() - 1)
+            val monthStart = month.atDay(1)
+            val monthEnd = month.atEndOfMonth()
+            !today.isBefore(monthStart) && !weekStart.isAfter(monthEnd)
+        }
         THIS_MONTH -> month == YearMonth.from(today)
         THIS_YEAR -> month.year == today.year
         ALL_TIME -> true
     }
 
     fun label(today: LocalDate): String = when (this) {
+        THIS_WEEK -> {
+            val weekStart = today.minusDays(today.dayOfWeek.value.toLong() - 1)
+            val formatter = DateTimeFormatter.ofPattern("MMM d", Locale.ROOT)
+            "${weekStart.format(formatter)} - ${today.format(formatter)}"
+        }
         THIS_MONTH -> YearMonth.from(today).month.name.lowercase(Locale.ROOT)
             .replaceFirstChar { it.uppercase(Locale.ROOT) } + " ${today.year}"
         THIS_YEAR -> today.year.toString()

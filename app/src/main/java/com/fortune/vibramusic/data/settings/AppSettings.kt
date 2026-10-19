@@ -627,6 +627,46 @@ object AppSettings {
     val smbUsername = MutableStateFlow("")
     val smbPassword = MutableStateFlow("")
 
+    enum class AppIconTheme(val id: String, val label: String, val alias: String) {
+        PURPLE("purple", "Vibra Purple (Default)", "com.fortune.vibramusic.MainActivity"),
+        DARK("dark", "Dark Glass", "com.fortune.vibramusic.MainActivityDark"),
+        LIGHT("light", "Light Glass", "com.fortune.vibramusic.MainActivityLight"),
+    }
+
+    private const val KEY_ARTIST_SIGNATURE_API = "artist_signature_api"
+    val artistSignatureApi = MutableStateFlow("https://raw.githubusercontent.com/kushagrasinghx/BitChord/main/signatures/")
+
+    fun setArtistSignatureApi(value: String) {
+        val normalized = value.trim()
+        artistSignatureApi.value = normalized
+        prefs.edit().putString(KEY_ARTIST_SIGNATURE_API, normalized).apply()
+    }
+
+    private const val KEY_APP_ICON = "app_icon_theme"
+    val appIconTheme = MutableStateFlow(AppIconTheme.PURPLE)
+
+    fun setAppIconTheme(context: Context, theme: AppIconTheme) {
+        appIconTheme.value = theme
+        prefs.edit().putString(KEY_APP_ICON, theme.id).apply()
+        applyAppIcon(context, theme)
+    }
+
+    fun applyAppIcon(context: Context, theme: AppIconTheme) {
+        val pm = context.packageManager
+        val pkg = context.packageName
+        AppIconTheme.entries.forEach { entry ->
+            val compName = android.content.ComponentName(pkg, entry.alias)
+            val state = if (entry == theme) {
+                android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+            } else {
+                android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+            }
+            runCatching {
+                pm.setComponentEnabledSetting(compName, state, android.content.pm.PackageManager.DONT_KILL_APP)
+            }
+        }
+    }
+
     /**
      * Browse ids of the playlists pinned to the top of the Library tab, in the
      * order they were pinned.
@@ -980,8 +1020,12 @@ object AppSettings {
         discordButton1Text.value = prefs.getString(KEY_DISCORD_BUTTON_1_TEXT, "").orEmpty()
         discordButton1Visible.value = prefs.getBoolean(KEY_DISCORD_BUTTON_1_VISIBLE, true)
         discordButton2Text.value = prefs.getString(KEY_DISCORD_BUTTON_2_TEXT, "").orEmpty()
-        discordButton2Visible.value = prefs.getBoolean(KEY_DISCORD_BUTTON_2_VISIBLE, true)
         discordInfoDismissed.value = prefs.getBoolean(KEY_DISCORD_INFO_DISMISSED, false)
+        artistSignatureApi.value = prefs.getString(KEY_ARTIST_SIGNATURE_API, "https://raw.githubusercontent.com/kushagrasinghx/BitChord/main/signatures/").orEmpty().ifBlank {
+            "https://raw.githubusercontent.com/kushagrasinghx/BitChord/main/signatures/"
+        }
+        val savedIcon = prefs.getString(KEY_APP_ICON, "purple")
+        appIconTheme.value = AppIconTheme.entries.firstOrNull { it.id == savedIcon } ?: AppIconTheme.PURPLE
     }
 
     /**

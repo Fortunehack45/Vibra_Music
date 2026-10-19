@@ -66,12 +66,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -131,6 +133,7 @@ import com.fortune.vibramusic.ui.player.CanvasArtworkPlayer
 import com.fortune.vibramusic.ui.theme.ArtworkPalette
 import com.fortune.vibramusic.ui.components.optimizedHazeEffect
 import com.fortune.vibramusic.ui.theme.rememberArtworkPalette
+import com.fortune.vibramusic.ui.theme.VibraPurple
 import kotlin.math.roundToInt
 import java.util.Locale
 
@@ -534,7 +537,7 @@ fun DetailScreen(
                             downloadedTint = downloadedTint,
                             isCurrent = isCurrent,
                             isPlaying = isCurrent && isPlaying,
-                            activeTint = palette.accent,
+                            activeTint = VibraPurple,
                         )
                         if (position < matches.lastIndex) {
                             HorizontalDivider(
@@ -710,30 +713,43 @@ private fun ReleaseHeader(
             // Action buttons — live inside the header so there is zero gap
             // between the cover zone and the first song row.
             if (songs.isNotEmpty()) {
-                // Only where YouTube said the release can be saved and the
-                // caller is willing to take the write — see [onToggleLibrary].
                 val library = page.library?.takeIf { onToggleLibrary != null }
-                // All release actions are circles. On a 360dp screen a full
-                // five-control row comes down 4dp so it stays inside the shared
-                // header gutter instead of running off the edge.
-                val circles = listOfNotNull(library, onMore).size + 2 // + Shuffle, Search
-                val full = circles >= 4
-                val circleSize = if (full) 46.dp else 50.dp
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(16.dp))
+                // Dual Apple Music Action Pills: Play and Shuffle
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = HEADER_GUTTER),
-                    horizontalArrangement = Arrangement.spacedBy(
-                        if (full) 8.dp else 10.dp,
-                        Alignment.CenterHorizontally,
-                    ),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    AppleMusicPillButton(
+                        icon = VibraMusicIcons.Play,
+                        label = stringResource(R.string.play),
+                        onClick = onPlay,
+                        filled = true,
+                        modifier = Modifier.weight(1f),
+                    )
+                    AppleMusicPillButton(
+                        icon = VibraMusicIcons.Shuffle,
+                        label = stringResource(R.string.shuffle),
+                        onClick = onShuffle,
+                        filled = false,
+                        palette = palette,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+
+                Spacer(Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = HEADER_GUTTER),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     if (library != null) {
                         CircleIconButton(
-                            // A tick, not a filled-in plus: the pair reads as
-                            // "not yet / done", which is what the state is.
                             icon = if (library.saved) VibraMusicIcons.Check else VibraMusicIcons.Plus,
                             contentDescription = if (library.saved) {
                                 stringResource(R.string.remove_from_library)
@@ -743,27 +759,9 @@ private fun ReleaseHeader(
                             palette = palette,
                             onClick = { onToggleLibrary?.invoke() },
                             haptic = if (library.saved) Haptic.ToggleOff else Haptic.ToggleOn,
-                            size = circleSize,
+                            size = 42.dp,
                         )
                     }
-                    CircleIconButton(
-                        icon = VibraMusicIcons.Shuffle,
-                        contentDescription = stringResource(R.string.shuffle),
-                        palette = palette,
-                        onClick = onShuffle,
-                        haptic = Haptic.Resume,
-                        size = circleSize,
-                    )
-                    PlayPill(
-                        onClick = onPlay,
-                        iconOnly = true,
-                        size = circleSize,
-                    )
-                    // Where the download circle used to be. Downloading a
-                    // release is a thing done once and then not thought about;
-                    // finding a track on a long playlist is a thing done while
-                    // reading the page, so it is the one that earns a button and
-                    // the download moved to the overflow beside it.
                     CircleIconButton(
                         icon = if (searching) Icons.Rounded.Close else VibraMusicIcons.Search,
                         contentDescription = stringResource(
@@ -771,7 +769,7 @@ private fun ReleaseHeader(
                         ),
                         palette = palette,
                         onClick = onSearch,
-                        size = circleSize,
+                        size = 42.dp,
                     )
                     onMore?.let { more ->
                         CircleIconButton(
@@ -779,7 +777,7 @@ private fun ReleaseHeader(
                             contentDescription = stringResource(R.string.more),
                             palette = palette,
                             onClick = { more(songs) },
-                            size = circleSize,
+                            size = 42.dp,
                         )
                     }
                 }
@@ -928,22 +926,49 @@ internal fun List<Song>.matching(query: String): List<IndexedValue<Song>> {
  */
 @Composable
 private fun ArtistHeader(page: DetailPage, palette: ArtworkPalette, artHeight: Dp) {
+    val signatureApi by AppSettings.artistSignatureApi.collectAsStateWithLifecycle()
+    val sanitizedArtist = remember(page.title) {
+        page.title.lowercase().trim().replace(Regex("[^a-z0-9]+"), "_").trim('_')
+    }
+    val signatureUrl = remember(signatureApi, sanitizedArtist) {
+        if (signatureApi.isNotBlank() && sanitizedArtist.isNotBlank()) {
+            "${signatureApi.trimEnd('/')}/$sanitizedArtist.png"
+        } else null
+    }
+
     Box(Modifier.fillMaxWidth()) {
         Spacer(Modifier.fillMaxWidth().height(artHeight + HEADER_DROP))
-        Text(
-            text = page.title,
-            style = MaterialTheme.typography.displayLarge,
-            color = palette.onBackground,
-            textAlign = TextAlign.Center,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
+        Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                // Bottom is half the top inset — the stats pills (or, absent
-                // those, the action row) sit closer under the name than the
-                // name sits under the artwork.
+                .fillMaxWidth()
                 .padding(start = HEADER_GUTTER, end = HEADER_GUTTER, top = 14.dp, bottom = 7.dp),
-        )
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            if (!signatureUrl.isNullOrBlank()) {
+                var signatureLoaded by remember { mutableStateOf(false) }
+                AsyncImage(
+                    model = signatureUrl,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .height(48.dp)
+                        .padding(bottom = 6.dp)
+                        .alpha(if (signatureLoaded) 0.85f else 0f),
+                    contentScale = ContentScale.Fit,
+                    colorFilter = ColorFilter.tint(palette.onBackground),
+                    onSuccess = { signatureLoaded = true },
+                    onError = { signatureLoaded = false },
+                )
+            }
+            Text(
+                text = page.title,
+                style = MaterialTheme.typography.displayLarge,
+                color = palette.onBackground,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
 
@@ -1144,7 +1169,7 @@ private val MERGE_BAND = 320.dp
  */
 private val MERGE_BLUR = 100.dp
 
-/** Shuffle • Play • Download — the Apple Music action row. */
+/** Apple Music dual action row for Artist pages. */
 @Composable
 private fun ActionRow(
     palette: ArtworkPalette,
@@ -1162,8 +1187,23 @@ private fun ActionRow(
         horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Subscribing sits where saving does on a release — first circle, left
-        // of Play — and says the same thing with the same pair of icons.
+        AppleMusicPillButton(
+            icon = VibraMusicIcons.Play,
+            label = stringResource(R.string.play),
+            onClick = onPlay,
+            filled = true,
+            modifier = Modifier.weight(1f),
+        )
+
+        AppleMusicPillButton(
+            icon = VibraMusicIcons.Shuffle,
+            label = stringResource(R.string.shuffle),
+            onClick = onShuffle,
+            filled = false,
+            palette = palette,
+            modifier = Modifier.weight(1f),
+        )
+
         if (subscription != null) {
             CircleIconButton(
                 icon = if (subscription.subscribed) VibraMusicIcons.Check else VibraMusicIcons.Plus,
@@ -1173,23 +1213,67 @@ private fun ActionRow(
                 palette = palette,
                 onClick = { onToggleSubscription?.invoke() },
                 haptic = if (subscription.subscribed) Haptic.ToggleOff else Haptic.ToggleOn,
+                size = 48.dp,
             )
         }
-
-        PlayPill(
-            onClick = onPlay,
-        )
-
-        // Circular Shuffle button
-        CircleIconButton(
-            icon = VibraMusicIcons.Shuffle,
-            contentDescription = stringResource(R.string.shuffle),
-            palette = palette,
-            onClick = onShuffle,
-            haptic = Haptic.Resume,
-        )
     }
     Spacer(Modifier.height(bottomSpace))
+}
+
+@Composable
+private fun AppleMusicPillButton(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit,
+    filled: Boolean,
+    modifier: Modifier = Modifier,
+    palette: ArtworkPalette? = null,
+) {
+    val backgroundColor = if (filled) {
+        Color.White
+    } else {
+        MaterialTheme.colorScheme.surface.copy(alpha = 0.55f)
+    }
+    val contentColor = if (filled) {
+        Color.Black
+    } else {
+        palette?.onBackground ?: Color.White
+    }
+
+    Row(
+        modifier = modifier
+            .height(48.dp)
+            .liquidGlassButton(
+                onClick = onClick,
+                haptic = Haptic.Resume,
+                expandScale = 1.04f,
+            )
+            .clip(RoundedCornerShape(14.dp))
+            .background(backgroundColor)
+            .border(
+                width = 0.5.dp,
+                color = if (filled) Color.Transparent else Color.White.copy(alpha = 0.12f),
+                shape = RoundedCornerShape(14.dp),
+            )
+            .padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = contentColor,
+            modifier = Modifier.size(19.dp),
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+            color = contentColor,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
 }
 
 /**

@@ -226,6 +226,8 @@ fun SettingsScreen(
     val lyricsSources by AppSettings.lyricsSources.collectAsStateWithLifecycle()
     val translationLanguage by AppSettings.translationLanguage.collectAsStateWithLifecycle()
     val theme by AppSettings.themeMode.collectAsStateWithLifecycle()
+    val appIconTheme by AppSettings.appIconTheme.collectAsStateWithLifecycle()
+    val artistSignatureApi by AppSettings.artistSignatureApi.collectAsStateWithLifecycle()
     val sessionId by AppSettings.audioSessionId.collectAsStateWithLifecycle()
     val outputPcmMode by AppSettings.outputPcmMode.collectAsStateWithLifecycle()
     val preferUsbDac by AppSettings.preferUsbDac.collectAsStateWithLifecycle()
@@ -298,6 +300,7 @@ fun SettingsScreen(
     var confirmImport by remember { mutableStateOf(false) }
     var showPerformanceWarning by remember { mutableStateOf(false) }
     var showPerformanceConfirmation by remember { mutableStateOf(false) }
+    var showArtistSignatureDialog by remember { mutableStateOf(false) }
     val backupScope = rememberCoroutineScope()
 
     val batterySettingsLauncher = rememberLauncherForActivityResult(
@@ -767,6 +770,22 @@ fun SettingsScreen(
                     modifier = Modifier.padding(start = ROW_INSET, end = ROW_INSET, bottom = 14.dp),
                 )
             }
+            val appIconTitle = "App Icon"
+            row(appIconTitle, "icon", "launcher", "liquid glass", "logo", "theme") {
+                SettingsRow(
+                    icon = Icons.Rounded.Extension,
+                    title = appIconTitle,
+                    subtitle = "Select liquid glass launcher icon",
+                )
+                SegmentedControl(
+                    options = AppSettings.AppIconTheme.entries.map { it.label },
+                    selectedIndex = AppSettings.AppIconTheme.entries.indexOf(appIconTheme),
+                    onSelect = { index ->
+                        AppSettings.setAppIconTheme(context, AppSettings.AppIconTheme.entries[index])
+                    },
+                    modifier = Modifier.padding(start = ROW_INSET, end = ROW_INSET, bottom = 14.dp),
+                )
+            }
             val reduceAnimationTitle = stringResource(R.string.reduce_animation)
             row(reduceAnimationTitle, "motion") {
                 SettingsRow(
@@ -830,6 +849,16 @@ fun SettingsScreen(
                         )
                     },
                     onClick = { AppSettings.setLiquidGlass(!liquidGlass) },
+                )
+            }
+            val artistSignatureTitle = "Artist Signature API"
+            row(artistSignatureTitle, "signature", "artist", "api", "bitchord") {
+                SettingsRow(
+                    icon = Icons.Rounded.AutoAwesome,
+                    title = artistSignatureTitle,
+                    subtitle = artistSignatureApi.ifBlank { "Default (BitChord signatures)" },
+                    trailing = { Chevron() },
+                    onClick = { showArtistSignatureDialog = true },
                 )
             }
             // Left out where the player won't honour it: a window too wide for
@@ -1612,6 +1641,44 @@ fun SettingsScreen(
             dismissButton = {
                 TextButton(onClick = { showPerformanceConfirmation = false }) {
                     Text(stringResource(R.string.not_yet))
+                }
+            },
+        )
+    }
+
+    if (showArtistSignatureDialog) {
+        var apiInput by remember { mutableStateOf(artistSignatureApi) }
+        AlertDialog(
+            onDismissRequest = { showArtistSignatureDialog = false },
+            title = { Text("Artist Signature API") },
+            text = {
+                Column {
+                    Text(
+                        text = "Endpoint providing {artist_name}.png transparent artist signature artwork.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 8.dp),
+                    )
+                    OutlinedTextField(
+                        value = apiInput,
+                        onValueChange = { apiInput = it },
+                        label = { Text("Endpoint URL") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    AppSettings.setArtistSignatureApi(apiInput)
+                    showArtistSignatureDialog = false
+                }) {
+                    Text(stringResource(R.string.save))
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { showArtistSignatureDialog = false }) {
+                    Text(stringResource(R.string.cancel))
                 }
             },
         )

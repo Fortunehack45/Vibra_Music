@@ -18,8 +18,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.fortune.vibramusic.R
 
-// Apple Music's signature red. No longer the primary accent, but kept for the
-// spots (Replay's rank badge) that want that specific red regardless of theme.
+// Vibra Music signature purple accent.
+val VibraPurple = Color(0xFF8B5CF6)
+val VibraPurpleLight = Color(0xFFA855F7)
 val AccentRed = Color(0xFFFA2D48)
 
 private val DarkColors = darkColorScheme(

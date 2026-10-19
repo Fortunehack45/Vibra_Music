@@ -16,6 +16,9 @@ import com.fortune.vibramusic.data.social.PostComment
 import com.fortune.vibramusic.data.social.SocialNotification
 import com.fortune.vibramusic.data.social.SocialPost
 import com.fortune.vibramusic.data.social.SocialProfile
+import com.fortune.vibramusic.data.social.StoryMediaType
+import com.fortune.vibramusic.data.social.UserStory
+import com.fortune.vibramusic.data.social.UserStoryGroup
 import com.fortune.vibramusic.data.supabase.SupabaseService
 import com.fortune.vibramusic.data.supabase.UserCloudSyncManager
 import com.fortune.vibramusic.data.YtMusicRepository
@@ -66,6 +69,66 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
 
     private val _stories = MutableStateFlow<List<SocialProfile>>(emptyList())
     val stories: StateFlow<List<SocialProfile>> = _stories.asStateFlow()
+
+    private val _userStoryGroups = MutableStateFlow<List<UserStoryGroup>>(emptyList())
+    val userStoryGroups: StateFlow<List<UserStoryGroup>> = _userStoryGroups.asStateFlow()
+
+    fun loadStories() {
+        viewModelScope.launch {
+            val cached = withContext(Dispatchers.IO) { cacheStore.loadStories() }
+            val valid = cached.filter { !it.isExpired }
+            updateStoryGroups(valid)
+        }
+    }
+
+    private fun updateStoryGroups(stories: List<UserStory>) {
+        val nonExpired = stories.filter { !it.isExpired }
+        val grouped = nonExpired.groupBy { it.userId }
+        val groups = grouped.mapNotNull { (userId, userStories) ->
+            val author = userStories.firstOrNull()?.author
+                ?: if (userId == _currentProfile.value?.id) _currentProfile.value else null
+            if (author != null) {
+                UserStoryGroup(user = author, stories = userStories.sortedByDescending { it.createdAt })
+            } else null
+        }
+        _userStoryGroups.value = groups
+    }
+
+    fun createStory(
+        mediaUrl: String?,
+        mediaType: StoryMediaType,
+        textContent: String,
+        track: MusicTrackAttachment?,
+    ) {
+        val profile = _currentProfile.value ?: return
+        val newStory = UserStory(
+            userId = profile.id,
+            author = profile,
+            mediaUrl = mediaUrl?.ifBlank { null },
+            mediaType = mediaType,
+            textContent = textContent,
+            musicAttachment = track,
+        )
+        viewModelScope.launch {
+            val currentStories = _userStoryGroups.value.flatMap { it.stories }.filter { !it.isExpired }
+            val updated = listOf(newStory) + currentStories
+            updateStoryGroups(updated)
+            withContext(Dispatchers.IO) {
+                cacheStore.saveStories(updated)
+            }
+        }
+    }
+
+    fun deleteStory(storyId: String) {
+        viewModelScope.launch {
+            val currentStories = _userStoryGroups.value.flatMap { it.stories }
+            val updated = currentStories.filter { it.id != storyId && !it.isExpired }
+            updateStoryGroups(updated)
+            withContext(Dispatchers.IO) {
+                cacheStore.saveStories(updated)
+            }
+        }
+    }
 
     private val _conversations = MutableStateFlow<List<ConversationSummary>>(emptyList())
     val conversations: StateFlow<List<ConversationSummary>> = _conversations.asStateFlow()
@@ -325,6 +388,7 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun loadFeed() {
+        loadStories()
         viewModelScope.launch {
             if (_posts.value.isEmpty()) {
                 val diskCached = withContext(Dispatchers.IO) { cacheStore.loadPosts() }
@@ -360,6 +424,7 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun refreshFeed() {
+        loadStories()
         viewModelScope.launch {
             _isRefreshing.value = true
             val userId = _currentProfile.value?.id ?: AppSettings.deviceUserId

@@ -28,6 +28,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.layout.onSizeChanged
+import com.fortune.vibramusic.ui.theme.VibraPurple
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.fortune.vibramusic.data.settings.AppSettings
 import com.fortune.vibramusic.download.Downloads
@@ -332,8 +333,8 @@ fun SongRow(
     isCurrent: Boolean = false,
     /** Distinguishes active playback from the same current item while paused. */
     isPlaying: Boolean = false,
-    /** Accent supplied by artwork-tinted pages. */
-    activeTint: Color = MaterialTheme.colorScheme.primary,
+    /** Accent supplied by artwork-tinted pages (defaults to signature Vibra Purple). */
+    activeTint: Color = VibraPurple,
     /** True while a Downloads row belongs to the current multi-selection. */
     selected: Boolean = false,
 ) {
@@ -484,7 +485,7 @@ private fun SongRowContent(
     downloadedTint: Color? = MaterialTheme.colorScheme.primary,
     isCurrent: Boolean = false,
     isPlaying: Boolean = false,
-    activeTint: Color = MaterialTheme.colorScheme.primary,
+    activeTint: Color = VibraPurple,
     selected: Boolean = false,
 ) {
     val titleColor by animateColorAsState(

@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.ui.replay
+package com.fortune.vibramusic.ui.replay
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
@@ -603,6 +603,7 @@ private fun EmptyReplay(period: ReplayPeriod, dark: Boolean) {
         Spacer(Modifier.height(8.dp))
         Text(
             text = when (period) {
+                ReplayPeriod.THIS_WEEK -> stringResource(R.string.not_enough_this_week)
                 ReplayPeriod.THIS_MONTH -> stringResource(R.string.not_enough_this_month)
                 else -> stringResource(R.string.replay_empty_description)
             },

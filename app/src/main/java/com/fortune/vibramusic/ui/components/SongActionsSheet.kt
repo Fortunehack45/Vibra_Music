@@ -39,6 +39,7 @@ import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.FileUpload
 import androidx.compose.material.icons.rounded.HighQuality
+import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Radio
 import androidx.compose.material.icons.rounded.PlaylistRemove
@@ -184,6 +185,7 @@ fun SongActionsSheet(
      * as before — present when the id is there, absent when it never was.
      */
     resolvingLinks: Boolean = false,
+    onOpenSongInfo: (() -> Unit)? = null,
 ) {
     var pickingSleepTimer by remember { mutableStateOf(false) }
     // Read from the thumbnail the row that opened this sheet was already
@@ -358,6 +360,14 @@ fun SongActionsSheet(
             onShare?.let {
                 ActionRow(Icons.Rounded.Share, stringResource(R.string.share), accent = palette.accent, onClick = it)
             }
+        }
+        onOpenSongInfo?.let {
+            ActionRow(
+                icon = Icons.Rounded.Info,
+                label = "Song Info",
+                accent = palette.accent,
+                onClick = it,
+            )
         }
         // Last, and only from the player: it is about the track playing right
         // now rather than about the song as a thing in a library, and it is

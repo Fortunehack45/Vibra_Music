@@ -105,7 +105,12 @@ import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 import com.fortune.vibramusic.data.social.PostMediaItem
 import com.fortune.vibramusic.data.social.PostMediaType
+import com.fortune.vibramusic.data.social.UserStoryGroup
 import com.fortune.vibramusic.data.social.formatRelativeTime
+import com.fortune.vibramusic.ui.social.CreateStorySheet
+import com.fortune.vibramusic.ui.social.StoriesFeedHorizontalBar
+import com.fortune.vibramusic.ui.social.StoryViewerDialog
+import com.fortune.vibramusic.ui.social.purpleStoryRing
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -130,6 +135,9 @@ fun SocialScreen(
     val isLoading by viewModel.isLoadingFeed.collectAsStateWithLifecycle()
     val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
     val stories by viewModel.stories.collectAsStateWithLifecycle()
+    val userStoryGroups by viewModel.userStoryGroups.collectAsStateWithLifecycle()
+    var activeStoryGroupForViewer by remember { mutableStateOf<UserStoryGroup?>(null) }
+    var showCreateStorySheet by remember { mutableStateOf(false) }
     val selectedPostForComments by viewModel.selectedPostForComments.collectAsStateWithLifecycle()
     val comments by viewModel.comments.collectAsStateWithLifecycle()
     val isPosting by viewModel.isCreatingPost.collectAsStateWithLifecycle()
@@ -415,15 +423,20 @@ fun SocialScreen(
                     }
                 } else {
                     // Regular Feed Mode
-                    // Stories / Favorite Artists Row
-                    if (stories.isNotEmpty()) {
-                        item(key = "stories_row") {
-                            SocialStoriesRow(
-                                profiles = stories,
-                                onProfileClick = onOpenProfile,
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                        }
+                    // Stories Bar (Instagram/Airbuds 24h stories)
+                    item(key = "stories_feed_bar") {
+                        StoriesFeedHorizontalBar(
+                            storyGroups = userStoryGroups,
+                            currentProfile = currentProfile,
+                            onOpenStoryGroup = { group ->
+                                activeStoryGroupForViewer = group
+                            },
+                            onCreateStory = {
+                                showCreateStorySheet = true
+                            },
+                            onPlayTrack = onPlayTrack,
+                            modifier = Modifier.padding(bottom = 6.dp),
+                        )
                     }
 
                     // Error Banner when posts are already cached
@@ -633,11 +646,7 @@ fun SocialScreen(
                 .align(Alignment.BottomEnd)
                 .padding(
                     end = 20.dp,
-                    bottom = if (currentlyPlayingSong != null) {
-                        contentPadding.calculateBottomPadding() + 12.dp
-                    } else {
-                        (contentPadding.calculateBottomPadding() - 40.dp).coerceAtLeast(16.dp)
-                    },
+                    bottom = (contentPadding.calculateBottomPadding() - 40.dp).coerceAtLeast(16.dp),
                 )
                 .size(54.dp),
         ) {
@@ -763,6 +772,32 @@ fun SocialScreen(
             mediaList = listOf(PostMediaItem(url = url, type = PostMediaType.IMAGE)),
             initialIndex = 0,
             onDismiss = { previewImageUrl = null },
+        )
+    }
+
+    // Fullscreen Story Viewer Dialog
+    activeStoryGroupForViewer?.let { group ->
+        StoryViewerDialog(
+            storyGroup = group,
+            allGroups = userStoryGroups,
+            currentUserId = currentProfile?.id,
+            onDismiss = { activeStoryGroupForViewer = null },
+            onDeleteStory = { storyId ->
+                viewModel.deleteStory(storyId)
+            },
+            onPlayTrack = onPlayTrack,
+        )
+    }
+
+    // Create Story Sheet
+    if (showCreateStorySheet) {
+        CreateStorySheet(
+            currentlyPlayingSong = currentlyPlayingSong,
+            onDismiss = { showCreateStorySheet = false },
+            onSubmitStory = { mediaUrl, mediaType, textContent, track ->
+                viewModel.createStory(mediaUrl, mediaType, textContent, track)
+                showCreateStorySheet = false
+            },
         )
     }
 

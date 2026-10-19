@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.ui.replay
+package com.fortune.vibramusic.ui.replay
 
 import android.content.Context
 import androidx.compose.runtime.Composable
@@ -180,12 +180,19 @@ fun ReplaySummary.storyHeadline(context: Context, page: ReplayStoryPage): List<H
 }
 
 fun ReplayPeriod.localizedChip(context: Context): String = when (this) {
+    ReplayPeriod.THIS_WEEK -> context.getString(R.string.this_week)
     ReplayPeriod.THIS_MONTH -> context.getString(R.string.this_month)
     ReplayPeriod.THIS_YEAR -> context.getString(R.string.this_year)
     ReplayPeriod.ALL_TIME -> context.getString(R.string.all_time)
 }
 
 fun ReplaySummary.localizedLabel(context: Context): String = when (period) {
+    ReplayPeriod.THIS_WEEK -> {
+        val today = LocalDate.now()
+        val weekStart = today.minusDays(today.dayOfWeek.value.toLong() - 1)
+        val formatter = DateTimeFormatter.ofPattern("MMM d", Locale.getDefault())
+        "${weekStart.format(formatter)} - ${today.format(formatter)}"
+    }
     ReplayPeriod.THIS_MONTH -> DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault())
         .format(LocalDate.now())
         .replaceFirstChar { it.titlecase(Locale.getDefault()) }

@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -443,6 +444,82 @@ fun CreatePostSheet(
                                             maxLines = 3,
                                             overflow = TextOverflow.Ellipsis,
                                         )
+                                    }
+
+                                    // Quoted media (images/GIFs)
+                                    val quotedImages = quotedPost.imageUrls
+                                    if (quotedImages.size == 1) {
+                                        Spacer(Modifier.height(8.dp))
+                                        AsyncImage(
+                                            model = quotedImages.first(),
+                                            contentDescription = "Quoted image",
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .heightIn(max = 180.dp)
+                                                .clip(RoundedCornerShape(12.dp)),
+                                        )
+                                    } else if (quotedImages.size > 1) {
+                                        Spacer(Modifier.height(8.dp))
+                                        PostMediaCarousel(
+                                            images = quotedImages,
+                                            onImageClick = {},
+                                            modifier = Modifier.fillMaxWidth(),
+                                        )
+                                    } else if (!quotedPost.gifUrl.isNullOrBlank()) {
+                                        Spacer(Modifier.height(8.dp))
+                                        AsyncImage(
+                                            model = quotedPost.gifUrl,
+                                            contentDescription = "GIF",
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .heightIn(max = 160.dp)
+                                                .clip(RoundedCornerShape(12.dp)),
+                                        )
+                                    }
+
+                                    // Quoted video
+                                    if (!quotedPost.videoUrl.isNullOrBlank()) {
+                                        Spacer(Modifier.height(8.dp))
+                                        PostVideoPlayer(
+                                            videoUrl = quotedPost.videoUrl,
+                                            onFullScreenClick = {},
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .aspectRatio(16f / 9f)
+                                                .clip(RoundedCornerShape(12.dp)),
+                                        )
+                                    }
+
+                                    // Quoted poll
+                                    quotedPost.poll?.let { poll ->
+                                        Spacer(Modifier.height(8.dp))
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .background(MaterialTheme.colorScheme.surface)
+                                                .padding(10.dp),
+                                        ) {
+                                            Text(
+                                                text = "Poll: ${poll.question}",
+                                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                            )
+                                            Spacer(Modifier.height(4.dp))
+                                            poll.options.take(2).forEach { opt ->
+                                                Text(
+                                                    text = "• ${opt.text}",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                )
+                                            }
+                                        }
                                     }
 
                                     quotedPost.musicTrack?.let { qTrack ->
@@ -1104,6 +1181,7 @@ fun CreatePostSheet(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         // Toolbar Action Icons
+                        val isPollMode = showPollBuilder
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(16.dp),
                             verticalAlignment = Alignment.CenterVertically,
@@ -1112,13 +1190,19 @@ fun CreatePostSheet(
                             Icon(
                                 imageVector = Icons.Rounded.AddPhotoAlternate,
                                 contentDescription = "Add Photos",
-                                tint = if (selectedImageUris.isNotEmpty()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                tint = if (isPollMode) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                                else if (selectedImageUris.isNotEmpty()) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier
                                     .size(24.dp)
                                     .clickable {
-                                        photoPickerLauncher.launch(
-                                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                                        )
+                                        if (isPollMode) {
+                                            android.widget.Toast.makeText(context, "Poll posts cannot contain media attachments", android.widget.Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            photoPickerLauncher.launch(
+                                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                            )
+                                        }
                                     },
                             )
 
@@ -1126,13 +1210,19 @@ fun CreatePostSheet(
                             Icon(
                                 imageVector = Icons.Rounded.Videocam,
                                 contentDescription = "Add Video",
-                                tint = if (selectedVideoUri != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                tint = if (isPollMode) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                                else if (selectedVideoUri != null) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier
                                     .size(24.dp)
                                     .clickable {
-                                        videoPickerLauncher.launch(
-                                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)
-                                        )
+                                        if (isPollMode) {
+                                            android.widget.Toast.makeText(context, "Poll posts cannot contain media attachments", android.widget.Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            videoPickerLauncher.launch(
+                                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)
+                                            )
+                                        }
                                     },
                             )
 
@@ -1140,10 +1230,18 @@ fun CreatePostSheet(
                             Icon(
                                 imageVector = Icons.Rounded.MusicNote,
                                 contentDescription = "Attach Song",
-                                tint = if (attachedTrack != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                tint = if (isPollMode) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                                else if (attachedTrack != null) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier
                                     .size(24.dp)
-                                    .clickable { showMusicSearch = true },
+                                    .clickable {
+                                        if (isPollMode) {
+                                            android.widget.Toast.makeText(context, "Poll posts cannot contain media attachments", android.widget.Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            showMusicSearch = true
+                                        }
+                                    },
                             )
 
                             // Poll
@@ -1153,26 +1251,57 @@ fun CreatePostSheet(
                                 tint = if (showPollBuilder) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier
                                     .size(24.dp)
-                                    .clickable { showPollBuilder = !showPollBuilder },
+                                    .clickable {
+                                        if (!showPollBuilder) {
+                                            val hadMedia = selectedImageUris.isNotEmpty() || selectedVideoUri != null ||
+                                                    selectedGifUrl != null || attachedTrack != null || recordedAudioFile != null || isRecordingVoice
+                                            selectedImageUris.clear()
+                                            selectedVideoUri = null
+                                            selectedGifUrl = null
+                                            attachedTrack = null
+                                            if (isRecordingVoice) {
+                                                voiceRecorder.stopRecording()
+                                            }
+                                            recordedAudioFile = null
+                                            if (hadMedia) {
+                                                android.widget.Toast.makeText(context, "Cleared media attachments for poll post", android.widget.Toast.LENGTH_SHORT).show()
+                                            }
+                                            showPollBuilder = true
+                                        } else {
+                                            showPollBuilder = false
+                                        }
+                                    },
                             )
 
                             // GIF
                             Text(
                                 text = "GIF",
                                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold),
-                                color = if (selectedGifUrl != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.clickable { showGifPicker = true },
+                                color = if (isPollMode) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                                else if (selectedGifUrl != null) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.clickable {
+                                    if (isPollMode) {
+                                        android.widget.Toast.makeText(context, "Poll posts cannot contain media attachments", android.widget.Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        showGifPicker = true
+                                    }
+                                },
                             )
 
                             // Voice Note
                             Icon(
                                 imageVector = Icons.Rounded.Mic,
                                 contentDescription = "Record Voice Note",
-                                tint = if (isRecordingVoice || recordedAudioFile != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                tint = if (isPollMode) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                                else if (isRecordingVoice || recordedAudioFile != null) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier
                                     .size(24.dp)
                                     .clickable {
-                                        if (isRecordingVoice) {
+                                        if (isPollMode) {
+                                            android.widget.Toast.makeText(context, "Poll posts cannot contain media attachments", android.widget.Toast.LENGTH_SHORT).show()
+                                        } else if (isRecordingVoice) {
                                             val file = voiceRecorder.stopRecording()
                                             if (file != null && file.exists()) {
                                                 recordedAudioFile = file
@@ -1194,50 +1323,56 @@ fun CreatePostSheet(
                             onClick = {
                                 scope.launch {
                                     isUploadingMedia = true
-                                    // 1. Upload selected images
+                                    // 1. Upload selected images (skip if poll post)
                                     val uploadedUrls = mutableListOf<String>()
-                                    selectedImageUris.forEach { uri ->
-                                        runCatching {
-                                            val bytes = withContext(Dispatchers.IO) {
-                                                context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                                            }
-                                            if (bytes != null) {
-                                                val uploadResult = SupabaseService.uploadImage(
-                                                    bytes = bytes,
-                                                    mimeType = "image/jpeg",
-                                                )
-                                                uploadResult.getOrNull()?.let { uploadedUrls.add(it) }
+                                    if (!showPollBuilder) {
+                                        selectedImageUris.forEach { uri ->
+                                            runCatching {
+                                                val bytes = withContext(Dispatchers.IO) {
+                                                    context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                                                }
+                                                if (bytes != null) {
+                                                    val uploadResult = SupabaseService.uploadImage(
+                                                        bytes = bytes,
+                                                        mimeType = "image/jpeg",
+                                                    )
+                                                    uploadResult.getOrNull()?.let { uploadedUrls.add(it) }
+                                                }
                                             }
                                         }
                                     }
 
-                                    // 2. Upload video
+                                    // 2. Upload video (skip if poll post)
                                     var uploadedVideoUrl: String? = null
-                                    selectedVideoUri?.let { uri ->
-                                        runCatching {
-                                            val bytes = withContext(Dispatchers.IO) {
-                                                context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                                    if (!showPollBuilder) {
+                                        selectedVideoUri?.let { uri ->
+                                            runCatching {
+                                                val bytes = withContext(Dispatchers.IO) {
+                                                    context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                                                }
+                                                if (bytes != null) {
+                                                    val uploadResult = SupabaseService.uploadMedia(
+                                                        bytes = bytes,
+                                                        mimeType = "video/mp4",
+                                                    )
+                                                    uploadedVideoUrl = uploadResult.getOrNull()
+                                                }
                                             }
-                                            if (bytes != null) {
+                                        }
+                                    }
+
+                                    // 3. Upload voice note (skip if poll post)
+                                    var uploadedAudioUrl: String? = null
+                                    if (!showPollBuilder) {
+                                        recordedAudioFile?.let { file ->
+                                            runCatching {
+                                                val bytes = withContext(Dispatchers.IO) { file.readBytes() }
                                                 val uploadResult = SupabaseService.uploadMedia(
                                                     bytes = bytes,
-                                                    mimeType = "video/mp4",
+                                                    mimeType = "audio/mp4",
                                                 )
-                                                uploadedVideoUrl = uploadResult.getOrNull()
+                                                uploadedAudioUrl = uploadResult.getOrNull()
                                             }
-                                        }
-                                    }
-
-                                    // 3. Upload voice note
-                                    var uploadedAudioUrl: String? = null
-                                    recordedAudioFile?.let { file ->
-                                        runCatching {
-                                            val bytes = withContext(Dispatchers.IO) { file.readBytes() }
-                                            val uploadResult = SupabaseService.uploadMedia(
-                                                bytes = bytes,
-                                                mimeType = "audio/mp4",
-                                            )
-                                            uploadedAudioUrl = uploadResult.getOrNull()
                                         }
                                     }
 
@@ -1265,19 +1400,35 @@ fun CreatePostSheet(
                                         )
                                     } else null
 
-                                    onSubmitPost(
-                                        textContent.trim(),
-                                        uploadedUrls,
-                                        uploadedVideoUrl,
-                                        selectedGifUrl,
-                                        uploadedAudioUrl,
-                                        selectedMode == CreateMode.REVIEW,
-                                        if (selectedMode == CreateMode.REVIEW) reviewRating else 0,
-                                        taggedArtist,
-                                        attachedTrack,
-                                        finalPoll,
-                                        quotedPost?.id,
-                                    )
+                                    if (finalPoll != null) {
+                                        onSubmitPost(
+                                            textContent.trim(),
+                                            emptyList(),
+                                            null,
+                                            null,
+                                            null,
+                                            selectedMode == CreateMode.REVIEW,
+                                            if (selectedMode == CreateMode.REVIEW) reviewRating else 0,
+                                            taggedArtist,
+                                            null,
+                                            finalPoll,
+                                            quotedPost?.id,
+                                        )
+                                    } else {
+                                        onSubmitPost(
+                                            textContent.trim(),
+                                            uploadedUrls,
+                                            uploadedVideoUrl,
+                                            selectedGifUrl,
+                                            uploadedAudioUrl,
+                                            selectedMode == CreateMode.REVIEW,
+                                            if (selectedMode == CreateMode.REVIEW) reviewRating else 0,
+                                            taggedArtist,
+                                            attachedTrack,
+                                            null,
+                                            quotedPost?.id,
+                                        )
+                                    }
                                 }
                             },
                             enabled = canPost,

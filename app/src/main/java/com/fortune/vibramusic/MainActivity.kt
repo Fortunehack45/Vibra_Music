@@ -18,6 +18,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.fadeIn
@@ -1275,12 +1276,15 @@ private fun VibraMusicApp(
         playFrom(songs, index, source)
     }
     val playTrackAttachment: (MusicTrackAttachment) -> Unit = { attachment ->
+        val resolvedArt = attachment.artworkUrl?.takeIf { it.isNotBlank() }
+            ?: attachment.thumbnailUrl?.takeIf { it.isNotBlank() }
+            ?: "https://i.ytimg.com/vi/${attachment.videoId}/maxresdefault.jpg"
         val song = Song(
             videoId = attachment.videoId,
             title = attachment.title,
             artist = attachment.artist,
             durationText = attachment.durationText ?: "",
-            thumbnailUrl = attachment.artworkUrl ?: "",
+            thumbnailUrl = resolvedArt,
         )
         playFrom(listOf(song), 0, QueueSource(attachment.title, PlaybackSourceType.BROWSE, attachment.videoId))
     }
@@ -2097,6 +2101,9 @@ private fun VibraMusicApp(
             artistId = current.artistId ?: extra.artistId,
             albumId = current.albumId ?: extra.albumId,
             albumName = current.albumName ?: extra.albumName,
+            thumbnailUrl = if ((current.thumbnailUrl.isNullOrBlank() || current.thumbnailUrl?.contains("ytimg.com") == true) && !extra.thumbnailUrl.isNullOrBlank()) {
+                extra.thumbnailUrl
+            } else current.thumbnailUrl,
         )
     }
     // The three-dot menu snapshots the track into songActions when it's opened,
@@ -3953,6 +3960,20 @@ private fun VibraMusicApp(
                 // sheet always spans the full window this app draws it for.
                 sheetMaxWidth = Dp.Unspecified,
             ) {
+                val currentView = LocalView.current
+                DisposableEffect(currentView) {
+                    var parent = currentView.parent
+                    while (parent != null) {
+                        if (parent is androidx.compose.ui.window.DialogWindowProvider) {
+                            androidx.core.view.WindowCompat.setDecorFitsSystemWindows(parent.window, false)
+                            parent.window.statusBarColor = android.graphics.Color.TRANSPARENT
+                            parent.window.navigationBarColor = android.graphics.Color.TRANSPARENT
+                            break
+                        }
+                        parent = parent.parent
+                    }
+                    onDispose {}
+                }
                 // Keeps a sheet still "settling" after a lyrics or queue
                 // scroll from taking the next touch meant for that list.
                 Box(Modifier.guardSheetFromContentTouches(nowPlayingSheetState)) {

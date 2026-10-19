@@ -216,8 +216,12 @@ fun PostThreadScreen(
         }
     }
 
-    BackHandler(enabled = focusedCommentStack.isNotEmpty()) {
-        focusedCommentStack = focusedCommentStack.dropLast(1)
+    BackHandler(enabled = replyingTo != null || focusedCommentStack.isNotEmpty()) {
+        if (replyingTo != null) {
+            replyingTo = null
+        } else if (focusedCommentStack.isNotEmpty()) {
+            focusedCommentStack = focusedCommentStack.dropLast(1)
+        }
     }
 
     // Organize root comments and replies
@@ -248,7 +252,9 @@ fun PostThreadScreen(
             ) {
                 IconButton(
                     onClick = {
-                        if (focusedCommentStack.isNotEmpty()) {
+                        if (replyingTo != null) {
+                            replyingTo = null
+                        } else if (focusedCommentStack.isNotEmpty()) {
                             focusedCommentStack = focusedCommentStack.dropLast(1)
                         } else {
                             onBack()
@@ -1436,13 +1442,97 @@ private fun ThreadAncestorPostItem(
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                 )
             } else {
-                Text(
-                    text = post.content,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                if (post.content.isNotBlank()) {
+                    Text(
+                        text = post.content,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+
+                val images = post.imageUrls
+                if (images.size == 1) {
+                    Spacer(Modifier.height(6.dp))
+                    AsyncImage(
+                        model = images.first(),
+                        contentDescription = "Post image",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 180.dp)
+                            .clip(RoundedCornerShape(12.dp)),
+                    )
+                } else if (images.size > 1) {
+                    Spacer(Modifier.height(6.dp))
+                    PostMediaCarousel(
+                        images = images,
+                        onImageClick = {},
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                } else if (!post.gifUrl.isNullOrBlank()) {
+                    Spacer(Modifier.height(6.dp))
+                    AsyncImage(
+                        model = post.gifUrl,
+                        contentDescription = "GIF",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 160.dp)
+                            .clip(RoundedCornerShape(12.dp)),
+                    )
+                }
+
+                if (!post.videoUrl.isNullOrBlank()) {
+                    Spacer(Modifier.height(6.dp))
+                    PostVideoPlayer(
+                        videoUrl = post.videoUrl,
+                        onFullScreenClick = {},
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(16f / 9f)
+                            .clip(RoundedCornerShape(12.dp)),
+                    )
+                }
+
+                post.poll?.let { poll ->
+                    Spacer(Modifier.height(6.dp))
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .padding(8.dp),
+                    ) {
+                        Text(
+                            text = "Poll: ${poll.question}",
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        poll.options.take(2).forEach { opt ->
+                            Text(
+                                text = "• ${opt.text}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                }
+
+                post.musicTrack?.let { track ->
+                    Spacer(Modifier.height(6.dp))
+                    PlayableTrackCard(
+                        track = track,
+                        onPlay = {},
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
             }
         }
     }
@@ -1534,13 +1624,52 @@ private fun ThreadAncestorCommentItem(
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                 )
             } else {
-                Text(
-                    text = comment.content,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                if (comment.content.isNotBlank()) {
+                    Text(
+                        text = comment.content,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+
+                val commentImg = comment.imageUrl
+                if (!commentImg.isNullOrBlank()) {
+                    Spacer(Modifier.height(6.dp))
+                    AsyncImage(
+                        model = commentImg,
+                        contentDescription = "Comment image",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 160.dp)
+                            .clip(RoundedCornerShape(12.dp)),
+                    )
+                } else if (!comment.gifUrl.isNullOrBlank()) {
+                    Spacer(Modifier.height(6.dp))
+                    AsyncImage(
+                        model = comment.gifUrl,
+                        contentDescription = "GIF",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 140.dp)
+                            .clip(RoundedCornerShape(12.dp)),
+                    )
+                }
+
+                if (!comment.videoUrl.isNullOrBlank()) {
+                    Spacer(Modifier.height(6.dp))
+                    PostVideoPlayer(
+                        videoUrl = comment.videoUrl,
+                        onFullScreenClick = {},
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(16f / 9f)
+                            .clip(RoundedCornerShape(12.dp)),
+                    )
+                }
             }
         }
     }

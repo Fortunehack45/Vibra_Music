@@ -350,7 +350,9 @@ object SupabaseService {
         runCatching {
             val postId = UUID.randomUUID().toString()
             val musicTrackJson = musicAttachment?.let {
-                "{\"video_id\":\"${it.videoId}\",\"title\":${jsonQuote(it.title)},\"artist\":${jsonQuote(it.artist)},\"thumbnail_url\":${jsonQuote(it.thumbnailUrl ?: "")},\"duration_text\":${jsonQuote(it.durationText ?: "")}}"
+                val thumb = it.thumbnailUrl ?: it.artworkUrl ?: ""
+                val art = it.artworkUrl ?: it.thumbnailUrl ?: ""
+                "{\"video_id\":\"${it.videoId}\",\"title\":${jsonQuote(it.title)},\"artist\":${jsonQuote(it.artist)},\"thumbnail_url\":${jsonQuote(thumb)},\"artwork_url\":${jsonQuote(art)},\"duration_text\":${jsonQuote(it.durationText ?: "")}}"
             }
 
             val pollJson = poll?.let {
@@ -1224,6 +1226,27 @@ object SupabaseService {
             }
             if (!response.status.isSuccess()) {
                 Log.w(TAG, "markMessagesAsRead ${response.status}: ${response.bodyAsText().take(300)}")
+            }
+            Unit
+        }
+    }
+
+    /**
+     * Updates user's updated_at timestamp in profiles table for online presence detection.
+     */
+    suspend fun updatePresence(userId: String): Result<Unit> = withContext(Dispatchers.IO) {
+        if (userId.isBlank() || !SupabaseConfig.isConfigured) return@withContext Result.success(Unit)
+        runCatching {
+            val now = java.time.Instant.now().toString()
+            val res = client.patch(baseUrl("profiles")) {
+                header("apikey", SupabaseConfig.anonKey)
+                header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                contentType(ContentType.Application.Json)
+                parameter("id", "eq.$userId")
+                setBody("{\"updated_at\":\"$now\"}")
+            }
+            if (!res.status.isSuccess()) {
+                Log.w(TAG, "updatePresence ${res.status}: ${res.bodyAsText().take(300)}")
             }
             Unit
         }
@@ -2370,6 +2393,7 @@ object SupabaseService {
         val followingCount = obj.int("following_count") ?: 0
         val friendsCount = obj.int("friends_count") ?: 0
         val createdAt = obj.str("created_at") ?: ""
+        val updatedAt = obj.str("updated_at") ?: ""
 
         return SocialProfile(
             id = id,
@@ -2391,6 +2415,7 @@ object SupabaseService {
             bannerUrl = bannerUrl,
             bannerPlaylists = bannerPlaylists,
             createdAt = createdAt,
+            updatedAt = updatedAt,
         )
     }
 
@@ -2456,12 +2481,15 @@ object SupabaseService {
 
         // Extract optional music track attachment
         val musicTrack = obj.obj("music_track")?.let { m ->
+            val art = m.str("artwork_url")?.takeIf { it.isNotBlank() && it != "null" }
+            val thumb = m.str("thumbnail_url")?.takeIf { it.isNotBlank() && it != "null" } ?: art
             MusicTrackAttachment(
                 videoId = m.str("video_id") ?: "",
                 title = m.str("title") ?: "",
                 artist = m.str("artist") ?: "",
-                thumbnailUrl = m.str("thumbnail_url")?.takeIf { it.isNotBlank() && it != "null" },
+                thumbnailUrl = thumb,
                 durationText = m.str("duration_text")?.takeIf { it.isNotBlank() && it != "null" },
+                artworkUrl = art ?: thumb,
             )
         }
 
@@ -2714,7 +2742,7 @@ object SupabaseService {
 
         val effectiveMusic = (sharedMusicObj ?: parsedMusic)?.let {
             if (it.thumbnailUrl.isNullOrBlank() && it.videoId.isNotBlank()) {
-                it.copy(thumbnailUrl = "https://i.ytimg.com/vi/${it.videoId}/hqdefault.jpg")
+                it.copy(thumbnailUrl = "https://i.ytimg.com/vi/${it.videoId}/maxresdefault.jpg")
             } else it
         }
 

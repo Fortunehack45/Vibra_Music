@@ -631,7 +631,14 @@ fun SocialScreen(
             shape = CircleShape,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(end = 20.dp, bottom = (contentPadding.calculateBottomPadding() - 40.dp).coerceAtLeast(16.dp))
+                .padding(
+                    end = 20.dp,
+                    bottom = if (currentlyPlayingSong != null) {
+                        contentPadding.calculateBottomPadding() + 12.dp
+                    } else {
+                        (contentPadding.calculateBottomPadding() - 40.dp).coerceAtLeast(16.dp)
+                    },
+                )
                 .size(54.dp),
         ) {
             Icon(
@@ -2052,6 +2059,82 @@ fun QuotedPostCard(
                         overflow = TextOverflow.Ellipsis,
                         lineHeight = 18.sp,
                     )
+                }
+
+                // Quoted media (images/GIFs)
+                val quotedImages = quotedPost.imageUrls
+                if (quotedImages.size == 1) {
+                    Spacer(Modifier.height(8.dp))
+                    AsyncImage(
+                        model = quotedImages.first(),
+                        contentDescription = "Quoted image",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 200.dp)
+                            .clip(RoundedCornerShape(12.dp)),
+                    )
+                } else if (quotedImages.size > 1) {
+                    Spacer(Modifier.height(8.dp))
+                    PostMediaCarousel(
+                        images = quotedImages,
+                        onImageClick = {},
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                } else if (!quotedPost.gifUrl.isNullOrBlank()) {
+                    Spacer(Modifier.height(8.dp))
+                    AsyncImage(
+                        model = quotedPost.gifUrl,
+                        contentDescription = "GIF",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 160.dp)
+                            .clip(RoundedCornerShape(12.dp)),
+                    )
+                }
+
+                // Quoted video
+                if (!quotedPost.videoUrl.isNullOrBlank()) {
+                    Spacer(Modifier.height(8.dp))
+                    PostVideoPlayer(
+                        videoUrl = quotedPost.videoUrl,
+                        onFullScreenClick = {},
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(16f / 9f)
+                            .clip(RoundedCornerShape(12.dp)),
+                    )
+                }
+
+                // Quoted poll
+                quotedPost.poll?.let { poll ->
+                    Spacer(Modifier.height(8.dp))
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(MaterialTheme.colorScheme.surface)
+                            .padding(10.dp),
+                    ) {
+                        Text(
+                            text = "Poll: ${poll.question}",
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        poll.options.take(2).forEach { opt ->
+                            Text(
+                                text = "• ${opt.text}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
                 }
 
                 // Quoted song track

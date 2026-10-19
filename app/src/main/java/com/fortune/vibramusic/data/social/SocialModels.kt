@@ -33,7 +33,39 @@ data class SocialProfile(
     val bannerUrl: String? = null,
     val bannerPlaylists: List<String> = emptyList(),
     val createdAt: String = "",
+    val updatedAt: String = "",
 )
+
+fun isUserOnline(profile: SocialProfile?, messages: List<DirectMessage>? = null): Boolean {
+    if (profile == null) return false
+    val now = runCatching { java.time.Instant.now() }.getOrNull() ?: return false
+
+    // 1. Check if the friend recently sent a message (within last 5 minutes)
+    val latestFriendMessageTime = messages?.filter { it.senderId == profile.id }?.mapNotNull { msg ->
+        val raw = msg.createdAt.trim().replace(' ', 'T')
+        runCatching { java.time.Instant.parse(raw) }
+            .recoverCatching { java.time.OffsetDateTime.parse(raw).toInstant() }
+            .getOrNull()
+    }?.maxOrNull()
+    if (latestFriendMessageTime != null) {
+        val diffMinutes = java.time.Duration.between(latestFriendMessageTime, now).abs().toMinutes()
+        if (diffMinutes < 5) return true
+    }
+
+    // 2. Check updatedAt timestamp from profile
+    if (profile.updatedAt.isNotBlank()) {
+        val raw = profile.updatedAt.trim().replace(' ', 'T')
+        val updatedInstant = runCatching { java.time.Instant.parse(raw) }
+            .recoverCatching { java.time.OffsetDateTime.parse(raw).toInstant() }
+            .getOrNull()
+        if (updatedInstant != null) {
+            val diffMinutes = java.time.Duration.between(updatedInstant, now).abs().toMinutes()
+            if (diffMinutes < 5) return true
+        }
+    }
+
+    return false
+}
 
 @Serializable
 data class FavoriteArtist(
@@ -56,13 +88,13 @@ data class MusicTrackAttachment(
     val artist: String,
     val thumbnailUrl: String? = null,
     val durationText: String? = null,
-    val artworkUrl: String? = thumbnailUrl ?: ("https://i.ytimg.com/vi/$videoId/hqdefault.jpg").takeIf { videoId.isNotBlank() },
+    val artworkUrl: String? = thumbnailUrl ?: ("https://i.ytimg.com/vi/$videoId/maxresdefault.jpg").takeIf { videoId.isNotBlank() },
 ) {
     fun toSong(): Song = Song(
         videoId = videoId,
         title = title,
         artist = artist,
-        thumbnailUrl = artworkUrl ?: thumbnailUrl ?: ("https://i.ytimg.com/vi/$videoId/hqdefault.jpg").takeIf { videoId.isNotBlank() },
+        thumbnailUrl = artworkUrl ?: thumbnailUrl ?: ("https://i.ytimg.com/vi/$videoId/maxresdefault.jpg").takeIf { videoId.isNotBlank() },
         durationText = durationText,
     )
 
@@ -71,9 +103,9 @@ data class MusicTrackAttachment(
             videoId = song.videoId,
             title = song.title,
             artist = song.artist,
-            thumbnailUrl = song.thumbnailUrl ?: ("https://i.ytimg.com/vi/${song.videoId}/hqdefault.jpg").takeIf { song.videoId.isNotBlank() },
+            thumbnailUrl = song.thumbnailUrl ?: ("https://i.ytimg.com/vi/${song.videoId}/maxresdefault.jpg").takeIf { song.videoId.isNotBlank() },
             durationText = song.durationText,
-            artworkUrl = song.thumbnailUrl ?: ("https://i.ytimg.com/vi/${song.videoId}/hqdefault.jpg").takeIf { song.videoId.isNotBlank() },
+            artworkUrl = song.thumbnailUrl ?: ("https://i.ytimg.com/vi/${song.videoId}/maxresdefault.jpg").takeIf { song.videoId.isNotBlank() },
         )
     }
 }
@@ -164,6 +196,45 @@ fun formatRelativeTime(raw: String?): String {
         }
     } catch (_: Exception) {
         "Recent"
+    }
+}
+
+fun formatMessageTime(raw: String?): String {
+    if (raw.isNullOrBlank()) return ""
+    return try {
+        val trimmed = raw.trim()
+        val normalized = trimmed.replace(' ', 'T')
+        val instant = runCatching { java.time.Instant.parse(normalized) }.getOrNull()
+            ?: runCatching { java.time.OffsetDateTime.parse(normalized).toInstant() }.getOrNull()
+            ?: runCatching { java.time.ZonedDateTime.parse(normalized).toInstant() }.getOrNull()
+            ?: runCatching {
+                val withZ = if (!normalized.endsWith("Z") && !normalized.contains("+") && !normalized.substringAfter('T', "").contains("-")) {
+                    "${normalized}Z"
+                } else normalized
+                java.time.Instant.parse(withZ)
+            }.getOrNull()
+            ?: runCatching {
+                val cleanDate = normalized.substringBefore('+').substringBefore('Z')
+                val parsedLdt = if (cleanDate.contains('.')) {
+                    val dotIdx = cleanDate.indexOf('.')
+                    val nanos = cleanDate.substring(dotIdx + 1).take(9).padEnd(9, '0')
+                    java.time.LocalDateTime.parse(cleanDate.substring(0, dotIdx) + "." + nanos)
+                } else {
+                    java.time.LocalDateTime.parse(cleanDate)
+                }
+                parsedLdt.atZone(java.time.ZoneOffset.UTC).toInstant()
+            }.getOrNull()
+
+        if (instant != null) {
+            val zoneId = java.time.ZoneId.systemDefault()
+            val zonedDateTime = instant.atZone(zoneId)
+            val formatter = java.time.format.DateTimeFormatter.ofPattern("h:mm a", java.util.Locale.getDefault())
+            zonedDateTime.format(formatter)
+        } else {
+            ""
+        }
+    } catch (_: Exception) {
+        ""
     }
 }
 

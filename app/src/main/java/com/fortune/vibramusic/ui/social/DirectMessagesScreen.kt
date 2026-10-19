@@ -117,7 +117,9 @@ import com.fortune.vibramusic.data.social.PostMediaType
 import com.fortune.vibramusic.data.social.SharedPlaylistAttachment
 import com.fortune.vibramusic.data.social.SocialProfile
 import com.fortune.vibramusic.data.social.formatHandle
+import com.fortune.vibramusic.data.social.formatMessageTime
 import com.fortune.vibramusic.data.social.formatRelativeTime
+import com.fortune.vibramusic.data.social.isUserOnline
 import com.fortune.vibramusic.data.social.isWithinEditWindow
 import com.fortune.vibramusic.data.supabase.SupabaseService
 import com.fortune.vibramusic.ui.components.ArtistAvatar
@@ -164,6 +166,7 @@ fun DirectMessagesScreen(
     var editingMessage by remember { mutableStateOf<DirectMessage?>(null) }
     var editedMessageText by remember { mutableStateOf("") }
     var messageToDelete by remember { mutableStateOf<DirectMessage?>(null) }
+    var selectedReceiptMessageId by remember { mutableStateOf<String?>(null) }
 
     var fullScreenMediaList by remember { mutableStateOf<List<PostMediaItem>?>(null) }
     var fullScreenMediaIndex by remember { mutableIntStateOf(0) }
@@ -363,6 +366,22 @@ fun DirectMessagesScreen(
                     }
                 }
 
+                val lastMessageId = messages.lastOrNull()?.id
+                val isFriendOnline = remember(friend, messages) { isUserOnline(friend, messages) }
+
+                LaunchedEffect(friend.id) {
+                    myProfile?.id?.let { myId ->
+                        SupabaseService.updatePresence(myId)
+                    }
+                    while (true) {
+                        kotlinx.coroutines.delay(4000)
+                        myProfile?.id?.let { myId ->
+                            SupabaseService.updatePresence(myId)
+                        }
+                        viewModel.refreshDirectMessages()
+                    }
+                }
+
                 // Messages List
                 LazyColumn(
                     modifier = Modifier
@@ -378,10 +397,38 @@ fun DirectMessagesScreen(
                         key = { index, msg -> "msg_${msg.id.ifBlank { index.toString() }}_$index" },
                     ) { _, msg ->
                         val isMine = msg.senderId == myProfile?.id
+                        val isLastMessage = msg.id == lastMessageId
+                        val showReceipt = if (selectedReceiptMessageId == null) {
+                            isLastMessage
+                        } else if (selectedReceiptMessageId == "NONE") {
+                            false
+                        } else {
+                            msg.id == selectedReceiptMessageId
+                        }
+
                         MessageBubble(
                             message = msg,
                             isMine = isMine,
                             friendDisplayName = friend.displayName,
+                            isFriendOnline = isFriendOnline,
+                            showReceipt = showReceipt,
+                            onToggleReceipt = {
+                                if (selectedReceiptMessageId == null) {
+                                    if (msg.id == lastMessageId) {
+                                        selectedReceiptMessageId = "NONE"
+                                    } else {
+                                        selectedReceiptMessageId = msg.id
+                                    }
+                                } else if (selectedReceiptMessageId == "NONE") {
+                                    selectedReceiptMessageId = msg.id
+                                } else if (selectedReceiptMessageId == msg.id) {
+                                    selectedReceiptMessageId = null
+                                } else if (msg.id == lastMessageId) {
+                                    selectedReceiptMessageId = null
+                                } else {
+                                    selectedReceiptMessageId = msg.id
+                                }
+                            },
                             onPlayTrack = onPlayTrack,
                             voiceRecorderManager = voiceRecorderManager,
                             currentlyPlayingAudioUrl = currentlyPlayingAudioUrl,
@@ -1350,6 +1397,9 @@ private fun MessageBubble(
     message: DirectMessage,
     isMine: Boolean,
     friendDisplayName: String = "",
+    isFriendOnline: Boolean = false,
+    showReceipt: Boolean = false,
+    onToggleReceipt: () -> Unit = {},
     onPlayTrack: (MusicTrackAttachment) -> Unit,
     voiceRecorderManager: VoiceRecorderManager,
     currentlyPlayingAudioUrl: String?,
@@ -1425,7 +1475,7 @@ private fun MessageBubble(
                     else MaterialTheme.colorScheme.surfaceVariant,
                 )
                 .combinedClickable(
-                    onClick = {},
+                    onClick = { onToggleReceipt() },
                     onLongClick = { onLongClick(message) },
                 )
                 .padding(horizontal = 14.dp, vertical = 10.dp),
@@ -1648,6 +1698,35 @@ private fun MessageBubble(
                         Spacer(Modifier.height(8.dp))
                     }
                     SharedPlaylistCard(playlist = playlist)
+                }
+
+                // Tiny Read Receipt & Timestamp at the bottom of the bubble
+                if (showReceipt) {
+                    val timeStr = formatMessageTime(message.createdAt)
+                    val receiptText = if (isMine) {
+                        val status = when {
+                            message.isRead -> "seen"
+                            isFriendOnline -> "received"
+                            else -> "sent"
+                        }
+                        if (timeStr.isNotBlank()) "$timeStr · $status" else status
+                    } else {
+                        timeStr
+                    }
+
+                    if (receiptText.isNotBlank()) {
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = receiptText,
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Normal,
+                            ),
+                            color = if (isMine) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.75f)
+                            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                            modifier = Modifier.align(if (isMine) Alignment.End else Alignment.Start),
+                        )
+                    }
                 }
             }
         }

@@ -979,6 +979,19 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun refreshDirectMessages() {
+        val userId = _currentProfile.value?.id ?: return
+        val friendId = _activeChatFriend.value?.id ?: return
+        viewModelScope.launch {
+            SupabaseService.markMessagesAsRead(senderId = friendId, receiverId = userId)
+            SupabaseService.fetchDirectMessages(userId, friendId).onSuccess { msgs ->
+                if (msgs != _chatMessages.value) {
+                    _chatMessages.value = msgs
+                }
+            }
+        }
+    }
+
     fun closeChat() {
         _activeChatFriend.value = null
         _chatMessages.value = emptyList()

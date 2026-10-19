@@ -2,8 +2,10 @@ package com.fortune.vibramusic.data
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.os.Environment
 import android.provider.Settings
 import androidx.core.content.FileProvider
 import com.fortune.vibramusic.BuildConfig
@@ -125,12 +127,37 @@ object AppUpdateChecker {
      * out whether a leftover file is still good.
      */
     suspend fun clearCache(context: Context) = withContext(Dispatchers.IO) {
-        File(context.cacheDir, CACHE_SUBDIR).listFiles()?.forEach { it.delete() }
+        val targets = listOfNotNull(
+            File(context.cacheDir, CACHE_SUBDIR),
+            File(context.filesDir, CACHE_SUBDIR),
+            context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)?.let { File(it, CACHE_SUBDIR) },
+            context.externalCacheDir?.let { File(it, CACHE_SUBDIR) },
+        )
+        for (dir in targets) {
+            runCatching {
+                dir.listFiles()?.forEach { it.delete() }
+            }
+        }
+    }
+
+    private fun getUpdatesDir(context: Context): File {
+        val baseDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+            ?: context.externalCacheDir
+            ?: File(context.filesDir, CACHE_SUBDIR)
+        val dir = if (baseDir.name == CACHE_SUBDIR) baseDir else File(baseDir, CACHE_SUBDIR)
+        if (!dir.exists()) {
+            dir.mkdirs()
+        }
+        dir.setReadable(true, false)
+        dir.setExecutable(true, false)
+        return dir
     }
 
     /**
-     * Finds the most appropriate `.apk` asset for this device's ABI, falling
-     * back to universal or the first available APK. Returns Pair(downloadUrl, fileName).
+     * Finds the most appropriate `.apk` asset for this device's ABI, prioritizing
+     * the universal build so that it installs reliably on all devices (preventing
+     * 32/64-bit OS ABI mismatch package parse errors).
+     * Returns Pair(downloadUrl, fileName).
      */
     private fun apkAsset(release: JsonObject): Pair<String, String>? = runCatching {
         val assets = release["assets"]?.jsonArray
@@ -141,14 +168,14 @@ object AppUpdateChecker {
         if (assets.isEmpty()) return null
 
         val supportedAbis = Build.SUPPORTED_ABIS ?: emptyArray()
-        val best = supportedAbis.firstNotNullOfOrNull { abi ->
+        val best = assets.firstOrNull { asset ->
+            val name = asset["name"]?.jsonPrimitive?.contentOrNull ?: ""
+            name.contains("universal", ignoreCase = true)
+        } ?: supportedAbis.firstNotNullOfOrNull { abi ->
             assets.firstOrNull { asset ->
                 val name = asset["name"]?.jsonPrimitive?.contentOrNull ?: ""
                 name.contains(abi, ignoreCase = true)
             }
-        } ?: assets.firstOrNull { asset ->
-            val name = asset["name"]?.jsonPrimitive?.contentOrNull ?: ""
-            name.contains("universal", ignoreCase = true)
         } ?: assets.first()
 
         val downloadUrl = best["browser_download_url"]?.jsonPrimitive?.contentOrNull ?: return null
@@ -157,7 +184,7 @@ object AppUpdateChecker {
     }.getOrNull()
 
     /**
-     * Streams the current update's APK into the app cache, reporting progress
+     * Streams the current update's APK into the app storage, reporting progress
      * through [download]. A finished file survives a cancelled dialog: until
      * the state is reset, "Install Now" comes straight back without a second
      * download.
@@ -165,6 +192,7 @@ object AppUpdateChecker {
      * Security controls:
      * 1. Validates HTTPS and trusted host domain (github.com or objects.githubusercontent.com)
      * 2. Computes SHA-256 and verifies against official release checksums.txt when available
+     * 3. Validates package parseability with PackageManager before presenting for install
      */
     suspend fun downloadApk(context: Context): Unit = withContext(Dispatchers.IO) {
         val info = _available.value ?: return@withContext
@@ -173,7 +201,7 @@ object AppUpdateChecker {
         _download.value = DownloadState.Downloading(0f)
 
         runCatching {
-            val dir = File(context.cacheDir, CACHE_SUBDIR).apply { mkdirs() }
+            val dir = getUpdatesDir(context)
             // Drop anything left over from an earlier attempt.
             dir.listFiles()?.forEach { it.delete() }
             val target = File(dir, "vibra-${info.version}.apk")
@@ -182,6 +210,7 @@ object AppUpdateChecker {
                 url,
                 "https://github.com/Fortunehack45/Vibra_Music_Releases/releases/download/v${info.version}/${info.apkFileName ?: "VibraMusic-v${info.version}-Universal-AllDevices.apk"}",
                 "https://github.com/Fortunehack45/Vibra_Music/releases/download/v${info.version}/${info.apkFileName ?: "VibraMusic-v${info.version}-Universal-AllDevices.apk"}",
+                "https://github.com/Fortunehack45/Vibra_Music_Releases/releases/download/v${info.version}/VibraMusic-v${info.version}-Universal-AllDevices.apk",
             ).distinct()
 
             var downloadSuccess = false
@@ -241,6 +270,8 @@ object AppUpdateChecker {
                 throw downloadError ?: java.io.IOException("Failed to download APK update")
             }
 
+            target.setReadable(true, false)
+
             // Security check 2: Verify SHA-256 checksum against official release checksums.txt when available
             if (!info.checksumsUrl.isNullOrBlank()) {
                 val checksumReq = Request.Builder()
@@ -279,6 +310,21 @@ object AppUpdateChecker {
                 }
             }
 
+            // Package verification: ensure Android can parse this package archive
+            val archiveInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                context.packageManager.getPackageArchiveInfo(
+                    target.absolutePath,
+                    PackageManager.PackageInfoFlags.of(0)
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                context.packageManager.getPackageArchiveInfo(target.absolutePath, 0)
+            }
+            if (archiveInfo == null) {
+                target.delete()
+                throw java.io.IOException("Package verification failed: downloaded APK is corrupted or incompatible")
+            }
+
             _download.value = DownloadState.Ready(target)
         }.onFailure { error ->
             _download.value = if (downloadCancelled) {
@@ -307,6 +353,11 @@ object AppUpdateChecker {
      * the user is sent to that one switch first and taps Install again after.
      */
     fun installApk(context: Context, file: File) {
+        if (!file.exists() || file.length() == 0L) {
+            _download.value = DownloadState.Failed("Update file not found. Please download again.")
+            return
+        }
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
             !context.packageManager.canRequestPackageInstalls()
         ) {
@@ -317,24 +368,50 @@ object AppUpdateChecker {
             )
             return
         }
+
+        file.setReadable(true, false)
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-        val installIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(uri, "application/vnd.android.package-archive")
-                putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true)
-                putExtra(Intent.EXTRA_RETURN_RESULT, true)
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
+        val installIntent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, "application/vnd.android.package-archive")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        }
+
+        val resolveInfoList = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            context.packageManager.queryIntentActivities(
+                installIntent,
+                PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_DEFAULT_ONLY.toLong())
+            )
         } else {
             @Suppress("DEPRECATION")
-            Intent(Intent.ACTION_INSTALL_PACKAGE).apply {
-                setDataAndType(uri, "application/vnd.android.package-archive")
-                putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true)
-                putExtra(Intent.EXTRA_RETURN_RESULT, true)
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.packageManager.queryIntentActivities(installIntent, PackageManager.MATCH_DEFAULT_ONLY)
+        }
+
+        for (resolveInfo in resolveInfoList) {
+            val packageName = resolveInfo.activityInfo.packageName
+            context.grantUriPermission(packageName, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+
+        listOf(
+            "com.google.android.packageinstaller",
+            "com.android.packageinstaller",
+            "com.samsung.android.packageinstaller",
+            "com.miui.packageinstaller",
+            "com.coloros.packageinstaller",
+            "com.oppo.packageinstaller",
+            "com.vivo.packageinstaller"
+        ).forEach { installerPkg ->
+            runCatching {
+                context.grantUriPermission(installerPkg, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
         }
-        context.startActivity(installIntent)
+
+        runCatching {
+            context.startActivity(installIntent)
+        }.onFailure { error ->
+            _download.value = DownloadState.Failed(error.message ?: "Failed to launch package installer")
+        }
     }
 
     /** A version split into its numeric dotted parts and whether it carries a "-suffix" (e.g. "-beta2"). */

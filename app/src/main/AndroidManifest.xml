@@ -61,6 +61,20 @@
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
 
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:mimeType="application/vnd.android.package-archive" />
+        </intent>
+        <package android:name="com.google.android.packageinstaller" />
+        <package android:name="com.android.packageinstaller" />
+        <package android:name="com.samsung.android.packageinstaller" />
+        <package android:name="com.miui.packageinstaller" />
+        <package android:name="com.coloros.packageinstaller" />
+        <package android:name="com.oppo.packageinstaller" />
+        <package android:name="com.vivo.packageinstaller" />
+    </queries>
+
     <application
         android:name=".VibraMusicApplication"
         android:allowBackup="true"

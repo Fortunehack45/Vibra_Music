@@ -271,6 +271,7 @@ import com.fortune.vibramusic.ui.social.SocialViewModel
 import com.fortune.vibramusic.ui.social.SocialScreen
 import com.fortune.vibramusic.ui.social.DirectMessagesScreen
 import com.fortune.vibramusic.ui.social.UserProfileScreen
+import com.fortune.vibramusic.ui.social.FriendsDiscoveryScreen
 import com.fortune.vibramusic.ui.social.NotificationsSheet
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -492,6 +493,7 @@ private fun VibraMusicApp(
     val socialIsNotificationsOpen by socialViewModel.isNotificationsOpen.collectAsStateWithLifecycle()
     val vmViewingProfile by socialViewModel.viewingProfile.collectAsStateWithLifecycle()
     val socialSelectedPostForComments by socialViewModel.selectedPostForComments.collectAsStateWithLifecycle()
+    val socialSuggestedUsers by socialViewModel.suggestedUsersList.collectAsStateWithLifecycle()
 
     LaunchedEffect(vmViewingProfile) {
         viewingSocialProfile = vmViewingProfile
@@ -1064,6 +1066,7 @@ private fun VibraMusicApp(
     val socialTabs = remember {
         listOf(
             BottomTab(SocialTab.FEED.label, SocialTab.FEED.icon),
+            BottomTab(SocialTab.TWIN.label, SocialTab.TWIN.icon),
             BottomTab(SocialTab.QUIZ.label, SocialTab.QUIZ.icon),
             BottomTab(SocialTab.MESSAGES.label, SocialTab.MESSAGES.icon),
             BottomTab(SocialTab.PROFILE.label, SocialTab.PROFILE.icon),
@@ -2558,7 +2561,7 @@ private fun VibraMusicApp(
                     modifier = Modifier
                         .hazeSource(hazeState)
                         .then(
-                            if (glassActive && currentRealm != AppRealm.SOCIAL) {
+                            if (glassActive) {
                                 Modifier
                                     // Not under "reduce dynamic blur": nothing
                                     // samples the layer then, and recording a
@@ -3065,6 +3068,25 @@ private fun VibraMusicApp(
                                     hazeState = hazeState,
                                 )
                             }
+                            SocialTab.TWIN -> {
+                                FriendsDiscoveryScreen(
+                                    currentProfile = socialProfile,
+                                    suggestedProfiles = socialSuggestedUsers,
+                                    onBack = null,
+                                    onSendFriendRequest = { profile ->
+                                        socialViewModel.sendFriendRequest(profile.id)
+                                    },
+                                    onOpenProfile = { profile ->
+                                        socialViewModel.openUserProfile(profile)
+                                        viewingSocialProfile = profile
+                                    },
+                                    onRefreshSuggestions = {
+                                        socialProfile?.id?.let { socialViewModel.loadConnections(it) }
+                                    },
+                                    contentPadding = listPadding,
+                                    hazeState = hazeState,
+                                )
+                            }
                             SocialTab.QUIZ -> {
                                 QuizHubScreen(
                                     viewModel = quizViewModel,
@@ -3451,6 +3473,7 @@ private fun VibraMusicApp(
                         currentRealm == AppRealm.SOCIAL && viewingSocialProfile != null -> viewingSocialProfile?.displayName.orEmpty()
                         currentRealm == AppRealm.SOCIAL -> when (socialNavTab) {
                             SocialTab.FEED -> "Feed"
+                            SocialTab.TWIN -> "Twin"
                             SocialTab.QUIZ -> "Music Quiz"
                             SocialTab.MESSAGES -> "Messages"
                             SocialTab.PROFILE -> "Profile"
@@ -3781,7 +3804,7 @@ private fun VibraMusicApp(
                     }
                 }
 
-                if (glassActive && currentRealm != AppRealm.SOCIAL) {
+                if (glassActive) {
                     Column(
                         modifier = Modifier
                             .align(Alignment.BottomCenter)

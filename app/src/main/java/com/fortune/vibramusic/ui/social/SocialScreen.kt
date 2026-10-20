@@ -93,6 +93,8 @@ import com.fortune.vibramusic.data.social.SocialProfile
 import com.fortune.vibramusic.data.social.formatHandle
 import com.fortune.vibramusic.ui.components.ArtistAvatar
 import com.fortune.vibramusic.ui.components.lightweightLiquidGlass
+import com.fortune.vibramusic.ui.components.liquidGlassButton
+import com.fortune.vibramusic.ui.haptics.Haptic
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material3.AlertDialog
@@ -151,7 +153,6 @@ fun SocialScreen(
     var isSearchExpanded by remember { mutableStateOf(false) }
 
     var showCreatePostSheet by remember { mutableStateOf(false) }
-    var showSoulmateScreen by remember { mutableStateOf(false) }
     var repostActionTarget by remember { mutableStateOf<SocialPost?>(null) }
     var previewImageUrl by remember { mutableStateOf<String?>(null) }
     var activeMediaViewer by remember { mutableStateOf<Pair<List<PostMediaItem>, Int>?>(null) }
@@ -189,37 +190,26 @@ fun SocialScreen(
                                 modifier = Modifier.weight(1f),
                             )
 
-                            // Music Soulmate Matching Button
+                            // Search Toggle Button (Liquid Glass)
                             Box(
                                 modifier = Modifier
                                     .size(42.dp)
                                     .clip(CircleShape)
-                                    .background(VibraPurple.copy(alpha = 0.18f))
-                                    .border(1.dp, VibraPurple.copy(alpha = 0.45f), CircleShape)
-                                    .clickable { showSoulmateScreen = true },
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Favorite,
-                                    contentDescription = "Music Soulmate",
-                                    tint = VibraPurple,
-                                    modifier = Modifier.size(20.dp),
-                                )
-                            }
-
-                            // Search Toggle Button
-                            Box(
-                                modifier = Modifier
-                                    .size(42.dp)
-                                    .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                                    .clickable { isSearchExpanded = true },
+                                    .lightweightLiquidGlass(
+                                        shape = CircleShape,
+                                        fallbackColor = Color(0xCC1A1C24),
+                                    )
+                                    .border(1.dp, Color.White.copy(alpha = 0.25f), CircleShape)
+                                    .liquidGlassButton(
+                                        onClick = { isSearchExpanded = true },
+                                        haptic = Haptic.Tap,
+                                    ),
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Icon(
                                     imageVector = Icons.Rounded.Search,
                                     contentDescription = "Search",
-                                    tint = MaterialTheme.colorScheme.onSurface,
+                                    tint = Color.White,
                                     modifier = Modifier.size(20.dp),
                                 )
                             }
@@ -659,24 +649,32 @@ fun SocialScreen(
             }
         }
 
-        // Floating Action Button to Create Post
-        FloatingActionButton(
-            onClick = { showCreatePostSheet = true },
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary,
-            shape = CircleShape,
+        // Liquid Glass Floating Action Button to Create Post
+        Box(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(
                     end = 20.dp,
                     bottom = contentPadding.calculateBottomPadding() + 16.dp,
                 )
-                .size(54.dp),
+                .size(56.dp)
+                .clip(CircleShape)
+                .lightweightLiquidGlass(
+                    shape = CircleShape,
+                    fallbackColor = VibraPurple.copy(alpha = 0.85f),
+                )
+                .border(1.2.dp, Color.White.copy(alpha = 0.35f), CircleShape)
+                .liquidGlassButton(
+                    onClick = { showCreatePostSheet = true },
+                    haptic = Haptic.Tap,
+                ),
+            contentAlignment = Alignment.Center,
         ) {
             Icon(
                 imageVector = Icons.Rounded.Add,
                 contentDescription = "Create Post",
-                modifier = Modifier.size(26.dp),
+                tint = Color.White,
+                modifier = Modifier.size(28.dp),
             )
         }
     }
@@ -825,31 +823,6 @@ fun SocialScreen(
                     viewModel.createStory(mediaUrl, mediaType, textContent, track)
                     showCreateStorySheet = false
                 },
-            )
-        }
-    }
-
-    // Music Soulmate Screen
-    if (showSoulmateScreen) {
-        Dialog(
-            onDismissRequest = { showSoulmateScreen = false },
-            properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
-        ) {
-            FriendsDiscoveryScreen(
-                currentProfile = currentProfile,
-                suggestedProfiles = suggestedUsers,
-                onBack = { showSoulmateScreen = false },
-                onSendFriendRequest = { profile ->
-                    viewModel.sendFriendRequest(profile.id)
-                },
-                onOpenProfile = { profile ->
-                    showSoulmateScreen = false
-                    onOpenProfile(profile)
-                },
-                onRefreshSuggestions = {
-                    currentProfile?.id?.let { viewModel.loadConnections(it) }
-                },
-                hazeState = hazeState,
             )
         }
     }
@@ -1045,7 +1018,11 @@ fun FeedTabSwitcher(
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(24.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .lightweightLiquidGlass(
+                shape = RoundedCornerShape(24.dp),
+                fallbackColor = Color(0xCC1A1C24),
+            )
+            .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(24.dp))
             .padding(4.dp),
     ) {
         Row(

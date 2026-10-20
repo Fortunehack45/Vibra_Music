@@ -1,5 +1,15 @@
 package com.fortune.vibramusic.ui.screens
 
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.draw.shadow
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.StarBorder
+
 import com.fortune.vibramusic.R
 
 import androidx.compose.animation.AnimatedContent
@@ -445,10 +455,21 @@ fun DetailScreen(
                         onShuffle = { onShuffle(songs) },
                         subscription = page.subscription?.takeIf { onToggleSubscription != null },
                         onToggleSubscription = onToggleSubscription,
-                        // Halved when an About section follows directly — see
-                        // [AboutSection]'s own top inset, which makes up the
-                        // rest of that shorter gap.
                         bottomSpace = if (page.description.isNullOrBlank()) 22.dp else 11.dp,
+                    )
+                }
+            }
+
+            val topRelease = if (isArtist) page.sections.topRelease() else null
+            if (topRelease != null) {
+                item(key = "top-release") {
+                    TopReleaseCard(
+                        item = topRelease,
+                        palette = palette,
+                        onClick = { onSectionItemClick(topRelease) },
+                        onLongPress = if (onSectionItemLongPress != null) { { onSectionItemLongPress(topRelease) } } else null,
+                        saved = null,
+                        onToggleSaved = null,
                     )
                 }
             }
@@ -644,6 +665,106 @@ private fun ReleaseHeader(
     onArtistClick: (String, String) -> Unit,
     onToggleLibrary: (() -> Unit)?,
 ) {
+    val isPodcast = page.type == BrowseType.PODCAST_SHOW || page.browseId.startsWith("MPSP")
+    if (isPodcast) {
+        val (credit, meta) = page.headerLines(trackCount)
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = topBarContentPadding(), bottom = 18.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Box(
+                Modifier
+                    .size(240.dp)
+                    .shadow(18.dp, RoundedCornerShape(14.dp))
+                    .background(palette.elevated)
+                    .thumbnailBorder(RoundedCornerShape(14.dp)),
+            ) {
+                AsyncImage(
+                    model = page.thumbnailUrl.artworkAt(HEADER_ART_PX),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.matchParentSize(),
+                )
+            }
+            Spacer(Modifier.height(20.dp))
+            Text(
+                text = page.title,
+                style = MaterialTheme.typography.headlineMedium,
+                color = palette.onBackground,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = HEADER_GUTTER),
+            )
+            if (credit.isNotBlank()) {
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = credit,
+                    style = MaterialTheme.typography.titleLarge.copy(fontSize = 19.sp),
+                    color = palette.onBackgroundVariant,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(horizontal = HEADER_GUTTER),
+                )
+            }
+            if (meta.isNotBlank()) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = meta,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = palette.onBackgroundVariant,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(horizontal = HEADER_GUTTER),
+                )
+            }
+            if (songs.isNotEmpty()) {
+                val library = page.library?.takeIf { onToggleLibrary != null }
+                Spacer(Modifier.height(18.dp))
+                Row(
+                    modifier = Modifier
+                        .widthIn(max = 420.dp)
+                        .fillMaxWidth()
+                        .padding(horizontal = HEADER_GUTTER),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    CircleIconButton(
+                        icon = VibraMusicIcons.Shuffle,
+                        contentDescription = stringResource(R.string.shuffle),
+                        palette = palette,
+                        onClick = onShuffle,
+                        haptic = Haptic.Resume,
+                        size = 50.dp,
+                    )
+                    AppleMusicPillButton(
+                        icon = VibraMusicIcons.Play,
+                        label = stringResource(R.string.play),
+                        onClick = onPlay,
+                        filled = true,
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (library != null) {
+                        CircleIconButton(
+                            icon = if (library.saved) VibraMusicIcons.Check else VibraMusicIcons.Plus,
+                            contentDescription = stringResource(
+                                if (library.saved) R.string.remove_from_library else R.string.add_to_library,
+                            ),
+                            palette = palette,
+                            onClick = { onToggleLibrary?.invoke() },
+                            haptic = if (library.saved) Haptic.ToggleOff else Haptic.ToggleOn,
+                            size = 50.dp,
+                        )
+                    }
+                }
+            }
+        }
+        return
+    }
     val (credit, meta) = page.headerLines(trackCount)
     // Every row on a release carries the same credit — see [pageCredit] — so
     // the first one speaks for the whole page, the same source the rows'
@@ -1184,40 +1305,77 @@ private fun ActionRow(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = HEADER_GUTTER),
-        horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
+        horizontalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        AppleMusicPillButton(
-            icon = VibraMusicIcons.Play,
-            label = stringResource(R.string.play),
-            onClick = onPlay,
-            filled = true,
-            modifier = Modifier.weight(1f),
+        CircleIconButton(
+            icon = VibraMusicIcons.Shuffle,
+            contentDescription = stringResource(R.string.shuffle),
+            palette = palette,
+            onClick = onShuffle,
+            haptic = Haptic.Resume,
+            size = 52.dp,
         )
 
-        AppleMusicPillButton(
-            icon = VibraMusicIcons.Shuffle,
-            label = stringResource(R.string.shuffle),
-            onClick = onShuffle,
-            filled = false,
-            palette = palette,
-            modifier = Modifier.weight(1f),
+        PlayCircle(
+            onClick = onPlay,
+            size = 70.dp,
+            iconScale = 0.56f,
+            containerColor = Color.White,
         )
 
         if (subscription != null) {
             CircleIconButton(
-                icon = if (subscription.subscribed) VibraMusicIcons.Check else VibraMusicIcons.Plus,
+                icon = if (subscription.subscribed) Icons.Rounded.Star else Icons.Rounded.StarBorder,
                 contentDescription = stringResource(
                     if (subscription.subscribed) R.string.unsubscribe else R.string.subscribe,
                 ),
                 palette = palette,
                 onClick = { onToggleSubscription?.invoke() },
                 haptic = if (subscription.subscribed) Haptic.ToggleOff else Haptic.ToggleOn,
-                size = 48.dp,
+                size = 52.dp,
+            )
+        } else {
+            CircleIconButton(
+                icon = Icons.Rounded.StarBorder,
+                contentDescription = stringResource(R.string.subscribe),
+                palette = palette,
+                onClick = {},
+                size = 52.dp,
             )
         }
     }
     Spacer(Modifier.height(bottomSpace))
+}
+
+@Composable
+private fun PlayCircle(
+    onClick: () -> Unit,
+    size: Dp,
+    iconScale: Float,
+    containerColor: Color,
+) {
+    val haptics = rememberHaptics()
+    val description = stringResource(R.string.play)
+    Box(
+        modifier = Modifier
+            .size(size)
+            .clip(CircleShape)
+            .background(containerColor)
+            .clickable {
+                haptics.play(Haptic.Resume)
+                onClick()
+            }
+            .semantics { contentDescription = description },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = VibraMusicIcons.Play,
+            contentDescription = null,
+            tint = Color.Black,
+            modifier = Modifier.size(size * iconScale),
+        )
+    }
 }
 
 @Composable
@@ -1811,4 +1969,114 @@ private fun String?.toSeconds(): Int {
         total += (secMatch.groupValues[1].toIntOrNull() ?: 0)
     }
     return total
+}
+
+private fun List<HomeShelf>.topRelease(): ShelfItem? =
+    asSequence()
+        .flatMap { it.items.asSequence() }
+        .filter { it.browseId?.startsWith("MPRE") == true }
+        .withIndex()
+        .maxWithOrNull(
+            compareBy<IndexedValue<ShelfItem>> { it.value.releaseYear() ?: 0 }
+                .thenByDescending { it.index },
+        )?.value
+
+private val RELEASE_YEAR = Regex("""\b(19|20)\d{2}\b""")
+
+private fun ShelfItem.releaseYear(): Int? =
+    RELEASE_YEAR.find(subtitle)?.value?.toIntOrNull()
+
+@androidx.annotation.StringRes
+private fun ShelfItem.recentLabel(): Int {
+    val kind = subtitle.lowercase()
+    return when {
+        kind.contains("single") -> R.string.recent_single
+        Regex("""\bep\b""").containsMatchIn(kind) -> R.string.recent_ep
+        else -> R.string.recent_album
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun TopReleaseCard(
+    item: ShelfItem,
+    palette: ArtworkPalette,
+    onClick: () -> Unit,
+    onLongPress: (() -> Unit)?,
+    saved: Boolean?,
+    onToggleSaved: (() -> Unit)?,
+) {
+    val shape = RoundedCornerShape(28.dp)
+    val coverShape = RoundedCornerShape(12.dp)
+    val haptics = rememberHaptics()
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = PAGE_GUTTER)
+            .padding(bottom = 22.dp)
+            .clip(shape)
+            .background(Color.White.copy(alpha = 0.07f), shape)
+            .border(1.dp, Color.White.copy(alpha = 0.10f), shape)
+            .combinedClickable(onClick = onClick, onLongClick = onLongPress)
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        AsyncImage(
+            model = item.thumbnailUrl.artworkAt(CARD_ART_PX),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .size(88.dp)
+                .clip(coverShape)
+                .border(1.dp, Color.White.copy(alpha = 0.215f), coverShape)
+                .background(palette.elevated),
+        )
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = item.subtitle,
+                style = MaterialTheme.typography.bodyMedium,
+                color = palette.onBackgroundVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = item.title,
+                style = MaterialTheme.typography.titleLarge,
+                color = palette.onBackground,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = stringResource(item.recentLabel()),
+                style = MaterialTheme.typography.bodyMedium,
+                color = palette.onBackgroundVariant,
+                maxLines = 1,
+            )
+        }
+        if (onToggleSaved != null && saved != null) {
+            Spacer(Modifier.width(10.dp))
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.07f), CircleShape)
+                    .border(1.dp, Color.White.copy(alpha = 0.10f), CircleShape)
+                    .clickable {
+                        haptics.play(if (saved) Haptic.ToggleOff else Haptic.ToggleOn)
+                        onToggleSaved()
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = if (saved) VibraMusicIcons.Check else VibraMusicIcons.Plus,
+                    contentDescription = stringResource(
+                        if (saved) R.string.remove_from_library else R.string.add_to_library,
+                    ),
+                    tint = palette.onBackground,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        }
+    }
 }

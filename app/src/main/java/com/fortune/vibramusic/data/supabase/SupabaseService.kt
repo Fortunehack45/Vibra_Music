@@ -1557,7 +1557,8 @@ object SupabaseService {
                 header("apikey", SupabaseConfig.anonKey)
                 header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
                 if (cleanQuery.isNotBlank()) {
-                    parameter("or", "(handle.ilike.%$cleanQuery%,display_name.ilike.%$cleanQuery%)")
+                    val encodedQ = "*$cleanQuery*"
+                    parameter("or", "(handle.ilike.$encodedQ,display_name.ilike.$encodedQ)")
                 }
                 parameter("limit", limit.toString())
                 parameter("order", "followers_count.desc,handle.asc")
@@ -1570,7 +1571,28 @@ object SupabaseService {
     }
 
     /**
-     * Fetches accounts following the given user with follow status reconciled against active user.
+     * Fetches a single profile by handle.
+     */
+    suspend fun getProfileByHandle(handle: String, currentUserId: String = ""): Result<SocialProfile?> = withContext(Dispatchers.IO) {
+        runCatching {
+            val clean = handle.trim().lowercase().removePrefix("@")
+            if (clean.isBlank()) return@runCatching null
+            val response = client.get(baseUrl("profiles")) {
+                header("apikey", SupabaseConfig.anonKey)
+                header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                parameter("handle", "ilike.$clean")
+                parameter("limit", "1")
+            }
+            if (!response.status.isSuccess()) return@runCatching null
+            val arr = json.parseToJsonElement(response.bodyAsText()) as? JsonArray ?: return@runCatching null
+            val first = arr.firstOrNull() as? JsonObject ?: return@runCatching null
+            val baseProfile = parseProfileRow(first)
+            fetchUserProfile(baseProfile.id, currentUserId).getOrNull() ?: baseProfile
+        }
+    }
+
+    /**
+     * Fetches accounts following the given user.
      */
     suspend fun getFollowers(userId: String, currentUserId: String = ""): Result<List<SocialProfile>> = withContext(Dispatchers.IO) {
         runCatching {
@@ -1666,12 +1688,46 @@ object SupabaseService {
      */
     suspend fun getFriends(userId: String, currentUserId: String = ""): Result<List<SocialProfile>> = withContext(Dispatchers.IO) {
         runCatching {
+            val friendshipProfiles = mutableListOf<SocialProfile>()
+            val friendsRes = client.get(baseUrl("friendships")) {
+                header("apikey", SupabaseConfig.anonKey)
+                header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                parameter("or", "(requester_id.eq.$userId,receiver_id.eq.$userId)")
+                parameter("status", "eq.ACCEPTED")
+            }
+            if (friendsRes.status.isSuccess()) {
+                val arr = json.parseToJsonElement(friendsRes.bodyAsText()) as? JsonArray
+                val friendIds = arr?.mapNotNull { item ->
+                    val obj = item as? JsonObject
+                    val req = obj?.str("requester_id")
+                    val rec = obj?.str("receiver_id")
+                    if (req == userId) rec else req
+                }?.filter { !it.isNullOrBlank() }?.toSet().orEmpty()
+
+                if (friendIds.isNotEmpty()) {
+                    val inFilter = "in.(${friendIds.joinToString(",")})"
+                    val profRes = client.get(baseUrl("profiles")) {
+                        header("apikey", SupabaseConfig.anonKey)
+                        header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                        parameter("id", inFilter)
+                    }
+                    if (profRes.status.isSuccess()) {
+                        val profArr = json.parseToJsonElement(profRes.bodyAsText()) as? JsonArray
+                        profArr?.mapNotNull { (it as? JsonObject)?.let { row -> parseProfileRow(row) } }?.let {
+                            friendshipProfiles.addAll(it.map { p -> p.copy(isFriend = true) })
+                        }
+                    }
+                }
+            }
+
             val following = getFollowing(userId, currentUserId).getOrDefault(emptyList())
             val followers = getFollowers(userId, currentUserId).getOrDefault(emptyList())
             val followerIds = followers.map { it.id }.toSet()
-            following.filter { followerIds.contains(it.id) }.map {
+            val mutuals = following.filter { followerIds.contains(it.id) }.map {
                 it.copy(isFriend = true)
             }
+
+            (friendshipProfiles + mutuals).distinctBy { it.id }
         }
     }
 

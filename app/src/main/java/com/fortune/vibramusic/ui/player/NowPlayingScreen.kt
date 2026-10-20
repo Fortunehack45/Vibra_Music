@@ -66,6 +66,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import android.content.Intent
 import android.widget.Toast
@@ -1448,8 +1449,8 @@ fun NowPlayingScreen(
         // Keep the current output caption visible in every state.
         Spacer(Modifier.height(18.dp))
         Box(
-            modifier = Modifier.fillMaxWidth().height(20.dp),
-            contentAlignment = Alignment.TopCenter,
+            modifier = Modifier.fillMaxWidth().wrapContentHeight(),
+            contentAlignment = Alignment.Center,
         ) {
             OutputCaption(
                 accountName = accountName,
@@ -3188,7 +3189,7 @@ fun NowPlayingScreen(
             }
 
             playerActions()
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(18.dp).navigationBarsPadding())
             }
             }
             }

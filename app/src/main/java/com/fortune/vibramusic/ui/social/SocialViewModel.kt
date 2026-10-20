@@ -1293,11 +1293,18 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
     fun openUserProfileByHandle(handle: String) {
         val clean = handle.trim().removePrefix("@")
         if (clean.isBlank()) return
+        val myId = _currentProfile.value?.id ?: ""
         viewModelScope.launch {
-            SupabaseService.searchUsersForMention(clean, limit = 1).onSuccess { list ->
-                val match = list.firstOrNull { it.handle.equals(clean, ignoreCase = true) } ?: list.firstOrNull()
-                if (match != null) {
-                    openUserProfile(match)
+            SupabaseService.getProfileByHandle(clean, myId).onSuccess { profile ->
+                if (profile != null) {
+                    openUserProfile(profile)
+                } else {
+                    SupabaseService.searchUsersForMention(clean, limit = 1).onSuccess { list ->
+                        val match = list.firstOrNull { it.handle.equals(clean, ignoreCase = true) } ?: list.firstOrNull()
+                        if (match != null) {
+                            openUserProfile(match)
+                        }
+                    }
                 }
             }
         }

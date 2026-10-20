@@ -178,7 +178,7 @@ fun PostThreadScreen(
 
     // Detect mention typing in reply field
     LaunchedEffect(replyText) {
-        val lastWord = replyText.substringAfterLast(" ", missingDelimiterValue = replyText)
+        val lastWord = replyText.substringAfterLast(" ", missingDelimiterValue = replyText).substringAfterLast("\n")
         if (lastWord.startsWith("@")) {
             val q = lastWord.removePrefix("@")
             mentionQuery = q

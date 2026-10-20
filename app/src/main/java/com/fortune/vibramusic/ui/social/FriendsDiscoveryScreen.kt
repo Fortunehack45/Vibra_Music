@@ -6,8 +6,6 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -28,6 +26,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -35,6 +34,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Undo
+import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Person
@@ -79,8 +80,6 @@ import com.fortune.vibramusic.ui.components.liquidGlassButton
 import com.fortune.vibramusic.ui.haptics.Haptic
 import com.fortune.vibramusic.ui.theme.VibraPurple
 import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.hazeEffect
-import dev.chrisbanes.haze.materials.HazeMaterials
 import kotlinx.coroutines.launch
 import kotlin.math.cos
 import kotlin.math.roundToInt
@@ -96,18 +95,25 @@ data class MusicMatchCandidate(
     val satelliteArtists: List<FavoriteArtist>,
 )
 
+enum class TwinViewMode {
+    RADAR,
+    TOP_LIST,
+}
+
 @Composable
 fun FriendsDiscoveryScreen(
     currentProfile: SocialProfile?,
     suggestedProfiles: List<SocialProfile>,
-    onBack: () -> Unit,
+    onBack: (() -> Unit)? = null,
     onSendFriendRequest: (SocialProfile) -> Unit,
     onOpenProfile: (SocialProfile) -> Unit,
     onRefreshSuggestions: () -> Unit,
     hazeState: HazeState,
+    contentPadding: PaddingValues = PaddingValues(),
     modifier: Modifier = Modifier,
 ) {
     val coroutineScope = rememberCoroutineScope()
+    var viewMode by remember { mutableStateOf(TwinViewMode.RADAR) }
     val myFavoriteArtistNames = remember(currentProfile) {
         currentProfile?.favoriteArtists?.map { it.name.trim().lowercase() }?.toSet().orEmpty()
     }
@@ -120,10 +126,10 @@ fun FriendsDiscoveryScreen(
                 val candArtists = candidate.favoriteArtists
                 val shared = candArtists.filter { myFavoriteArtistNames.contains(it.name.trim().lowercase()) }
                 val score = if (myFavoriteArtistNames.isEmpty() || candArtists.isEmpty()) {
-                    (25..45).random() // fallback baseline music affinity
+                    (35..65).random() // baseline music affinity
                 } else {
                     val ratio = (shared.size.toFloat() / candArtists.size.coerceAtLeast(1).toFloat())
-                    (ratio * 70f + 20f).toInt().coerceIn(15, 98)
+                    (ratio * 65f + 30f).toInt().coerceIn(25, 99)
                 }
                 MusicMatchCandidate(
                     profile = candidate,
@@ -132,6 +138,7 @@ fun FriendsDiscoveryScreen(
                     satelliteArtists = candArtists.take(5),
                 )
             }
+            .sortedByDescending { it.similarityPercent }
     }
 
     val activeDeck = remember { mutableStateListOf<MusicMatchCandidate>() }
@@ -148,188 +155,427 @@ fun FriendsDiscoveryScreen(
         modifier = modifier
             .fillMaxSize()
             .background(Color(0xFF0C0D12))
-            .statusBarsPadding()
-            .navigationBarsPadding(),
+            .statusBarsPadding(),
     ) {
-        // Top Navigation Bar
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            // Top Navigation Bar
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (onBack != null) {
+                    Box(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(CircleShape)
+                            .lightweightLiquidGlass(
+                                shape = CircleShape,
+                                fallbackColor = Color(0xCC1A1C24),
+                            )
+                            .border(1.dp, Color.White.copy(alpha = 0.2f), CircleShape)
+                            .liquidGlassButton(
+                                onClick = onBack,
+                                haptic = Haptic.Tap,
+                            ),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                            contentDescription = "Back",
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(CircleShape)
+                            .lightweightLiquidGlass(
+                                shape = CircleShape,
+                                fallbackColor = Color(0xCC1A1C24),
+                            )
+                            .border(1.dp, Color.White.copy(alpha = 0.2f), CircleShape),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.AutoAwesome,
+                            contentDescription = null,
+                            tint = VibraPurple,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                }
+
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "Music Twin",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = Color.White,
+                    )
+                    Text(
+                        text = "Find your musical soulmates",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White.copy(alpha = 0.65f),
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(CircleShape)
+                        .lightweightLiquidGlass(
+                            shape = CircleShape,
+                            fallbackColor = Color(0xCC1A1C24),
+                        )
+                        .border(1.dp, Color.White.copy(alpha = 0.2f), CircleShape)
+                        .liquidGlassButton(
+                            onClick = { onRefreshSuggestions() },
+                            haptic = Haptic.Tap,
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Refresh,
+                        contentDescription = "Refresh",
+                        tint = VibraPurple,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            }
+
+            // Dual Mode Liquid Glass Switcher (Radar vs Top Twins)
             Box(
                 modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .lightweightLiquidGlass(
-                        shape = CircleShape,
-                        fallbackColor = Color(0xCC1A1C24),
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 6.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .lightweightLiquidGlass(
+                            shape = RoundedCornerShape(20.dp),
+                            fallbackColor = Color(0xCC181922),
+                        )
+                        .border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(20.dp))
+                        .padding(3.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    TwinModePill(
+                        label = "Radar Swipe",
+                        selected = viewMode == TwinViewMode.RADAR,
+                        onClick = { viewMode = TwinViewMode.RADAR },
                     )
-                    .background(Color(0xCC1A1C24), CircleShape)
-                    .border(1.dp, Color.White.copy(alpha = 0.2f), CircleShape)
-                    .liquidGlassButton(
-                        onClick = onBack,
-                        haptic = Haptic.Tap,
+                    TwinModePill(
+                        label = "Top Twins",
+                        selected = viewMode == TwinViewMode.TOP_LIST,
+                        onClick = { viewMode = TwinViewMode.TOP_LIST },
+                    )
+                }
+            }
+
+            // Body Content
+            if (viewMode == TwinViewMode.RADAR) {
+                // Center: Cards Deck or Empty State
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(
+                            top = 10.dp,
+                            bottom = contentPadding.calculateBottomPadding() + 84.dp,
+                            start = 16.dp,
+                            end = 16.dp,
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (topCandidate != null) {
+                        if (activeDeck.size > 1) {
+                            val nextCandidate = activeDeck[1]
+                            MusicSoulmateCard(
+                                candidate = nextCandidate,
+                                isTopCard = false,
+                                onSkip = {},
+                                onAddFriend = {},
+                                onOpenProfile = {},
+                                modifier = Modifier
+                                    .graphicsLayer {
+                                        scaleX = 0.94f
+                                        scaleY = 0.94f
+                                        translationY = 28.dp.toPx()
+                                        alpha = 0.5f
+                                    },
+                            )
+                        }
+
+                        MusicSoulmateCard(
+                            candidate = topCandidate,
+                            isTopCard = true,
+                            onSkip = {
+                                historyStack.add(topCandidate)
+                                activeDeck.removeAt(0)
+                            },
+                            onAddFriend = {
+                                onSendFriendRequest(topCandidate.profile)
+                                historyStack.add(topCandidate)
+                                activeDeck.removeAt(0)
+                            },
+                            onOpenProfile = { onOpenProfile(topCandidate.profile) },
+                            onRewind = {
+                                if (historyStack.isNotEmpty()) {
+                                    val last = historyStack.removeAt(historyStack.lastIndex)
+                                    activeDeck.add(0, last)
+                                }
+                            },
+                            canRewind = historyStack.isNotEmpty(),
+                        )
+                    } else {
+                        // Empty State
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(32.dp),
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(80.dp)
+                                    .clip(CircleShape)
+                                    .background(VibraPurple.copy(alpha = 0.15f))
+                                    .border(1.5.dp, VibraPurple.copy(alpha = 0.4f), CircleShape),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.GraphicEq,
+                                    contentDescription = null,
+                                    tint = VibraPurple,
+                                    modifier = Modifier.size(40.dp),
+                                )
+                            }
+
+                            Spacer(Modifier.height(18.dp))
+
+                            Text(
+                                text = "All Caught Up!",
+                                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                                color = Color.White,
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                text = "You've reviewed all music twins. Refresh to discover more listeners with matching tastes!",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color.White.copy(alpha = 0.65f),
+                                textAlign = TextAlign.Center,
+                            )
+
+                            Spacer(Modifier.height(22.dp))
+
+                            ElevatedButton(
+                                onClick = { onRefreshSuggestions() },
+                                colors = ButtonDefaults.elevatedButtonColors(
+                                    containerColor = VibraPurple,
+                                    contentColor = Color.White,
+                                ),
+                                shape = RoundedCornerShape(22.dp),
+                                contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Refresh,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    text = "Refresh Twins",
+                                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                                )
+                            }
+                        }
+                    }
+                }
+            } else {
+                // Top Twins Curated List Mode
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(
+                        start = 16.dp,
+                        end = 16.dp,
+                        top = 12.dp,
+                        bottom = contentPadding.calculateBottomPadding() + 84.dp,
                     ),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                    contentDescription = "Back",
-                    tint = Color.White,
-                    modifier = Modifier.size(20.dp),
-                )
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    items(
+                        items = candidatesList,
+                        key = { it.profile.id },
+                    ) { candidate ->
+                        TopTwinListItem(
+                            candidate = candidate,
+                            onOpenProfile = { onOpenProfile(candidate.profile) },
+                            onAddFriend = { onSendFriendRequest(candidate.profile) },
+                        )
+                    }
+                }
             }
+        }
+    }
+}
 
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    text = "Music Soulmates",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    color = Color.White,
-                )
-                Text(
-                    text = "Swipe to match with friends",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color.White.copy(alpha = 0.65f),
-                )
-            }
+@Composable
+private fun TwinModePill(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(16.dp))
+            .then(
+                if (selected) {
+                    Modifier
+                        .background(VibraPurple)
+                        .border(1.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
+                } else {
+                    Modifier.clickable(onClick = onClick)
+                },
+            )
+            .padding(horizontal = 20.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium.copy(
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            ),
+            color = if (selected) Color.White else Color.White.copy(alpha = 0.7f),
+        )
+    }
+}
 
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .lightweightLiquidGlass(
-                        shape = CircleShape,
-                        fallbackColor = Color(0xCC1A1C24),
-                    )
-                    .background(Color(0xCC1A1C24), CircleShape)
-                    .border(1.dp, Color.White.copy(alpha = 0.2f), CircleShape)
-                    .clickable { onRefreshSuggestions() },
-                contentAlignment = Alignment.Center,
-            ) {
+@Composable
+private fun TopTwinListItem(
+    candidate: MusicMatchCandidate,
+    onOpenProfile: () -> Unit,
+    onAddFriend: () -> Unit,
+) {
+    val profile = candidate.profile
+    var requestSent by remember { mutableStateOf(false) }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .lightweightLiquidGlass(
+                shape = RoundedCornerShape(20.dp),
+                fallbackColor = Color(0xCC181924),
+            )
+            .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(20.dp))
+            .clickable(onClick = onOpenProfile)
+            .padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // Avatar
+        Box(
+            modifier = Modifier
+                .size(54.dp)
+                .clip(CircleShape)
+                .background(Color(0xFF222432))
+                .border(2.dp, VibraPurple, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (!profile.avatarUrl.isNullOrBlank() && profile.avatarUrl != "null") {
+                AsyncImage(
+                    model = profile.avatarUrl,
+                    contentDescription = profile.displayName,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else {
                 Icon(
-                    imageVector = Icons.Rounded.Refresh,
-                    contentDescription = "Refresh",
-                    tint = VibraPurple,
-                    modifier = Modifier.size(20.dp),
+                    imageVector = Icons.Rounded.Person,
+                    contentDescription = null,
+                    tint = Color.White.copy(alpha = 0.7f),
+                    modifier = Modifier.size(28.dp),
                 )
             }
         }
 
-        // Center: Cards Deck or Empty State
+        Spacer(Modifier.width(12.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text(
+                    text = profile.displayName.ifBlank { formatHandle(profile.handle) },
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = Color.White,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (profile.verifiedBadge) {
+                    Icon(
+                        imageVector = Icons.Rounded.CheckCircle,
+                        contentDescription = "Verified",
+                        tint = Color(0xFF38BDF8),
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+            }
+
+            Text(
+                text = "${candidate.similarityPercent}% match in music taste",
+                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                color = VibraPurple,
+            )
+
+            if (candidate.sharedArtists.isNotEmpty()) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "Both love " + candidate.sharedArtists.take(2).joinToString(", ") { it.name },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.White.copy(alpha = 0.65f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+
+        Spacer(Modifier.width(8.dp))
+
+        // Connect button
         Box(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(top = 70.dp, bottom = 16.dp, start = 16.dp, end = 16.dp),
+                .clip(RoundedCornerShape(16.dp))
+                .background(if (requestSent) Color(0xFF222432) else VibraPurple)
+                .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(16.dp))
+                .clickable(enabled = !requestSent) {
+                    requestSent = true
+                    onAddFriend()
+                }
+                .padding(horizontal = 14.dp, vertical = 8.dp),
             contentAlignment = Alignment.Center,
         ) {
-            if (topCandidate != null) {
-                // Secondary card preview in background
-                if (activeDeck.size > 1) {
-                    val nextCandidate = activeDeck[1]
-                    MusicSoulmateCard(
-                        candidate = nextCandidate,
-                        isTopCard = false,
-                        onSkip = {},
-                        onAddFriend = {},
-                        onOpenProfile = {},
-                        modifier = Modifier
-                            .graphicsLayer {
-                                scaleX = 0.94f
-                                scaleY = 0.94f
-                                translationY = 32.dp.toPx()
-                                alpha = 0.5f
-                            },
-                    )
-                }
-
-                // Top active card with swipe interaction
-                MusicSoulmateCard(
-                    candidate = topCandidate,
-                    isTopCard = true,
-                    onSkip = {
-                        historyStack.add(topCandidate)
-                        activeDeck.removeAt(0)
-                    },
-                    onAddFriend = {
-                        onSendFriendRequest(topCandidate.profile)
-                        historyStack.add(topCandidate)
-                        activeDeck.removeAt(0)
-                    },
-                    onOpenProfile = { onOpenProfile(topCandidate.profile) },
-                    onRewind = {
-                        if (historyStack.isNotEmpty()) {
-                            val last = historyStack.removeAt(historyStack.lastIndex)
-                            activeDeck.add(0, last)
-                        }
-                    },
-                    canRewind = historyStack.isNotEmpty(),
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Icon(
+                    imageVector = if (requestSent) Icons.Rounded.Check else Icons.Rounded.PersonAdd,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(14.dp),
                 )
-            } else {
-                // Empty State
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(32.dp),
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(90.dp)
-                            .clip(CircleShape)
-                            .background(VibraPurple.copy(alpha = 0.15f))
-                            .border(1.5.dp, VibraPurple.copy(alpha = 0.4f), CircleShape),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.GraphicEq,
-                            contentDescription = null,
-                            tint = VibraPurple,
-                            modifier = Modifier.size(44.dp),
-                        )
-                    }
-
-                    Spacer(Modifier.height(20.dp))
-
-                    Text(
-                        text = "All Caught Up!",
-                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                        color = Color.White,
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        text = "You've reviewed all available music soulmates. Refresh to discover new listeners or invite your crew!",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color.White.copy(alpha = 0.65f),
-                        textAlign = TextAlign.Center,
-                    )
-
-                    Spacer(Modifier.height(24.dp))
-
-                    ElevatedButton(
-                        onClick = { onRefreshSuggestions() },
-                        colors = ButtonDefaults.elevatedButtonColors(
-                            containerColor = VibraPurple,
-                            contentColor = Color.White,
-                        ),
-                        shape = RoundedCornerShape(22.dp),
-                        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Refresh,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = "Refresh Recommendations",
-                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
-                        )
-                    }
-                }
+                Text(
+                    text = if (requestSent) "Sent" else "Connect",
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                    color = Color.White,
+                )
             }
         }
     }
@@ -461,20 +707,19 @@ private fun MusicSoulmateCard(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(260.dp),
+                    .height(240.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                // Orbiting Artist Satellites
                 val satelliteArtists = candidate.satelliteArtists
-                val orbitRadius = 100.dp
+                val orbitRadius = 96.dp
 
                 satelliteArtists.forEachIndexed { idx, artist ->
                     val angleDeg = when (idx) {
-                        0 -> 210.0 // Top Left
-                        1 -> 330.0 // Top Right
-                        2 -> 150.0 // Mid Left
-                        3 -> 30.0  // Mid Right
-                        else -> 90.0 // Bottom
+                        0 -> 210.0
+                        1 -> 330.0
+                        2 -> 150.0
+                        3 -> 30.0
+                        else -> 90.0
                     }
                     val angleRad = Math.toRadians(angleDeg)
                     val xOffset = (cos(angleRad) * orbitRadius.value).dp
@@ -483,7 +728,7 @@ private fun MusicSoulmateCard(
                     Box(
                         modifier = Modifier
                             .offset(x = xOffset, y = yOffset)
-                            .size(52.dp)
+                            .size(50.dp)
                             .clip(CircleShape)
                             .background(Color(0xFF1C1D28))
                             .border(1.5.dp, Color.White.copy(alpha = 0.35f), CircleShape)
@@ -510,7 +755,7 @@ private fun MusicSoulmateCard(
                 // Center Main Avatar
                 Box(
                     modifier = Modifier
-                        .size(136.dp)
+                        .size(130.dp)
                         .clip(CircleShape)
                         .background(Color(0xFF252636))
                         .border(3.dp, VibraPurple, CircleShape)
@@ -529,7 +774,7 @@ private fun MusicSoulmateCard(
                             imageVector = Icons.Rounded.Person,
                             contentDescription = null,
                             tint = Color.White.copy(alpha = 0.7f),
-                            modifier = Modifier.size(64.dp),
+                            modifier = Modifier.size(60.dp),
                         )
                     }
                 }
@@ -538,15 +783,15 @@ private fun MusicSoulmateCard(
                 if (profile.statusBubble.isNotBlank()) {
                     Box(
                         modifier = Modifier
-                            .offset(x = 42.dp, y = (-54).dp)
+                            .offset(x = 38.dp, y = (-50).dp)
                             .clip(RoundedCornerShape(16.dp))
                             .background(Color(0xEE2A2C3C))
                             .border(1.dp, Color.White.copy(alpha = 0.25f), RoundedCornerShape(16.dp))
-                            .padding(horizontal = 14.dp, vertical = 8.dp),
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
                     ) {
                         Text(
                             text = profile.statusBubble,
-                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                             color = Color.White,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
@@ -555,7 +800,7 @@ private fun MusicSoulmateCard(
                 }
             }
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(14.dp))
 
             // Card Lower Section: Similarity Score + Shared Artists
             Column(modifier = Modifier.fillMaxWidth()) {
@@ -564,14 +809,14 @@ private fun MusicSoulmateCard(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     Text(
-                        text = "${candidate.similarityPercent}% similar",
+                        text = "${candidate.similarityPercent}% match",
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontWeight = FontWeight.ExtraBold,
                             color = VibraPurple,
                         ),
                     )
                     Text(
-                        text = if (candidate.sharedArtists.isNotEmpty()) "music taste" else "sound profile",
+                        text = if (candidate.sharedArtists.isNotEmpty()) "shared music taste" else "sound profile",
                         style = MaterialTheme.typography.bodyMedium,
                         color = Color.White.copy(alpha = 0.65f),
                     )
@@ -614,7 +859,7 @@ private fun MusicSoulmateCard(
                 }
             }
 
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(18.dp))
 
             // Card Bottom Actions: Rewind, Skip, + Add Friend
             Row(
@@ -622,14 +867,13 @@ private fun MusicSoulmateCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                // Rewind Button
                 if (onRewind != null) {
                     Box(
                         modifier = Modifier
-                            .size(54.dp)
-                            .clip(RoundedCornerShape(20.dp))
+                            .size(52.dp)
+                            .clip(RoundedCornerShape(18.dp))
                             .background(Color(0xFF222432))
-                            .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(20.dp))
+                            .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(18.dp))
                             .alpha(if (canRewind) 1f else 0.4f)
                             .clickable(enabled = canRewind) { onRewind() },
                         contentAlignment = Alignment.Center,
@@ -639,7 +883,7 @@ private fun MusicSoulmateCard(
                                 imageVector = Icons.AutoMirrored.Rounded.Undo,
                                 contentDescription = "Rewind",
                                 tint = Color.White,
-                                modifier = Modifier.size(20.dp),
+                                modifier = Modifier.size(18.dp),
                             )
                             Text(
                                 text = "Rewind",
@@ -650,14 +894,13 @@ private fun MusicSoulmateCard(
                     }
                 }
 
-                // Skip Button
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .height(54.dp)
-                        .clip(RoundedCornerShape(20.dp))
+                        .height(52.dp)
+                        .clip(RoundedCornerShape(18.dp))
                         .background(Color(0xFF262736))
-                        .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(20.dp))
+                        .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(18.dp))
                         .clickable {
                             coroutineScope.launch {
                                 offsetX.animateTo(-800f, spring(stiffness = Spring.StiffnessMedium))
@@ -684,18 +927,17 @@ private fun MusicSoulmateCard(
                     }
                 }
 
-                // Add Friend Button
                 Box(
                     modifier = Modifier
                         .weight(1.3f)
-                        .height(54.dp)
-                        .clip(RoundedCornerShape(20.dp))
+                        .height(52.dp)
+                        .clip(RoundedCornerShape(18.dp))
                         .background(
                             Brush.horizontalGradient(
                                 listOf(VibraPurple, Color(0xFFA855F7)),
                             ),
                         )
-                        .shadow(elevation = 10.dp, shape = RoundedCornerShape(20.dp), spotColor = VibraPurple)
+                        .shadow(elevation = 10.dp, shape = RoundedCornerShape(18.dp), spotColor = VibraPurple)
                         .clickable {
                             coroutineScope.launch {
                                 offsetX.animateTo(800f, spring(stiffness = Spring.StiffnessMedium))

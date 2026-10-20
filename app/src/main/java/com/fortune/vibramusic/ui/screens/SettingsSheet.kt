@@ -801,6 +801,7 @@ fun SettingsScreen(
                                     if (match != null) {
                                         AppSettings.setAppIconTheme(context, match)
                                     }
+                                    AppIcon.apply(context, option)
                                 }
                                 .padding(vertical = 6.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
@@ -817,10 +818,16 @@ fun SettingsScreen(
                                     .background(MaterialTheme.colorScheme.surfaceVariant),
                                 contentAlignment = Alignment.Center,
                             ) {
-                                androidx.compose.foundation.Image(
-                                    painter = painterResource(option.iconRes),
-                                    contentDescription = option.title,
-                                    modifier = Modifier.size(52.dp),
+                                androidx.compose.ui.viewinterop.AndroidView(
+                                    factory = { ctx ->
+                                        android.widget.ImageView(ctx).apply {
+                                            setImageResource(option.iconRes)
+                                            scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
+                                        }
+                                    },
+                                    modifier = Modifier
+                                        .size(52.dp)
+                                        .clip(RoundedCornerShape(12.dp)),
                                 )
                             }
                             Spacer(Modifier.height(6.dp))

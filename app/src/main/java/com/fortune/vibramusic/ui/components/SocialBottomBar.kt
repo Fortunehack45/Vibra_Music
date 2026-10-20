@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AccountCircle
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.DynamicFeed
 import androidx.compose.material.icons.rounded.EmojiEvents
 import androidx.compose.material.icons.rounded.Forum
@@ -50,6 +51,7 @@ import dev.chrisbanes.haze.materials.HazeMaterials
 
 enum class SocialTab(val label: String, val icon: ImageVector) {
     FEED("Feed", Icons.Rounded.DynamicFeed),
+    TWIN("Twin", Icons.Rounded.AutoAwesome),
     QUIZ("Quiz", Icons.Rounded.EmojiEvents),
     MESSAGES("Chat", Icons.Rounded.Forum),
     PROFILE("Profile", Icons.Rounded.AccountCircle),

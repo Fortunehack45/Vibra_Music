@@ -381,15 +381,12 @@ fun UserProfileScreen(
                                 label = "Followers",
                                 onClick = { activeConnectionsTab = ConnectionsTab.FOLLOWERS },
                             )
+                            val displayFriendsCount = maxOf(activeProfile.friendsCount, friendsList.size)
                             ProfileStatStacked(
-                                count = activeProfile.friendsCount,
+                                count = displayFriendsCount,
                                 label = "Friends",
                                 onClick = {
-                                    if (isSelf) {
-                                        showFriendsDiscovery = true
-                                    } else {
-                                        activeConnectionsTab = ConnectionsTab.FRIENDS
-                                    }
+                                    activeConnectionsTab = ConnectionsTab.FRIENDS
                                 },
                             )
                         }

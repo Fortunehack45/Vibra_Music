@@ -518,6 +518,7 @@
     <string name="minutes_listened">דקות שהואזנו</string>
     <string name="minutes_short">%1$d דק\'</string>
     <string name="not_enough_listening">אין עדיין מספיק האזנה</string>
+    <string name="not_enough_this_week">הפעל עוד כמה שירים השבוע כדי לבטל את הנעילה של ה-Replay שלך.</string>
     <string name="not_enough_this_month">הפעל עוד כמה שירים החודש כדי לבטל את הנעילה של ה-Replay שלך.</string>
     <string name="pinned">נעוץ</string>
     <string name="replay_across"> בקרב </string>
@@ -639,6 +640,7 @@
     <string name="no_local_albums">שום דבר כאן לא שייך עדיין לאלבום או רשימת השמעה. הורד אלבום מלא או רשימת השמעה והם יופיעו כאן.</string>
     <string name="play_your_replay">הפעל את ה-Replay שלך</string>
     <string name="counted_on_device_with_siren">נספר במכשיר זה עם Vibra Music</string>
+    <string name="this_week">השבוע</string>
     <string name="this_month">החודש</string>
     <string name="this_year">השנה</string>
     <string name="all_time">כל הזמן</string>

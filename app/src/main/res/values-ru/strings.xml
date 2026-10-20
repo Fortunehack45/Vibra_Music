@@ -574,6 +574,7 @@
     <string name="minutes_listened">Минут прослушано</string>
     <string name="minutes_short">%1$d мин</string>
     <string name="not_enough_listening">Пока недостаточно данных о прослушивании</string>
+    <string name="not_enough_this_week">Прослушайте ещё немного песен на этой неделе, чтобы открыть свой Replay.</string>
     <string name="not_enough_this_month">Прослушайте ещё немного песен в этом месяце, чтобы открыть свой Replay.</string>
     <string name="pinned">Закреплено</string>
     <string name="replay_across"> в </string>
@@ -715,6 +716,7 @@
     <string name="no_local_albums">Здесь пока ничего нет из альбома или плейлиста. Загрузите полный альбом или плейлист, и он появится здесь.</string>
     <string name="play_your_replay">Воспроизвести ваш Replay</string>
     <string name="counted_on_device_with_siren">Подсчитано на этом устройстве с помощью Vibra Music</string>
+    <string name="this_week">Эта неделя</string>
     <string name="this_month">Этот месяц</string>
     <string name="this_year">Этот год</string>
     <string name="all_time">За всё время</string>

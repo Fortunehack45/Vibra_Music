@@ -584,6 +584,7 @@
     <string name="minutes_listened">Dinlenen dakika</string>
     <string name="minutes_short">%1$d dk</string>
     <string name="not_enough_listening">Henüz yeterli dinleme yok</string>
+    <string name="not_enough_this_week">Replay\'ini açmak için bu hafta birkaç şarkı daha çal.</string>
     <string name="not_enough_this_month">Replay\'ini açmak için bu ay birkaç şarkı daha çal.</string>
     <string name="pinned">Sabitlendi</string>
     <string name="replay_across"> üzerinde </string>
@@ -724,6 +725,7 @@
     <string name="no_local_albums">Burada henüz bir albüme veya çalma listesine ait bir şey yok. Tam bir albüm veya çalma listesi indir, burada görünecek.</string>
     <string name="play_your_replay">Replay\'ini çal</string>
     <string name="counted_on_device_with_siren">Bu cihazda Vibra Music ile sayıldı</string>
+    <string name="this_week">Bu hafta</string>
     <string name="this_month">Bu ay</string>
     <string name="this_year">Bu yıl</string>
     <string name="all_time">Tüm zamanlar</string>

@@ -567,6 +567,7 @@
     <string name="minutes_listened">Minutos escuchados</string>
     <string name="minutes_short">%1$d min</string>
     <string name="not_enough_listening">Todavía no hay suficientes reproducciones</string>
+    <string name="not_enough_this_week">Escucha algunas canciones más esta semana para desbloquear tu Replay.</string>
     <string name="not_enough_this_month">Escucha algunas canciones más este mes para desbloquear tu Replay.</string>
     <string name="pinned">Fijado</string>
     <string name="replay_across"> repartidas en </string>
@@ -704,6 +705,7 @@
     <string name="no_local_albums">Todavía no hay archivos asociados a un álbum o playlist. Descarga un álbum o una playlist completa para que aparezca aquí.</string>
     <string name="play_your_replay">Reproducir tu Replay</string>
     <string name="counted_on_device_with_siren">Calculado en este dispositivo con Vibra Music</string>
+    <string name="this_week">Esta semana</string>
     <string name="this_month">Este mes</string>
     <string name="this_year">Este año</string>
     <string name="all_time">Todo el tiempo</string>

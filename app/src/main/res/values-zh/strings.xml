@@ -539,6 +539,7 @@
     <string name="minutes_listened">收听分钟数</string>
     <string name="minutes_short">%1$d 分钟</string>
     <string name="not_enough_listening">收听记录还不够多</string>
+    <string name="not_enough_this_week">本周再多播放几首歌曲即可解锁你的 Replay。</string>
     <string name="not_enough_this_month">本月再多播放几首歌曲即可解锁你的 Replay。</string>
     <string name="pinned">已固定</string>
     <string name="replay_across">跨越</string>
@@ -672,6 +673,7 @@
     <string name="no_local_albums">这里还没有任何属于专辑或播放列表的内容。下载完整的专辑或播放列表后，它们会显示在这里。</string>
     <string name="play_your_replay">播放你的 Replay</string>
     <string name="counted_on_device_with_siren">由 Vibra Music 在此设备上统计</string>
+    <string name="this_week">本周</string>
     <string name="this_month">本月</string>
     <string name="this_year">今年</string>
     <string name="all_time">全部时间</string>

@@ -539,6 +539,7 @@
     <string name="minutes_listened">Menit yang didengarkan</string>
     <string name="minutes_short">%1$d mnt</string>
     <string name="not_enough_listening">Belum cukup riwayat mendengarkan</string>
+    <string name="not_enough_this_week">Putar beberapa lagu lagi minggu ini untuk membuka Replay Anda.</string>
     <string name="not_enough_this_month">Putar beberapa lagu lagi bulan ini untuk membuka Replay Anda.</string>
     <string name="pinned">Disematkan</string>
     <string name="replay_across"> di seluruh </string>
@@ -672,6 +673,7 @@
     <string name="no_local_albums">Belum ada yang termasuk album atau playlist di sini. Unduh album atau playlist lengkap dan akan muncul di sini.</string>
     <string name="play_your_replay">Putar Replay Anda</string>
     <string name="counted_on_device_with_siren">Dihitung di perangkat ini dengan Vibra Music</string>
+    <string name="this_week">Minggu ini</string>
     <string name="this_month">Bulan ini</string>
     <string name="this_year">Tahun ini</string>
     <string name="all_time">Sepanjang waktu</string>

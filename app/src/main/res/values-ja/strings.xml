@@ -539,6 +539,7 @@
     <string name="minutes_listened">再生時間（分）</string>
     <string name="minutes_short">%1$d分</string>
     <string name="not_enough_listening">再生履歴がまだ十分ではありません</string>
+    <string name="not_enough_this_week">今週もう少し曲を再生するとReplayが解放されます。</string>
     <string name="not_enough_this_month">今月もう少し曲を再生するとReplayが解放されます。</string>
     <string name="pinned">ピン留め済み</string>
     <string name="replay_across">にわたって</string>
@@ -672,6 +673,7 @@
     <string name="no_local_albums">ここにはまだアルバムやプレイリストに属するものがありません。完全なアルバムやプレイリストをダウンロードするとここに表示されます。</string>
     <string name="play_your_replay">あなたのReplayを再生</string>
     <string name="counted_on_device_with_siren">Vibra Musicでこのデバイス内で集計</string>
+    <string name="this_week">今週</string>
     <string name="this_month">今月</string>
     <string name="this_year">今年</string>
     <string name="all_time">すべての期間</string>

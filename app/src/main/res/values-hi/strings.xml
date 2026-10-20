@@ -554,6 +554,7 @@
     <string name="minutes_listened">सुने गए मिनट</string>
     <string name="minutes_short">%1$d मि.</string>
     <string name="not_enough_listening">अभी पर्याप्त सुनना नहीं हुआ</string>
+    <string name="not_enough_this_week">अपना Replay अनलॉक करने के लिए इस सप्ताह कुछ और गाने चलाएं।</string>
     <string name="not_enough_this_month">अपना Replay अनलॉक करने के लिए इस महीने कुछ और गाने चलाएं।</string>
     <string name="pinned">पिन किया गया</string>
     <string name="replay_across"> में </string>
@@ -691,6 +692,7 @@
     <string name="no_local_albums">यहां अभी तक कुछ भी किसी एल्बम या प्लेलिस्ट का हिस्सा नहीं है। पूरा एल्बम या प्लेलिस्ट डाउनलोड करें और यह यहां दिखेगा।</string>
     <string name="play_your_replay">अपना Replay चलाएं</string>
     <string name="counted_on_device_with_siren">इस डिवाइस पर Vibra Music के साथ गिना गया</string>
+    <string name="this_week">इस सप्ताह</string>
     <string name="this_month">इस महीने</string>
     <string name="this_year">इस साल</string>
     <string name="all_time">अब तक</string>

@@ -566,6 +566,7 @@
     <string name="minutes_listened">Số phút đã nghe</string>
     <string name="minutes_short">%1$d phút</string>
     <string name="not_enough_listening">Chưa có đủ dữ liệu nghe nhạc</string>
+    <string name="not_enough_this_week">Hãy nghe thêm vài bài hát trong tuần này để mở khóa Replay của bạn.</string>
     <string name="not_enough_this_month">Hãy nghe thêm vài bài hát trong tháng này để mở khóa Replay của bạn.</string>
     <string name="pinned">Đã ghim</string>
     <string name="replay_across"> trên </string>
@@ -707,6 +708,7 @@
     <string name="no_local_albums">Chưa có mục nào ở đây thuộc về một album hoặc danh sách phát. Tải xuống toàn bộ album hoặc danh sách phát và nội dung sẽ xuất hiện ở đây.</string>
     <string name="play_your_replay">Phát Replay của bạn</string>
     <string name="counted_on_device_with_siren">Được thống kê trên thiết bị này bằng Vibra Music</string>
+    <string name="this_week">Tuần này</string>
     <string name="this_month">Tháng này</string>
     <string name="this_year">Năm nay</string>
     <string name="all_time">Tất cả thời gian</string>

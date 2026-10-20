@@ -1255,8 +1255,8 @@ fun UserProfileScreen(
                 CreateStoryScreen(
                     currentlyPlayingSong = null,
                     onDismiss = { showCreateStoryScreen = false },
-                    onSubmitStory = { mediaUrl, mediaType, textContent, track ->
-                        viewModel.createStory(mediaUrl, mediaType, textContent, track)
+                    onSubmitStory = { mediaUrl, mediaType, textContent, track, bgHex ->
+                        viewModel.createStory(mediaUrl, mediaType, textContent, track, bgHex)
                         showCreateStoryScreen = false
                     },
                 )

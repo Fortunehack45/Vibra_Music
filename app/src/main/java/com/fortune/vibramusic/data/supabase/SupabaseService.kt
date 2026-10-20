@@ -1561,7 +1561,7 @@ object SupabaseService {
                     parameter("or", "(handle.ilike.$encodedQ,display_name.ilike.$encodedQ)")
                 }
                 parameter("limit", limit.toString())
-                parameter("order", "followers_count.desc,handle.asc")
+                parameter("order", "handle.asc")
             }
             if (!response.status.isSuccess()) {
                 return@runCatching emptyList()
@@ -1580,7 +1580,7 @@ object SupabaseService {
             val response = client.get(baseUrl("profiles")) {
                 header("apikey", SupabaseConfig.anonKey)
                 header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
-                parameter("handle", "ilike.$clean")
+                parameter("or", "(handle.ilike.$clean,handle.ilike.@$clean)")
                 parameter("limit", "1")
             }
             if (!response.status.isSuccess()) return@runCatching null
@@ -1743,7 +1743,7 @@ object SupabaseService {
                 header("apikey", SupabaseConfig.anonKey)
                 header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
                 parameter("limit", "20")
-                parameter("order", "followers_count.desc,created_at.desc")
+                parameter("order", "created_at.desc")
             }
             if (!response.status.isSuccess()) {
                 return@runCatching emptyList()

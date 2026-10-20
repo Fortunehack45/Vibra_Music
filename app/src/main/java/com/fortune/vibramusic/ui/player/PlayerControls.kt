@@ -1013,46 +1013,39 @@ internal fun OutputCaption(
     val displayName = if (badge.inParty) jamName else outputName
     val deviceIcon = if (badge.inParty) Icons.Rounded.Person else Icons.Rounded.Headphones
 
-    Box(
+    Row(
         modifier = Modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(Color.White.copy(alpha = 0.08f))
-            .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(16.dp))
             .clickable { if (badge.inParty) onOpenMembers() else onOpenOutput() }
-            .padding(horizontal = 14.dp, vertical = 6.dp),
-        contentAlignment = Alignment.Center,
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center,
-        ) {
-            Icon(
-                imageVector = deviceIcon,
-                contentDescription = null,
-                tint = Color(0xFF8B5CF6),
-                modifier = Modifier.size(13.dp),
+        Icon(
+            imageVector = deviceIcon,
+            contentDescription = null,
+            tint = Color(0xFF8B5CF6),
+            modifier = Modifier.size(13.dp),
+        )
+        Spacer(Modifier.width(6.dp))
+        if (!badge.inParty && isHiResOutput) {
+            ShimmerText(
+                text = displayName,
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                ),
             )
-            Spacer(Modifier.width(6.dp))
-            if (!badge.inParty && isHiResOutput) {
-                ShimmerText(
-                    text = displayName,
-                    style = MaterialTheme.typography.labelSmall.copy(
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold,
-                    ),
-                )
-            } else {
-                Text(
-                    text = displayName,
-                    style = MaterialTheme.typography.labelSmall.copy(
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium,
-                    ),
-                    color = Color.White.copy(alpha = 0.9f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
+        } else {
+            Text(
+                text = displayName,
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                ),
+                color = Color.White.copy(alpha = 0.9f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }

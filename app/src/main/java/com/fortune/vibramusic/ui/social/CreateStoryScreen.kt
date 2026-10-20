@@ -71,6 +71,15 @@ val storyGradientPresets = listOf(
     listOf(Color(0xFF1E1B4B), Color(0xFF0F172A)),
 )
 
+val storyGradientHexPresets = listOf(
+    "#8B5CF6,#3B82F6",
+    "#EC4899,#8B5CF6",
+    "#06B6D4,#3B82F6",
+    "#10B981,#06B6D4",
+    "#F59E0B,#EF4444",
+    "#1E1B4B,#0F172A",
+)
+
 /**
  * Dedicated fullscreen story creation screen.
  * Allows picking photos and videos directly from the device gallery via PickVisualMedia,
@@ -80,7 +89,7 @@ val storyGradientPresets = listOf(
 fun CreateStoryScreen(
     currentlyPlayingSong: Song?,
     onDismiss: () -> Unit,
-    onSubmitStory: (mediaUrl: String?, mediaType: StoryMediaType, textContent: String, track: MusicTrackAttachment?) -> Unit,
+    onSubmitStory: (mediaUrl: String?, mediaType: StoryMediaType, textContent: String, track: MusicTrackAttachment?, backgroundColorHex: String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -183,7 +192,8 @@ fun CreateStoryScreen(
                         )
                     } else null
 
-                    onSubmitStory(mediaUrl, mediaType, textContent.trim(), track)
+                    val bgHex = storyGradientHexPresets.getOrElse(selectedGradientIndex) { "#8B5CF6,#3B82F6" }
+                    onSubmitStory(mediaUrl, mediaType, textContent.trim(), track, bgHex)
                 },
                 colors = ButtonDefaults.buttonColors(
                     containerColor = VibraPurple,

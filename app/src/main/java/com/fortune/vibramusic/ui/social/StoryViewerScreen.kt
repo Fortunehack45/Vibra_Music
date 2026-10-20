@@ -94,6 +94,7 @@ import com.fortune.vibramusic.data.social.SocialProfile
 import com.fortune.vibramusic.data.social.StoryMediaType
 import com.fortune.vibramusic.data.social.UserStory
 import com.fortune.vibramusic.data.social.UserStoryGroup
+import com.fortune.vibramusic.data.social.parseStoryGradient
 import com.fortune.vibramusic.data.social.formatHandle
 import com.fortune.vibramusic.data.social.formatRelativeTime
 import com.fortune.vibramusic.ui.components.lightweightLiquidGlass
@@ -536,18 +537,11 @@ fun StoryViewerDialog(
                             )
                         }
                         StoryMediaType.TEXT -> {
+                            val gradientColors = parseStoryGradient(activeStory.backgroundColorHex)
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .background(
-                                        Brush.verticalGradient(
-                                            listOf(
-                                                Color(0xFF3B0764),
-                                                Color(0xFF1E1B4B),
-                                                Color(0xFF090A0F),
-                                            ),
-                                        ),
-                                    )
+                                    .background(Brush.verticalGradient(gradientColors))
                                     .padding(32.dp),
                                 contentAlignment = Alignment.Center,
                             ) {

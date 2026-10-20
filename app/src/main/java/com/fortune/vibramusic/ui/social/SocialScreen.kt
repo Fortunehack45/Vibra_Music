@@ -649,32 +649,24 @@ fun SocialScreen(
             }
         }
 
-        // Liquid Glass Floating Action Button to Create Post
-        Box(
+        // Floating Action Button to Create Post (Matching profile page level & solid color)
+        FloatingActionButton(
+            onClick = { showCreatePostSheet = true },
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+            shape = CircleShape,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(
                     end = 20.dp,
-                    bottom = contentPadding.calculateBottomPadding() + 16.dp,
+                    bottom = (contentPadding.calculateBottomPadding() - 40.dp).coerceAtLeast(16.dp),
                 )
-                .size(56.dp)
-                .clip(CircleShape)
-                .lightweightLiquidGlass(
-                    shape = CircleShape,
-                    fallbackColor = VibraPurple.copy(alpha = 0.85f),
-                )
-                .border(1.2.dp, Color.White.copy(alpha = 0.35f), CircleShape)
-                .liquidGlassButton(
-                    onClick = { showCreatePostSheet = true },
-                    haptic = Haptic.Tap,
-                ),
-            contentAlignment = Alignment.Center,
+                .size(54.dp),
         ) {
             Icon(
                 imageVector = Icons.Rounded.Add,
                 contentDescription = "Create Post",
-                tint = Color.White,
-                modifier = Modifier.size(28.dp),
+                modifier = Modifier.size(26.dp),
             )
         }
     }
@@ -819,8 +811,8 @@ fun SocialScreen(
             CreateStoryScreen(
                 currentlyPlayingSong = currentlyPlayingSong,
                 onDismiss = { showCreateStorySheet = false },
-                onSubmitStory = { mediaUrl, mediaType, textContent, track ->
-                    viewModel.createStory(mediaUrl, mediaType, textContent, track)
+                onSubmitStory = { mediaUrl, mediaType, textContent, track, bgHex ->
+                    viewModel.createStory(mediaUrl, mediaType, textContent, track, bgHex)
                     showCreateStorySheet = false
                 },
             )

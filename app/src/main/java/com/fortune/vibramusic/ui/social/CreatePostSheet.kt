@@ -562,7 +562,8 @@ fun CreatePostSheet(
                                     val lastAt = textContent.lastIndexOf('@')
                                     if (lastAt >= 0) {
                                         val prefix = textContent.substring(0, lastAt)
-                                        textContent = "$prefix@${user.handle} "
+                                        val cleanHandle = user.handle.removePrefix("@")
+                                        textContent = "$prefix@$cleanHandle "
                                     }
                                     mentionQuery = null
                                     mentionSuggestions = emptyList()

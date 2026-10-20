@@ -151,22 +151,27 @@ fun FriendsDiscoveryScreen(
 
     val topCandidate = activeDeck.firstOrNull()
 
+    val topPadding = if (onBack != null) 0.dp else contentPadding.calculateTopPadding()
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(Color(0xFF0C0D12))
-            .statusBarsPadding(),
+            .then(if (onBack != null) Modifier.statusBarsPadding() else Modifier),
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = topPadding),
+        ) {
             // Top Navigation Bar
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 10.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (onBack != null) {
+            if (onBack != null) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     Box(
                         modifier = Modifier
                             .size(42.dp)
@@ -189,7 +194,20 @@ fun FriendsDiscoveryScreen(
                             modifier = Modifier.size(20.dp),
                         )
                     }
-                } else {
+
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "Music Twin",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = Color.White,
+                        )
+                        Text(
+                            text = "Find your musical soulmates",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White.copy(alpha = 0.65f),
+                        )
+                    }
+
                     Box(
                         modifier = Modifier
                             .size(42.dp)
@@ -198,52 +216,64 @@ fun FriendsDiscoveryScreen(
                                 shape = CircleShape,
                                 fallbackColor = Color(0xCC1A1C24),
                             )
-                            .border(1.dp, Color.White.copy(alpha = 0.2f), CircleShape),
+                            .border(1.dp, Color.White.copy(alpha = 0.2f), CircleShape)
+                            .liquidGlassButton(
+                                onClick = { onRefreshSuggestions() },
+                                haptic = Haptic.Tap,
+                            ),
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.AutoAwesome,
-                            contentDescription = null,
+                            imageVector = Icons.Rounded.Refresh,
+                            contentDescription = "Refresh",
                             tint = VibraPurple,
                             modifier = Modifier.size(20.dp),
                         )
                     }
                 }
-
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = "Music Twin",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = Color.White,
-                    )
-                    Text(
-                        text = "Find your musical soulmates",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color.White.copy(alpha = 0.65f),
-                    )
-                }
-
-                Box(
+            } else {
+                Row(
                     modifier = Modifier
-                        .size(42.dp)
-                        .clip(CircleShape)
-                        .lightweightLiquidGlass(
-                            shape = CircleShape,
-                            fallbackColor = Color(0xCC1A1C24),
-                        )
-                        .border(1.dp, Color.White.copy(alpha = 0.2f), CircleShape)
-                        .liquidGlassButton(
-                            onClick = { onRefreshSuggestions() },
-                            haptic = Haptic.Tap,
-                        ),
-                    contentAlignment = Alignment.Center,
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Refresh,
-                        contentDescription = "Refresh",
-                        tint = VibraPurple,
-                        modifier = Modifier.size(20.dp),
-                    )
+                    Column {
+                        Text(
+                            text = "Musical Soulmates",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = Color.White,
+                        )
+                        Text(
+                            text = "People sharing your music taste",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White.copy(alpha = 0.65f),
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .lightweightLiquidGlass(
+                                shape = CircleShape,
+                                fallbackColor = Color(0xCC1A1C24),
+                            )
+                            .border(1.dp, Color.White.copy(alpha = 0.2f), CircleShape)
+                            .liquidGlassButton(
+                                onClick = { onRefreshSuggestions() },
+                                haptic = Haptic.Tap,
+                            ),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Refresh,
+                            contentDescription = "Refresh",
+                            tint = VibraPurple,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
                 }
             }
 

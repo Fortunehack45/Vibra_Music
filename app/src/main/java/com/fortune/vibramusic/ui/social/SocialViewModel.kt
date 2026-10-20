@@ -99,6 +99,7 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
         mediaType: StoryMediaType,
         textContent: String,
         track: MusicTrackAttachment?,
+        backgroundColorHex: String = "#8B5CF6,#3B82F6",
     ) {
         val profile = _currentProfile.value ?: return
         val newStory = UserStory(
@@ -107,6 +108,7 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
             mediaUrl = mediaUrl?.ifBlank { null },
             mediaType = mediaType,
             textContent = textContent,
+            backgroundColorHex = backgroundColorHex,
             musicAttachment = track,
         )
         viewModelScope.launch {
@@ -1300,7 +1302,7 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
                     openUserProfile(profile)
                 } else {
                     SupabaseService.searchUsersForMention(clean, limit = 1).onSuccess { list ->
-                        val match = list.firstOrNull { it.handle.equals(clean, ignoreCase = true) } ?: list.firstOrNull()
+                        val match = list.firstOrNull { it.handle.removePrefix("@").equals(clean, ignoreCase = true) } ?: list.firstOrNull()
                         if (match != null) {
                             openUserProfile(match)
                         }

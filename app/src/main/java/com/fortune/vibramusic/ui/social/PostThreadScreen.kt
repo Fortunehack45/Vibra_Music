@@ -579,7 +579,8 @@ fun PostThreadScreen(
                         onSelectUser = { user ->
                             val lastIdx = replyText.lastIndexOf("@")
                             if (lastIdx >= 0) {
-                                replyText = replyText.substring(0, lastIdx) + "@${user.handle} "
+                                val cleanHandle = user.handle.removePrefix("@")
+                                replyText = replyText.substring(0, lastIdx) + "@$cleanHandle "
                             }
                             mentionSuggestions = emptyList()
                             mentionQuery = null
@@ -2405,7 +2406,7 @@ fun ClickableMentionText(
     val primaryColor = MaterialTheme.colorScheme.primary
     val annotated = remember(content, primaryColor, color) {
         buildAnnotatedString {
-            val mentionRegex = Regex("""(@[a-zA-Z0-9_]+)""")
+            val mentionRegex = Regex("""(@[a-zA-Z0-9_.-]+)""")
             var lastIndex = 0
             mentionRegex.findAll(content).forEach { matchResult ->
                 val start = matchResult.range.first

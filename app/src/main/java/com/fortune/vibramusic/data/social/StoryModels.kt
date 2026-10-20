@@ -3,10 +3,37 @@ package com.fortune.vibramusic.data.social
 import kotlinx.serialization.Serializable
 import java.time.Instant
 
+import androidx.compose.ui.graphics.Color
+
 enum class StoryMediaType {
     IMAGE,
     VIDEO,
     TEXT,
+}
+
+fun parseStoryGradient(backgroundSpec: String?): List<Color> {
+    if (backgroundSpec.isNullOrBlank()) {
+        return listOf(Color(0xFF8B5CF6), Color(0xFF3B82F6))
+    }
+    val parts = backgroundSpec.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+    val colors = parts.mapNotNull { hexStr ->
+        runCatching {
+            val clean = hexStr.removePrefix("#")
+            val colorLong = clean.toLong(16)
+            if (clean.length <= 6) {
+                Color(colorLong or 0xFF000000)
+            } else {
+                Color(colorLong)
+            }
+        }.getOrNull()
+    }
+    return if (colors.size >= 2) {
+        colors
+    } else if (colors.size == 1) {
+        listOf(colors.first(), colors.first().copy(alpha = 0.8f))
+    } else {
+        listOf(Color(0xFF8B5CF6), Color(0xFF3B82F6))
+    }
 }
 
 @Serializable

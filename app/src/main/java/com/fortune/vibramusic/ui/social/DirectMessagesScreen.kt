@@ -737,7 +737,8 @@ fun DirectMessagesScreen(
                                 val lastAt = messageText.lastIndexOf('@')
                                 if (lastAt >= 0) {
                                     val prefix = messageText.substring(0, lastAt)
-                                    messageText = "$prefix@${user.handle} "
+                                    val cleanHandle = user.handle.removePrefix("@")
+                                    messageText = "$prefix@$cleanHandle "
                                 }
                                 mentionQuery = null
                                 mentionSuggestions = emptyList()

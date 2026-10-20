@@ -161,6 +161,7 @@ import com.fortune.vibramusic.ui.screens.ListenTogetherScreen
 import com.fortune.vibramusic.ui.screens.PartyServerEditor
 import com.fortune.vibramusic.ui.player.ShareOptionsSheet
 import com.fortune.vibramusic.ui.screens.SettingsScreen
+import com.fortune.vibramusic.ui.screens.WearOsScreen
 import com.fortune.vibramusic.ui.screens.SourceEditorAlert
 import com.fortune.vibramusic.ui.screens.SourcesScreen
 import com.fortune.vibramusic.ui.screens.SpotifyCanvasAuthScreen
@@ -542,6 +543,7 @@ private fun VibraMusicApp(
     var showSources by remember { mutableStateOf(false) }
     var showListenTogether by remember { mutableStateOf(false) }
     var showEqualizer by remember { mutableStateOf(false) }
+    var showWearOs by remember { mutableStateOf(false) }
     var showSpotifyCanvasAuth by remember { mutableStateOf(false) }
     var showSpotifyLogin by remember { mutableStateOf(false) }
     var showSpotifyLibrary by rememberSaveable { mutableStateOf(false) }
@@ -697,6 +699,7 @@ private fun VibraMusicApp(
         showAccountScrobbling = false
         showSources = false
         showEqualizer = false
+        showWearOs = false
         showHistory = false
         showDiscord = false
         libraryShowAll = null
@@ -2305,6 +2308,7 @@ private fun VibraMusicApp(
                 showSources = false
                 showListenTogether = false
                 showEqualizer = false
+        showWearOs = false
                 showReplay = false
                 showHistory = false
                 showDiscord = false
@@ -2421,10 +2425,13 @@ private fun VibraMusicApp(
         BackHandler(enabled = showEqualizer) {
             showEqualizer = false
         }
+        BackHandler(enabled = showWearOs) {
+            showWearOs = false
+        }
         // One back step out of Settings, or out of any tab but Home, lands on
         // Home rather than exiting — only Home itself hands back to the system,
         // which is what actually closes/minimizes the app.
-        BackHandler(enabled = showSettings && !showAccountScrobbling && !showSources && !showListenTogether && !showEqualizer) {
+        BackHandler(enabled = showSettings && !showAccountScrobbling && !showSources && !showListenTogether && !showEqualizer && !showWearOs) {
             showSettings = false
             // Only when Settings was the whole of what was on screen. Opened
             // over Replay or over a release page, closing it reveals that again
@@ -2504,6 +2511,7 @@ private fun VibraMusicApp(
                         showSources -> "sources"
                         showListenTogether -> "listen_together"
                         showEqualizer -> "equalizer"
+                        showWearOs -> "wear_os"
                         // Above Replay, not below it. The top bar's account
                         // button sets `showSettings` from every page including
                         // this one, so with Replay winning the tie the button
@@ -2550,7 +2558,7 @@ private fun VibraMusicApp(
                     modifier = Modifier
                         .hazeSource(hazeState)
                         .then(
-                            if (glassActive) {
+                            if (glassActive && currentRealm != AppRealm.SOCIAL) {
                                 Modifier
                                     // Not under "reduce dynamic blur": nothing
                                     // samples the layer then, and recording a
@@ -2731,6 +2739,8 @@ private fun VibraMusicApp(
                         )
                     } else if (key == "equalizer") {
                         EqualizerScreen(contentPadding = listPadding)
+                    } else if (key == "wear_os") {
+                        WearOsScreen(onBack = { showWearOs = false })
                     } else if (key == "settings") {
                         SettingsScreen(
                             windowWidth = windowWidth,
@@ -2746,6 +2756,7 @@ private fun VibraMusicApp(
                             },
                             onAccountScrobbling = { showAccountScrobbling = true },
                             onEqualizer = { showEqualizer = true },
+                            onWearOs = { showWearOs = true },
                             onOpenReplay = {
                                 showSettings = false
                                 replayLandingPage = ReplayStoryPage.INTRO
@@ -3146,6 +3157,8 @@ private fun VibraMusicApp(
                             onLoadMore = viewModel::loadMoreHome,
                             loadingMore = homeLoadingMore,
                             recentlyPlayedLoading = homeRecentlyPlayedLoading,
+                            currentSong = player.song,
+                            isPlaying = player.isPlaying,
                         )
                         TAB_EXPLORE -> selectedMoodGenre?.let { category ->
                             MoodGenrePlaylistsScreen(
@@ -3427,6 +3440,7 @@ private fun VibraMusicApp(
                         showSources -> stringResource(R.string.sources)
                         showListenTogether -> stringResource(R.string.listen_together)
                         showEqualizer -> stringResource(R.string.equalizer)
+                        showWearOs -> "Wear OS"
                         showSettings -> stringResource(R.string.settings)
                         showReplay -> stringResource(R.string.replay)
                         podcastShowState != null -> podcastShow?.title.orEmpty()
@@ -3454,7 +3468,7 @@ private fun VibraMusicApp(
                     scrolled = when {
                         (showSpotifyLibrary && detail == null) ||
                             showSettings || showAccountScrobbling || showSources || showListenTogether ||
-                            showEqualizer ||
+                            showEqualizer || showWearOs ||
                             showDiscord || showHistory ||
                             (libraryShowAll != null && detail == null) ||
                             (detail != null && detailActiveShelf != null) ||
@@ -3478,6 +3492,7 @@ private fun VibraMusicApp(
                         showSources -> ({ showSources = false })
                         showListenTogether -> ({ showListenTogether = false })
                         showEqualizer -> ({ showEqualizer = false })
+                        showWearOs -> ({ showWearOs = false })
                         showSettings -> ({ showSettings = false })
                         showReplay -> ({ showReplay = false })
                         podcastShowState != null -> ({ viewModel.closePodcastShow(); Unit })
@@ -3733,6 +3748,7 @@ private fun VibraMusicApp(
                     showSources = false
                     showListenTogether = false
                     showEqualizer = false
+        showWearOs = false
                     showReplay = false
                     showHistory = false
                     showSpotifyLibrary = false
@@ -3765,7 +3781,7 @@ private fun VibraMusicApp(
                     }
                 }
 
-                if (glassActive) {
+                if (glassActive && currentRealm != AppRealm.SOCIAL) {
                     Column(
                         modifier = Modifier
                             .align(Alignment.BottomCenter)

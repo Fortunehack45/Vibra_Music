@@ -18,5 +18,5 @@ internal object LoudnessWarmup {
      * plays without the network by design, so it is not handed a network round trip for one.
      */
     fun wanted(scheme: String?, authority: String?, figureKnown: Boolean): Boolean =
-        !figureKnown && (scheme == "siren" || scheme == "vibramusic" || scheme == "bitchord") && authority == "watch"
+        !figureKnown && (scheme == "siren" || scheme == "vibramusic") && authority == "watch"
 }

@@ -1229,11 +1229,6 @@ private fun AppleMusicPillButton(
     modifier: Modifier = Modifier,
     palette: ArtworkPalette? = null,
 ) {
-    val backgroundColor = if (filled) {
-        Color.White
-    } else {
-        MaterialTheme.colorScheme.surface.copy(alpha = 0.55f)
-    }
     val contentColor = if (filled) {
         Color.Black
     } else {
@@ -1248,12 +1243,17 @@ private fun AppleMusicPillButton(
                 haptic = Haptic.Resume,
                 expandScale = 1.04f,
             )
-            .clip(RoundedCornerShape(14.dp))
-            .background(backgroundColor)
-            .border(
-                width = 0.5.dp,
-                color = if (filled) Color.Transparent else Color.White.copy(alpha = 0.12f),
-                shape = RoundedCornerShape(14.dp),
+            .then(
+                if (filled) {
+                    Modifier
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color.White)
+                } else {
+                    Modifier.lightweightLiquidGlass(
+                        shape = RoundedCornerShape(14.dp),
+                        fallbackColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.55f),
+                    )
+                }
             )
             .padding(horizontal = 16.dp),
         horizontalArrangement = Arrangement.Center,

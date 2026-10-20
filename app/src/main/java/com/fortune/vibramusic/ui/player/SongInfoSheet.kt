@@ -59,7 +59,7 @@ import com.fortune.vibramusic.ui.components.lightweightLiquidGlass
 import com.fortune.vibramusic.ui.theme.VibraPurple
 
 /**
- * Apple Music / BitChord-style Song Info bottom sheet displaying release date,
+ * Apple Music-style Song Info bottom sheet displaying release date,
  * stream codecs, bit depth, bitrate, sample rate, and listening statistics.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -159,9 +159,10 @@ fun SongInfoSheet(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(Color.White.copy(alpha = 0.05f))
-                    .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(18.dp))
+                    .lightweightLiquidGlass(
+                        shape = RoundedCornerShape(18.dp),
+                        fallbackColor = Color(0xFF1E1F2E).copy(alpha = 0.75f),
+                    )
                     .padding(14.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
@@ -205,9 +206,10 @@ fun SongInfoSheet(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(Color.White.copy(alpha = 0.05f))
-                    .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(18.dp))
+                    .lightweightLiquidGlass(
+                        shape = RoundedCornerShape(18.dp),
+                        fallbackColor = Color(0xFF1E1F2E).copy(alpha = 0.75f),
+                    )
                     .padding(14.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {

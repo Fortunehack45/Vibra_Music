@@ -1,5 +1,6 @@
 package com.fortune.vibramusic.ui.screens
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -49,6 +50,9 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.fortune.vibramusic.data.model.Song
+import com.fortune.vibramusic.ui.components.MiniEqualizer
+import com.fortune.vibramusic.ui.theme.VibraPurple
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.LibraryMusic
@@ -112,6 +116,8 @@ fun HomeScreen(
     onLoadMore: (() -> Unit)? = null,
     loadingMore: Boolean = false,
     recentlyPlayedLoading: Boolean = false,
+    currentSong: Song? = null,
+    isPlaying: Boolean = false,
 ) {
     val recentsViewType by AppSettings.homeRecentsViewType.collectAsStateWithLifecycle()
 
@@ -167,6 +173,8 @@ fun HomeScreen(
                         onItemLongPress = onItemLongPress,
                         firstIsHero = !recentlyPlayedLoading,
                         recentsViewType = recentsViewType,
+                        currentSong = currentSong,
+                        isPlaying = isPlaying,
                         onRecentsViewTypeToggle = {
                             AppSettings.setHomeRecentsViewType(
                                 if (recentsViewType == LibraryViewType.LIST) {
@@ -213,6 +221,8 @@ private fun androidx.compose.foundation.lazy.LazyListScope.itemsIndexedShelves(
     onItemLongPress: ((ShelfItem) -> Unit)?,
     firstIsHero: Boolean = true,
     recentsViewType: LibraryViewType,
+    currentSong: Song? = null,
+    isPlaying: Boolean = false,
     onRecentsViewTypeToggle: () -> Unit,
 ) {
     shelves.forEachIndexed { index, shelf ->
@@ -224,6 +234,8 @@ private fun androidx.compose.foundation.lazy.LazyListScope.itemsIndexedShelves(
                     onItemClick = openItem,
                     onItemLongPress = onItemLongPress,
                     viewType = recentsViewType,
+                    currentSong = currentSong,
+                    isPlaying = isPlaying,
                     onViewTypeToggle = onRecentsViewTypeToggle,
                 )
             } else if (index == 0 && firstIsHero) {
@@ -242,6 +254,8 @@ private fun RecentShelf(
     onItemClick: (ShelfItem) -> Unit,
     onItemLongPress: ((ShelfItem) -> Unit)?,
     viewType: LibraryViewType,
+    currentSong: Song? = null,
+    isPlaying: Boolean = false,
     onViewTypeToggle: () -> Unit,
 ) {
     Column(Modifier.padding(bottom = 26.dp)) {
@@ -261,10 +275,16 @@ private fun RecentShelf(
                     items(shelf.items.chunked(RECENT_TRACKS_PER_COLUMN)) { column ->
                         Column(Modifier.width(columnWidth)) {
                             column.forEach { item ->
+                                val isCurrent = currentSong != null && (
+                                    (item.videoId != null && item.videoId == currentSong.videoId) ||
+                                    (item.title.equals(currentSong.title, ignoreCase = true))
+                                )
                                 RecentTrackRow(
                                     item = item,
                                     onClick = { onItemClick(item) },
                                     onLongPress = onItemLongPress?.let { { it(item) } },
+                                    isCurrent = isCurrent,
+                                    isPlaying = isCurrent && isPlaying,
                                 )
                             }
                         }
@@ -357,7 +377,13 @@ private fun RecentTrackRow(
     item: ShelfItem,
     onClick: () -> Unit,
     onLongPress: (() -> Unit)?,
+    isCurrent: Boolean = false,
+    isPlaying: Boolean = false,
 ) {
+    val titleColor by animateColorAsState(
+        targetValue = if (isCurrent) VibraPurple else MaterialTheme.colorScheme.onBackground,
+        label = "recent track title",
+    )
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -365,22 +391,43 @@ private fun RecentTrackRow(
             .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        AsyncImage(
-            model = item.thumbnailUrl.artworkAt(ROW_ART_PX),
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
+        Box(
             modifier = Modifier
                 .size(48.dp)
                 .clip(RoundedCornerShape(7.dp))
                 .thumbnailBorder(RoundedCornerShape(7.dp))
                 .background(MaterialTheme.colorScheme.surfaceVariant),
-        )
+            contentAlignment = Alignment.Center,
+        ) {
+            AsyncImage(
+                model = item.thumbnailUrl.artworkAt(ROW_ART_PX),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+            if (isCurrent) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.45f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    MiniEqualizer(
+                        isPlaying = isPlaying,
+                        barColor = VibraPurple,
+                        maxHeight = 14.dp,
+                        barWidth = 2.dp,
+                        barSpacing = 2.dp,
+                    )
+                }
+            }
+        }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(
                 text = item.title,
                 style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onBackground,
+                color = titleColor,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )

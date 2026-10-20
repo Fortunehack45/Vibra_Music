@@ -18,6 +18,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.ui.semantics.Role
@@ -84,8 +85,12 @@ import androidx.compose.material.icons.rounded.Upgrade
 import androidx.compose.material.icons.rounded.VerticalAlignBottom
 import androidx.compose.material.icons.rounded.VolumeOff
 import androidx.compose.material.icons.rounded.VolumeUp
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.material.icons.rounded.Watch
 import androidx.compose.material.icons.rounded.Waves
 import androidx.compose.material.icons.rounded.Wifi
+import com.fortune.vibramusic.AppIcon
+import com.fortune.vibramusic.ui.theme.VibraPurple
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatDelegate
@@ -193,6 +198,7 @@ fun SettingsScreen(
     onListenTogether: () -> Unit,
     onSpotifyCanvasAuth: () -> Unit,
     onAppLanguage: () -> Unit,
+    onWearOs: () -> Unit = {},
     onCheckForUpdates: () -> Unit = {},
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier,
@@ -777,13 +783,65 @@ fun SettingsScreen(
                     title = appIconTitle,
                     subtitle = "Select liquid glass launcher icon",
                 )
-                SegmentedControl(
-                    options = AppSettings.AppIconTheme.entries.map { it.label },
-                    selectedIndex = AppSettings.AppIconTheme.entries.indexOf(appIconTheme),
-                    onSelect = { index ->
-                        AppSettings.setAppIconTheme(context, AppSettings.AppIconTheme.entries[index])
-                    },
-                    modifier = Modifier.padding(start = ROW_INSET, end = ROW_INSET, bottom = 14.dp),
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(start = ROW_INSET, end = ROW_INSET, bottom = 14.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    AppIcon.entries.forEach { option ->
+                        val selected = option.alias == appIconTheme.alias
+                        Column(
+                            modifier = Modifier
+                                .width(96.dp)
+                                .clip(RoundedCornerShape(16.dp))
+                                .clickable {
+                                    val match = AppSettings.AppIconTheme.entries.firstOrNull { it.alias == option.alias }
+                                    if (match != null) {
+                                        AppSettings.setAppIconTheme(context, match)
+                                    }
+                                }
+                                .padding(vertical = 6.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(64.dp)
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .border(
+                                        width = if (selected) 2.dp else 1.dp,
+                                        color = if (selected) VibraPurple else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                                        shape = RoundedCornerShape(16.dp),
+                                    )
+                                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                androidx.compose.foundation.Image(
+                                    painter = painterResource(option.iconRes),
+                                    contentDescription = option.title,
+                                    modifier = Modifier.size(52.dp),
+                                )
+                            }
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                text = option.title,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (selected) VibraPurple else MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                maxLines = 2,
+                            )
+                        }
+                    }
+                }
+            }
+            val wearOsTitle = "Wear OS Companion"
+            row(wearOsTitle, "wear", "watch", "smartwatch", "galaxy watch", "pixel watch") {
+                SettingsRow(
+                    icon = Icons.Rounded.Watch,
+                    title = wearOsTitle,
+                    subtitle = "Setup and control playback from your smartwatch",
+                    onClick = onWearOs,
                 )
             }
             val reduceAnimationTitle = stringResource(R.string.reduce_animation)
@@ -852,11 +910,11 @@ fun SettingsScreen(
                 )
             }
             val artistSignatureTitle = "Artist Signature API"
-            row(artistSignatureTitle, "signature", "artist", "api", "bitchord") {
+            row(artistSignatureTitle, "signature", "artist", "api", "vibra") {
                 SettingsRow(
                     icon = Icons.Rounded.AutoAwesome,
                     title = artistSignatureTitle,
-                    subtitle = artistSignatureApi.ifBlank { "Default (BitChord signatures)" },
+                    subtitle = artistSignatureApi.ifBlank { "Default (Vibra signatures)" },
                     trailing = { Chevron() },
                     onClick = { showArtistSignatureDialog = true },
                 )

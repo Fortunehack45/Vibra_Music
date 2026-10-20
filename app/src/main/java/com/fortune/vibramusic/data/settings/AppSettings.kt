@@ -6,6 +6,7 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import androidx.media3.common.Player
+import com.fortune.vibramusic.AppIcon
 import com.fortune.vibramusic.BuildConfig
 import com.fortune.vibramusic.auth.AuthStore
 import com.fortune.vibramusic.data.lyrics.LyricsSource
@@ -628,13 +629,13 @@ object AppSettings {
     val smbPassword = MutableStateFlow("")
 
     enum class AppIconTheme(val id: String, val label: String, val alias: String) {
-        PURPLE("purple", "Vibra Purple (Default)", "com.fortune.vibramusic.MainActivity"),
-        DARK("dark", "Dark Glass", "com.fortune.vibramusic.MainActivityDark"),
-        LIGHT("light", "Light Glass", "com.fortune.vibramusic.MainActivityLight"),
+        PURPLE("purple", "Vibra Purple (Default)", "LauncherDefault"),
+        DARK("dark", "Dark Glass", "LauncherGlassDark"),
+        LIGHT("light", "Light Glass", "LauncherGlassLight"),
     }
 
     private const val KEY_ARTIST_SIGNATURE_API = "artist_signature_api"
-    val artistSignatureApi = MutableStateFlow("https://raw.githubusercontent.com/kushagrasinghx/BitChord/main/signatures/")
+    val artistSignatureApi = MutableStateFlow("https://raw.githubusercontent.com/Fortunehack45/Vibra_Music/main/signatures/")
 
     fun setArtistSignatureApi(value: String) {
         val normalized = value.trim()
@@ -652,19 +653,12 @@ object AppSettings {
     }
 
     fun applyAppIcon(context: Context, theme: AppIconTheme) {
-        val pm = context.packageManager
-        val pkg = context.packageName
-        AppIconTheme.entries.forEach { entry ->
-            val compName = android.content.ComponentName(pkg, entry.alias)
-            val state = if (entry == theme) {
-                android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED
-            } else {
-                android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED
-            }
-            runCatching {
-                pm.setComponentEnabledSetting(compName, state, android.content.pm.PackageManager.DONT_KILL_APP)
-            }
+        val icon = when (theme) {
+            AppIconTheme.PURPLE -> AppIcon.Default
+            AppIconTheme.DARK -> AppIcon.LiquidGlassDark
+            AppIconTheme.LIGHT -> AppIcon.LiquidGlassLight
         }
+        AppIcon.apply(context, icon)
     }
 
     /**
@@ -1021,8 +1015,8 @@ object AppSettings {
         discordButton1Visible.value = prefs.getBoolean(KEY_DISCORD_BUTTON_1_VISIBLE, true)
         discordButton2Text.value = prefs.getString(KEY_DISCORD_BUTTON_2_TEXT, "").orEmpty()
         discordInfoDismissed.value = prefs.getBoolean(KEY_DISCORD_INFO_DISMISSED, false)
-        artistSignatureApi.value = prefs.getString(KEY_ARTIST_SIGNATURE_API, "https://raw.githubusercontent.com/kushagrasinghx/BitChord/main/signatures/").orEmpty().ifBlank {
-            "https://raw.githubusercontent.com/kushagrasinghx/BitChord/main/signatures/"
+        artistSignatureApi.value = prefs.getString(KEY_ARTIST_SIGNATURE_API, "https://raw.githubusercontent.com/Fortunehack45/Vibra_Music/main/signatures/").orEmpty().ifBlank {
+            "https://raw.githubusercontent.com/Fortunehack45/Vibra_Music/main/signatures/"
         }
         val savedIcon = prefs.getString(KEY_APP_ICON, "purple")
         appIconTheme.value = AppIconTheme.entries.firstOrNull { it.id == savedIcon } ?: AppIconTheme.PURPLE

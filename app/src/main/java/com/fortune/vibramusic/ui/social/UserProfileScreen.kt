@@ -110,6 +110,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.fortune.vibramusic.data.social.isWithinEditWindow
 import com.fortune.vibramusic.ui.theme.rememberArtworkPalette
+import com.fortune.vibramusic.ui.theme.VibraPurple
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
@@ -187,6 +188,7 @@ fun UserProfileScreen(
     var editPostContent by remember { mutableStateOf("") }
     var inspectedQuotedPost by remember { mutableStateOf<SocialPost?>(null) }
     var showCreatePostSheet by remember { mutableStateOf(false) }
+    var showCreateStoryScreen by remember { mutableStateOf(false) }
     var showFriendsDiscovery by remember { mutableStateOf(false) }
     var activeMediaViewer by remember { mutableStateOf<Pair<List<PostMediaItem>, Int>?>(null) }
 
@@ -205,7 +207,9 @@ fun UserProfileScreen(
         modifier = modifier.fillMaxSize(),
     ) {
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .hazeSource(hazeState),
             contentPadding = PaddingValues(
                 top = 0.dp,
                 bottom = contentPadding.calculateBottomPadding() + 80.dp,
@@ -404,33 +408,61 @@ fun UserProfileScreen(
                         )
 
                         Box(
-                            modifier = Modifier
-                                .size(86.dp)
-                                .purpleStoryRing(hasStory)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.surfaceVariant)
-                                .border(2.dp, MaterialTheme.colorScheme.surfaceVariant, CircleShape)
-                                .clickable {
-                                    if (hasStory) {
-                                        activeStoryGroupForViewer = activeProfileStoryGroup
-                                    }
-                                },
+                            modifier = Modifier.size(92.dp),
                             contentAlignment = Alignment.Center,
                         ) {
-                            if (!activeProfile.avatarUrl.isNullOrBlank() && activeProfile.avatarUrl != "null") {
-                                AsyncImage(
-                                    model = activeProfile.avatarUrl,
-                                    contentDescription = activeProfile.displayName,
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.fillMaxSize(),
-                                )
-                            } else {
-                                Icon(
-                                    imageVector = Icons.Rounded.Person,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(44.dp),
-                                )
+                            Box(
+                                modifier = Modifier
+                                    .size(86.dp)
+                                    .purpleStoryRing(hasStory)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                                    .border(2.dp, MaterialTheme.colorScheme.surfaceVariant, CircleShape)
+                                    .clickable {
+                                        if (hasStory) {
+                                            activeStoryGroupForViewer = activeProfileStoryGroup
+                                        } else if (isSelf) {
+                                            showCreateStoryScreen = true
+                                        }
+                                    },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                if (!activeProfile.avatarUrl.isNullOrBlank() && activeProfile.avatarUrl != "null") {
+                                    AsyncImage(
+                                        model = activeProfile.avatarUrl,
+                                        contentDescription = activeProfile.displayName,
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.fillMaxSize(),
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Person,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(44.dp),
+                                    )
+                                }
+                            }
+
+                            // Plus badge to add story when viewing own profile
+                            if (isSelf) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(26.dp)
+                                        .align(Alignment.BottomEnd)
+                                        .clip(CircleShape)
+                                        .background(VibraPurple)
+                                        .border(2.dp, MaterialTheme.colorScheme.background, CircleShape)
+                                        .clickable { showCreateStoryScreen = true },
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Add,
+                                        contentDescription = "Add Story",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(16.dp),
+                                    )
+                                }
                             }
                         }
                     }
@@ -1218,6 +1250,22 @@ fun UserProfileScreen(
             )
         }
 
+        if (showCreateStoryScreen) {
+            Dialog(
+                onDismissRequest = { showCreateStoryScreen = false },
+                properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
+            ) {
+                CreateStoryScreen(
+                    currentlyPlayingSong = null,
+                    onDismiss = { showCreateStoryScreen = false },
+                    onSubmitStory = { mediaUrl, mediaType, textContent, track ->
+                        viewModel.createStory(mediaUrl, mediaType, textContent, track)
+                        showCreateStoryScreen = false
+                    },
+                )
+            }
+        }
+
         // Floating Top Liquid Glass Navigation Bar (stays fixed while content scrolls behind)
         Row(
             modifier = Modifier
@@ -1233,24 +1281,21 @@ fun UserProfileScreen(
                     modifier = Modifier
                         .size(44.dp)
                         .shadow(
-                            elevation = 6.dp,
+                            elevation = 8.dp,
                             shape = CircleShape,
                             spotColor = Color.Black.copy(alpha = 0.35f),
                         )
                         .clip(CircleShape)
-                        .lightweightLiquidGlass(
-                            shape = CircleShape,
-                            fallbackColor = if (isDark) Color(0xCC181A22) else Color.White.copy(alpha = 0.92f),
-                        )
+                        .hazeEffect(hazeState, HazeMaterials.ultraThin())
                         .background(
-                            if (isDark) Color(0xCC181A22) else Color.White.copy(alpha = 0.92f),
+                            if (isDark) Color(0x28FFFFFF) else Color(0xDDFFFFFF),
                             CircleShape,
                         )
                         .border(
                             width = 1.dp,
                             brush = Brush.verticalGradient(
                                 colors = listOf(
-                                    Color.White.copy(alpha = 0.6f),
+                                    Color.White.copy(alpha = 0.65f),
                                     Color.White.copy(alpha = 0.15f),
                                 )
                             ),
@@ -1276,24 +1321,21 @@ fun UserProfileScreen(
                     modifier = Modifier
                         .size(44.dp)
                         .shadow(
-                            elevation = 6.dp,
+                            elevation = 8.dp,
                             shape = CircleShape,
                             spotColor = Color.Black.copy(alpha = 0.35f),
                         )
                         .clip(CircleShape)
-                        .lightweightLiquidGlass(
-                            shape = CircleShape,
-                            fallbackColor = if (isDark) Color(0xCC181A22) else Color.White.copy(alpha = 0.92f),
-                        )
+                        .hazeEffect(hazeState, HazeMaterials.ultraThin())
                         .background(
-                            if (isDark) Color(0xCC181A22) else Color.White.copy(alpha = 0.92f),
+                            if (isDark) Color(0x28FFFFFF) else Color(0xDDFFFFFF),
                             CircleShape,
                         )
                         .border(
                             width = 1.dp,
                             brush = Brush.verticalGradient(
                                 colors = listOf(
-                                    Color.White.copy(alpha = 0.6f),
+                                    Color.White.copy(alpha = 0.65f),
                                     Color.White.copy(alpha = 0.15f),
                                 )
                             ),

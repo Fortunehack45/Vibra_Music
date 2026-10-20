@@ -518,12 +518,22 @@ private fun SongRowContent(
             // illustrated one share a left edge and a divider inset.
             Box(Modifier.size(52.dp), contentAlignment = Alignment.Center) {
                 if (isCurrent) {
-                    Icon(
-                        imageVector = if (isPlaying) Icons.Rounded.GraphicEq else Icons.Rounded.PlayArrow,
-                        contentDescription = stringResource(R.string.now_playing),
-                        tint = activeTint,
-                        modifier = Modifier.size(22.dp),
-                    )
+                    if (isPlaying) {
+                        MiniEqualizer(
+                            isPlaying = true,
+                            barColor = activeTint,
+                            maxHeight = 16.dp,
+                            barWidth = 2.5.dp,
+                            barSpacing = 2.dp,
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Rounded.PlayArrow,
+                            contentDescription = stringResource(R.string.now_playing),
+                            tint = activeTint,
+                            modifier = Modifier.size(22.dp),
+                        )
+                    }
                 } else {
                     Text(
                         text = "$trackNumber",
@@ -533,15 +543,36 @@ private fun SongRowContent(
                 }
             }
         } else {
-            AsyncImage(
-                model = rememberRemoteArtworkUrl(song)?.artworkAt(ROW_ART_PX),
-                contentDescription = null,
+            Box(
                 modifier = Modifier
                     .size(52.dp)
                     .clip(RoundedCornerShape(8.dp))
                     .thumbnailBorder(RoundedCornerShape(8.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant),
-            )
+                contentAlignment = Alignment.Center,
+            ) {
+                AsyncImage(
+                    model = rememberRemoteArtworkUrl(song)?.artworkAt(ROW_ART_PX),
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                if (isCurrent) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.45f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        MiniEqualizer(
+                            isPlaying = isPlaying,
+                            barColor = activeTint,
+                            maxHeight = 16.dp,
+                            barWidth = 2.5.dp,
+                            barSpacing = 2.dp,
+                        )
+                    }
+                }
+            }
         }
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {

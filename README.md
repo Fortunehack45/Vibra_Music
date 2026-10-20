@@ -123,11 +123,11 @@ Vibra Music loads sensitive service configurations at build time and runtime wit
 
 <h1><a id="credits"></a>Credits & Attribution</h1>
 
-**Vibra Music** is derived from and built upon the architecture and codebase of **[BitChord](https://github.com/kushagrasinghx/BitChord)** by [Kushagra Singh](https://github.com/kushagrasinghx).
+**Vibra Music** is built upon modern open-source Android architecture and best-in-class media playback engines.
 
-We extend our sincere gratitude to the BitChord project for providing the foundation that made Vibra Music possible. Vibra Music builds upon this foundation with custom branding, additional features, UI enhancements, and platform-specific improvements.
+We extend our sincere gratitude to the open-source music community for providing the foundations that make Vibra Music possible. Vibra Music builds upon these foundations with custom branding, social features, UI enhancements, and platform-specific improvements.
 
-Both projects are licensed under **GPLv3**, respecting the original license and contributing back to the open-source community.
+Licensed under **GPLv3**, respecting open-source licenses and contributing back to the community.
 
 **Additional Credits:**
 - Apple-like lyrics animation by [binimum](https://github.com/binimum/am-lyrics)

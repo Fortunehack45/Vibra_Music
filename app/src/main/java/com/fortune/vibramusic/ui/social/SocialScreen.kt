@@ -111,6 +111,7 @@ import com.fortune.vibramusic.ui.social.CreateStorySheet
 import com.fortune.vibramusic.ui.social.StoriesFeedHorizontalBar
 import com.fortune.vibramusic.ui.social.StoryViewerDialog
 import com.fortune.vibramusic.ui.social.purpleStoryRing
+import com.fortune.vibramusic.ui.theme.VibraPurple
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -146,9 +147,11 @@ fun SocialScreen(
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val searchResults by viewModel.searchResults.collectAsStateWithLifecycle()
     val isSearching by viewModel.isSearching.collectAsStateWithLifecycle()
+    val suggestedUsers by viewModel.suggestedUsersList.collectAsStateWithLifecycle()
     var isSearchExpanded by remember { mutableStateOf(false) }
 
     var showCreatePostSheet by remember { mutableStateOf(false) }
+    var showSoulmateScreen by remember { mutableStateOf(false) }
     var repostActionTarget by remember { mutableStateOf<SocialPost?>(null) }
     var previewImageUrl by remember { mutableStateOf<String?>(null) }
     var activeMediaViewer by remember { mutableStateOf<Pair<List<PostMediaItem>, Int>?>(null) }
@@ -185,6 +188,24 @@ fun SocialScreen(
                                 onTabSelect = { viewModel.setFeedTab(it) },
                                 modifier = Modifier.weight(1f),
                             )
+
+                            // Music Soulmate Matching Button
+                            Box(
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .clip(CircleShape)
+                                    .background(VibraPurple.copy(alpha = 0.18f))
+                                    .border(1.dp, VibraPurple.copy(alpha = 0.45f), CircleShape)
+                                    .clickable { showSoulmateScreen = true },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Favorite,
+                                    contentDescription = "Music Soulmate",
+                                    tint = VibraPurple,
+                                    modifier = Modifier.size(20.dp),
+                                )
+                            }
 
                             // Search Toggle Button
                             Box(
@@ -423,20 +444,22 @@ fun SocialScreen(
                     }
                 } else {
                     // Regular Feed Mode
-                    // Stories Bar (Instagram/Airbuds 24h stories)
-                    item(key = "stories_feed_bar") {
-                        StoriesFeedHorizontalBar(
-                            storyGroups = userStoryGroups,
-                            currentProfile = currentProfile,
-                            onOpenStoryGroup = { group ->
-                                activeStoryGroupForViewer = group
-                            },
-                            onCreateStory = {
-                                showCreateStorySheet = true
-                            },
-                            onPlayTrack = onPlayTrack,
-                            modifier = Modifier.padding(bottom = 6.dp),
-                        )
+                    // Stories Bar: Only show when there are active stories so feed isn't pushed down by empty shelf
+                    if (userStoryGroups.isNotEmpty()) {
+                        item(key = "stories_feed_bar") {
+                            StoriesFeedHorizontalBar(
+                                storyGroups = userStoryGroups,
+                                currentProfile = currentProfile,
+                                onOpenStoryGroup = { group ->
+                                    activeStoryGroupForViewer = group
+                                },
+                                onCreateStory = {
+                                    showCreateStorySheet = true
+                                },
+                                onPlayTrack = onPlayTrack,
+                                modifier = Modifier.padding(bottom = 6.dp),
+                            )
+                        }
                     }
 
                     // Error Banner when posts are already cached
@@ -646,7 +669,7 @@ fun SocialScreen(
                 .align(Alignment.BottomEnd)
                 .padding(
                     end = 20.dp,
-                    bottom = (contentPadding.calculateBottomPadding() - 40.dp).coerceAtLeast(16.dp),
+                    bottom = contentPadding.calculateBottomPadding() + 16.dp,
                 )
                 .size(54.dp),
         ) {
@@ -789,16 +812,46 @@ fun SocialScreen(
         )
     }
 
-    // Create Story Sheet
+    // Create Story Screen
     if (showCreateStorySheet) {
-        CreateStorySheet(
-            currentlyPlayingSong = currentlyPlayingSong,
-            onDismiss = { showCreateStorySheet = false },
-            onSubmitStory = { mediaUrl, mediaType, textContent, track ->
-                viewModel.createStory(mediaUrl, mediaType, textContent, track)
-                showCreateStorySheet = false
-            },
-        )
+        Dialog(
+            onDismissRequest = { showCreateStorySheet = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
+        ) {
+            CreateStoryScreen(
+                currentlyPlayingSong = currentlyPlayingSong,
+                onDismiss = { showCreateStorySheet = false },
+                onSubmitStory = { mediaUrl, mediaType, textContent, track ->
+                    viewModel.createStory(mediaUrl, mediaType, textContent, track)
+                    showCreateStorySheet = false
+                },
+            )
+        }
+    }
+
+    // Music Soulmate Screen
+    if (showSoulmateScreen) {
+        Dialog(
+            onDismissRequest = { showSoulmateScreen = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
+        ) {
+            FriendsDiscoveryScreen(
+                currentProfile = currentProfile,
+                suggestedProfiles = suggestedUsers,
+                onBack = { showSoulmateScreen = false },
+                onSendFriendRequest = { profile ->
+                    viewModel.sendFriendRequest(profile.id)
+                },
+                onOpenProfile = { profile ->
+                    showSoulmateScreen = false
+                    onOpenProfile(profile)
+                },
+                onRefreshSuggestions = {
+                    currentProfile?.id?.let { viewModel.loadConnections(it) }
+                },
+                hazeState = hazeState,
+            )
+        }
     }
 
     // Delete Post Confirmation Dialog

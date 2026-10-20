@@ -147,7 +147,7 @@
             android:theme="@style/Theme.VibraMusic">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.DEFAULT" />
                 <!--
                   What makes the system call this a music app. "Play music" from
                   the assistant, Android Auto's media list and the OEM pickers
@@ -322,9 +322,25 @@
             </intent-filter>
         </activity>
 
+        <!-- Default Vibra Purple Launcher Icon Alias -->
+        <activity-alias
+            android:name=".LauncherDefault"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher"
+            android:roundIcon="@mipmap/ic_launcher_round"
+            android:label="@string/app_name"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.APP_MUSIC" />
+            </intent-filter>
+        </activity-alias>
+
         <!-- Dark Liquid Glass App Icon Alias -->
         <activity-alias
-            android:name=".MainActivityDark"
+            android:name=".LauncherGlassDark"
             android:targetActivity=".MainActivity"
             android:icon="@mipmap/ic_launcher_dark"
             android:roundIcon="@mipmap/ic_launcher_dark"
@@ -340,7 +356,7 @@
 
         <!-- Light Liquid Glass App Icon Alias -->
         <activity-alias
-            android:name=".MainActivityLight"
+            android:name=".LauncherGlassLight"
             android:targetActivity=".MainActivity"
             android:icon="@mipmap/ic_launcher_light"
             android:roundIcon="@mipmap/ic_launcher_light"

@@ -821,6 +821,7 @@ object SupabaseService {
         statusBubble = profile.statusBubble,
         bannerPlaylists = profile.bannerPlaylists,
         bannerUrl = profile.bannerUrl,
+        favoriteArtists = profile.favoriteArtists,
     )
 
     suspend fun updateUserProfile(
@@ -834,10 +835,17 @@ object SupabaseService {
         statusBubble: String = "",
         bannerPlaylists: List<String> = emptyList(),
         bannerUrl: String? = null,
+        favoriteArtists: List<FavoriteArtist> = emptyList(),
     ): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
             val bannerPlaylistsJson = if (bannerPlaylists.isNotEmpty()) {
                 "[" + bannerPlaylists.joinToString(",") { jsonQuote(it) } + "]"
+            } else "[]"
+            val favoriteArtistsJson = if (favoriteArtists.isNotEmpty()) {
+                "[" + favoriteArtists.joinToString(",") { fa ->
+                    val artworkPart = if (fa.artworkUrl != null) ",\"artwork_url\":${jsonQuote(fa.artworkUrl)}" else ""
+                    "{\"id\":${jsonQuote(fa.id)},\"name\":${jsonQuote(fa.name)}$artworkPart}"
+                } + "]"
             } else "[]"
             val body = buildString {
                 append("{")
@@ -852,6 +860,7 @@ object SupabaseService {
                 if (age != null) append(",\"age\":$age") else append(",\"age\":null")
                 append(",\"status_bubble\":${jsonQuote(statusBubble)}")
                 append(",\"banner_playlists\":$bannerPlaylistsJson")
+                append(",\"favorite_artists\":$favoriteArtistsJson")
                 append("}")
             }
             var response = client.post("${baseUrl("profiles")}?on_conflict=id") {
@@ -905,96 +914,109 @@ object SupabaseService {
             }
             val baseProfile = parseProfiles(response.bodyAsText()).firstOrNull() ?: return@runCatching null
 
-            // 1. Live Followers & Following
-            var realFollowers = baseProfile.followersCount
-            var realFollowing = baseProfile.followingCount
-            var isFollowing = false
-
-            runCatching {
-                val fRes = client.get(baseUrl("follows")) {
-                    header("apikey", SupabaseConfig.anonKey)
-                    header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
-                    parameter("following_id", "eq.$userId")
-                    parameter("select", "follower_id")
-                }
-                if (fRes.status.isSuccess()) {
-                    val arr = json.parseToJsonElement(fRes.bodyAsText()) as? JsonArray
-                    if (arr != null) {
-                        val validFollowers = arr.filter { (it as? JsonObject)?.str("follower_id") != userId }
-                        realFollowers = validFollowers.size
-                        if (currentUserId.isNotBlank()) {
-                            isFollowing = validFollowers.any { (it as? JsonObject)?.str("follower_id") == currentUserId }
+            // 1. Parallelize secondary lookups (followers, following, friends, relationship, favorite artists)
+            coroutineScope {
+                val followersDeferred = async {
+                    runCatching {
+                        val fRes = client.get(baseUrl("follows")) {
+                            header("apikey", SupabaseConfig.anonKey)
+                            header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                            parameter("following_id", "eq.$userId")
+                            parameter("select", "follower_id")
                         }
-                    }
+                        if (fRes.status.isSuccess()) {
+                            val arr = json.parseToJsonElement(fRes.bodyAsText()) as? JsonArray
+                            val validFollowers = arr?.filter { (it as? JsonObject)?.str("follower_id") != userId } ?: emptyList()
+                            val isF = if (currentUserId.isNotBlank()) validFollowers.any { (it as? JsonObject)?.str("follower_id") == currentUserId } else false
+                            Pair(validFollowers.size, isF)
+                        } else null
+                    }.getOrNull()
                 }
-            }
 
-            runCatching {
-                val ingRes = client.get(baseUrl("follows")) {
-                    header("apikey", SupabaseConfig.anonKey)
-                    header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
-                    parameter("follower_id", "eq.$userId")
-                    parameter("select", "following_id")
-                }
-                if (ingRes.status.isSuccess()) {
-                    val arr = json.parseToJsonElement(ingRes.bodyAsText()) as? JsonArray
-                    if (arr != null) {
-                        realFollowing = arr.filter { (it as? JsonObject)?.str("following_id") != userId }.size
-                    }
-                }
-            }
-
-            // 2. Live Friends & Friendship Status
-            var realFriends = baseProfile.friendsCount
-            var isFriend = false
-            var friendshipStatus = "NONE"
-
-            runCatching {
-                val friendsRes = client.get(baseUrl("friendships")) {
-                    header("apikey", SupabaseConfig.anonKey)
-                    header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
-                    parameter("or", "(requester_id.eq.$userId,receiver_id.eq.$userId)")
-                    parameter("status", "eq.ACCEPTED")
-                    parameter("select", "id")
-                }
-                if (friendsRes.status.isSuccess()) {
-                    val arr = json.parseToJsonElement(friendsRes.bodyAsText()) as? JsonArray
-                    if (arr != null) {
-                        realFriends = arr.size
-                    }
-                }
-            }
-
-            if (currentUserId.isNotBlank() && currentUserId != userId) {
-                runCatching {
-                    val relRes = client.get(baseUrl("friendships")) {
-                        header("apikey", SupabaseConfig.anonKey)
-                        header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
-                        parameter(
-                            "or",
-                            "(and(requester_id.eq.$currentUserId,receiver_id.eq.$userId),and(requester_id.eq.$userId,receiver_id.eq.$currentUserId))",
-                        )
-                        parameter("limit", "1")
-                    }
-                    if (relRes.status.isSuccess()) {
-                        val arr = json.parseToJsonElement(relRes.bodyAsText()) as? JsonArray
-                        val firstObj = arr?.firstOrNull() as? JsonObject
-                        if (firstObj != null) {
-                            friendshipStatus = firstObj.str("status") ?: "NONE"
-                            isFriend = friendshipStatus == "ACCEPTED"
+                val followingDeferred = async {
+                    runCatching {
+                        val ingRes = client.get(baseUrl("follows")) {
+                            header("apikey", SupabaseConfig.anonKey)
+                            header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                            parameter("follower_id", "eq.$userId")
+                            parameter("select", "following_id")
                         }
+                        if (ingRes.status.isSuccess()) {
+                            val arr = json.parseToJsonElement(ingRes.bodyAsText()) as? JsonArray
+                            arr?.filter { (it as? JsonObject)?.str("following_id") != userId }?.size
+                        } else null
+                    }.getOrNull()
+                }
+
+                val friendsDeferred = async {
+                    runCatching {
+                        val friendsRes = client.get(baseUrl("friendships")) {
+                            header("apikey", SupabaseConfig.anonKey)
+                            header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                            parameter("or", "(requester_id.eq.$userId,receiver_id.eq.$userId)")
+                            parameter("status", "eq.ACCEPTED")
+                            parameter("select", "id")
+                        }
+                        if (friendsRes.status.isSuccess()) {
+                            val arr = json.parseToJsonElement(friendsRes.bodyAsText()) as? JsonArray
+                            arr?.size
+                        } else null
+                    }.getOrNull()
+                }
+
+                val relationshipDeferred = async {
+                    if (currentUserId.isNotBlank() && currentUserId != userId) {
+                        runCatching {
+                            val relRes = client.get(baseUrl("friendships")) {
+                                header("apikey", SupabaseConfig.anonKey)
+                                header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                                parameter(
+                                    "or",
+                                    "(and(requester_id.eq.$currentUserId,receiver_id.eq.$userId),and(requester_id.eq.$userId,receiver_id.eq.$currentUserId))",
+                                )
+                                parameter("limit", "1")
+                            }
+                            if (relRes.status.isSuccess()) {
+                                val arr = json.parseToJsonElement(relRes.bodyAsText()) as? JsonArray
+                                val firstObj = arr?.firstOrNull() as? JsonObject
+                                if (firstObj != null) {
+                                    val status = firstObj.str("status") ?: "NONE"
+                                    Pair(status == "ACCEPTED", status)
+                                } else null
+                            } else null
+                        }.getOrNull()
+                    } else null
+                }
+
+                val favArtistsDeferred = async {
+                    if (baseProfile.favoriteArtists.isEmpty()) {
+                        fetchFavoriteArtists(userId).getOrDefault(emptyList())
+                    } else {
+                        baseProfile.favoriteArtists
                     }
                 }
-            }
 
-            baseProfile.copy(
-                followersCount = realFollowers,
-                followingCount = realFollowing,
-                friendsCount = realFriends,
-                isFollowing = isFollowing,
-                isFriend = isFriend,
-                friendshipStatus = friendshipStatus,
-            )
+                val followersResult = followersDeferred.await()
+                val followingCount = followingDeferred.await() ?: baseProfile.followingCount
+                val friendsCount = friendsDeferred.await() ?: baseProfile.friendsCount
+                val relationshipResult = relationshipDeferred.await()
+                val resolvedFavArtists = favArtistsDeferred.await()
+
+                val realFollowers = followersResult?.first ?: baseProfile.followersCount
+                val isFollowing = followersResult?.second ?: baseProfile.isFollowing
+                val isFriend = relationshipResult?.first ?: baseProfile.isFriend
+                val friendshipStatus = relationshipResult?.second ?: baseProfile.friendshipStatus
+
+                baseProfile.copy(
+                    followersCount = realFollowers,
+                    followingCount = followingCount,
+                    friendsCount = friendsCount,
+                    isFollowing = isFollowing,
+                    isFriend = isFriend,
+                    friendshipStatus = friendshipStatus,
+                    favoriteArtists = resolvedFavArtists,
+                )
+            }
         }
     }
 
@@ -1149,11 +1171,12 @@ object SupabaseService {
                 }
             }
 
-            // 4. Construct ConversationSummary for each partner
+            // 4. Construct ConversationSummary for each accepted friend
             val summaries = mutableListOf<ConversationSummary>()
+            val friendIds = myFriends.map { it.id }.toSet()
 
-            // First, friends/partners with message history in order of recency
-            partnerIds.forEach { partnerId ->
+            // First, accepted friends with message history in order of recency
+            partnerIds.filter { friendIds.contains(it) }.forEach { partnerId ->
                 val profile = profilesMap[partnerId]
                 if (profile != null) {
                     val msgs = partnerMap[partnerId].orEmpty()
@@ -2063,7 +2086,7 @@ object SupabaseService {
                 if (listeningStatsJson != null) append(",\"listening_stats_json\":${jsonQuote(listeningStatsJson)}")
                 append("}")
             }
-            val res = client.post(baseUrl("user_listening_experience")) {
+            val res = client.post("${baseUrl("user_listening_experience")}?on_conflict=user_id") {
                 header("apikey", SupabaseConfig.anonKey)
                 header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
                 header("Prefer", "resolution=merge-duplicates")
@@ -2457,6 +2480,18 @@ object SupabaseService {
         val bannerPlaylists = obj.arr("banner_playlists")?.mapNotNull {
             (it as? JsonPrimitive)?.takeIf { p -> p !is JsonNull }?.content?.takeIf { s -> s.isNotBlank() }
         } ?: emptyList()
+        val favoriteArtists = obj.arr("favorite_artists")?.mapNotNull { el ->
+            val a = el as? JsonObject ?: return@mapNotNull null
+            val aid = a.str("id") ?: a.str("artist_id") ?: return@mapNotNull null
+            val aname = a.str("name") ?: a.str("artist_name") ?: ""
+            val artwork = a.str("artwork_url") ?: a.str("avatar_url") ?: a.str("artist_artwork")
+            FavoriteArtist(
+                id = aid,
+                name = aname,
+                avatarUrl = artwork,
+                artworkUrl = artwork,
+            )
+        } ?: emptyList()
         val followersCount = obj.int("followers_count") ?: 0
         val followingCount = obj.int("following_count") ?: 0
         val friendsCount = obj.int("friends_count") ?: 0
@@ -2482,6 +2517,7 @@ object SupabaseService {
             statusBubble = statusBubble,
             bannerUrl = bannerUrl,
             bannerPlaylists = bannerPlaylists,
+            favoriteArtists = favoriteArtists,
             createdAt = createdAt,
             updatedAt = updatedAt,
         )

@@ -421,12 +421,102 @@ object ListeningStats {
         return json.encodeToString(kotlinx.serialization.builtins.ListSerializer(StoredBucket.serializer()), list)
     }
 
-    /** Restores buckets from Supabase cloud sync JSON. */
+    /** Merges cloud buckets with local stats so no offline or online listening is ever wiped out. */
+    fun mergeAndImport(buckets: List<StoredBucket>) {
+        if (!ready || buckets.isEmpty()) return
+        synchronized(lock) {
+            open = null
+            dirty = false
+            directory.mkdirs()
+            val existingMonths = directory.listFiles()
+                ?.mapNotNull { file ->
+                    val m = file.name.removeSuffix(".json")
+                    if (m.matches(Regex("\\d{4}-\\d{2}"))) read(m) else null
+                } ?: emptyList()
+
+            val mergedMap = existingMonths.associateBy { it.month }.toMutableMap()
+            for (incoming in buckets) {
+                val key = runCatching { YearMonth.parse(incoming.month).toString() }.getOrNull() ?: continue
+                val existing = mergedMap[key]
+                if (existing == null) {
+                    mergedMap[key] = incoming
+                } else {
+                    val trackMap = existing.tracks.associateBy { it.id }.toMutableMap()
+                    for (t in incoming.tracks) {
+                        val ex = trackMap[t.id]
+                        if (ex == null) {
+                            trackMap[t.id] = t
+                        } else {
+                            trackMap[t.id] = ex.copy(
+                                ms = maxOf(ex.ms, t.ms),
+                                plays = maxOf(ex.plays, t.plays),
+                            )
+                        }
+                    }
+                    val artistMap = existing.artists.associateBy { it.name.lowercase(Locale.ROOT) }.toMutableMap()
+                    for (a in incoming.artists) {
+                        val k = a.name.lowercase(Locale.ROOT)
+                        val ex = artistMap[k]
+                        if (ex == null) {
+                            artistMap[k] = a
+                        } else {
+                            artistMap[k] = ex.copy(
+                                ms = maxOf(ex.ms, a.ms),
+                                plays = maxOf(ex.plays, a.plays),
+                            )
+                        }
+                    }
+                    val albumMap = existing.albums.associateBy { (it.name + ":" + it.sub.orEmpty()).lowercase(Locale.ROOT) }.toMutableMap()
+                    for (al in incoming.albums) {
+                        val k = (al.name + ":" + al.sub.orEmpty()).lowercase(Locale.ROOT)
+                        val ex = albumMap[k]
+                        if (ex == null) {
+                            albumMap[k] = al
+                        } else {
+                            albumMap[k] = ex.copy(
+                                ms = maxOf(ex.ms, al.ms),
+                                plays = maxOf(ex.plays, al.plays),
+                            )
+                        }
+                    }
+                    val hours = LongArray(24) { h ->
+                        maxOf(existing.hours.getOrElse(h) { 0L }, incoming.hours.getOrElse(h) { 0L })
+                    }.toList()
+                    val dayKeys = existing.days.keys + incoming.days.keys
+                    val days = dayKeys.associateWith { d ->
+                        maxOf(existing.days[d] ?: 0L, incoming.days[d] ?: 0L)
+                    }
+                    mergedMap[key] = StoredBucket(
+                        version = 1,
+                        month = key,
+                        tracks = trackMap.values.toList(),
+                        artists = artistMap.values.toList(),
+                        albums = albumMap.values.toList(),
+                        hours = hours,
+                        days = days,
+                    )
+                }
+            }
+
+            mergedMap.forEach { (key, bucket) ->
+                runCatching {
+                    File(directory, "$key.json")
+                        .writeText(json.encodeToString(StoredBucket.serializer(), bucket))
+                }.onFailure { Log.w(TAG, "Could not write merged bucket $key", it) }
+            }
+            version++
+            cached = null
+        }
+    }
+
+    /** Restores buckets from Supabase cloud sync JSON safely without dropping existing listens. */
     fun importBucketsJson(jsonStr: String) {
-        if (jsonStr.isBlank()) return
+        if (jsonStr.isBlank() || jsonStr.trim() == "[]") return
         runCatching {
             val list = json.decodeFromString(kotlinx.serialization.builtins.ListSerializer(StoredBucket.serializer()), jsonStr)
-            importAll(list)
+            if (list.isNotEmpty()) {
+                mergeAndImport(list)
+            }
         }.onFailure { Log.w(TAG, "Could not import buckets from cloud JSON", it) }
     }
 

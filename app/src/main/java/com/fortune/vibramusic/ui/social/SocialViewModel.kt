@@ -9,6 +9,7 @@ import com.fortune.vibramusic.data.quiz.QuizArtist
 import com.fortune.vibramusic.data.settings.AppSettings
 import com.fortune.vibramusic.data.social.ConversationSummary
 import com.fortune.vibramusic.data.social.DirectMessage
+import com.fortune.vibramusic.data.social.FavoriteArtist
 import com.fortune.vibramusic.data.social.MusicTrackAttachment
 import com.fortune.vibramusic.data.social.NotificationType
 import com.fortune.vibramusic.data.social.PollData
@@ -309,6 +310,15 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
             }
             if (cached != null && (cached.id == targetUserId || session == null)) {
                 _currentProfile.value = cached
+                if (cached.favoriteArtists.isNotEmpty()) {
+                    _favoriteArtists.value = cached.favoriteArtists.map {
+                        QuizArtist(
+                            id = it.artistId,
+                            name = it.artistName,
+                            artworkUrl = it.artworkUrl ?: it.avatarUrl,
+                        )
+                    }
+                }
                 loadProfileData(cached.id)
             }
 
@@ -317,6 +327,15 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
                 SupabaseService.syncUserProfile(session, profile)
                     .onSuccess { syncedProfile ->
                         _currentProfile.value = syncedProfile
+                        if (syncedProfile.favoriteArtists.isNotEmpty()) {
+                            _favoriteArtists.value = syncedProfile.favoriteArtists.map {
+                                QuizArtist(
+                                    id = it.artistId,
+                                    name = it.artistName,
+                                    artworkUrl = it.artworkUrl ?: it.avatarUrl,
+                                )
+                            }
+                        }
                         withContext(Dispatchers.IO) {
                             cacheStore.saveLastActiveProfile(syncedProfile)
                         }
@@ -378,6 +397,9 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun onSignOut() {
+        val currentUserId = _currentProfile.value?.id ?: AppSettings.deviceUserId
+        com.fortune.vibramusic.data.stats.ListeningStats.flush()
+        UserCloudSyncManager.backupListeningExperience(currentUserId)
         _viewingProfile.value = null
         _viewingProfilePosts.value = emptyList()
         _favoriteArtists.value = emptyList()
@@ -1202,6 +1224,15 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
             val cached = cacheStore.loadProfile(userId)
             if (cached != null && _viewingProfile.value?.id == userId) {
                 _viewingProfile.value = cached
+                if (cached.favoriteArtists.isNotEmpty() && _favoriteArtists.value.isEmpty()) {
+                    _favoriteArtists.value = cached.favoriteArtists.map {
+                        QuizArtist(
+                            id = it.artistId,
+                            name = it.artistName,
+                            artworkUrl = it.artworkUrl ?: it.avatarUrl,
+                        )
+                    }
+                }
             }
             SupabaseService.fetchUserProfile(userId, currentUserId = currentUserId).onSuccess { fresh ->
                 if (fresh != null) {
@@ -1216,6 +1247,15 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
                     cacheStore.saveProfile(resolvedFresh)
                     if (_currentProfile.value?.id == userId) {
                         _currentProfile.value = resolvedFresh
+                    }
+                    if (resolvedFresh.favoriteArtists.isNotEmpty()) {
+                        _favoriteArtists.value = resolvedFresh.favoriteArtists.map {
+                            QuizArtist(
+                                id = it.artistId,
+                                name = it.artistName,
+                                artworkUrl = it.artworkUrl ?: it.avatarUrl,
+                            )
+                        }
                     }
                 }
             }
@@ -1376,6 +1416,17 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun loadFavoriteArtists(userId: String) {
+        // Pre-populate immediately from active or cached profile
+        val cachedArtists = (_viewingProfile.value?.takeIf { it.id == userId } ?: _currentProfile.value?.takeIf { it.id == userId })?.favoriteArtists
+        if (!cachedArtists.isNullOrEmpty() && _favoriteArtists.value.isEmpty()) {
+            _favoriteArtists.value = cachedArtists.map {
+                QuizArtist(
+                    id = it.artistId,
+                    name = it.artistName,
+                    artworkUrl = it.artworkUrl ?: it.avatarUrl,
+                )
+            }
+        }
         viewModelScope.launch {
             SupabaseService.fetchFavoriteArtists(userId)
                 .onSuccess { list ->
@@ -1388,7 +1439,9 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
                             )
                         )
                     }
-                    _favoriteArtists.value = loaded
+                    if (loaded.isNotEmpty()) {
+                        _favoriteArtists.value = loaded
+                    }
 
                     // Asynchronously resolve and heal any missing or broken thumbnails from YouTube Music
                     loaded.forEach { artist ->
@@ -1414,7 +1467,31 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
         val sanitized = sanitizeQuizArtist(artist)
         if (_favoriteArtists.value.any { it.id == sanitized.id }) return
 
-        _favoriteArtists.value = _favoriteArtists.value + sanitized
+        val updatedList = _favoriteArtists.value + sanitized
+        _favoriteArtists.value = updatedList
+
+        // Synchronize with active profile and local disk cache immediately
+        val favList = updatedList.map {
+            FavoriteArtist(
+                id = it.id,
+                name = it.name,
+                avatarUrl = it.artworkUrl,
+                artworkUrl = it.artworkUrl,
+            )
+        }
+        _currentProfile.value?.let { curr ->
+            val updated = curr.copy(favoriteArtists = favList)
+            _currentProfile.value = updated
+            if (_viewingProfile.value?.id == curr.id) {
+                _viewingProfile.value = updated
+            }
+            viewModelScope.launch(Dispatchers.IO) {
+                cacheStore.saveProfile(updated)
+                cacheStore.saveLastActiveProfile(updated)
+                SupabaseService.updateUserProfile(updated)
+            }
+        }
+
         viewModelScope.launch {
             var toSave = sanitized
             if (toSave.artworkUrl.isNullOrBlank() || toSave.artworkUrl?.contains("/test") == true || toSave.artworkUrl?.startsWith("http") != true) {
@@ -1424,6 +1501,13 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
                     _favoriteArtists.value = _favoriteArtists.value.map {
                         if (it.id == sanitized.id) toSave else it
                     }
+                    _currentProfile.value?.let { curr ->
+                        val reUpdated = curr.copy(favoriteArtists = _favoriteArtists.value.map {
+                            FavoriteArtist(id = it.id, name = it.name, avatarUrl = it.artworkUrl, artworkUrl = it.artworkUrl)
+                        })
+                        _currentProfile.value = reUpdated
+                        cacheStore.saveProfile(reUpdated)
+                    }
                 }
             }
             SupabaseService.addFavoriteArtist(userId, toSave)
@@ -1432,7 +1516,30 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
 
     fun removeFavoriteArtist(artistId: String) {
         val userId = _currentProfile.value?.id ?: return
-        _favoriteArtists.value = _favoriteArtists.value.filterNot { it.id == artistId }
+        val updatedList = _favoriteArtists.value.filterNot { it.id == artistId }
+        _favoriteArtists.value = updatedList
+
+        val favList = updatedList.map {
+            FavoriteArtist(
+                id = it.id,
+                name = it.name,
+                avatarUrl = it.artworkUrl,
+                artworkUrl = it.artworkUrl,
+            )
+        }
+        _currentProfile.value?.let { curr ->
+            val updated = curr.copy(favoriteArtists = favList)
+            _currentProfile.value = updated
+            if (_viewingProfile.value?.id == curr.id) {
+                _viewingProfile.value = updated
+            }
+            viewModelScope.launch(Dispatchers.IO) {
+                cacheStore.saveProfile(updated)
+                cacheStore.saveLastActiveProfile(updated)
+                SupabaseService.updateUserProfile(updated)
+            }
+        }
+
         viewModelScope.launch {
             SupabaseService.removeFavoriteArtist(userId, artistId)
         }

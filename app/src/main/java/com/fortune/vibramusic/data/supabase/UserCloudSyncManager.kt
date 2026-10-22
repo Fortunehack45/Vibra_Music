@@ -27,6 +27,14 @@ object UserCloudSyncManager {
 
     private const val TAG = "UserCloudSyncManager"
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var activeUserId: String? = null
+
+    fun setActiveUserId(id: String) {
+        if (id.isNotBlank()) activeUserId = id
+    }
+
+    fun getActiveUserId(): String =
+        activeUserId?.takeIf { it.isNotBlank() } ?: AppSettings.deviceUserId
 
     /**
      * Restores all cloud data for the given YouTube user:
@@ -37,6 +45,7 @@ object UserCloudSyncManager {
      */
     fun restoreUserData(userId: String, onComplete: (() -> Unit)? = null) {
         if (!SupabaseConfig.isConfigured || userId.isBlank()) return
+        setActiveUserId(userId)
         scope.launch {
             Log.d(TAG, "Initiating cloud data restore for user: $userId")
             runCatching {
@@ -103,9 +112,18 @@ object UserCloudSyncManager {
     /**
      * Backs up listening experience & connected Spotify session to Supabase.
      */
-    fun backupListeningExperience(userId: String) {
-        if (!SupabaseConfig.isConfigured || userId.isBlank()) return
+    fun backupListeningExperience(userId: String = "") {
+        val targetId = userId.takeIf { it.isNotBlank() } ?: getActiveUserId()
+        if (!SupabaseConfig.isConfigured || targetId.isBlank()) return
         scope.launch {
+            backupListeningExperienceSync(targetId)
+        }
+    }
+
+    suspend fun backupListeningExperienceSync(userId: String = "") {
+        val targetId = userId.takeIf { it.isNotBlank() } ?: getActiveUserId()
+        if (!SupabaseConfig.isConfigured || targetId.isBlank()) return
+        runCatching {
             val spotifyToken = AppSettings.spotifySpdcToken.value.takeIf { it.isNotBlank() }
             val quality = AppSettings.effectiveAudioQuality.name
             val norm = AppSettings.loudnessNormalization.value
@@ -113,7 +131,7 @@ object UserCloudSyncManager {
             val statsJson = runCatching { ListeningStats.exportBucketsJson() }.getOrNull()
 
             SupabaseService.syncListeningExperience(
-                userId = userId,
+                userId = targetId,
                 spotifySpdcToken = spotifyToken,
                 spotifyConnected = !spotifyToken.isNullOrBlank(),
                 audioQuality = quality,
@@ -130,7 +148,7 @@ object UserCloudSyncManager {
                 preferredGenres = AppSettings.preferredGenres.value.toList(),
                 listeningStatsJson = statsJson,
             )
-        }
+        }.onFailure { Log.w(TAG, "Failed to backup listening experience: ${it.message}") }
     }
 
     /**
@@ -182,6 +200,7 @@ object UserCloudSyncManager {
      */
     fun backupAllUserData(userId: String) {
         if (!SupabaseConfig.isConfigured || userId.isBlank()) return
+        setActiveUserId(userId)
         scope.launch {
             backupListeningExperience(userId)
             val likedSongs = LocalLikesStore.getLikedSongs()

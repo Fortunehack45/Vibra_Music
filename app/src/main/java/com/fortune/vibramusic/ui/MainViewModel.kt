@@ -3275,6 +3275,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         // In a multi-account install, sign out removes only the current Google
         // session and restores another one. A legacy single-account install
         // retains the familiar full sign-out behaviour.
+        val targetUserId = _activeProfileId.value ?: _activeAccountId.value ?: AppSettings.deviceUserId
+        com.fortune.vibramusic.data.stats.ListeningStats.flush()
+        UserCloudSyncManager.backupListeningExperience(targetUserId)
         UserCloudSyncManager.clearLocalUserData()
         val current = _activeAccountId.value
         if (current != null && authStore.sessions.size > 1) {

@@ -1011,8 +1011,6 @@ internal fun OutputCaption(
         ?.let { stringResource(R.string.listen_together_jam, it) }
         ?: stringResource(R.string.listen_together_jam_unnamed)
     val displayName = if (badge.inParty) jamName else outputName
-    val deviceIcon = if (badge.inParty) Icons.Rounded.Person else Icons.Rounded.Headphones
-
     Row(
         modifier = Modifier
             .clickable { if (badge.inParty) onOpenMembers() else onOpenOutput() }
@@ -1020,13 +1018,15 @@ internal fun OutputCaption(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
     ) {
-        Icon(
-            imageVector = deviceIcon,
-            contentDescription = null,
-            tint = Color(0xFF8B5CF6),
-            modifier = Modifier.size(13.dp),
-        )
-        Spacer(Modifier.width(6.dp))
+        if (badge.inParty) {
+            Icon(
+                imageVector = Icons.Rounded.Person,
+                contentDescription = null,
+                tint = Color(0xFF8B5CF6),
+                modifier = Modifier.size(13.dp),
+            )
+            Spacer(Modifier.width(6.dp))
+        }
         if (!badge.inParty && isHiResOutput) {
             ShimmerText(
                 text = displayName,

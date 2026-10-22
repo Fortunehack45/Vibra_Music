@@ -251,7 +251,7 @@ object SupabaseService {
 
         if (missingIds.isNotEmpty()) {
             runCatching {
-                val idFilter = "in.(${missingIds.joinToString(",")})"
+                val idFilter = PostgrestSanitizer.buildSafeInFilter(missingIds)
                 val response = client.get(baseUrl("posts")) {
                     header("apikey", SupabaseConfig.anonKey)
                     header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
@@ -442,7 +442,7 @@ object SupabaseService {
                         header("apikey", SupabaseConfig.anonKey)
                         header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
                         contentType(ContentType.Application.Json)
-                        setBody("{\"post_id\":\"$postId\",\"user_id\":\"$userId\"}")
+                        setBody("{\"post_id\":${PostgrestSanitizer.safeJsonString(postId)},\"user_id\":${PostgrestSanitizer.safeJsonString(userId)}}")
                     }
                     if (!response.status.isSuccess()) {
                         Log.w(TAG, "toggleLikePost (like) ${response.status}: ${response.bodyAsText().take(300)}")
@@ -544,7 +544,7 @@ object SupabaseService {
                     header("apikey", SupabaseConfig.anonKey)
                     header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
                     contentType(ContentType.Application.Json)
-                    setBody("{\"post_id\":\"$postId\",\"option_index\":$optionIndex,\"user_id\":\"$userId\"}")
+                    setBody("{\"post_id\":${PostgrestSanitizer.safeJsonString(postId)},\"option_index\":$optionIndex,\"user_id\":${PostgrestSanitizer.safeJsonString(userId)}}")
                 }
                 if (!response.status.isSuccess()) {
                     Log.w(TAG, "votePoll ${response.status}: ${response.bodyAsText().take(300)}")
@@ -796,7 +796,7 @@ object SupabaseService {
                         header("apikey", SupabaseConfig.anonKey)
                         header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
                         contentType(ContentType.Application.Json)
-                        setBody("{\"comment_id\":\"$commentId\",\"user_id\":\"$userId\"}")
+                        setBody("{\"comment_id\":${PostgrestSanitizer.safeJsonString(commentId)},\"user_id\":${PostgrestSanitizer.safeJsonString(userId)}}")
                     }
                     if (!response.status.isSuccess()) {
                         Log.w(TAG, "toggleLikeComment (like) ${response.status}: ${response.bodyAsText().take(300)}")
@@ -1456,7 +1456,7 @@ object SupabaseService {
                         header("apikey", SupabaseConfig.anonKey)
                         header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
                         contentType(ContentType.Application.Json)
-                        setBody("{\"follower_id\":\"$followerId\",\"following_id\":\"$targetUserId\"}")
+                        setBody("{\"follower_id\":${PostgrestSanitizer.safeJsonString(followerId)},\"following_id\":${PostgrestSanitizer.safeJsonString(targetUserId)}}")
                     }
                     if (!response.status.isSuccess()) {
                         Log.w(TAG, "toggleFollow (follow) ${response.status}: ${response.bodyAsText().take(300)}")
@@ -1568,7 +1568,7 @@ object SupabaseService {
 
     suspend fun searchUsersForMention(query: String, limit: Int = 8): Result<List<SocialProfile>> = withContext(Dispatchers.IO) {
         runCatching {
-            val cleanQuery = query.trim().removePrefix("@")
+            val cleanQuery = PostgrestSanitizer.escapeIlikePattern(query.trim().removePrefix("@"))
             val response = client.get(baseUrl("profiles")) {
                 header("apikey", SupabaseConfig.anonKey)
                 header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
@@ -1721,7 +1721,7 @@ object SupabaseService {
                 }?.filter { !it.isNullOrBlank() }?.toSet().orEmpty()
 
                 if (friendIds.isNotEmpty()) {
-                    val inFilter = "in.(${friendIds.joinToString(",")})"
+                    val inFilter = PostgrestSanitizer.buildSafeInFilter(friendIds)
                     val profRes = client.get(baseUrl("profiles")) {
                         header("apikey", SupabaseConfig.anonKey)
                         header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
@@ -1781,7 +1781,7 @@ object SupabaseService {
                     header("apikey", SupabaseConfig.anonKey)
                     header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
                     contentType(ContentType.Application.Json)
-                    setBody("{\"requester_id\":\"$requesterId\",\"receiver_id\":\"$targetUserId\",\"status\":\"PENDING\"}")
+                    setBody("{\"requester_id\":${PostgrestSanitizer.safeJsonString(requesterId)},\"receiver_id\":${PostgrestSanitizer.safeJsonString(targetUserId)},\"status\":\"PENDING\"}")
                 }
                 if (!response.status.isSuccess()) {
                     Log.w(TAG, "sendFriendRequest ${response.status}: ${response.bodyAsText().take(300)}")
@@ -2385,10 +2385,10 @@ object SupabaseService {
         limit: Int = 20,
     ): Result<Pair<List<SocialProfile>, List<SocialPost>>> = withContext(Dispatchers.IO) {
         runCatching {
-            val q = query.trim()
-            if (q.isBlank()) return@runCatching (emptyList<SocialProfile>() to emptyList<SocialPost>())
+            val cleanQ = PostgrestSanitizer.escapeIlikePattern(query)
+            if (cleanQ.isBlank()) return@runCatching (emptyList<SocialProfile>() to emptyList<SocialPost>())
 
-            val encodedQ = "*$q*"
+            val encodedQ = "*$cleanQ*"
 
             val profilesResp = client.get(baseUrl("profiles")) {
                 header("apikey", SupabaseConfig.anonKey)
@@ -2424,11 +2424,7 @@ object SupabaseService {
 
     // ---- JSON Parsing Utilities ----------------------------------------------
 
-    private fun jsonQuote(text: String): String =
-        "\"" + text.replace("\\", "\\\\")
-            .replace("\"", "\\\"")
-            .replace("\n", "\\n")
-            .replace("\r", "\\r") + "\""
+    private fun jsonQuote(text: String): String = PostgrestSanitizer.safeJsonString(text)
 
     internal fun parseProfiles(raw: String): List<SocialProfile> {
         val root = runCatching { json.parseToJsonElement(raw) }.getOrNull()

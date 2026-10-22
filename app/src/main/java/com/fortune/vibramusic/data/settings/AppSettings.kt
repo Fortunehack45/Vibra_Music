@@ -1642,6 +1642,10 @@ object AppSettings {
             return id
         }
 
+    var lastSupabasePingTimestamp: Long
+        get() = prefs.getLong("supabase_last_ping_ts", 0L)
+        set(value) = prefs.edit().putLong("supabase_last_ping_ts", value).apply()
+
     fun setLastfmScrobbleEnabled(value: Boolean) {
         lastfmScrobbleEnabled.value = value
         if (!value) lastfmNowPlaying.value = false

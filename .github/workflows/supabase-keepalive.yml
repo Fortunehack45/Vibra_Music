@@ -1,0 +1,25 @@
+name: Supabase Keepalive Ping
+
+on:
+  schedule:
+    # Runs at 00:00 UTC every 5 days to prevent Supabase free tier inactivity pause
+    - cron: '0 0 */5 * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    name: Ping Supabase Instance
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send keepalive HTTP ping
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlpbmF4cGdubmFkaGJrcGxva3ZsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIxNTYxNDQsImV4cCI6MjEwNzczMjE0NH0.PtGQ_Yy4X-bKEPaukfydrlABsZKiYrzSfQ_Awz5075g" \
+            -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlpbmF4cGdubmFkaGJrcGxva3ZsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIxNTYxNDQsImV4cCI6MjEwNzczMjE0NH0.PtGQ_Yy4X-bKEPaukfydrlABsZKiYrzSfQ_Awz5075g" \
+            "https://yinaxpgnnadhbkplokvl.supabase.co/rest/v1/profiles?select=id&limit=1")
+          echo "Supabase response status: $STATUS"
+          if [ "$STATUS" -ge 200 ] && [ "$STATUS" -lt 300 ]; then
+            echo "Keepalive ping succeeded."
+          else
+            echo "Unexpected status code: $STATUS"
+            exit 1
+          fi

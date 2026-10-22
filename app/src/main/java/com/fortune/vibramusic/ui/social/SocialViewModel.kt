@@ -301,28 +301,46 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
             val session = authStore.activeSession ?: authStore.sessions.firstOrNull()
             val profile = session?.profiles?.firstOrNull { it.profileId == session.activeProfileId }
                 ?: session?.profiles?.firstOrNull()
+            val targetUserId = profile?.profileId ?: session?.accountId ?: AppSettings.deviceUserId
 
+            // 1. Immediately display cached profile to prevent blank/disappearing accounts on logout/login
+            val cached = withContext(Dispatchers.IO) {
+                cacheStore.loadProfile(targetUserId) ?: cacheStore.loadLastActiveProfile()
+            }
+            if (cached != null && (cached.id == targetUserId || session == null)) {
+                _currentProfile.value = cached
+                loadProfileData(cached.id)
+            }
+
+            // 2. Perform background sync with timeout/cold-start resilience
             if (session != null) {
                 SupabaseService.syncUserProfile(session, profile)
                     .onSuccess { syncedProfile ->
                         _currentProfile.value = syncedProfile
+                        withContext(Dispatchers.IO) {
+                            cacheStore.saveLastActiveProfile(syncedProfile)
+                        }
                         loadProfileData(syncedProfile.id)
                         UserCloudSyncManager.restoreUserData(syncedProfile.id)
                     }
                     .onFailure { error ->
                         Log.w("SocialViewModel", "Failed to sync profile: ${error.message}")
-                        // Fallback to local profile representation
-                        val fallback = SocialProfile(
-                            id = profile?.profileId ?: session.accountId,
-                            handle = profile?.handle?.ifBlank { null }
-                                ?: profile?.name?.lowercase()?.replace(" ", "")
-                                ?: "vibra_user",
-                            displayName = profile?.name ?: session.name.ifBlank { "Vibra Listener" },
-                            avatarUrl = profile?.avatar,
-                            referralCode = "vibra_${(profile?.profileId ?: session.accountId).takeLast(6)}",
-                        )
-                        _currentProfile.value = fallback
-                        loadProfileData(fallback.id)
+                        if (_currentProfile.value == null) {
+                            val fallback = SocialProfile(
+                                id = profile?.profileId ?: session.accountId,
+                                handle = profile?.handle?.ifBlank { null }
+                                    ?: profile?.name?.lowercase()?.replace(" ", "")
+                                    ?: "vibra_user",
+                                displayName = profile?.name ?: session.name.ifBlank { "Vibra Listener" },
+                                avatarUrl = profile?.avatar,
+                                referralCode = "vibra_${(profile?.profileId ?: session.accountId).takeLast(6)}",
+                            )
+                            _currentProfile.value = fallback
+                            withContext(Dispatchers.IO) {
+                                cacheStore.saveLastActiveProfile(fallback)
+                            }
+                            loadProfileData(fallback.id)
+                        }
                     }
             } else {
                 // Persistent guest profile tied to device ID
@@ -330,6 +348,7 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
                 val anyName = authStore.sessions.flatMap { it.profiles }.firstOrNull { it.name.isNotBlank() }?.name
                 val guestId = AppSettings.deviceUserId
                 val existing = SupabaseService.fetchUserProfile(guestId).getOrNull()
+                    ?: _currentProfile.value?.takeIf { it.id == guestId }
                 val guestProfile = if (existing != null) {
                     if (existing.avatarUrl.isNullOrBlank() && anyAvatar != null) {
                         existing.copy(avatarUrl = anyAvatar)
@@ -346,6 +365,9 @@ class SocialViewModel(application: Application) : AndroidViewModel(application) 
                     )
                 }
                 _currentProfile.value = guestProfile
+                withContext(Dispatchers.IO) {
+                    cacheStore.saveLastActiveProfile(guestProfile)
+                }
                 if (existing == null) {
                     SupabaseService.updateUserProfile(guestProfile)
                 }

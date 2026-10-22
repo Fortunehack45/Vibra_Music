@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -37,11 +38,15 @@ import androidx.compose.material.icons.automirrored.rounded.Undo
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.GraphicEq
+import androidx.compose.material.icons.rounded.Headphones
+import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PersonAdd
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.SkipNext
+import androidx.compose.material.icons.rounded.Whatshot
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.Icon
@@ -126,10 +131,10 @@ fun FriendsDiscoveryScreen(
                 val candArtists = candidate.favoriteArtists
                 val shared = candArtists.filter { myFavoriteArtistNames.contains(it.name.trim().lowercase()) }
                 val score = if (myFavoriteArtistNames.isEmpty() || candArtists.isEmpty()) {
-                    (35..65).random() // baseline music affinity
+                    (45..85).random() // baseline music affinity
                 } else {
                     val ratio = (shared.size.toFloat() / candArtists.size.coerceAtLeast(1).toFloat())
-                    (ratio * 65f + 30f).toInt().coerceIn(25, 99)
+                    (ratio * 65f + 30f).toInt().coerceIn(35, 99)
                 }
                 MusicMatchCandidate(
                     profile = candidate,
@@ -155,7 +160,7 @@ fun FriendsDiscoveryScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFF0C0D12))
+            .background(Color(0xFF0A0B10))
             .then(if (onBack != null) Modifier.statusBarsPadding() else Modifier),
     ) {
         Column(
@@ -235,20 +240,23 @@ fun FriendsDiscoveryScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 4.dp),
+                        .padding(horizontal = 20.dp, vertical = 6.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column {
                         Text(
                             text = "Musical Soulmates",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.ExtraBold,
+                                letterSpacing = (-0.3).sp,
+                            ),
                             color = Color.White,
                         )
                         Text(
-                            text = "People sharing your music taste",
+                            text = "Discover listeners tuned to your frequency",
                             style = MaterialTheme.typography.labelSmall,
-                            color = Color.White.copy(alpha = 0.65f),
+                            color = Color.White.copy(alpha = 0.60f),
                         )
                     }
 
@@ -281,42 +289,48 @@ fun FriendsDiscoveryScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 6.dp),
+                    .padding(horizontal = 20.dp, vertical = 6.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Row(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(20.dp))
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(22.dp))
                         .lightweightLiquidGlass(
-                            shape = RoundedCornerShape(20.dp),
-                            fallbackColor = Color(0xCC181922),
+                            shape = RoundedCornerShape(22.dp),
+                            fallbackColor = Color(0xCC141520),
                         )
-                        .border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(20.dp))
-                        .padding(3.dp),
+                        .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(22.dp))
+                        .padding(4.dp),
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     TwinModePill(
                         label = "Radar Swipe",
+                        icon = Icons.Rounded.Whatshot,
                         selected = viewMode == TwinViewMode.RADAR,
                         onClick = { viewMode = TwinViewMode.RADAR },
+                        modifier = Modifier.weight(1f),
                     )
                     TwinModePill(
                         label = "Top Twins",
+                        icon = Icons.Rounded.AutoAwesome,
                         selected = viewMode == TwinViewMode.TOP_LIST,
                         onClick = { viewMode = TwinViewMode.TOP_LIST },
+                        modifier = Modifier.weight(1f),
                     )
                 }
             }
 
             // Body Content
             if (viewMode == TwinViewMode.RADAR) {
-                // Center: Cards Deck or Empty State
+                // Center: Cards Deck expanding smoothly to fill available viewport
                 Box(
                     modifier = Modifier
-                        .fillMaxSize()
+                        .fillMaxWidth()
+                        .weight(1f)
                         .padding(
-                            top = 10.dp,
-                            bottom = contentPadding.calculateBottomPadding() + 84.dp,
+                            top = 4.dp,
+                            bottom = contentPadding.calculateBottomPadding() + 16.dp,
                             start = 16.dp,
                             end = 16.dp,
                         ),
@@ -332,11 +346,12 @@ fun FriendsDiscoveryScreen(
                                 onAddFriend = {},
                                 onOpenProfile = {},
                                 modifier = Modifier
+                                    .fillMaxSize()
                                     .graphicsLayer {
                                         scaleX = 0.94f
                                         scaleY = 0.94f
-                                        translationY = 28.dp.toPx()
-                                        alpha = 0.5f
+                                        translationY = 24.dp.toPx()
+                                        alpha = 0.45f
                                     },
                             )
                         }
@@ -361,6 +376,7 @@ fun FriendsDiscoveryScreen(
                                 }
                             },
                             canRewind = historyStack.isNotEmpty(),
+                            modifier = Modifier.fillMaxSize(),
                         )
                     } else {
                         // Empty State
@@ -396,7 +412,7 @@ fun FriendsDiscoveryScreen(
                             )
                             Spacer(Modifier.height(8.dp))
                             Text(
-                                text = "You've reviewed all music twins. Refresh to discover more listeners with matching tastes!",
+                                text = "You have explored all current matches. Tap below to refresh and discover new listeners!",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = Color.White.copy(alpha = 0.65f),
                                 textAlign = TextAlign.Center,
@@ -420,7 +436,7 @@ fun FriendsDiscoveryScreen(
                                 )
                                 Spacer(Modifier.width(8.dp))
                                 Text(
-                                    text = "Refresh Twins",
+                                    text = "Refresh Matches",
                                     style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
                                 )
                             }
@@ -430,12 +446,14 @@ fun FriendsDiscoveryScreen(
             } else {
                 // Top Twins Curated List Mode
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
                     contentPadding = PaddingValues(
                         start = 16.dp,
                         end = 16.dp,
-                        top = 12.dp,
-                        bottom = contentPadding.calculateBottomPadding() + 84.dp,
+                        top = 10.dp,
+                        bottom = contentPadding.calculateBottomPadding() + 20.dp,
                     ),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
@@ -458,31 +476,50 @@ fun FriendsDiscoveryScreen(
 @Composable
 private fun TwinModePill(
     label: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
     selected: Boolean,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(16.dp))
+        modifier = modifier
+            .clip(RoundedCornerShape(18.dp))
             .then(
                 if (selected) {
                     Modifier
-                        .background(VibraPurple)
-                        .border(1.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
+                        .background(
+                            Brush.horizontalGradient(
+                                listOf(VibraPurple, Color(0xFFA855F7)),
+                            ),
+                        )
+                        .border(1.dp, Color.White.copy(alpha = 0.35f), RoundedCornerShape(18.dp))
+                        .shadow(6.dp, RoundedCornerShape(18.dp), spotColor = VibraPurple)
                 } else {
-                    Modifier.clickable(onClick = onClick)
+                    Modifier
+                        .clickable(onClick = onClick)
                 },
             )
-            .padding(horizontal = 20.dp, vertical = 8.dp),
+            .padding(vertical = 10.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium.copy(
-                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-            ),
-            color = if (selected) Color.White else Color.White.copy(alpha = 0.7f),
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = if (selected) Color.White else Color.White.copy(alpha = 0.6f),
+                modifier = Modifier.size(16.dp),
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium.copy(
+                    fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold,
+                ),
+                color = if (selected) Color.White else Color.White.copy(alpha = 0.65f),
+            )
+        }
     }
 }
 
@@ -498,22 +535,22 @@ private fun TopTwinListItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(22.dp))
             .lightweightLiquidGlass(
-                shape = RoundedCornerShape(20.dp),
-                fallbackColor = Color(0xCC181924),
+                shape = RoundedCornerShape(22.dp),
+                fallbackColor = Color(0xCC161724),
             )
-            .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(20.dp))
+            .border(1.2.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(22.dp))
             .clickable(onClick = onOpenProfile)
             .padding(14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Avatar
+        // Avatar with ambient gradient glow
         Box(
             modifier = Modifier
-                .size(54.dp)
+                .size(56.dp)
                 .clip(CircleShape)
-                .background(Color(0xFF222432))
+                .background(Color(0xFF222434))
                 .border(2.dp, VibraPurple, CircleShape),
             contentAlignment = Alignment.Center,
         ) {
@@ -525,16 +562,27 @@ private fun TopTwinListItem(
                     modifier = Modifier.fillMaxSize(),
                 )
             } else {
-                Icon(
-                    imageVector = Icons.Rounded.Person,
-                    contentDescription = null,
-                    tint = Color.White.copy(alpha = 0.7f),
-                    modifier = Modifier.size(28.dp),
-                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.linearGradient(
+                                listOf(VibraPurple, Color(0xFF3B82F6)),
+                            ),
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Headphones,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(26.dp),
+                    )
+                }
             }
         }
 
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(14.dp))
 
         Column(modifier = Modifier.weight(1f)) {
             Row(
@@ -558,37 +606,66 @@ private fun TopTwinListItem(
                 }
             }
 
-            Text(
-                text = "${candidate.similarityPercent}% match in music taste",
-                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                color = VibraPurple,
-            )
+            Spacer(Modifier.height(2.dp))
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(VibraPurple.copy(alpha = 0.25f))
+                        .border(0.8.dp, VibraPurple.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
+                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                ) {
+                    Text(
+                        text = "${candidate.similarityPercent}% Match",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = VibraPurple,
+                    )
+                }
+
+                if (profile.country.isNotBlank()) {
+                    Text(
+                        text = profile.country,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White.copy(alpha = 0.55f),
+                    )
+                }
+            }
 
             if (candidate.sharedArtists.isNotEmpty()) {
                 Spacer(Modifier.height(4.dp))
                 Text(
                     text = "Both love " + candidate.sharedArtists.take(2).joinToString(", ") { it.name },
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color.White.copy(alpha = 0.65f),
+                    color = Color.White.copy(alpha = 0.70f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
         }
 
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(10.dp))
 
         // Connect button
         Box(
             modifier = Modifier
                 .clip(RoundedCornerShape(16.dp))
-                .background(if (requestSent) Color(0xFF222432) else VibraPurple)
-                .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(16.dp))
+                .then(
+                    if (requestSent) {
+                        Modifier.background(Color(0xFF222432))
+                    } else {
+                        Modifier.background(Brush.horizontalGradient(listOf(VibraPurple, Color(0xFFA855F7))))
+                    }
+                )
+                .border(1.dp, Color.White.copy(alpha = 0.25f), RoundedCornerShape(16.dp))
                 .clickable(enabled = !requestSent) {
                     requestSent = true
                     onAddFriend()
                 }
-                .padding(horizontal = 14.dp, vertical = 8.dp),
+                .padding(horizontal = 14.dp, vertical = 9.dp),
             contentAlignment = Alignment.Center,
         ) {
             Row(
@@ -599,7 +676,7 @@ private fun TopTwinListItem(
                     imageVector = if (requestSent) Icons.Rounded.Check else Icons.Rounded.PersonAdd,
                     contentDescription = null,
                     tint = Color.White,
-                    modifier = Modifier.size(14.dp),
+                    modifier = Modifier.size(15.dp),
                 )
                 Text(
                     text = if (requestSent) "Sent" else "Connect",
@@ -633,18 +710,17 @@ private fun MusicSoulmateCard(
 
     BoxWithConstraints(
         modifier = modifier
-            .fillMaxWidth()
             .offset { IntOffset(offsetX.value.roundToInt(), offsetY.value.roundToInt()) }
             .graphicsLayer {
-                rotationZ = (offsetX.value / 350f) * 12f
+                rotationZ = (offsetX.value / 350f) * 10f
             }
             .clip(RoundedCornerShape(32.dp))
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        Color(0xFF222430),
-                        Color(0xFF161720),
-                        Color(0xFF101118),
+                        Color(0xFF1E202E),
+                        Color(0xFF141522),
+                        Color(0xFF0D0E16),
                     ),
                 ),
             )
@@ -652,9 +728,9 @@ private fun MusicSoulmateCard(
                 width = 1.2.dp,
                 brush = Brush.verticalGradient(
                     colors = listOf(
-                        Color.White.copy(alpha = 0.28f),
-                        VibraPurple.copy(alpha = 0.35f),
-                        Color.White.copy(alpha = 0.08f),
+                        Color.White.copy(alpha = 0.35f),
+                        VibraPurple.copy(alpha = 0.45f),
+                        Color.White.copy(alpha = 0.10f),
                     ),
                 ),
                 shape = RoundedCornerShape(32.dp),
@@ -665,10 +741,10 @@ private fun MusicSoulmateCard(
                         detectDragGestures(
                             onDragEnd = {
                                 coroutineScope.launch {
-                                    if (offsetX.value > 250f) {
+                                    if (offsetX.value > 220f) {
                                         offsetX.animateTo(1000f, spring(stiffness = Spring.StiffnessMedium))
                                         onAddFriend()
-                                    } else if (offsetX.value < -250f) {
+                                    } else if (offsetX.value < -220f) {
                                         offsetX.animateTo(-1000f, spring(stiffness = Spring.StiffnessMedium))
                                         onSkip()
                                     } else {
@@ -687,108 +763,184 @@ private fun MusicSoulmateCard(
                         )
                     }
                 } else Modifier,
-            )
-            .padding(22.dp),
+            ),
     ) {
+        // Ambient background glow from top center
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(200.dp)
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(VibraPurple.copy(alpha = 0.25f), Color.Transparent),
+                        radius = 450f,
+                    ),
+                ),
+        )
+
         Column(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(20.dp),
             verticalArrangement = Arrangement.SpaceBetween,
         ) {
-            // Card Top Row: Name, Verified Badge, Age, Location
+            // Card Top Row: Name, Verified Badge, Match score pill
             Column(modifier = Modifier.fillMaxWidth()) {
                 Row(
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
-                    Text(
-                        text = profile.displayName.ifBlank { formatHandle(profile.handle) },
-                        style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.ExtraBold),
-                        color = Color.White,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    if (profile.verifiedBadge) {
-                        Icon(
-                            imageVector = Icons.Rounded.CheckCircle,
-                            contentDescription = "Verified",
-                            tint = Color(0xFF38BDF8),
-                            modifier = Modifier.size(20.dp),
+                    Row(
+                        modifier = Modifier.weight(1f, fill = false),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            text = profile.displayName.ifBlank { formatHandle(profile.handle) },
+                            style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.ExtraBold),
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
+                        if (profile.verifiedBadge) {
+                            Icon(
+                                imageVector = Icons.Rounded.CheckCircle,
+                                contentDescription = "Verified",
+                                tint = Color(0xFF38BDF8),
+                                modifier = Modifier.size(20.dp),
+                            )
+                        }
                     }
-                }
 
-                Spacer(Modifier.height(2.dp))
-
-                val locationParts = mutableListOf<String>()
-                if (profile.age != null) locationParts.add("${profile.age}")
-                if (profile.country.isNotBlank()) locationParts.add(profile.country)
-                if (locationParts.isNotEmpty()) {
-                    Text(
-                        text = locationParts.joinToString(", "),
-                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                        color = Color.White.copy(alpha = 0.70f),
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(16.dp))
-
-            // Card Center: Main Avatar + Status Bubble + Satellite Orbiting Artists
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(240.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                val satelliteArtists = candidate.satelliteArtists
-                val orbitRadius = 96.dp
-
-                satelliteArtists.forEachIndexed { idx, artist ->
-                    val angleDeg = when (idx) {
-                        0 -> 210.0
-                        1 -> 330.0
-                        2 -> 150.0
-                        3 -> 30.0
-                        else -> 90.0
-                    }
-                    val angleRad = Math.toRadians(angleDeg)
-                    val xOffset = (cos(angleRad) * orbitRadius.value).dp
-                    val yOffset = (sin(angleRad) * orbitRadius.value).dp
-
+                    // Sound similarity badge
                     Box(
                         modifier = Modifier
-                            .offset(x = xOffset, y = yOffset)
-                            .size(50.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFF1C1D28))
-                            .border(1.5.dp, Color.White.copy(alpha = 0.35f), CircleShape)
-                            .shadow(8.dp, CircleShape),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        if (!artist.artworkUrl.isNullOrBlank()) {
-                            AsyncImage(
-                                model = artist.artworkUrl,
-                                contentDescription = artist.name,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize(),
+                            .clip(RoundedCornerShape(16.dp))
+                            .lightweightLiquidGlass(
+                                shape = RoundedCornerShape(16.dp),
+                                fallbackColor = VibraPurple.copy(alpha = 0.3f),
                             )
-                        } else {
+                            .border(1.dp, VibraPurple.copy(alpha = 0.6f), RoundedCornerShape(16.dp))
+                            .padding(horizontal = 10.dp, vertical = 5.dp),
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.AutoAwesome,
+                                contentDescription = null,
+                                tint = VibraPurple,
+                                modifier = Modifier.size(13.dp),
+                            )
                             Text(
-                                text = artist.name.take(1).uppercase(),
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                text = "${candidate.similarityPercent}% Match",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.ExtraBold),
                                 color = Color.White,
                             )
                         }
                     }
                 }
 
+                Spacer(Modifier.height(4.dp))
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        text = formatHandle(profile.handle),
+                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                        color = Color.White.copy(alpha = 0.60f),
+                    )
+                    val locationParts = mutableListOf<String>()
+                    if (profile.age != null) locationParts.add("${profile.age}")
+                    if (profile.country.isNotBlank()) locationParts.add(profile.country)
+                    if (locationParts.isNotEmpty()) {
+                        Text(
+                            text = " · " + locationParts.joinToString(", "),
+                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                            color = Color.White.copy(alpha = 0.60f),
+                        )
+                    }
+                }
+            }
+
+            // Card Center: Main Avatar + Satellites OR Audio Waves
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentAlignment = Alignment.Center,
+            ) {
+                val satelliteArtists = candidate.satelliteArtists
+
+                // Orbiting satellite artists if available
+                if (satelliteArtists.isNotEmpty()) {
+                    val orbitRadius = 100.dp
+                    satelliteArtists.forEachIndexed { idx, artist ->
+                        val angleDeg = when (idx) {
+                            0 -> 210.0
+                            1 -> 330.0
+                            2 -> 150.0
+                            3 -> 30.0
+                            else -> 90.0
+                        }
+                        val angleRad = Math.toRadians(angleDeg)
+                        val xOffset = (cos(angleRad) * orbitRadius.value).dp
+                        val yOffset = (sin(angleRad) * orbitRadius.value).dp
+
+                        Box(
+                            modifier = Modifier
+                                .offset(x = xOffset, y = yOffset)
+                                .size(52.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF1C1D28))
+                                .border(1.5.dp, Color.White.copy(alpha = 0.35f), CircleShape)
+                                .shadow(8.dp, CircleShape),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            if (!artist.artworkUrl.isNullOrBlank()) {
+                                AsyncImage(
+                                    model = artist.artworkUrl,
+                                    contentDescription = artist.name,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                            } else {
+                                Text(
+                                    text = artist.name.take(1).uppercase(),
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = Color.White,
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    // Aesthetic outer decorative pulse rings when no satellites
+                    Box(
+                        modifier = Modifier
+                            .size(200.dp)
+                            .clip(CircleShape)
+                            .border(1.dp, VibraPurple.copy(alpha = 0.18f), CircleShape),
+                    )
+                    Box(
+                        modifier = Modifier
+                            .size(170.dp)
+                            .clip(CircleShape)
+                            .border(1.2.dp, VibraPurple.copy(alpha = 0.32f), CircleShape),
+                    )
+                }
+
                 // Center Main Avatar
                 Box(
                     modifier = Modifier
-                        .size(130.dp)
+                        .size(136.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFF252636))
-                        .border(3.dp, VibraPurple, CircleShape)
+                        .background(Color(0xFF222436))
+                        .border(3.5.dp, VibraPurple, CircleShape)
+                        .shadow(14.dp, CircleShape, spotColor = VibraPurple)
                         .clickable(onClick = onOpenProfile),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -800,12 +952,23 @@ private fun MusicSoulmateCard(
                             modifier = Modifier.fillMaxSize(),
                         )
                     } else {
-                        Icon(
-                            imageVector = Icons.Rounded.Person,
-                            contentDescription = null,
-                            tint = Color.White.copy(alpha = 0.7f),
-                            modifier = Modifier.size(60.dp),
-                        )
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(
+                                    Brush.linearGradient(
+                                        listOf(VibraPurple, Color(0xFF3B82F6)),
+                                    ),
+                                ),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Headphones,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(62.dp),
+                            )
+                        }
                     }
                 }
 
@@ -813,10 +976,14 @@ private fun MusicSoulmateCard(
                 if (profile.statusBubble.isNotBlank()) {
                     Box(
                         modifier = Modifier
-                            .offset(x = 38.dp, y = (-50).dp)
+                            .align(Alignment.TopEnd)
+                            .offset(x = (-8).dp, y = 20.dp)
                             .clip(RoundedCornerShape(16.dp))
-                            .background(Color(0xEE2A2C3C))
-                            .border(1.dp, Color.White.copy(alpha = 0.25f), RoundedCornerShape(16.dp))
+                            .lightweightLiquidGlass(
+                                shape = RoundedCornerShape(16.dp),
+                                fallbackColor = Color(0xEE2A2C3C),
+                            )
+                            .border(1.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
                             .padding(horizontal = 12.dp, vertical = 6.dp),
                     ) {
                         Text(
@@ -830,30 +997,19 @@ private fun MusicSoulmateCard(
                 }
             }
 
-            Spacer(Modifier.height(14.dp))
-
-            // Card Lower Section: Similarity Score + Shared Artists
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Text(
-                        text = "${candidate.similarityPercent}% match",
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = FontWeight.ExtraBold,
-                            color = VibraPurple,
-                        ),
-                    )
-                    Text(
-                        text = if (candidate.sharedArtists.isNotEmpty()) "shared music taste" else "sound profile",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color.White.copy(alpha = 0.65f),
-                    )
-                }
-
+            // Card Lower Section: Sound Affinity & Shared Artists
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 12.dp),
+            ) {
                 if (candidate.sharedArtists.isNotEmpty()) {
-                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = "Shared Music Taste",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = Color.White.copy(alpha = 0.70f),
+                    )
+                    Spacer(Modifier.height(6.dp))
                     LazyRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically,
@@ -863,8 +1019,8 @@ private fun MusicSoulmateCard(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(14.dp))
                                     .background(Color.White.copy(alpha = 0.10f))
-                                    .border(0.8.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(14.dp))
-                                    .padding(horizontal = 10.dp, vertical = 5.dp),
+                                    .border(0.8.dp, Color.White.copy(alpha = 0.20f), RoundedCornerShape(14.dp))
+                                    .padding(horizontal = 10.dp, vertical = 6.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                             ) {
@@ -874,8 +1030,15 @@ private fun MusicSoulmateCard(
                                         contentDescription = null,
                                         contentScale = ContentScale.Crop,
                                         modifier = Modifier
-                                            .size(18.dp)
+                                            .size(20.dp)
                                             .clip(CircleShape),
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Rounded.MusicNote,
+                                        contentDescription = null,
+                                        tint = VibraPurple,
+                                        modifier = Modifier.size(14.dp),
                                     )
                                 }
                                 Text(
@@ -886,12 +1049,38 @@ private fun MusicSoulmateCard(
                             }
                         }
                     }
+                } else {
+                    // Fallback sonic taste badges so the card is never barren
+                    Text(
+                        text = "Music Identity",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = Color.White.copy(alpha = 0.70f),
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        listOf("Sound Explorer", "Harmonic Vibe", "Vocal & Rhythm").forEach { tag ->
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(Color.White.copy(alpha = 0.08f))
+                                    .border(0.8.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(14.dp))
+                                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                            ) {
+                                Text(
+                                    text = tag,
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                                    color = Color.White.copy(alpha = 0.85f),
+                                )
+                            }
+                        }
+                    }
                 }
             }
 
-            Spacer(Modifier.height(18.dp))
-
-            // Card Bottom Actions: Rewind, Skip, + Add Friend
+            // Card Bottom Actions: Rewind, Skip, Connect
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -901,42 +1090,49 @@ private fun MusicSoulmateCard(
                     Box(
                         modifier = Modifier
                             .size(52.dp)
-                            .clip(RoundedCornerShape(18.dp))
-                            .background(Color(0xFF222432))
-                            .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(18.dp))
+                            .clip(CircleShape)
+                            .lightweightLiquidGlass(
+                                shape = CircleShape,
+                                fallbackColor = Color(0xCC202230),
+                            )
+                            .border(1.dp, Color.White.copy(alpha = 0.20f), CircleShape)
                             .alpha(if (canRewind) 1f else 0.4f)
-                            .clickable(enabled = canRewind) { onRewind() },
+                            .liquidGlassButton(
+                                onClick = { onRewind() },
+                                enabled = canRewind,
+                                haptic = Haptic.Tap,
+                            ),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Rounded.Undo,
-                                contentDescription = "Rewind",
-                                tint = Color.White,
-                                modifier = Modifier.size(18.dp),
-                            )
-                            Text(
-                                text = "Rewind",
-                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
-                                color = Color.White.copy(alpha = 0.75f),
-                            )
-                        }
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.Undo,
+                            contentDescription = "Rewind",
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp),
+                        )
                     }
                 }
 
+                // Skip / Pass Button (Liquid Glass)
                 Box(
                     modifier = Modifier
                         .weight(1f)
                         .height(52.dp)
-                        .clip(RoundedCornerShape(18.dp))
-                        .background(Color(0xFF262736))
-                        .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(18.dp))
-                        .clickable {
-                            coroutineScope.launch {
-                                offsetX.animateTo(-800f, spring(stiffness = Spring.StiffnessMedium))
-                                onSkip()
-                            }
-                        },
+                        .clip(RoundedCornerShape(22.dp))
+                        .lightweightLiquidGlass(
+                            shape = RoundedCornerShape(22.dp),
+                            fallbackColor = Color(0xCC202230),
+                        )
+                        .border(1.dp, Color.White.copy(alpha = 0.20f), RoundedCornerShape(22.dp))
+                        .liquidGlassButton(
+                            onClick = {
+                                coroutineScope.launch {
+                                    offsetX.animateTo(-800f, spring(stiffness = Spring.StiffnessMedium))
+                                    onSkip()
+                                }
+                            },
+                            haptic = Haptic.Tap,
+                        ),
                     contentAlignment = Alignment.Center,
                 ) {
                     Row(
@@ -944,36 +1140,41 @@ private fun MusicSoulmateCard(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.SkipNext,
-                            contentDescription = "Skip",
+                            imageVector = Icons.Rounded.Close,
+                            contentDescription = "Pass",
                             tint = Color.White.copy(alpha = 0.85f),
-                            modifier = Modifier.size(20.dp),
+                            modifier = Modifier.size(18.dp),
                         )
                         Text(
-                            text = "Skip",
+                            text = "Pass",
                             style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
                             color = Color.White.copy(alpha = 0.85f),
                         )
                     }
                 }
 
+                // Connect / Add Friend Button (Vibrant gradient with liquid glass tactile response)
                 Box(
                     modifier = Modifier
                         .weight(1.3f)
                         .height(52.dp)
-                        .clip(RoundedCornerShape(18.dp))
+                        .clip(RoundedCornerShape(22.dp))
                         .background(
                             Brush.horizontalGradient(
                                 listOf(VibraPurple, Color(0xFFA855F7)),
                             ),
                         )
-                        .shadow(elevation = 10.dp, shape = RoundedCornerShape(18.dp), spotColor = VibraPurple)
-                        .clickable {
-                            coroutineScope.launch {
-                                offsetX.animateTo(800f, spring(stiffness = Spring.StiffnessMedium))
-                                onAddFriend()
-                            }
-                        },
+                        .border(1.dp, Color.White.copy(alpha = 0.35f), RoundedCornerShape(22.dp))
+                        .shadow(elevation = 10.dp, shape = RoundedCornerShape(22.dp), spotColor = VibraPurple)
+                        .liquidGlassButton(
+                            onClick = {
+                                coroutineScope.launch {
+                                    offsetX.animateTo(800f, spring(stiffness = Spring.StiffnessMedium))
+                                    onAddFriend()
+                                }
+                            },
+                            haptic = Haptic.Tap,
+                        ),
                     contentAlignment = Alignment.Center,
                 ) {
                     Row(
@@ -984,11 +1185,11 @@ private fun MusicSoulmateCard(
                             imageVector = Icons.Rounded.PersonAdd,
                             contentDescription = "Add Friend",
                             tint = Color.White,
-                            modifier = Modifier.size(20.dp),
+                            modifier = Modifier.size(18.dp),
                         )
                         Text(
-                            text = "Add Friend",
-                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.ExtraBold),
+                            text = "Connect",
+                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
                             color = Color.White,
                         )
                     }

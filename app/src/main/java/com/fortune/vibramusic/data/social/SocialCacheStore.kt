@@ -98,6 +98,29 @@ class SocialCacheStore(private val context: Context) {
         }
     }
 
+    suspend fun saveLastActiveProfile(profile: SocialProfile) = withContext(Dispatchers.IO) {
+        saveProfile(profile)
+        mutex.withLock {
+            runCatching {
+                val file = File(cacheDir, "last_active_profile.json")
+                val text = json.encodeToString(profile)
+                atomicWrite(file, text)
+            }
+        }
+    }
+
+    suspend fun loadLastActiveProfile(): SocialProfile? = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            runCatching {
+                val file = File(cacheDir, "last_active_profile.json")
+                if (file.exists()) {
+                    val text = file.readText()
+                    if (text.isNotBlank()) json.decodeFromString<SocialProfile>(text) else null
+                } else null
+            }.getOrNull()
+        }
+    }
+
     suspend fun loadProfile(userId: String): SocialProfile? = withContext(Dispatchers.IO) {
         mutex.withLock {
             runCatching {

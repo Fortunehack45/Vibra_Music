@@ -1141,27 +1141,18 @@ object SupabaseService {
 
             val profilesMap = profilesToFetch.associateBy { it.id }.toMutableMap()
 
-            // If user has few conversations, also fetch popular profiles so user can discover people to chat with
-            if (profilesMap.size < 10) {
-                val extraResponse = client.get(baseUrl("profiles")) {
-                    header("apikey", SupabaseConfig.anonKey)
-                    header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
-                    parameter("id", "neq.$userId")
-                    parameter("limit", "${15 - profilesMap.size}")
-                }
-                if (extraResponse.status.isSuccess()) {
-                    parseProfiles(extraResponse.bodyAsText()).forEach { p ->
-                        if (!profilesMap.containsKey(p.id)) {
-                            profilesMap[p.id] = p
-                        }
-                    }
+            // 3b. Fetch user's actual accepted friends so the chat list only shows actual friends
+            val myFriends = getFriends(userId).getOrDefault(emptyList())
+            myFriends.forEach { f ->
+                if (!profilesMap.containsKey(f.id)) {
+                    profilesMap[f.id] = f
                 }
             }
 
             // 4. Construct ConversationSummary for each partner
             val summaries = mutableListOf<ConversationSummary>()
 
-            // First, partners with message history in order of recency
+            // First, friends/partners with message history in order of recency
             partnerIds.forEach { partnerId ->
                 val profile = profilesMap[partnerId]
                 if (profile != null) {
@@ -1191,12 +1182,12 @@ object SupabaseService {
                 }
             }
 
-            // Next, profiles without message history yet
-            profilesMap.values.forEach { profile ->
-                if (!partnerMap.containsKey(profile.id)) {
+            // Next, accepted friends without message history yet (never random strangers)
+            myFriends.forEach { friendProfile ->
+                if (!partnerMap.containsKey(friendProfile.id)) {
                     summaries.add(
                         ConversationSummary(
-                            friend = profile,
+                            friend = friendProfile,
                             lastMessage = null,
                             lastMessagePreview = "Say hello to start chatting",
                             lastMessageTime = "",
@@ -1550,6 +1541,31 @@ object SupabaseService {
     /**
      * Searches profiles for @mention auto-complete popup.
      */
+    /**
+     * Sends a lightweight keepalive ping to the Supabase database to prevent 7-day idle pause.
+     */
+    suspend fun pingDatabase(force: Boolean = false): Result<Boolean> = withContext(Dispatchers.IO) {
+        runCatching {
+            val now = System.currentTimeMillis()
+            val fiveDaysMs = 5L * 24 * 60 * 60 * 1000
+            if (!force && (now - com.fortune.vibramusic.data.settings.AppSettings.lastSupabasePingTimestamp) < fiveDaysMs) {
+                return@runCatching true
+            }
+            val response = client.get(baseUrl("profiles")) {
+                header("apikey", SupabaseConfig.anonKey)
+                header("Authorization", "Bearer ${SupabaseConfig.anonKey}")
+                parameter("select", "id")
+                parameter("limit", "1")
+            }
+            if (response.status.isSuccess()) {
+                com.fortune.vibramusic.data.settings.AppSettings.lastSupabasePingTimestamp = now
+                true
+            } else {
+                false
+            }
+        }
+    }
+
     suspend fun searchUsersForMention(query: String, limit: Int = 8): Result<List<SocialProfile>> = withContext(Dispatchers.IO) {
         runCatching {
             val cleanQuery = query.trim().removePrefix("@")

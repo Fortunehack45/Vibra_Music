@@ -11,10 +11,14 @@ import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.parameter
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
+import io.ktor.http.ContentType
+import io.ktor.http.contentType
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.async
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.*
 import org.jsoup.Jsoup
@@ -28,14 +32,31 @@ data class SongInfo(
     val likes: String? = null,
     val comments: String? = null,
     val failed: Boolean = false,
-)
+) {
+    fun merge(other: SongInfo): SongInfo = copy(
+        album = album ?: other.album,
+        releaseYear = releaseYear ?: other.releaseYear,
+        releaseDate = releaseDate ?: other.releaseDate,
+        views = views ?: other.views,
+        likes = likes ?: other.likes,
+        comments = comments ?: other.comments,
+        failed = failed && other.failed,
+    )
+}
 
 /**
  * YouTube-style short form of a raw count: 950 -> "950", 1234 -> "1.2K",
  * 100000 -> "100K", 2345678 -> "2.3M".
+ * Tolerates strings with commas or trailing words (e.g. "315,741 views", "19M likes").
  */
 fun compactCount(raw: String): String {
-    val n = raw.toLongOrNull()?.takeIf { it >= 0 } ?: return raw
+    val trimmed = raw.trim()
+    val stripped = trimmed.replace(Regex("""\s*(?:views|plays|likes|comments)\b.*$""", RegexOption.IGNORE_CASE), "").trim()
+    if (Regex("""^[\d.,]+\s*[KMB]$""", RegexOption.IGNORE_CASE).matches(stripped)) {
+        return stripped
+    }
+    val normalized = stripped.replace(",", "")
+    val n = normalized.toLongOrNull()?.takeIf { it >= 0 } ?: return stripped.ifEmpty { trimmed }
     val (unit, suffix) = when {
         n >= 1_000_000_000 -> 1_000_000_000L to "B"
         n >= 1_000_000 -> 1_000_000L to "M"
@@ -61,17 +82,20 @@ object SongInfoRepository {
             return@withContext SongInfo(album = song.albumName)
         }
         val statistics = async {
-            attempt {
-                val response = client.get("https://www.youtube.com/watch") {
-                    header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
-                    header("Cookie", "SOCS=CAI")
-                    parameter("v", song.videoId)
-                    parameter("hl", Innertube.currentLanguage)
-                }
-                check(response.status.value == 200)
-                SongInfoParser.parse(response.bodyAsText(), song.videoId)
+            val nextStats = attempt { fetchNextStats(song.videoId) }.getOrNull()
+            val playerStats = if (nextStats?.views == null || nextStats.releaseDate == null) {
+                attempt { fetchPlayerStats(song.videoId) }.getOrNull()
+            } else null
+
+            val combined = when {
+                nextStats != null && playerStats != null -> nextStats.merge(playerStats)
+                nextStats != null -> nextStats
+                playerStats != null -> playerStats
+                else -> attempt { fetchHtmlFallback(song.videoId) }.getOrNull()
             }
+            combined ?: SongInfo(failed = true)
         }
+
         var album = song.albumName
         var year: String? = null
         val release = attempt {
@@ -86,9 +110,68 @@ object SongInfoRepository {
                     ?.firstOrNull { it.matches(Regex("(?:19|20)[0-9]{2}")) }
             }
         }
-        (statistics.await().getOrNull() ?: SongInfo(failed = true)).copy(
-            album = album, releaseYear = year,
-        ).let { it.copy(failed = it.failed || release.isFailure) }
+
+        val stats = statistics.await()
+        val hasAnyStats = stats.views != null || stats.likes != null || stats.comments != null
+        stats.copy(
+            album = album ?: stats.album ?: song.albumName,
+            releaseYear = year ?: stats.releaseYear,
+        ).copy(
+            failed = if (hasAnyStats) false else (stats.failed || release.isFailure)
+        )
+    }
+
+    /**
+     * Fetches primary stats (views, likes, comments) directly via Innertube WEB next endpoint,
+     * avoiding anti-bot CAPTCHA interception that blocks raw HTML scraping.
+     */
+    private suspend fun fetchNextStats(videoId: String): SongInfo {
+        val payload = buildJsonObject {
+            putJsonObject("context") {
+                putJsonObject("client") {
+                    put("clientName", "WEB")
+                    put("clientVersion", "2.20250101.01.00")
+                    put("hl", Innertube.currentLanguage)
+                }
+            }
+            put("videoId", videoId)
+        }.toString()
+
+        val response = client.post("https://www.youtube.com/youtubei/v1/next") {
+            contentType(ContentType.Application.Json)
+            header("Origin", "https://www.youtube.com")
+            header("Referer", "https://www.youtube.com/")
+            header("X-YouTube-Client-Name", "1")
+            header("X-YouTube-Client-Version", "2.20250101.01.00")
+            parameter("prettyPrint", "false")
+            parameter("hl", Innertube.currentLanguage)
+            setBody(payload)
+        }
+        check(response.status.value == 200) { "Next endpoint returned status ${response.status.value}" }
+        val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
+        return SongInfoParser.parseNext(json, videoId)
+    }
+
+    /**
+     * Fetches exact view count and track description release date via Innertube player endpoint.
+     */
+    private suspend fun fetchPlayerStats(videoId: String): SongInfo {
+        val json = Innertube.player(videoId)
+        return SongInfoParser.parsePlayer(json)
+    }
+
+    /**
+     * Emergency fallback to HTML watch page scrape if Innertube is unreachable.
+     */
+    private suspend fun fetchHtmlFallback(videoId: String): SongInfo {
+        val response = client.get("https://www.youtube.com/watch") {
+            header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
+            header("Cookie", "SOCS=CAI")
+            parameter("v", videoId)
+            parameter("hl", Innertube.currentLanguage)
+        }
+        check(response.status.value == 200)
+        return SongInfoParser.parse(response.bodyAsText(), videoId)
     }
 
     private suspend fun <T> attempt(block: suspend () -> T): Result<T> = try {
@@ -101,6 +184,69 @@ object SongInfoRepository {
 }
 
 internal object SongInfoParser {
+    fun parseNext(json: JsonObject, videoId: String): SongInfo {
+        val primary = json.find("videoPrimaryInfoRenderer").firstOrNull()
+
+        val rawViewCount = primary?.obj("viewCount")?.obj("videoViewCountRenderer")?.let { v ->
+            v.str("originalViewCount")?.takeIf { it != "0" && it.isNotBlank() }
+                ?: v.obj("viewCount").str("simpleText")
+                ?: v.obj("shortViewCount").str("simpleText")
+        } ?: json.find("viewCountFactoidRenderer").firstNotNullOfOrNull { factoid ->
+            factoid.find("factoidRenderer").firstNotNullOfOrNull { it.obj("value").str("simpleText") }
+        }
+
+        val newLike = json.find("likeButtonViewModel").firstNotNullOfOrNull { vm ->
+            vm.find("buttonViewModel").firstNotNullOfOrNull { btn ->
+                btn.str("title")?.takeIf { it.isNotBlank() && !it.equals("Like", ignoreCase = true) }
+            }
+        }
+        val oldLike = primary?.find("toggleButtonRenderer")?.firstOrNull {
+            it.obj("defaultIcon").str("iconType") == "LIKE"
+        }?.get("defaultText")?.text()
+        val likes = (newLike ?: oldLike)?.withCount()
+
+        val comments = json.find("engagementPanelSectionListRenderer").firstNotNullOfOrNull { panel ->
+            val isComments = panel.str("targetId") == "engagement-panel-comments-section" ||
+                panel.str("panelIdentifier") == "engagement-panel-comments-section"
+            if (!isComments) null
+            else panel.find("engagementPanelTitleHeaderRenderer").firstNotNullOfOrNull {
+                it["contextualInfo"]?.text()?.withCount()
+            }
+        } ?: json.find("commentsHeaderRenderer").firstNotNullOfOrNull {
+            it["countText"]?.text()?.withCount()
+        } ?: json.find("commentsEntryPointHeaderRenderer").firstNotNullOfOrNull {
+            it["commentCount"]?.text()?.withCount()
+        }
+
+        val description = json.find("expandableVideoDescriptionBodyRenderer").firstNotNullOfOrNull {
+            it.obj("attributedDescriptionBodyText").str("content")
+        } ?: json.find("attributedDescription").firstNotNullOfOrNull {
+            it.str("content")
+        } ?: json.find("videoDetails").firstNotNullOfOrNull {
+            it.str("shortDescription")
+        }
+        val releaseDate = releaseDate(description)
+
+        return SongInfo(
+            releaseDate = releaseDate,
+            views = rawViewCount?.let(::compactCount),
+            likes = likes?.let(::compactCount),
+            comments = comments?.let(::compactCount),
+            failed = false,
+        )
+    }
+
+    fun parsePlayer(json: JsonObject): SongInfo {
+        val details = json.obj("videoDetails")
+        val viewCount = details.str("viewCount")?.takeIf { it.toLongOrNull()?.let { n -> n >= 0 } == true }
+        val releaseDate = releaseDate(details.str("shortDescription"))
+        return SongInfo(
+            releaseDate = releaseDate,
+            views = viewCount?.let(::compactCount),
+            failed = false,
+        )
+    }
+
     fun parse(html: String, videoId: String): SongInfo {
         val scripts = Jsoup.parse(html).select("script").map { it.data() }
         val player = scripts.firstNotNullOfOrNull { extract(it, "ytInitialPlayerResponse") }
@@ -126,9 +272,9 @@ internal object SongInfoParser {
                 ?.get("contextualInfo")?.text()?.withCount()
         return SongInfo(
             releaseDate = releaseDate(details.str("shortDescription")),
-            views = details.str("viewCount")?.takeIf { it.toLongOrNull()?.let { n -> n >= 0 } == true },
-            likes = (newLike ?: oldLike)?.withCount(),
-            comments = comments,
+            views = details.str("viewCount")?.takeIf { it.toLongOrNull()?.let { n -> n >= 0 } == true }?.let(::compactCount),
+            likes = (newLike ?: oldLike)?.withCount()?.let(::compactCount),
+            comments = comments?.let(::compactCount),
             failed = data == null,
         )
     }
@@ -136,7 +282,7 @@ internal object SongInfoParser {
     private fun releaseDate(description: String?): String? {
         val date = description?.lineSequence()?.firstNotNullOfOrNull { line ->
             Regex("Released on:\\s*(\\d{4}-\\d{2}-\\d{2})", RegexOption.IGNORE_CASE)
-                .matchEntire(line.trim())?.groupValues?.get(1)
+                .find(line.trim())?.groupValues?.get(1)
         } ?: return null
         return runCatching { LocalDate.parse(date).toString() }.getOrNull()
     }

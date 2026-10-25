@@ -71,7 +71,9 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.IosShare
+import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Sort
 import androidx.compose.material.icons.rounded.Upgrade
 import com.fortune.vibramusic.data.listentogether.ServerConnectionState
@@ -204,6 +206,7 @@ import com.fortune.vibramusic.download.MediaTagger
 import com.fortune.vibramusic.download.DownloadTarget
 import com.fortune.vibramusic.download.Downloads
 import com.fortune.vibramusic.ui.components.BrowseActionsSheet
+import com.fortune.vibramusic.ui.screens.sortedForDetail
 import com.fortune.vibramusic.ui.components.BrowseTarget
 import com.fortune.vibramusic.ui.components.ConfirmationAlert
 import com.fortune.vibramusic.ui.components.DownloadManagerSheet
@@ -742,6 +745,7 @@ private fun VibraMusicApp(
     val detailSongSorts by AppSettings.detailSongSorts.collectAsStateWithLifecycle()
     val songSort = detail?.browseId?.let { detailSongSorts[it] } ?: SongSort.DEFAULT
     var songSortMenuOpen by remember { mutableStateOf(false) }
+    var detailSearching by rememberSaveable(detail?.browseId) { mutableStateOf(false) }
     val likeStatuses by viewModel.likeStatuses.collectAsStateWithLifecycle()
     // Which tracks are being held on YouTube's own upload, so the player's menu
     // offers the way back out of a revert rather than the revert again.
@@ -2822,6 +2826,8 @@ private fun VibraMusicApp(
                         }
                         DetailScreen(
                             page = page,
+                            searching = detailSearching && page.browseId == detail?.browseId,
+                            onSearchingChange = { detailSearching = it },
                             currentSong = player.song,
                             isPlaying = player.isPlaying,
                             listState = detailListState,
@@ -3294,7 +3300,7 @@ private fun VibraMusicApp(
                         showReplay -> ({ showReplay = false })
                         podcastShowState != null -> ({ viewModel.closePodcastShow(); Unit })
                         detailActiveShelf != null -> ({ detailActiveShelf = null })
-                        detail != null -> ({ viewModel.closeDetail(); Unit })
+                        detail != null -> ({ detailSearching = false; viewModel.closeDetail(); Unit })
                         selectedMoodGenre != null -> ({ viewModel.closeMoodGenre(); Unit })
                         else -> null
                     },
@@ -3463,17 +3469,55 @@ private fun VibraMusicApp(
                                     )
                                 }
                             }
-                            if (detail != null && !isLocalDetail && detail.type != BrowseType.ARTIST) {
-                                // The menu itself is [FrostedSortMenu], composed
-                                // with the app's other frosted overlays further
-                                // down — in the main hierarchy, where the haze
-                                // can see the content it blurs.
+                            // Release pages (Album / Playlist) or device folders:
+                            // Search, Sort, More pill controls
+                            if ((isReleaseDetail || isLocalDetail) && detail != null) {
+                                val releaseSongs = (detail.songs as? UiState.Success)?.data.orEmpty()
+                                if (releaseSongs.isNotEmpty()) {
+                                    IconButton(onClick = { detailSearching = !detailSearching }) {
+                                        Icon(
+                                            imageVector = if (detailSearching) Icons.Rounded.Close else Icons.Rounded.Search,
+                                            contentDescription = stringResource(
+                                                if (detailSearching) R.string.close_search else R.string.search_this_list,
+                                            ),
+                                            tint = MaterialTheme.colorScheme.onSurface,
+                                        )
+                                    }
+                                }
                                 IconButton(onClick = { songSortMenuOpen = true }) {
                                     Icon(
-                                        Icons.Rounded.Sort,
+                                        imageVector = Icons.Rounded.Sort,
                                         contentDescription = stringResource(R.string.sort_songs),
                                         tint = MaterialTheme.colorScheme.onSurface,
                                     )
+                                }
+                                if (isReleaseDetail && releaseSongs.isNotEmpty()) {
+                                    IconButton(
+                                        onClick = {
+                                            browseActions = BrowseTarget(
+                                                browseId = detail.browseId,
+                                                title = detail.title,
+                                                subtitle = detail.subtitle,
+                                                thumbnailUrl = detail.thumbnailUrl,
+                                                type = detail.type,
+                                                songs = releaseSongs.sortedForDetail(songSort).map { song ->
+                                                    if (detail.type == BrowseType.ALBUM) {
+                                                        song.copy(albumName = song.albumName ?: detail.title)
+                                                    } else {
+                                                        song
+                                                    }
+                                                },
+                                                fromCard = false,
+                                                downloadId = downloadIdFor(detail.browseId),
+                                            )
+                                        },
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.MoreHoriz,
+                                            contentDescription = stringResource(R.string.more),
+                                            tint = MaterialTheme.colorScheme.onSurface,
+                                        )
+                                    }
                                 }
                             }
                             // Left of the account photo, and only there while
@@ -4046,11 +4090,6 @@ private fun VibraMusicApp(
                         }
                     } else {
                         null
-                    },
-                    onOpenSongInfo = {
-                        val target = song
-                        songActions = null
-                        songInfoTarget = target
                     },
                 )
             }

@@ -70,6 +70,7 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.IosShare
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Sort
 import androidx.compose.material.icons.rounded.Upgrade
@@ -733,6 +734,7 @@ private fun VibraMusicApp(
     // has a cover and a track list, so it takes the bar every other release page
     // takes. Hence the folder question rather than the prefix.
     val isLocalDetail = detail?.browseId.isDeviceFolder()
+    val isReleaseDetail = detail != null && !isLocalDetail && detail.type != BrowseType.ARTIST
     // Not keyed on the browse id and not remembered here: each page's choice
     // lives in AppSettings keyed by that page — Spotify-style, one playlist's
     // order never imposes itself on another, and every page keeps its own
@@ -3435,6 +3437,32 @@ private fun VibraMusicApp(
                             // list to reorder, and the device folders already
                             // carry this same control themselves (see
                             // `LocalSearchField`).
+                            // Left of the account photo, on an artist page: iOS-style
+                            // share glyph, sending the artist's channel link.
+                            if (detail != null && !isLocalDetail && detail.type == BrowseType.ARTIST &&
+                                detailActiveShelf == null
+                            ) {
+                                IconButton(
+                                    onClick = {
+                                        val shareUrl = if (detail.browseId.startsWith("UC")) {
+                                            "https://music.youtube.com/channel/${detail.browseId}"
+                                        } else {
+                                            "https://music.youtube.com/browse/${detail.browseId}"
+                                        }
+                                        val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                            type = "text/plain"
+                                            putExtra(Intent.EXTRA_TEXT, shareUrl)
+                                        }
+                                        context.startActivity(Intent.createChooser(sendIntent, detail.title))
+                                    },
+                                ) {
+                                    Icon(
+                                        Icons.Rounded.IosShare,
+                                        contentDescription = stringResource(R.string.share),
+                                        tint = MaterialTheme.colorScheme.onSurface,
+                                    )
+                                }
+                            }
                             if (detail != null && !isLocalDetail && detail.type != BrowseType.ARTIST) {
                                 // The menu itself is [FrostedSortMenu], composed
                                 // with the app's other frosted overlays further
@@ -3461,17 +3489,19 @@ private fun VibraMusicApp(
                                 ?.avatar
                                 ?: googleAccounts.firstOrNull()?.profiles?.firstOrNull { !it.avatar.isNullOrBlank() }?.avatar
 
-                            TopBarAccountButton(
-                                account = account,
-                                avatarUrl = activeAvatar,
-                                onClick = {
-                                    if (signedIn) {
-                                        viewModel.loadChannels()
-                                        showAccountSelector = true
-                                    } else showSettings = true
-                                },
-                                onSwipeProfile = { forward -> viewModel.stepProfile(forward) },
-                            )
+                            if (!isReleaseDetail) {
+                                TopBarAccountButton(
+                                    account = account,
+                                    avatarUrl = activeAvatar,
+                                    onClick = {
+                                        if (signedIn) {
+                                            viewModel.loadChannels()
+                                            showAccountSelector = true
+                                        } else showSettings = true
+                                    },
+                                    onSwipeProfile = { forward -> viewModel.stepProfile(forward) },
+                                )
+                            }
                         }
                     },
                 )

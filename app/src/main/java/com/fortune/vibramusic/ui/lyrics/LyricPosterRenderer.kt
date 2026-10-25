@@ -281,12 +281,12 @@ object LyricPosterRenderer {
         val brandColor = if (isLightBg) Color.parseColor("#101216") else Color.WHITE
         val brandAlpha = if (isLightBg) 220 else 238
 
-        val pad = 80f
+        val pad = 72f
         val innerWidth = posterWidth - (pad * 2f)
 
         // 3. Header (Top)
         val headerY = pad
-        val thumbSize = 116f
+        val thumbSize = 114f
         val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             this.typeface = typeface
             textSize = 44f
@@ -332,12 +332,12 @@ object LyricPosterRenderer {
 
         // 5. Middle Lyrics - Vertically Centered in Square
         val availableSpace = footerY - headerBottom
-        val (baseFontSize, lineSpacingMult) = when (lines.size) {
-            1 -> Pair(72f, 1.16f)
-            2 -> Pair(64f, 1.15f)
-            3 -> Pair(56f, 1.14f)
-            4 -> Pair(50f, 1.13f)
-            else -> Pair(44f, 1.12f)
+        val (ladderFontSize, lineSpacingMult) = when (lines.size) {
+            1 -> Pair(96f, 1.28f)
+            2 -> Pair(86f, 1.26f)
+            3 -> Pair(78f, 1.24f)
+            4 -> Pair(72f, 1.22f)
+            else -> Pair(64f, 1.20f)
         }
 
         val fullLyricsText = lines.joinToString("\n")
@@ -349,7 +349,7 @@ object LyricPosterRenderer {
 
         val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             this.typeface = typeface
-            textSize = baseFontSize
+            textSize = ladderFontSize
             color = textColor
             letterSpacing = -0.015f
             if (!isLightBg && config.useCoverBackground && coverArt != null) {
@@ -357,7 +357,10 @@ object LyricPosterRenderer {
             }
         }
 
-        var fontSize = baseFontSize
+        var fontSize = ladderFontSize
+        val maxAllowedLyricsHeight = availableSpace - 80f
+        val minTargetLyricsHeight = availableSpace * 0.52f
+
         var textLayout = StaticLayout.Builder.obtain(
             fullLyricsText, 0, fullLyricsText.length, textPaint, innerWidth.toInt()
         )
@@ -366,8 +369,33 @@ object LyricPosterRenderer {
             .setIncludePad(false)
             .build()
 
-        val maxAllowedLyricsHeight = availableSpace - 50f
-        while (textLayout.height > maxAllowedLyricsHeight && fontSize > 30f) {
+        // Proactively scale up if short lines occupy too little vertical space
+        if (textLayout.height < minTargetLyricsHeight && fontSize < 104f) {
+            var probeSize = fontSize
+            while (probeSize < 104f) {
+                textPaint.textSize = probeSize + 2f
+                val probeLayout = StaticLayout.Builder.obtain(
+                    fullLyricsText, 0, fullLyricsText.length, textPaint, innerWidth.toInt()
+                )
+                    .setAlignment(staticAlignment)
+                    .setLineSpacing(0f, lineSpacingMult)
+                    .setIncludePad(false)
+                    .build()
+                if (probeLayout.height > maxAllowedLyricsHeight) {
+                    textPaint.textSize = fontSize
+                    break
+                }
+                probeSize += 2f
+                fontSize = probeSize
+                textLayout = probeLayout
+                if (textLayout.height >= minTargetLyricsHeight) {
+                    break
+                }
+            }
+        }
+
+        // Scale down if layout overflows available space
+        while (textLayout.height > maxAllowedLyricsHeight && fontSize > 32f) {
             fontSize -= 2f
             textPaint.textSize = fontSize
             textLayout = StaticLayout.Builder.obtain(
@@ -516,12 +544,12 @@ object LyricPosterRenderer {
         val footerY = cardTop + cardSize - cardPad - footerIconSize
 
         val availableSpace = footerY - headerBottom
-        val (baseFontSize, lineSpacingMult) = when (lines.size) {
-            1 -> Pair(68f, 1.15f)
-            2 -> Pair(60f, 1.14f)
-            3 -> Pair(52f, 1.13f)
-            4 -> Pair(46f, 1.12f)
-            else -> Pair(42f, 1.12f)
+        val (ladderFontSize, lineSpacingMult) = when (lines.size) {
+            1 -> Pair(84f, 1.28f)
+            2 -> Pair(76f, 1.26f)
+            3 -> Pair(68f, 1.24f)
+            4 -> Pair(62f, 1.22f)
+            else -> Pair(54f, 1.20f)
         }
 
         val fullLyricsText = lines.joinToString("\n")
@@ -533,7 +561,7 @@ object LyricPosterRenderer {
 
         val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             this.typeface = typeface
-            textSize = baseFontSize
+            textSize = ladderFontSize
             color = textColor
             letterSpacing = -0.015f
             if (!isLightBg && config.useCoverBackground && coverArt != null) {
@@ -541,7 +569,10 @@ object LyricPosterRenderer {
             }
         }
 
-        var fontSize = baseFontSize
+        var fontSize = ladderFontSize
+        val maxAllowedLyricsHeight = availableSpace - 60f
+        val minTargetLyricsHeight = availableSpace * 0.50f
+
         var textLayout = StaticLayout.Builder.obtain(
             fullLyricsText, 0, fullLyricsText.length, textPaint, innerWidth.toInt()
         )
@@ -550,7 +581,31 @@ object LyricPosterRenderer {
             .setIncludePad(false)
             .build()
 
-        val maxAllowedLyricsHeight = availableSpace - 40f
+        // Proactively scale up if short lines occupy too little space
+        if (textLayout.height < minTargetLyricsHeight && fontSize < 92f) {
+            var probeSize = fontSize
+            while (probeSize < 92f) {
+                textPaint.textSize = probeSize + 2f
+                val probeLayout = StaticLayout.Builder.obtain(
+                    fullLyricsText, 0, fullLyricsText.length, textPaint, innerWidth.toInt()
+                )
+                    .setAlignment(staticAlignment)
+                    .setLineSpacing(0f, lineSpacingMult)
+                    .setIncludePad(false)
+                    .build()
+                if (probeLayout.height > maxAllowedLyricsHeight) {
+                    textPaint.textSize = fontSize
+                    break
+                }
+                probeSize += 2f
+                fontSize = probeSize
+                textLayout = probeLayout
+                if (textLayout.height >= minTargetLyricsHeight) {
+                    break
+                }
+            }
+        }
+
         while (textLayout.height > maxAllowedLyricsHeight && fontSize > 28f) {
             fontSize -= 2f
             textPaint.textSize = fontSize

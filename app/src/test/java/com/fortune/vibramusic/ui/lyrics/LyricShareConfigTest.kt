@@ -47,4 +47,27 @@ class LyricShareConfigTest {
         assertEquals(LyricCardStyle.LYRICS_CARD, config.cardStyle)
         assertTrue(config.showArtwork)
     }
+
+    @Test
+    fun lyricShareConfig_supportsCustomLineSelections() {
+        val dummySong = Song(
+            videoId = "test-id-2",
+            title = "Test Song 2",
+            artist = "Test Artist 2",
+            thumbnailUrl = null,
+        )
+        val selected = listOf(
+            "I never know a flight could change my life",
+            "Never thought your world would collide with mine, mm-ah",
+            "I thought I'd never find true love",
+            "'Til our paths became aligned, mm",
+        )
+        val config = LyricShareConfig(
+            song = dummySong,
+            selectedLines = selected,
+            ratio = LyricCardRatio.SQUARE_1_1,
+        )
+        assertEquals(4, config.selectedLines.size)
+        assertEquals(LyricCardRatio.SQUARE_1_1, config.ratio)
+    }
 }

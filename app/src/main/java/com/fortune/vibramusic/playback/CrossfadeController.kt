@@ -298,7 +298,10 @@ class CrossfadeController(
         val bassSwapFraction: Double = 0.7,
         val filterSweep: Double = 0.0,
         val vocalOverlap: Double = 0.0,
+        val profile: com.fortune.vibramusic.playback.audio.TransitionProfile? = null,
     )
+
+    private var activeProfile: com.fortune.vibramusic.playback.audio.TransitionProfile? = null
 
     private var fadeStartedAt = 0L
     private var bailStartedAt = 0L
@@ -908,6 +911,12 @@ class CrossfadeController(
         incomingCueTimeMs = cueTimeMs.coerceAtLeast(0L)
         incomingPlaybackRate = playbackRate
         render = renderStyle
+        activeProfile = renderStyle.profile ?: when (renderStyle.style) {
+            TransitionStyle.DJ_RISE -> com.fortune.vibramusic.playback.audio.TransitionProfile.rise(renderStyle.bassSwapFraction.toFloat())
+            TransitionStyle.DJ_BLEND -> if (renderStyle.bassSwap) com.fortune.vibramusic.playback.audio.TransitionProfile.bassSwap(renderStyle.bassSwapFraction.toFloat()) else null
+            TransitionStyle.EQUAL_POWER -> com.fortune.vibramusic.playback.audio.TransitionProfile.equalPower()
+            else -> null
+        }
         armDeadline = SystemClock.elapsedRealtime() + ARM_TIMEOUT_MS
         handedOff = false
         outgoing = out
@@ -1086,8 +1095,8 @@ class CrossfadeController(
         val elapsed = (player.currentPosition - incomingCueTimeMs).coerceAtLeast(0L)
         val progress = (elapsed.toFloat() / span).coerceIn(0f, 1f)
 
-        val rise = riseGain(progress)
-        val fall = fallGain(progress)
+        val rise = activeProfile?.incomingGain?.evaluate(progress) ?: riseGain(progress)
+        val fall = activeProfile?.outgoingGain?.evaluate(progress) ?: fallGain(progress)
         // Two overlapping brickwall-limited masters (especially beat-aligned in Automix)
         // sum constructively in the midrange and low end. Squaring blendHeadroom (i.e. 1 / (rise + fall))
         // shapes sin/cos into a smooth S-curve where rise*trim + fall*trim == 1.0 across the entire
@@ -1228,6 +1237,7 @@ class CrossfadeController(
         // currently lifted out. Dropping a 24 dB/octave filter in one buffer is
         // the click this ramp exists to avoid.
         filters.open()
+        activeProfile = null
         bailFromGain = outgoing?.volume ?: 0f
         bailIncomingFromGain = incoming?.volume ?: 1f
         val baseTrim = blendHeadroom(1f, bailFromGain)
@@ -1255,6 +1265,7 @@ class CrossfadeController(
         // whether or not this transition ever filtered anything.
         filters.open()
         render = Render()
+        activeProfile = null
 
         if (wasHandedOff) {
             // The roles have already traded: the incoming player is the session
@@ -1332,6 +1343,32 @@ class CrossfadeController(
      * locked: a pause parks the filter exactly where it parks the fade.
      */
     private fun rideFilters(progress: Float) {
+        val profile = activeProfile
+        if (profile != null && (profile.outgoingLowPass != null || profile.outgoingHighPass != null ||
+                profile.incomingLowPass != null || profile.incomingHighPass != null ||
+                profile.outgoingEqBands.isNotEmpty() || profile.incomingEqBands.isNotEmpty())
+        ) {
+            val outLp = profile.outgoingLowPass?.evaluate(progress) ?: TransitionFilterProcessor.OPEN_HZ
+            val outHp = profile.outgoingHighPass?.evaluate(progress) ?: TransitionFilterProcessor.OFF_HZ
+            val inLp = profile.incomingLowPass?.evaluate(progress) ?: TransitionFilterProcessor.OPEN_HZ
+            val inHp = profile.incomingHighPass?.evaluate(progress) ?: TransitionFilterProcessor.OFF_HZ
+
+            filters.outgoing(outLp, outHp)
+            filters.incoming(inLp, inHp)
+
+            val outBass = profile.outgoingEqBands[com.fortune.vibramusic.playback.audio.AutomationCurve.PARAM_BASS_OUT]?.evaluate(progress) ?: 0f
+            val outMid = profile.outgoingEqBands[com.fortune.vibramusic.playback.audio.AutomationCurve.PARAM_MID_OUT]?.evaluate(progress) ?: 0f
+            val outTreble = profile.outgoingEqBands[com.fortune.vibramusic.playback.audio.AutomationCurve.PARAM_TREBLE_OUT]?.evaluate(progress) ?: 0f
+
+            val inBass = profile.incomingEqBands[com.fortune.vibramusic.playback.audio.AutomationCurve.PARAM_BASS_IN]?.evaluate(progress) ?: 0f
+            val inMid = profile.incomingEqBands[com.fortune.vibramusic.playback.audio.AutomationCurve.PARAM_MID_IN]?.evaluate(progress) ?: 0f
+            val inTreble = profile.incomingEqBands[com.fortune.vibramusic.playback.audio.AutomationCurve.PARAM_TREBLE_IN]?.evaluate(progress) ?: 0f
+
+            filters.outgoingEq(outBass, outMid, outTreble)
+            filters.incomingEq(inBass, inMid, inTreble)
+            return
+        }
+
         when (render.style) {
             TransitionStyle.DJ_FILTER -> rideFilterSweep(progress)
             TransitionStyle.DJ_RISE -> rideRise(progress)

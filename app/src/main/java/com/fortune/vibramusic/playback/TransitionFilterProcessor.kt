@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.playback
+package com.fortune.vibramusic.playback
 
 import android.util.Log
 import androidx.media3.common.C
@@ -320,15 +320,25 @@ interface TransitionFilters {
     /** The track fading out — the ghost player. */
     fun outgoing(lowPassHz: Float, highPassHz: Float)
 
-    /** Parks both. Called whenever a transition ends, however it ended. */
+    /** Per-track EQ adjustments for incoming track during transition. Default no-op. */
+    fun incomingEq(bassDb: Float = 0f, midDb: Float = 0f, trebleDb: Float = 0f) = Unit
+
+    /** Per-track EQ adjustments for outgoing track during transition. Default no-op. */
+    fun outgoingEq(bassDb: Float = 0f, midDb: Float = 0f, trebleDb: Float = 0f) = Unit
+
+    /** Parks both filters and restores flat transition EQ. Called whenever a transition ends. */
     fun open() {
         incoming(TransitionFilterProcessor.OPEN_HZ, TransitionFilterProcessor.OFF_HZ)
         outgoing(TransitionFilterProcessor.OPEN_HZ, TransitionFilterProcessor.OFF_HZ)
+        incomingEq(0f, 0f, 0f)
+        outgoingEq(0f, 0f, 0f)
     }
 
     /** For callers with no audio sink to filter — tests, and the default wiring. */
     object None : TransitionFilters {
         override fun incoming(lowPassHz: Float, highPassHz: Float) = Unit
         override fun outgoing(lowPassHz: Float, highPassHz: Float) = Unit
+        override fun incomingEq(bassDb: Float, midDb: Float, trebleDb: Float) = Unit
+        override fun outgoingEq(bassDb: Float, midDb: Float, trebleDb: Float) = Unit
     }
 }

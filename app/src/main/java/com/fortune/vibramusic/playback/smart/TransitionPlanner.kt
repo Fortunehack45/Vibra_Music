@@ -225,6 +225,11 @@ private fun keyDistance(left: String, right: String): Int? {
 }
 
 private fun harmonicallyCompatible(left: String, right: String): Boolean {
+    val keyA = CamelotKey.parse(left)
+    val keyB = CamelotKey.parse(right)
+    if (keyA != null && keyB != null) {
+        return keyA.compatibilityScore(keyB) >= 0.65f
+    }
     val (leftIndex, leftMode) = splitKey(left)
     val (rightIndex, rightMode) = splitKey(right)
     if (leftIndex == null || rightIndex == null) return false

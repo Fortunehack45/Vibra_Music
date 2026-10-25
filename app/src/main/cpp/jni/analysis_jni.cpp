@@ -153,6 +153,9 @@ Java_com_fortune_vibramusic_playback_smart_TrackFeatures_nativeAnalyze(
   AppendField(json, "mixInTime", result.mix_in_time);
   AppendField(json, "mixOutTime", result.mix_out_time);
   AppendField(json, "vocalProbability", result.vocal_probability);
+  AppendField(json, "loudnessLufs", result.loudness_lufs);
+  AppendField(json, "peakDbfs", result.peak_dbfs);
+  AppendField(json, "dynamicRangeDb", result.dynamic_range_db);
 
   json += ",\"key\":";
   AppendString(json, result.key);

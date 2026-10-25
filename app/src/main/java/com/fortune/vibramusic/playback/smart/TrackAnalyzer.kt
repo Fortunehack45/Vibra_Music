@@ -662,6 +662,7 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
             introEndTime = entry?.introEndTime ?: 0.0,
             mixInTime = entry?.mixInTime ?: 0.0,
             mixInCandidates = entry?.mixInCandidates.orEmpty(),
+            meter = grid?.meter ?: MeterHypothesis(),
         )
     }
 
@@ -1064,6 +1065,10 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
                 vocalActivityMask = mergeMasks(features.energyCurve.size, head?.vocalMask, tail?.vocalMask)
                     ?: features.vocalActivityMask,
                 vocalProbability = features.vocalProbability,
+                meter = headGrid?.meter ?: tailGrid?.meter ?: MeterHypothesis(),
+                loudnessLufs = features.loudnessLufs,
+                peakDbfs = features.peakDbfs,
+                dynamicRangeDb = features.dynamicRangeDb,
             ),
         )
     }

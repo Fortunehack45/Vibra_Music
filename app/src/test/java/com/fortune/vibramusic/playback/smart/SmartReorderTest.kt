@@ -69,4 +69,42 @@ class SmartReorderTest {
         val resultPair = SmartReorder.reorder(pair) { analysisFor(it) }
         assertEquals(pair, resultPair.items)
     }
+
+    @Test
+    fun smoothBpmObjectivePrioritizesTempoProximity() {
+        val trackA = SimpleTrack("100BPM", bpm = 100.0, key = "8A")
+        val trackB = SimpleTrack("102BPM", bpm = 102.0, key = "1A")
+        val trackC = SimpleTrack("104BPM", bpm = 104.0, key = "5A")
+        val trackJump = SimpleTrack("135BPM", bpm = 135.0, key = "8A")
+
+        val scrambled = listOf(trackA, trackJump, trackB, trackC)
+        val result = SmartReorder.reorder(
+            items = scrambled,
+            objective = ReorderObjective.SMOOTH_BPM,
+            analysisProvider = { analysisFor(it) },
+        )
+
+        assertEquals(4, result.items.size)
+        assertEquals(ReorderObjective.SMOOTH_BPM, result.objective)
+        assertTrue(result.reorderedScore >= result.originalScore)
+    }
+
+    @Test
+    fun harmonicFlowObjectivePrioritizesCamelotTransitions() {
+        val track8A = SimpleTrack("8A", bpm = 120.0, key = "8A")
+        val track9A = SimpleTrack("9A", bpm = 120.0, key = "9A")
+        val track10A = SimpleTrack("10A", bpm = 120.0, key = "10A")
+        val trackClash = SimpleTrack("2B", bpm = 120.0, key = "2B")
+
+        val scrambled = listOf(track8A, trackClash, track9A, track10A)
+        val result = SmartReorder.reorder(
+            items = scrambled,
+            objective = ReorderObjective.HARMONIC_FLOW,
+            analysisProvider = { analysisFor(it) },
+        )
+
+        assertEquals(4, result.items.size)
+        assertEquals(ReorderObjective.HARMONIC_FLOW, result.objective)
+        assertTrue(result.reorderedScore >= result.originalScore)
+    }
 }

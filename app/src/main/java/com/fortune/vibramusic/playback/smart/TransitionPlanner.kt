@@ -112,6 +112,17 @@ enum class TransitionStyle {
     DJ_RISE,
 }
 
+enum class FilterTransitionVariant {
+    /** Strong complementary high/low-pass sweep. */
+    SWEEP,
+
+    /** Lighter colour change with a conspicuous low-end and fader handoff. */
+    BASS_HANDOFF,
+
+    /** Filter ride whose outgoing side trails away through the beat-synced echo. */
+    ECHO_RIDE,
+}
+
 /**
  * The planned transition for one pair of tracks, in outgoing-track timeline
  * seconds.
@@ -135,6 +146,12 @@ data class TransitionPlan(
     /** Where the incoming track's arrangement lands, on its own timeline. */
     val incomingHandoffTime: Double = 0.0,
     val incomingPlaybackRate: Double = 1.0,
+    /** Audible outgoing deck must never change speed in playback. */
+    val outgoingPlaybackRate: Double = 1.0,
+    val filterVariant: FilterTransitionVariant = FilterTransitionVariant.SWEEP,
+    val echoSeconds: Double = 0.0,
+    val beatSeconds: Double = 0.0,
+    val phaseLock: Boolean = false,
     val handoffStartSeconds: Double = 0.0,
     val handoffDuration: Double = 0.0,
     val pickupSeconds: Double = 0.0,

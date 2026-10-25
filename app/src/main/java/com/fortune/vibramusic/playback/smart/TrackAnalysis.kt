@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Ported from Orchard (https://github.com/SFG5453/Orchard).
  *
  * Copyright (C) 2026 SFG545 (original Orchard implementation)
@@ -91,6 +91,15 @@ data class TrackAnalysis(
     val vocalActivityMask: List<Double> = emptyList(),
     /** Whole-track vocal likelihood, distinct from the per-sample [vocalActivityMask]. */
     val vocalProbability: Double = 0.0,
+
+    /** Meter hypothesis representing time-signature (e.g. 4/4, 3/4, 6/8). */
+    val meter: MeterHypothesis = MeterHypothesis(),
+    /** Whole-track integrated loudness estimate in LUFS (nominally -70 to 0). */
+    val loudnessLufs: Double = -70.0,
+    /** Peak level in dBFS. */
+    val peakDbfs: Double = -70.0,
+    /** Dynamic range estimate in dB. */
+    val dynamicRangeDb: Double = 0.0,
 ) {
     /**
      * Whether this analysis actually describes a track, as opposed to standing
@@ -109,6 +118,22 @@ data class TrackAnalysis(
         const val STATUS_READY = "ready"
     }
 }
+
+/**
+ * Estimated time-signature / meter for a track.
+ *
+ * [beatsPerBar] is typically 4 for quadruple meters (4/4), 3 for triple meters (3/4, waltz),
+ * or 6 for compound meters (6/8). When [isAmbiguous] is true, the beat periodicities did not
+ * clearly differentiate between candidates, requiring downstream transitions to avoid locking
+ * to false bar drops.
+ */
+data class MeterHypothesis(
+    val beatsPerBar: Int = 4,
+    val confidence: Double = 0.0,
+    val isAmbiguous: Boolean = false,
+    val alternativeMeter: Int? = null,
+    val reason: String = "",
+)
 
 /** One point on an energy curve. [energy] is in whatever scale the analyzer chose. */
 data class EnergySample(val time: Double, val energy: Double)

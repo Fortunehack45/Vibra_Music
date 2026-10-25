@@ -162,6 +162,14 @@ class AnalysisStore(private val context: Context) {
         val lowEnergyCurve: List<StoredEnergy> = emptyList(),
         val vocalActivityMask: List<Double> = emptyList(),
         val vocalProbability: Double = 0.0,
+        val meterBeatsPerBar: Int = 4,
+        val meterConfidence: Double = 0.0,
+        val meterIsAmbiguous: Boolean = false,
+        val meterAlternative: Int? = null,
+        val meterReason: String = "",
+        val loudnessLufs: Double = -70.0,
+        val peakDbfs: Double = -70.0,
+        val dynamicRangeDb: Double = 0.0,
     ) {
         fun toAnalysis(trackId: String) = TrackAnalysis(
             status = TrackAnalysis.STATUS_READY,
@@ -188,6 +196,16 @@ class AnalysisStore(private val context: Context) {
             lowEnergyCurve = lowEnergyCurve.map { it.toSample() },
             vocalActivityMask = vocalActivityMask,
             vocalProbability = vocalProbability,
+            meter = MeterHypothesis(
+                beatsPerBar = meterBeatsPerBar,
+                confidence = meterConfidence,
+                isAmbiguous = meterIsAmbiguous,
+                alternativeMeter = meterAlternative,
+                reason = meterReason,
+            ),
+            loudnessLufs = loudnessLufs,
+            peakDbfs = peakDbfs,
+            dynamicRangeDb = dynamicRangeDb,
         )
 
         companion object {
@@ -214,6 +232,14 @@ class AnalysisStore(private val context: Context) {
                 lowEnergyCurve = analysis.lowEnergyCurve.map(StoredEnergy::of),
                 vocalActivityMask = analysis.vocalActivityMask.map(::round),
                 vocalProbability = analysis.vocalProbability,
+                meterBeatsPerBar = analysis.meter.beatsPerBar,
+                meterConfidence = round(analysis.meter.confidence),
+                meterIsAmbiguous = analysis.meter.isAmbiguous,
+                meterAlternative = analysis.meter.alternativeMeter,
+                meterReason = analysis.meter.reason,
+                loudnessLufs = round(analysis.loudnessLufs),
+                peakDbfs = round(analysis.peakDbfs),
+                dynamicRangeDb = round(analysis.dynamicRangeDb),
             )
         }
     }

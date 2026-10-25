@@ -59,6 +59,7 @@ class BeatTracker(private val context: Context) {
         val beatInterval: Double,
         val firstBeat: Double,
         val beatConfidence: Double,
+        val meter: MeterHypothesis = MeterHypothesis(),
     )
 
     @Volatile private var session: OrtSession? = null
@@ -154,6 +155,7 @@ class BeatTracker(private val context: Context) {
                 beats,
                 beatFrames.map { frame -> beatLogits.getOrElse(frame.roundToInt()) { 0f }.toDouble() },
             ),
+            meter = inferMeter(beats, downbeats),
         )
     }
 
@@ -325,6 +327,55 @@ class BeatTracker(private val context: Context) {
             // Logits are unbounded; a median around 2 is a decisive peak, around 0 is not.
             val strength = 1 / (1 + exp(-(median(peakLogits) - 0.5)))
             return max(0.0, min(0.95, 0.35 + 0.4 * regular + 0.25 * strength))
+        }
+
+        /**
+         * Infers meter (beats per bar) by measuring beat clustering between detected downbeats.
+         */
+        fun inferMeter(beats: List<Double>, downbeats: List<Double>): MeterHypothesis {
+            if (beats.size < MIN_BEATS) {
+                return MeterHypothesis(beatsPerBar = 4, confidence = 0.0, isAmbiguous = true, reason = "too_few_beats")
+            }
+            if (downbeats.size < 2) {
+                return MeterHypothesis(beatsPerBar = 4, confidence = 0.4, isAmbiguous = false, reason = "default_quadruple")
+            }
+
+            val beatsPerBarCounts = ArrayList<Int>()
+            for (i in 0 until downbeats.size - 1) {
+                val start = downbeats[i] - 1e-4
+                val end = downbeats[i + 1] - 1e-4
+                val count = beats.count { it in start..end }
+                if (count in 2..12) {
+                    beatsPerBarCounts.add(count)
+                }
+            }
+
+            if (beatsPerBarCounts.isEmpty()) {
+                return MeterHypothesis(beatsPerBar = 4, confidence = 0.4, isAmbiguous = true, reason = "no_regular_bars")
+            }
+
+            val frequencyMap = beatsPerBarCounts.groupingBy { it }.eachCount()
+            val total = beatsPerBarCounts.size.toDouble()
+            val sortedByFreq = frequencyMap.entries.sortedByDescending { it.value }
+            val dominant = sortedByFreq.first()
+            val dominantMeter = dominant.key
+            val dominantFraction = dominant.value / total
+
+            val second = sortedByFreq.getOrNull(1)
+            val isAmbiguous = if (second != null) {
+                val ratio = second.value.toDouble() / dominant.value.toDouble()
+                ratio >= 0.60
+            } else false
+
+            val confidence = (dominantFraction * 0.9).coerceIn(0.1, 0.95)
+
+            return MeterHypothesis(
+                beatsPerBar = dominantMeter,
+                confidence = confidence,
+                isAmbiguous = isAmbiguous,
+                alternativeMeter = if (isAmbiguous) second?.key else null,
+                reason = "dominant_${dominantMeter}_at_${(dominantFraction * 100).toInt()}%",
+            )
         }
     }
 }

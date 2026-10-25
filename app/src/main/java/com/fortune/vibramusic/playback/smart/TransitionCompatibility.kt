@@ -85,9 +85,16 @@ object TransitionCompatibility {
             anchorConfidence * 0.2f
         ).coerceIn(0f, 1f)
 
+        val meterMatch = if (outgoing.meter.confidence >= 0.5 && incoming.meter.confidence >= 0.5) {
+            outgoing.meter.beatsPerBar == incoming.meter.beatsPerBar && !outgoing.meter.isAmbiguous && !incoming.meter.isAmbiguous
+        } else {
+            true
+        }
+
         // Determine recommended style
         val style = when {
             overallConfidence < 0.25f -> TransitionStyle.EQUAL_POWER
+            !meterMatch -> TransitionStyle.DJ_FILTER
             tempoScore >= 0.85f && anchorScore >= 0.70f -> TransitionStyle.DJ_BLEND
             keyScore >= 0.80f && energyScore <= 0.60f -> TransitionStyle.DJ_RISE
             tempoScore < 0.60f -> TransitionStyle.DJ_FILTER

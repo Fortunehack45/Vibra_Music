@@ -11,12 +11,20 @@ import kotlin.math.abs
  * @property scoreDelta The improvement in sequence compatibility ([reorderedScore] - [originalScore]).
  * @property movedCount The number of tracks whose positions were changed.
  */
+enum class ReorderObjective {
+    BALANCED,
+    SMOOTH_BPM,
+    ENERGY_FLOW,
+    HARMONIC_FLOW,
+}
+
 data class ReorderResult<T>(
     val items: List<T>,
     val originalScore: Float,
     val reorderedScore: Float,
     val scoreDelta: Float,
     val movedCount: Int,
+    val objective: ReorderObjective = ReorderObjective.BALANCED,
 )
 
 /**
@@ -43,20 +51,22 @@ object SmartReorder {
     fun <T> reorder(
         items: List<T>,
         pinnedIndices: Set<Int> = emptySet(),
+        objective: ReorderObjective = ReorderObjective.BALANCED,
         analysisProvider: (T) -> TrackAnalysis,
     ): ReorderResult<T> {
         if (items.size <= 2) {
-            val score = scoreSequence(items, analysisProvider)
+            val score = scoreSequence(items, objective, analysisProvider)
             return ReorderResult(
                 items = items,
                 originalScore = score,
                 reorderedScore = score,
                 scoreDelta = 0f,
                 movedCount = 0,
+                objective = objective,
             )
         }
 
-        val originalScore = scoreSequence(items, analysisProvider)
+        val originalScore = scoreSequence(items, objective, analysisProvider)
         val n = items.size
 
         // Build array of indexed items to track original positions
@@ -91,9 +101,15 @@ object SmartReorder {
             for (c in unpinned.indices) {
                 val candidate = unpinned[c]
                 val pairScore = if (prevItem != null) {
-                    TransitionCompatibility.evaluate(prevItem.analysis, candidate.analysis).totalScore
+                    val eval = TransitionCompatibility.evaluate(prevItem.analysis, candidate.analysis)
+                    when (objective) {
+                        ReorderObjective.BALANCED -> eval.totalScore
+                        ReorderObjective.SMOOTH_BPM -> eval.tempoScore * 0.65f + eval.totalScore * 0.35f
+                        ReorderObjective.HARMONIC_FLOW -> eval.keyScore * 0.65f + eval.totalScore * 0.35f
+                        ReorderObjective.ENERGY_FLOW -> eval.energyScore * 0.60f + eval.totalScore * 0.40f
+                    }
                 } else {
-                    1.0f // First slot baseline
+                    1.0f
                 }
 
                 // Small penalty for drifting far from original position
@@ -114,14 +130,13 @@ object SmartReorder {
         }
 
         val reorderedList = resultSlots.map { requireNotNull(it).item }
-        val reorderedScore = scoreSequence(reorderedList, analysisProvider)
+        val reorderedScore = scoreSequence(reorderedList, objective, analysisProvider)
 
         var moved = 0
         for (i in 0 until n) {
             if (resultSlots[i]?.originalIndex != i) moved++
         }
 
-        // Only adopt the new sequence if it actually improves overall transition flow
         return if (reorderedScore > originalScore) {
             ReorderResult(
                 items = reorderedList,
@@ -129,15 +144,16 @@ object SmartReorder {
                 reorderedScore = reorderedScore,
                 scoreDelta = reorderedScore - originalScore,
                 movedCount = moved,
+                objective = objective,
             )
         } else {
-            // Keep original order if reordering did not improve flow
             ReorderResult(
                 items = items,
                 originalScore = originalScore,
                 reorderedScore = originalScore,
                 scoreDelta = 0f,
                 movedCount = 0,
+                objective = objective,
             )
         }
     }
@@ -145,13 +161,24 @@ object SmartReorder {
     /**
      * Calculates the mean transition compatibility score across consecutive items.
      */
-    fun <T> scoreSequence(items: List<T>, analysisProvider: (T) -> TrackAnalysis): Float {
+    fun <T> scoreSequence(
+        items: List<T>,
+        objective: ReorderObjective = ReorderObjective.BALANCED,
+        analysisProvider: (T) -> TrackAnalysis,
+    ): Float {
         if (items.size < 2) return 1.0f
         var total = 0f
         for (i in 0 until items.size - 1) {
             val a = analysisProvider(items[i])
             val b = analysisProvider(items[i + 1])
-            total += TransitionCompatibility.evaluate(a, b).totalScore
+            val eval = TransitionCompatibility.evaluate(a, b)
+            val score = when (objective) {
+                ReorderObjective.BALANCED -> eval.totalScore
+                ReorderObjective.SMOOTH_BPM -> eval.tempoScore * 0.65f + eval.totalScore * 0.35f
+                ReorderObjective.HARMONIC_FLOW -> eval.keyScore * 0.65f + eval.totalScore * 0.35f
+                ReorderObjective.ENERGY_FLOW -> eval.energyScore * 0.60f + eval.totalScore * 0.40f
+            }
+            total += score
         }
         return (total / (items.size - 1)).coerceIn(0f, 1f)
     }

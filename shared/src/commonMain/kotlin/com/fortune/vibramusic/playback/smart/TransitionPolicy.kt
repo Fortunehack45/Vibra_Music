@@ -484,6 +484,14 @@ fun assessTransitionTier(
     if (outgoingConfidence < MIN_BEATMATCH_CONFIDENCE || incomingConfidence < MIN_BEATMATCH_CONFIDENCE) {
         reasons += "beat-confidence"
     }
+    if (analysis.meter.confidence >= 0.5 && nextAnalysis.meter.confidence >= 0.5) {
+        if (analysis.meter.beatsPerBar != nextAnalysis.meter.beatsPerBar) {
+            reasons += "meter-mismatch"
+        }
+        if (analysis.meter.isAmbiguous || nextAnalysis.meter.isAmbiguous) {
+            reasons += "meter-ambiguous"
+        }
+    }
 
     return TransitionPolicyVerdict(
         tier = if (reasons.isEmpty()) TransitionTier.BEATMATCHED else TransitionTier.DJ_ASSISTED,

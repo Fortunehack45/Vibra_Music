@@ -107,4 +107,50 @@ class SmartReorderTest {
         assertEquals(ReorderObjective.HARMONIC_FLOW, result.objective)
         assertTrue(result.reorderedScore >= result.originalScore)
     }
+
+    @Test
+    fun clustersDiverseTemposIntoCohesiveChapters() {
+        // Diverse BPM set: Two 80-BPM songs and Three 120-BPM songs scrambled
+        val slow1 = SimpleTrack("Slow1", bpm = 80.0, key = "8A")
+        val slow2 = SimpleTrack("Slow2", bpm = 82.0, key = "9A")
+        val fast1 = SimpleTrack("Fast1", bpm = 118.0, key = "9A")
+        val fast2 = SimpleTrack("Fast2", bpm = 120.0, key = "10A")
+        val fast3 = SimpleTrack("Fast3", bpm = 124.0, key = "10A")
+
+        val scrambled = listOf(slow1, fast1, slow2, fast3, fast2)
+        val result = SmartReorder.reorder(
+            items = scrambled,
+            pinnedIndices = setOf(0), // Pin first song (80 BPM)
+            objective = ReorderObjective.BALANCED,
+            analysisProvider = { analysisFor(it) },
+        )
+
+        assertEquals("Total tracks must be preserved", 5, result.items.size)
+        val ids = result.items.map { it.id }
+        assertEquals("Pinned track stays at 0", "Slow1", ids[0])
+        assertEquals("Slow2 must cluster next to Slow1", "Slow2", ids[1])
+        // Remaining 3 must be fast tracks
+        val remaining = ids.subList(2, 5).toSet()
+        assertEquals(setOf("Fast1", "Fast2", "Fast3"), remaining)
+    }
+
+    @Test
+    fun recognizesHalfTimeAndDoubleTimeOctavePartners() {
+        val t70 = SimpleTrack("70BPM", bpm = 70.0, key = "8A")
+        val t140 = SimpleTrack("140BPM", bpm = 140.0, key = "8A")
+        val tClash = SimpleTrack("95BPM", bpm = 95.0, key = "3B")
+
+        val scoreOctave = TransitionCompatibility.calculateTempoScore(t70.bpm, t140.bpm)
+        assertTrue("70 and 140 BPM should score as octave partners >= 0.80", scoreOctave >= 0.80f)
+
+        val scrambled = listOf(t70, tClash, t140)
+        val result = SmartReorder.reorder(
+            items = scrambled,
+            pinnedIndices = setOf(0),
+            analysisProvider = { analysisFor(it) },
+        )
+
+        assertEquals("70BPM", result.items[0].id)
+        assertEquals("140BPM should follow 70BPM before clashing tempo", "140BPM", result.items[1].id)
+    }
 }

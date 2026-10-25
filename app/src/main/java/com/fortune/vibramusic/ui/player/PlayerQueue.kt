@@ -31,6 +31,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.material.icons.rounded.GraphicEq
@@ -219,6 +220,7 @@ internal fun InlineQueue(
     onRemove: (Int) -> Unit,
     onMove: (Int, Int) -> Unit,
     onClear: () -> Unit,
+    onSmartReorder: (() -> Unit)? = null,
     onScrollingChange: (Boolean) -> Unit = {},
     onDragActiveChange: (Boolean) -> Unit = {},
     /** Phone only: let queue scrolling dismiss/restore the lower half player. */
@@ -272,6 +274,10 @@ internal fun InlineQueue(
                 color = Color.White,
                 modifier = Modifier.weight(1f),
             )
+            if (onSmartReorder != null && (tracks.context.size + tracks.autoplay.size) >= 2) {
+                SmartReorderButton(locked = controlsLocked, onClick = onSmartReorder)
+                Spacer(Modifier.width(8.dp))
+            }
             if (tracks.user.isNotEmpty()) {
                 QueueClearButton(MaterialTheme.typography.titleMedium, controlsLocked, onClear)
             }
@@ -426,6 +432,30 @@ private fun QueueClearButton(style: TextStyle, locked: Boolean, onClear: () -> U
             .clickable(enabled = !locked, onClick = onClear)
             .padding(horizontal = 8.dp, vertical = 4.dp),
     )
+}
+
+@Composable
+private fun SmartReorderButton(style: TextStyle = MaterialTheme.typography.labelLarge, locked: Boolean, onClick: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .clip(RoundedCornerShape(percent = 50))
+            .clickable(enabled = !locked, onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.AutoAwesome,
+            contentDescription = null,
+            tint = Color(0xFF8B5CF6).copy(alpha = if (locked) 0.25f else 0.90f),
+            modifier = Modifier.size(16.dp),
+        )
+        Spacer(Modifier.width(4.dp))
+        Text(
+            text = "Smart Flow",
+            style = style,
+            color = Color.White.copy(alpha = if (locked) 0.25f else 0.85f),
+        )
+    }
 }
 
 @Composable

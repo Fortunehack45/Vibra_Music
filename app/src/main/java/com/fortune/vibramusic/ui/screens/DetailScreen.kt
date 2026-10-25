@@ -134,6 +134,8 @@ import com.fortune.vibramusic.data.model.durationMillis
 import com.fortune.vibramusic.data.model.isSameTrackAs
 import com.fortune.vibramusic.data.settings.AppSettings
 import com.fortune.vibramusic.data.settings.SongSort
+import com.fortune.vibramusic.playback.smart.SmartReorder
+import com.fortune.vibramusic.playback.smart.TrackAnalysis
 import com.fortune.vibramusic.ui.components.CoverPlaceholder
 import com.fortune.vibramusic.ui.components.DownloadedBadge
 import com.fortune.vibramusic.ui.components.ExplicitSongTitle
@@ -276,7 +278,13 @@ fun DetailScreen(
     reorder: (@Composable (ArtworkPalette) -> Unit)? = null,
 ) {
     val rawSongs = (page.songs as? UiState.Success)?.data.orEmpty()
-    val songs = remember(rawSongs, songSort) { rawSongs.sortedForDetail(songSort) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val store = remember(context) { com.fortune.vibramusic.playback.smart.AnalysisStore(context) }
+    val songs = remember(rawSongs, songSort) {
+        rawSongs.sortedForDetail(songSort) { song ->
+            store.load(song.videoId)
+        }
+    }
     val originalTrackNumbers = remember(rawSongs) {
         rawSongs.withIndex().associate { (i, s) -> s.videoId to (i + 1) }
     }
@@ -919,7 +927,10 @@ private fun playingRowMatcher(rows: List<Song>, current: Song?): (Song) -> Boole
     return { it == byName }
 }
 
-internal fun List<Song>.sortedForDetail(sort: SongSort): List<Song> = when (sort) {
+internal fun List<Song>.sortedForDetail(
+    sort: SongSort,
+    analysisProvider: ((Song) -> TrackAnalysis?)? = null,
+): List<Song> = when (sort) {
     SongSort.DEFAULT -> this
     SongSort.TITLE_ASC -> sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.title })
     SongSort.TITLE_DESC -> sortedWith(compareByDescending(String.CASE_INSENSITIVE_ORDER) { it.title })
@@ -937,6 +948,15 @@ internal fun List<Song>.sortedForDetail(sort: SongSort): List<Song> = when (sort
             }.thenByDescending { (position, _) -> position },
         )
         .map { it.value }
+    SongSort.SMART_FLOW -> {
+        SmartReorder.reorder(this) { song ->
+            analysisProvider?.invoke(song) ?: TrackAnalysis(
+                status = TrackAnalysis.STATUS_READY,
+                trackId = song.videoId,
+                duration = song.durationMillis().toDouble() / 1000.0,
+            )
+        }.items
+    }
 }
 
 internal fun List<Song>.matching(query: String): List<IndexedValue<Song>> {

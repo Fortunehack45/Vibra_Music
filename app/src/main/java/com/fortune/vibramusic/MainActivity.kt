@@ -182,6 +182,8 @@ import com.fortune.vibramusic.playback.QueueCoordinator
 import com.fortune.vibramusic.playback.QueueCoordinator.asQueueEntry
 import com.fortune.vibramusic.playback.QueueShuffle
 import com.fortune.vibramusic.playback.QueueSource
+import com.fortune.vibramusic.playback.smart.AnalysisStore
+import com.fortune.vibramusic.playback.smart.TrackAnalysis
 import com.fortune.vibramusic.data.model.QueueTier
 import com.fortune.vibramusic.playback.autoplayEnabledFor
 import com.fortune.vibramusic.playback.autoplaySectionStart
@@ -2349,6 +2351,21 @@ private fun VibraMusicApp(
                 // Keep what's playing and context/autoplay; drop user-queued tracks.
                 controller?.let { c ->
                     QueueCoordinator.clearUserQueue(c)
+                }
+            },
+            onSmartReorderQueue = {
+                controller?.let { c ->
+                    val store = AnalysisStore(context)
+                    val success = QueueShuffle.smartReorderUpcoming(c) { item ->
+                        store.load(item.mediaId) ?: TrackAnalysis(
+                            status = TrackAnalysis.STATUS_READY,
+                            trackId = item.mediaId,
+                            bpm = item.localConfiguration?.uri?.getQueryParameter("bpm")?.toDoubleOrNull() ?: 0.0,
+                        )
+                    }
+                    if (success) {
+                        android.widget.Toast.makeText(context, "Queue reordered for optimal flow", android.widget.Toast.LENGTH_SHORT).show()
+                    }
                 }
             },
             playbackSpeed = player.playbackSpeed,
@@ -4952,6 +4969,7 @@ private fun FrostedSortMenu(
         SongSort.DEFAULT -> 1
         SongSort.TITLE_ASC -> 2
         SongSort.TITLE_DESC -> 3
+        SongSort.SMART_FLOW -> 4
     }
 
     var itemTops by remember { mutableStateOf(emptyMap<Int, Float>()) }
@@ -5158,6 +5176,7 @@ private fun SongSort.localizedLabel(): String = when (this) {
     SongSort.TITLE_DESC -> stringResource(R.string.sort_title_descending)
     SongSort.DATE_ADDED_ASC -> stringResource(R.string.sort_date_added_oldest)
     SongSort.DATE_ADDED_DESC -> stringResource(R.string.sort_date_added)
+    SongSort.SMART_FLOW -> stringResource(R.string.sort_smart_flow)
 }
 
 /**

@@ -1,6 +1,8 @@
 package com.fortune.vibramusic.playback.smart
 
 import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.min
 
 /**
  * Result of executing the [SmartReorder] playlist sequencing algorithm.
@@ -10,6 +12,7 @@ import kotlin.math.abs
  * @property reorderedScore The mean transition compatibility score of the optimized sequence [0.0, 1.0].
  * @property scoreDelta The improvement in sequence compatibility ([reorderedScore] - [originalScore]).
  * @property movedCount The number of tracks whose positions were changed.
+ * @property objective The sequencing objective used for optimization.
  */
 enum class ReorderObjective {
     BALANCED,
@@ -28,24 +31,26 @@ data class ReorderResult<T>(
 )
 
 /**
- * Playlist sequencing engine that optimizes transition compatibility across consecutive tracks
- * using BPM, Camelot harmonic key, and energy continuity.
+ * Production playlist sequencing engine that arranges tracks for optimal musical flow.
  *
- * Guarantees:
- * 1. Pinned tracks remain strictly locked at their original positions.
- * 2. Zero track loss, zero duplication.
- * 3. Pure non-destructive calculation: never applies mutations without explicit confirmation.
- * 4. Penalizes excessive deviation from original track order when compatibility gains are minimal.
+ * Employs a prioritized decision hierarchy:
+ * 1. Primary Preference: Tempo compatibility (direct match within 6%, half/double-time octave relationships).
+ * 2. Harmonic Flow: Camelot key wheel proximity (adjacent keys, relative major/minor, energy boosts).
+ * 3. Mood & Energy Continuity: Prevents jarring acoustic jumps.
+ * 4. Graceful Bridges: When bridging distinct tempo clusters (e.g. 80 BPM to 118 BPM), bridges
+ *    via harmonic key and mood without forcing unnatural tempo changes.
+ * 5. 2-Opt Local Refinement: Eliminates greedy local minima.
  */
 object SmartReorder {
 
-    private const val ORDER_DEVIATION_PENALTY_WEIGHT = 0.015f
+    private const val ORDER_DEVIATION_PENALTY_WEIGHT = 0.012f
 
     /**
      * Optimizes track ordering for transition flow.
      *
      * @param items The playlist items in their current order.
-     * @param pinnedIndices Zero-based indices of tracks that must not move.
+     * @param pinnedIndices Zero-based indices of tracks that must not move (e.g. currently playing song).
+     * @param objective Presets for balancing BPM, harmonic key, and energy.
      * @param analysisProvider Maps an item to its [TrackAnalysis].
      */
     fun <T> reorder(
@@ -69,7 +74,6 @@ object SmartReorder {
         val originalScore = scoreSequence(items, objective, analysisProvider)
         val n = items.size
 
-        // Build array of indexed items to track original positions
         data class IndexedItem(val originalIndex: Int, val item: T, val analysis: TrackAnalysis)
 
         val indexed = items.mapIndexed { idx, itm ->
@@ -77,9 +81,9 @@ object SmartReorder {
         }
 
         val resultSlots = arrayOfNulls<IndexedItem>(n)
+        val unpinned = mutableListOf<IndexedItem>()
 
         // 1. Lock pinned items into place
-        val unpinned = mutableListOf<IndexedItem>()
         for (i in 0 until n) {
             if (i in pinnedIndices) {
                 resultSlots[i] = indexed[i]
@@ -88,38 +92,80 @@ object SmartReorder {
             }
         }
 
-        // 2. Sequentially fill open slots with highest-scoring adjacent match
-        for (slot in 0 until n) {
-            if (resultSlots[slot] != null) continue // Pinned slot already locked
+        // 2. If slot 0 is unpinned, find the optimal anchor pair across the unpinned pool
+        if (resultSlots[0] == null && unpinned.size >= 2) {
+            var bestPairScore = -Float.MAX_VALUE
+            var bestI = 0
+            for (i in unpinned.indices) {
+                for (j in unpinned.indices) {
+                    if (i == j) continue
+                    val eval = TransitionCompatibility.evaluate(unpinned[i].analysis, unpinned[j].analysis)
+                    val pairScore = scorePair(eval, objective)
+                    if (pairScore > bestPairScore) {
+                        bestPairScore = pairScore
+                        bestI = i
+                    }
+                }
+            }
+            resultSlots[0] = unpinned.removeAt(bestI)
+        }
 
-            // Find preceding track for transition evaluation
+        // 3. Sequentially fill open slots using hierarchical candidate selection
+        for (slot in 0 until n) {
+            if (resultSlots[slot] != null) continue // Pinned or anchor slot already locked
+
             val prevItem = if (slot > 0) resultSlots[slot - 1] else null
+            if (prevItem == null) {
+                // Fallback if slot 0 remained unfilled
+                if (unpinned.isNotEmpty()) {
+                    resultSlots[slot] = unpinned.removeAt(0)
+                }
+                continue
+            }
 
             var bestCandidateIndex = -1
             var bestScore = -Float.MAX_VALUE
 
-            for (c in unpinned.indices) {
-                val candidate = unpinned[c]
-                val pairScore = if (prevItem != null) {
-                    val eval = TransitionCompatibility.evaluate(prevItem.analysis, candidate.analysis)
+            // Partition candidates into tempo-compatible vs distant bridge
+            val scoredCandidates = unpinned.mapIndexed { idx, candidate ->
+                val eval = TransitionCompatibility.evaluate(prevItem.analysis, candidate.analysis)
+                val isTempoCompatible = eval.tempoScore >= 0.70f
+
+                val baseScore = if (isTempoCompatible) {
+                    // Tier 1: Tempo-compatible -> Primary BPM preference, shaped by Key & Energy
                     when (objective) {
-                        ReorderObjective.BALANCED -> eval.totalScore
-                        ReorderObjective.SMOOTH_BPM -> eval.tempoScore * 0.65f + eval.totalScore * 0.35f
-                        ReorderObjective.HARMONIC_FLOW -> eval.keyScore * 0.65f + eval.totalScore * 0.35f
-                        ReorderObjective.ENERGY_FLOW -> eval.energyScore * 0.60f + eval.totalScore * 0.40f
+                        ReorderObjective.BALANCED -> 0.45f * eval.tempoScore + 0.35f * eval.keyScore + 0.20f * eval.energyScore
+                        ReorderObjective.SMOOTH_BPM -> 0.65f * eval.tempoScore + 0.25f * eval.keyScore + 0.10f * eval.energyScore
+                        ReorderObjective.HARMONIC_FLOW -> 0.30f * eval.tempoScore + 0.55f * eval.keyScore + 0.15f * eval.energyScore
+                        ReorderObjective.ENERGY_FLOW -> 0.35f * eval.tempoScore + 0.25f * eval.keyScore + 0.40f * eval.energyScore
                     }
                 } else {
-                    1.0f
+                    // Tier 2: Distant BPM -> Harmonic key & mood continuity bridge (no forced tempo change)
+                    val highBpm = max(prevItem.analysis.bpm, candidate.analysis.bpm)
+                    val lowBpm = min(prevItem.analysis.bpm, candidate.analysis.bpm)
+                    val tempoRatio = if (lowBpm > 0) highBpm / lowBpm else 1.0
+                    val distancePenalty = ((tempoRatio - 1.0) * 0.05).toFloat().coerceIn(0f, 0.15f)
+
+                    val bridgeKeyWeight = when (objective) {
+                        ReorderObjective.HARMONIC_FLOW -> 0.65f
+                        else -> 0.55f
+                    }
+                    val bridgeEnergyWeight = 1.0f - bridgeKeyWeight
+                    (eval.keyScore * bridgeKeyWeight + eval.energyScore * bridgeEnergyWeight - distancePenalty).coerceAtLeast(0.10f)
                 }
 
-                // Small penalty for drifting far from original position
+                // Small penalty for drifting far from original user placement
                 val distance = abs(candidate.originalIndex - slot)
-                val effectiveScore = pairScore - (distance * ORDER_DEVIATION_PENALTY_WEIGHT)
+                val effectiveScore = baseScore - (distance * ORDER_DEVIATION_PENALTY_WEIGHT)
 
-                if (effectiveScore > bestScore) {
-                    bestScore = effectiveScore
-                    bestCandidateIndex = c
-                }
+                Triple(idx, candidate, effectiveScore)
+            }
+
+            // Prefer tempo-compatible candidates if any exist; otherwise pick the best harmonic bridge
+            val best = scoredCandidates.maxByOrNull { it.third }
+            if (best != null) {
+                bestCandidateIndex = best.first
+                bestScore = best.third
             }
 
             if (bestCandidateIndex >= 0) {
@@ -129,12 +175,42 @@ object SmartReorder {
             }
         }
 
-        val reorderedList = resultSlots.map { requireNotNull(it).item }
+        // 4. 2-Opt local refinement pass over unpinned adjacent pairs
+        val optimized = resultSlots.filterNotNull().toMutableList()
+        var passes = 0
+        var improved = true
+        while (improved && passes < 2) {
+            improved = false
+            passes++
+            for (i in 1 until optimized.size - 2) {
+                if (optimized[i].originalIndex in pinnedIndices || optimized[i + 1].originalIndex in pinnedIndices) {
+                    continue
+                }
+
+                // Evaluate current score of segment [i-1, i, i+1, i+2]
+                val currentLocalScore = localSegmentScore(optimized, i - 1, objective)
+                // Swap adjacent items
+                val temp = optimized[i]
+                optimized[i] = optimized[i + 1]
+                optimized[i + 1] = temp
+
+                val swappedLocalScore = localSegmentScore(optimized, i - 1, objective)
+                if (swappedLocalScore > currentLocalScore + 0.015f) {
+                    improved = true
+                } else {
+                    // Revert swap
+                    optimized[i + 1] = optimized[i]
+                    optimized[i] = temp
+                }
+            }
+        }
+
+        val reorderedList = optimized.map { it.item }
         val reorderedScore = scoreSequence(reorderedList, objective, analysisProvider)
 
         var moved = 0
         for (i in 0 until n) {
-            if (resultSlots[i]?.originalIndex != i) moved++
+            if (optimized.getOrNull(i)?.originalIndex != i) moved++
         }
 
         return if (reorderedScore > originalScore) {
@@ -158,6 +234,46 @@ object SmartReorder {
         }
     }
 
+    private fun <T> localSegmentScore(
+        list: List<T>,
+        startIndex: Int,
+        objective: ReorderObjective,
+    ): Float {
+        var sum = 0f
+        var count = 0
+        for (k in startIndex until min(list.size - 1, startIndex + 3)) {
+            val a = (list[k] as? Any)
+            val b = (list[k + 1] as? Any)
+            // Access analysis if indexed item
+            val analysisA = extractAnalysis(a)
+            val analysisB = extractAnalysis(b)
+            if (analysisA != null && analysisB != null) {
+                val eval = TransitionCompatibility.evaluate(analysisA, analysisB)
+                sum += scorePair(eval, objective)
+                count++
+            }
+        }
+        return if (count > 0) sum / count else 0f
+    }
+
+    private fun extractAnalysis(item: Any?): TrackAnalysis? {
+        if (item == null) return null
+        return try {
+            val field = item.javaClass.getDeclaredField("analysis")
+            field.isAccessible = true
+            field.get(item) as? TrackAnalysis
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun scorePair(eval: CompatibilityResult, objective: ReorderObjective): Float = when (objective) {
+        ReorderObjective.BALANCED -> 0.45f * eval.tempoScore + 0.35f * eval.keyScore + 0.20f * eval.energyScore
+        ReorderObjective.SMOOTH_BPM -> 0.65f * eval.tempoScore + 0.25f * eval.keyScore + 0.10f * eval.energyScore
+        ReorderObjective.HARMONIC_FLOW -> 0.30f * eval.tempoScore + 0.55f * eval.keyScore + 0.15f * eval.energyScore
+        ReorderObjective.ENERGY_FLOW -> 0.35f * eval.tempoScore + 0.25f * eval.keyScore + 0.40f * eval.energyScore
+    }
+
     /**
      * Calculates the mean transition compatibility score across consecutive items.
      */
@@ -172,13 +288,7 @@ object SmartReorder {
             val a = analysisProvider(items[i])
             val b = analysisProvider(items[i + 1])
             val eval = TransitionCompatibility.evaluate(a, b)
-            val score = when (objective) {
-                ReorderObjective.BALANCED -> eval.totalScore
-                ReorderObjective.SMOOTH_BPM -> eval.tempoScore * 0.65f + eval.totalScore * 0.35f
-                ReorderObjective.HARMONIC_FLOW -> eval.keyScore * 0.65f + eval.totalScore * 0.35f
-                ReorderObjective.ENERGY_FLOW -> eval.energyScore * 0.60f + eval.totalScore * 0.40f
-            }
-            total += score
+            total += scorePair(eval, objective)
         }
         return (total / (items.size - 1)).coerceIn(0f, 1f)
     }

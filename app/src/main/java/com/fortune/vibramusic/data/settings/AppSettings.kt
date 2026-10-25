@@ -181,6 +181,7 @@ enum class SongSort {
     TITLE_DESC,
     DATE_ADDED_ASC,
     DATE_ADDED_DESC,
+    SMART_FLOW,
 }
 
 /** Display mode for music lists: compact rows or grid cards. */

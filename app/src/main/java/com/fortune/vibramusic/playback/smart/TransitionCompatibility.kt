@@ -29,21 +29,21 @@ data class CompatibilityResult(
 
 object TransitionCompatibility {
 
-    private const val WEIGHT_TEMPO = 0.30f
-    private const val WEIGHT_KEY = 0.20f
-    private const val WEIGHT_ENERGY = 0.20f
-    private const val WEIGHT_ANCHORS = 0.20f
-    private const val WEIGHT_LOUDNESS = 0.10f
+    // BPM is primary (40%), followed closely by harmonic key (35%), energy/mood (15%), and anchors (10%)
+    private const val WEIGHT_TEMPO = 0.40f
+    private const val WEIGHT_KEY = 0.35f
+    private const val WEIGHT_ENERGY = 0.15f
+    private const val WEIGHT_ANCHORS = 0.10f
 
     /**
      * Evaluates compatibility between [outgoing] and [incoming] track analyses.
      */
     fun evaluate(outgoing: TrackAnalysis, incoming: TrackAnalysis): CompatibilityResult {
-        // 1. Tempo compatibility (30%)
+        // 1. Tempo compatibility (40% - Primary factor)
         val tempoScore = calculateTempoScore(outgoing.bpm, incoming.bpm)
         val tempoConfidence = min(outgoing.beatConfidence, incoming.beatConfidence).toFloat().coerceIn(0f, 1f)
 
-        // 2. Key compatibility (20%)
+        // 2. Key compatibility (35% - Secondary harmonic factor)
         val keyOut = CamelotKey.parse(outgoing.key)
         val keyIn = CamelotKey.parse(incoming.key)
         val keyScore = if (keyOut != null && keyIn != null) {
@@ -57,32 +57,31 @@ object TransitionCompatibility {
             0.0f
         }
 
-        // 3. Energy continuity (20%)
+        // 3. Energy continuity (15% - Mood and vibe preservation)
         val energyScore = calculateEnergyScore(outgoing, incoming)
         val energyConfidence = if (outgoing.energyCurve.isNotEmpty() && incoming.energyCurve.isNotEmpty()) 0.8f else 0.4f
 
-        // 4. Transition point suitability (20%)
+        // 4. Transition point suitability (10% - Phrase & anchor alignment)
         val anchorScore = calculateAnchorScore(outgoing, incoming)
         val anchorConfidence = if (outgoing.mixOutTime > 0.0 && incoming.mixInTime > 0.0) 0.9f else 0.3f
 
-        // 5. Loudness compatibility (10%)
+        // 5. Loudness & vocal separation
         val loudnessScore = calculateLoudnessScore(outgoing, incoming)
 
-        // Weighted total
+        // Weighted total score
         val totalScore = (
             tempoScore * WEIGHT_TEMPO +
             keyScore * WEIGHT_KEY +
             energyScore * WEIGHT_ENERGY +
-            anchorScore * WEIGHT_ANCHORS +
-            loudnessScore * WEIGHT_LOUDNESS
+            anchorScore * WEIGHT_ANCHORS
         ).coerceIn(0f, 1f)
 
         // Aggregate confidence
         val overallConfidence = (
-            tempoConfidence * 0.4f +
-            keyConfidence * 0.2f +
-            energyConfidence * 0.2f +
-            anchorConfidence * 0.2f
+            tempoConfidence * 0.40f +
+            keyConfidence * 0.30f +
+            energyConfidence * 0.15f +
+            anchorConfidence * 0.15f
         ).coerceIn(0f, 1f)
 
         val meterMatch = if (outgoing.meter.confidence >= 0.5 && incoming.meter.confidence >= 0.5) {
@@ -91,14 +90,14 @@ object TransitionCompatibility {
             true
         }
 
-        // Determine recommended style
+        // Determine recommended transition style
         val style = when {
             overallConfidence < 0.25f -> TransitionStyle.EQUAL_POWER
             !meterMatch -> TransitionStyle.DJ_FILTER
-            tempoScore >= 0.85f && anchorScore >= 0.70f -> TransitionStyle.DJ_BLEND
-            keyScore >= 0.80f && energyScore <= 0.60f -> TransitionStyle.DJ_RISE
-            tempoScore < 0.60f -> TransitionStyle.DJ_FILTER
-            else -> TransitionStyle.DJ_BLEND
+            tempoScore >= 0.75f && anchorScore >= 0.60f -> TransitionStyle.DJ_BLEND
+            keyScore >= 0.80f && energyScore <= 0.65f -> TransitionStyle.DJ_RISE
+            tempoScore >= 0.50f || keyScore >= 0.70f -> TransitionStyle.DJ_FILTER
+            else -> TransitionStyle.EQUAL_POWER
         }
 
         return CompatibilityResult(
@@ -114,39 +113,45 @@ object TransitionCompatibility {
     }
 
     /**
-     * Evaluates tempo compatibility accounting for direct matching and octave harmonic relationships
-     * (1:1, 1:2, and 2:1 ratios, e.g., 70 BPM to 140 BPM).
+     * Evaluates tempo compatibility accounting for direct matching and octave harmonic relationships:
+     * - 1:1 direct tempo match (<=2% = 1.0, <=6% = linear 1.0..0.70)
+     * - 1:2 and 2:1 octave relationship (e.g. 70 BPM to 140 BPM, capped at 0.85)
+     * - 3:2 and 2:3 polyrhythm / triplet swing relationship (e.g. 80 and 120 BPM, capped at 0.70)
+     * - Distant BPMs (>15% divergence) return a low baseline score without throwing.
      */
     fun calculateTempoScore(bpmA: Double, bpmB: Double): Float {
         if (bpmA <= 30.0 || bpmB <= 30.0) return 0.50f // Unknown or unmeasured tempo
 
-        val high = max(bpmA, bpmB)
-        val low = min(bpmA, bpmB)
-        val ratio = high / low
+        var bestScore = 0.0f
+        val multipliers = listOf(1.0, 0.5, 2.0)
 
-        return when {
-            // 1:1 direct tempo match (e.g. 120 and 124 BPM)
-            ratio <= 1.08 -> {
-                (1.0 - (ratio - 1.0) / 0.08 * 0.2).toFloat().coerceIn(0.80f, 1.0f)
+        for (m in multipliers) {
+            val targetBpm = bpmB * m
+            val high = max(bpmA, targetBpm)
+            val low = min(bpmA, targetBpm)
+            val diff = (high - low) / low
+
+            val cap = when (m) {
+                1.0 -> 1.0f
+                0.5, 2.0 -> 0.85f
+                else -> 0.70f
             }
-            // 1:2 octave relationship (e.g. 70 BPM and 140 BPM)
-            abs(ratio - 2.0) <= 0.16 -> {
-                val octaveDiff = abs(ratio - 2.0) / 0.16
-                (0.90 - octaveDiff * 0.15).toFloat().coerceIn(0.75f, 0.90f)
+
+            val score = when {
+                diff <= 0.02 -> 1.0f
+                diff <= 0.06 -> (1.0 - (diff - 0.02) / 0.04 * 0.30).toFloat()
+                diff <= 0.10 -> 0.55f
+                diff <= 0.15 -> 0.40f
+                else -> 0.20f
             }
-            // 3:2 polyrhythm / triplet swing relationship (e.g. 80 and 120 BPM)
-            abs(ratio - 1.5) <= 0.04 -> {
-                0.65f
-            }
-            // Drift within 15%
-            ratio <= 1.15 -> {
-                0.60f
-            }
-            // Wide tempo mismatch
-            else -> {
-                0.30f
+
+            val effective = min(score, cap)
+            if (effective > bestScore) {
+                bestScore = effective
             }
         }
+
+        return bestScore
     }
 
     private fun calculateEnergyScore(outgoing: TrackAnalysis, incoming: TrackAnalysis): Float {

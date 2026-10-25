@@ -9,6 +9,9 @@ import androidx.media3.session.SessionCommand
 import com.fortune.vibramusic.data.model.QueueTier
 import com.fortune.vibramusic.data.model.Song
 import com.fortune.vibramusic.data.settings.AppSettings
+import com.fortune.vibramusic.playback.smart.ReorderObjective
+import com.fortune.vibramusic.playback.smart.SmartReorder
+import com.fortune.vibramusic.playback.smart.TrackAnalysis
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -105,6 +108,65 @@ object QueueShuffle {
             shuffledSection(userQueueIndices) + shuffledSection(contextIndices) + shuffledSection(autoplayIndices),
         )
         _enabled.value = true
+    }
+
+    /**
+     * Reorders upcoming queue tracks for harmonic and tempo transition flow using [SmartReorder].
+     *
+     * Invariants:
+     * - The currently playing track (currentMediaItemIndex) is strictly anchored.
+     * - USER_QUEUE items remain pinned at the front.
+     * - Only upcoming CONTEXT and AUTOPLAY items are rearranged.
+     */
+    fun smartReorderUpcoming(
+        player: Player,
+        analysisProvider: (MediaItem) -> TrackAnalysis,
+    ): Boolean {
+        val items = player.queueItems()
+        val currentIdx = player.currentMediaItemIndex
+        if (currentIdx < 0 || currentIdx >= items.size) return false
+        val from = currentIdx + 1
+        val upcoming = items.drop(from)
+        if (upcoming.size <= 1) return false
+
+        val userQueueIndices = upcoming.indices.filter { upcoming[it].queueTier == QueueTier.USER_QUEUE }
+        val reorderableIndices = upcoming.indices.filter { upcoming[it].queueTier != QueueTier.USER_QUEUE }
+        if (reorderableIndices.size <= 1) return false
+
+        val anchorItem = if (userQueueIndices.isNotEmpty()) {
+            upcoming[userQueueIndices.last()]
+        } else {
+            items[currentIdx]
+        }
+        val pool = listOf(anchorItem) + reorderableIndices.map { upcoming[it] }
+
+        val reorderResult = SmartReorder.reorder(
+            items = pool,
+            pinnedIndices = setOf(0),
+            objective = ReorderObjective.BALANCED,
+            analysisProvider = analysisProvider,
+        )
+
+        val reorderedSubItems = reorderResult.items.drop(1)
+        val remainingMap = HashMap<String, ArrayDeque<Int>>()
+        for (idx in reorderableIndices) {
+            val key = upcoming[idx].mediaId
+            remainingMap.getOrPut(key) { ArrayDeque() }.addLast(idx)
+        }
+
+        val reorderedIndices = ArrayList<Int>(reorderedSubItems.size)
+        for (item in reorderedSubItems) {
+            val idx = remainingMap[item.mediaId]?.removeFirstOrNull()
+            if (idx != null) {
+                reorderedIndices.add(idx)
+            }
+        }
+
+        if (reorderedIndices.size != reorderableIndices.size) return false
+
+        val finalOrder = userQueueIndices + reorderedIndices
+        applyOrder(player, from, finalOrder)
+        return true
     }
 
     /**

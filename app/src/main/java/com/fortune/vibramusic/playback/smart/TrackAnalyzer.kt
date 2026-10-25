@@ -663,6 +663,7 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
             mixInTime = entry?.mixInTime ?: 0.0,
             mixInCandidates = entry?.mixInCandidates.orEmpty(),
             meter = grid?.meter ?: MeterHypothesis(),
+            beats = grid?.beats.orEmpty(),
         )
     }
 
@@ -1069,6 +1070,7 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
                 loudnessLufs = features.loudnessLufs,
                 peakDbfs = features.peakDbfs,
                 dynamicRangeDb = features.dynamicRangeDb,
+                beats = (headGrid?.beats.orEmpty() + tailGrid?.beats.orEmpty()).distinct().sorted(),
             ),
         )
     }

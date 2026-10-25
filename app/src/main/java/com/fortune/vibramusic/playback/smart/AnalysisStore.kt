@@ -170,6 +170,10 @@ class AnalysisStore(private val context: Context) {
         val loudnessLufs: Double = -70.0,
         val peakDbfs: Double = -70.0,
         val dynamicRangeDb: Double = 0.0,
+        val beats: List<Double> = emptyList(),
+        val feel: String = "UNKNOWN",
+        val tempoStability: Double = 1.0,
+        val analysisVersion: Int = 2,
     ) {
         fun toAnalysis(trackId: String) = TrackAnalysis(
             status = TrackAnalysis.STATUS_READY,
@@ -206,6 +210,10 @@ class AnalysisStore(private val context: Context) {
             loudnessLufs = loudnessLufs,
             peakDbfs = peakDbfs,
             dynamicRangeDb = dynamicRangeDb,
+            beats = beats,
+            feel = runCatching { Feel.valueOf(feel) }.getOrDefault(Feel.UNKNOWN),
+            tempoStability = tempoStability,
+            analysisVersion = analysisVersion,
         )
 
         companion object {
@@ -240,6 +248,10 @@ class AnalysisStore(private val context: Context) {
                 loudnessLufs = round(analysis.loudnessLufs),
                 peakDbfs = round(analysis.peakDbfs),
                 dynamicRangeDb = round(analysis.dynamicRangeDb),
+                beats = analysis.beats.map(::round),
+                feel = analysis.feel.name,
+                tempoStability = round(analysis.tempoStability),
+                analysisVersion = 2,
             )
         }
     }
@@ -272,7 +284,7 @@ class AnalysisStore(private val context: Context) {
          * re-analysis costs seconds, and a beat grid interpreted under the wrong
          * assumptions is silently wrong for the life of the file.
          */
-        const val SCHEMA_VERSION = 1
+        const val SCHEMA_VERSION = 2
 
         /** A few thousand tracks' worth, at tens of kilobytes each. */
         const val MAX_ENTRIES = 2_000

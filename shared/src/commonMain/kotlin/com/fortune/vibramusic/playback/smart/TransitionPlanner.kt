@@ -108,6 +108,9 @@ enum class TransitionStyle {
 
     /** Filtered handoff for tempi too far apart to blend flat. */
     DJ_FILTER,
+
+    /** Resonant high-pass riser build-up into incoming drop. */
+    DJ_RISE,
 }
 
 /**
@@ -212,6 +215,7 @@ data class TransitionPlan(
     val echoSeconds: Double = 0.0,
     /** Why the policy landed where it did, when it declined to be more ambitious. */
     val policyReasons: List<String> = emptyList(),
+    val mixPlan: MixPlan? = null,
 ) {
     /** Convenience for the engine, which schedules in milliseconds. */
     val fadeMs: Long get() = (fadeSeconds * 1000).roundToLong()
@@ -278,6 +282,11 @@ private fun keyDistance(left: String, right: String): Int? {
 }
 
 private fun harmonicallyCompatible(left: String, right: String): Boolean {
+    val keyA = CamelotKey.parse(left)
+    val keyB = CamelotKey.parse(right)
+    if (keyA != null && keyB != null) {
+        return keyA.compatibilityScore(keyB) >= 0.65f
+    }
     val (leftIndex, leftMode) = splitKey(left)
     val (rightIndex, rightMode) = splitKey(right)
     if (leftIndex == null || rightIndex == null) return false
@@ -891,6 +900,15 @@ private fun phraseSwitch(
         // Playback speed remains fixed once either deck is audible.
         phaseLock = false,
         transitionStyle = TransitionStyle.DJ_BLEND,
+        mixPlan = buildMixPlan(
+            style = TransitionStyleV2.BLEND,
+            outgoingBpm = planned.outgoingBpm,
+            incomingBpm = planned.incomingBpm,
+            overlapBeats = planned.beats,
+            overlapSeconds = overlap,
+            bassSwapFraction = planned.bassSwapFraction,
+            vocalOverlap = if (planned.vocalClash) 0.8 else 0.0,
+        ),
     )
 }
 
@@ -1126,6 +1144,100 @@ private fun echoSecondsFor(beatSeconds: Double): Double = min(beatSeconds, MAX_E
 
 fun echoTailSeconds(echoSeconds: Double): Double = echoSeconds * ECHO_REPEATS
 
+internal fun buildMixPlan(
+    style: TransitionStyleV2,
+    outgoingBpm: Double,
+    incomingBpm: Double,
+    overlapBeats: Int,
+    overlapSeconds: Double,
+    bassSwapFraction: Double = 0.7,
+    vocalOverlap: Double = 0.0,
+): MixPlan {
+    val beats = max(1, overlapBeats)
+    val knots = TempoPlan.create(
+        outgoingBpm = outgoingBpm,
+        incomingBpm = incomingBpm,
+        overlapBeats = beats,
+        beatsPerBar = 4,
+        style = style,
+    )
+    val totalBeats = beats.toDouble()
+    val lanes = when (style) {
+        TransitionStyleV2.RISE -> StyleRecipes.createRiseLanes(totalBeats, dropBeat = totalBeats)
+        TransitionStyleV2.ECHO_OUT -> StyleRecipes.createEchoOutLanes(totalBeats, cutBeat = totalBeats)
+        TransitionStyleV2.CUT -> StyleRecipes.createCutLanes(totalBeats, cutBeat = totalBeats)
+        TransitionStyleV2.FADE, TransitionStyleV2.PLAIN -> StyleRecipes.createFadeLanes(totalBeats)
+        TransitionStyleV2.BLEND, TransitionStyleV2.GAPLESS -> StyleRecipes.createBlendLanes(
+            totalBeats = totalBeats,
+            swapBeat = (bassSwapFraction * totalBeats).coerceIn(0.0, totalBeats),
+            vocalClash = vocalOverlap > 0.2,
+        )
+    }
+    val handoffBeat = when (style) {
+        TransitionStyleV2.BLEND, TransitionStyleV2.GAPLESS -> bassSwapFraction * totalBeats
+        TransitionStyleV2.RISE, TransitionStyleV2.ECHO_OUT, TransitionStyleV2.CUT -> totalBeats
+        TransitionStyleV2.FADE, TransitionStyleV2.PLAIN -> totalBeats * 0.5
+    }
+    return MixPlan(
+        style = style,
+        outgoing = DeckPlan(nativeBpm = outgoingBpm),
+        incoming = DeckPlan(nativeBpm = incomingBpm),
+        tempoKnots = knots,
+        lanes = lanes,
+        handoffBeat = handoffBeat,
+        totalMasterBeats = totalBeats,
+        score = 1.0,
+    )
+}
+
+fun planRiseTransition(
+    analysis: TrackAnalysis,
+    nextAnalysis: TrackAnalysis,
+    length: Double,
+    nextLength: Double,
+    mixAnchor: Double,
+    playbackTime: Double,
+): TransitionPlan {
+    val currentBpm = analysis.bpm.orZero().takeIf { it > 0 } ?: 120.0
+    val nextBpm = nextAnalysis.bpm.orZero().takeIf { it > 0 } ?: 120.0
+    val beatSeconds = 60.0 / currentBpm
+    val riseBeats = 16
+    val riseSeconds = (riseBeats * beatSeconds).coerceIn(4.0, 12.0)
+    val mixEnd = mixAnchor
+    val transitionStart = (mixEnd - riseSeconds).coerceAtLeast(0.0)
+    val started = playbackTime >= transitionStart
+    val incomingDrop = incomingMixInPoint(nextAnalysis)
+        ?: incomingCuePoint(nextAnalysis).takeIf { it > 0 }
+        ?: incomingAudibleStart(nextAnalysis)
+
+    val mixPlan = buildMixPlan(
+        style = TransitionStyleV2.RISE,
+        outgoingBpm = currentBpm,
+        incomingBpm = nextBpm,
+        overlapBeats = riseBeats,
+        overlapSeconds = riseSeconds,
+    )
+
+    return TransitionPlan(
+        shouldStart = started,
+        markerVisible = true,
+        transitionStart = transitionStart,
+        transitionEnd = mixEnd,
+        fadeSeconds = riseSeconds,
+        incomingCueTime = incomingDrop,
+        incomingHandoffTime = incomingDrop,
+        incomingPlaybackRate = 1.0,
+        outgoingPlaybackRate = 1.0,
+        transitionBeats = riseBeats,
+        bassSwap = false,
+        handoffFraction = 1.0,
+        filterSweep = 1.0,
+        transitionStyle = TransitionStyle.DJ_RISE,
+        mixPlan = mixPlan,
+        reason = if (started) "smart-rise" else "before-smart-rise",
+    )
+}
+
 private fun standardTransition(
     length: Double,
     playbackTime: Double,
@@ -1143,6 +1255,7 @@ private fun standardTransition(
         transitionEnd = length,
         fadeSeconds = fade,
         transitionStyle = TransitionStyle.EQUAL_POWER,
+        mixPlan = buildMixPlan(TransitionStyleV2.PLAIN, 120.0, 120.0, 16, fade),
         reason = if (started) reason else "before-$reason-window",
     )
 }
@@ -1182,6 +1295,7 @@ fun planTransition(
     mode: CrossfadeMode = CrossfadeMode.STANDARD,
     albumSequential: Boolean = false,
     advanced: Boolean = false,
+    requestedStyle: String? = null,
 ): TransitionPlan {
     val length = max(duration.orZero(), trackDurationSeconds(currentTrack))
     val playbackTime = max(0.0, currentTime.orZero())
@@ -1247,6 +1361,18 @@ fun planTransition(
         } else {
             preferredMixAnchor
         }
+
+    if (requestedStyle.equals("RISE", ignoreCase = true)) {
+        return planRiseTransition(
+            analysis = analysis,
+            nextAnalysis = nextAnalysis,
+            length = length,
+            nextLength = max(nextAnalysis.duration.orZero(), trackDurationSeconds(nextTrack)),
+            mixAnchor = mixAnchor,
+            playbackTime = playbackTime,
+        )
+    }
+
 
     val policy = assessTransitionTier(analysis, nextAnalysis, advanced)
     if (policy.tier == TransitionTier.PLAIN_CROSSFADE) {
@@ -1518,20 +1644,40 @@ private fun mixPlan(
         pickupSeconds = pickupSeconds,
         transitionBeats = transitionBeats,
         bassSwap = sameBeatBlend || hasBassContent,
-        transitionStyle = if (sameBeatBlend) TransitionStyle.DJ_BLEND else TransitionStyle.DJ_FILTER,
-        // The two styles are alternatives, not a scale: a matched pair hands the
-        // low end over on a beat and otherwise stays open, while an unmatched
-        // pair has no shared grid to hand anything over on and instead pulls the
-        // outgoing track behind a closing low-pass. Left at zero on the blend
-        // branch so the renderer doesn't do both at once.
+        transitionStyle = run {
+            val tempoRatio = normalizedTempoRatio(currentBpm, nextBpm)
+            val bigTempoGap = abs(1.0 - tempoRatio) > 0.16
+            val isHarmonic = harmonicallyCompatible(trustedKey(analysis), trustedKey(nextAnalysis))
+            if (bigTempoGap && isHarmonic && !vocalSafeFallback) TransitionStyle.DJ_RISE
+            else if (sameBeatBlend) TransitionStyle.DJ_BLEND
+            else TransitionStyle.DJ_FILTER
+        },
         filterSweep = if (sameBeatBlend) 0.0 else FILTER_SWEEP,
         filterVariant = if (sameBeatBlend) FilterTransitionVariant.SWEEP else resolvedFilterVariant,
         vocalOverlap = vocalOverlap,
         beatSeconds = gridBeatSeconds,
-        // Tempo is fixed while audible. Live phase-lock pulses changed
-        // AudioTrack playback parameters mid-buffer and cracked on some phones.
         phaseLock = false,
         echoSeconds = echoSeconds,
+        mixPlan = run {
+            val tempoRatio = normalizedTempoRatio(currentBpm, nextBpm)
+            val bigTempoGap = abs(1.0 - tempoRatio) > 0.16
+            val isHarmonic = harmonicallyCompatible(trustedKey(analysis), trustedKey(nextAnalysis))
+            val styleV2 = when {
+                bigTempoGap && isHarmonic && !vocalSafeFallback -> TransitionStyleV2.RISE
+                sameBeatBlend -> TransitionStyleV2.BLEND
+                resolvedFilterVariant == FilterTransitionVariant.ECHO_RIDE -> TransitionStyleV2.ECHO_OUT
+                else -> TransitionStyleV2.FADE
+            }
+            buildMixPlan(
+                style = styleV2,
+                outgoingBpm = if (currentBpm > 0) currentBpm else 120.0,
+                incomingBpm = if (nextBpm > 0) nextBpm else 120.0,
+                overlapBeats = transitionBeats,
+                overlapSeconds = alignedOverlap,
+                bassSwapFraction = 0.7,
+                vocalOverlap = vocalOverlap,
+            )
+        },
         reason = "smart-duration",
     )
 }

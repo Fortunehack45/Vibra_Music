@@ -100,6 +100,23 @@ data class TrackAnalysis(
     val peakDbfs: Double = -70.0,
     /** Dynamic range estimate in dB. */
     val dynamicRangeDb: Double = 0.0,
+
+    /** Every measured beat timestamp in seconds across the analysed regions. */
+    val beats: List<Double> = emptyList(),
+    /** Rhythmic feel (STRAIGHT vs TRIPLET). */
+    val feel: Feel = Feel.UNKNOWN,
+    /** Smoothed local tempo trajectory over time. */
+    val tempoCurve: List<TempoPoint> = emptyList(),
+    /** Stability metric [0..1], 1.0 being metronomically constant. */
+    val tempoStability: Double = 1.0,
+    /** Alternative tempo hypotheses (e.g. half-time, double-time) with confidence weights. */
+    val tempoHypotheses: List<TempoHypothesis> = emptyList(),
+    /** Rhythmic groove profile across low, mid, and high bands. */
+    val groove: GrooveProfile? = null,
+    /** Standardized loudness profile (LUFS and true-peak). */
+    val loudness: LoudnessProfile? = null,
+    /** Analysis format schema version (1 = legacy, 2 = master beat clock v2). */
+    val analysisVersion: Int = 2,
 ) {
     /**
      * Whether this analysis actually describes a track, as opposed to standing
@@ -127,6 +144,46 @@ data class TrackAnalysis(
  * clearly differentiate between candidates, requiring downstream transitions to avoid locking
  * to false bar drops.
  */
+enum class Feel { STRAIGHT, TRIPLET, UNKNOWN }
+
+data class TempoPoint(val time: Double, val bpm: Double)
+
+data class TempoHypothesis(val bpm: Double, val weight: Double)
+
+data class GrooveProfile(
+    val lowBand16: FloatArray = FloatArray(16),
+    val midBand16: FloatArray = FloatArray(16),
+    val highBand16: FloatArray = FloatArray(16),
+    val density: Float = 0f,
+    val swing: Float = 0f,
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is GrooveProfile) return false
+        return lowBand16.contentEquals(other.lowBand16) &&
+            midBand16.contentEquals(other.midBand16) &&
+            highBand16.contentEquals(other.highBand16) &&
+            density == other.density &&
+            swing == other.swing
+    }
+
+    override fun hashCode(): Int {
+        var result = lowBand16.contentHashCode()
+        result = 31 * result + midBand16.contentHashCode()
+        result = 31 * result + highBand16.contentHashCode()
+        result = 31 * result + density.hashCode()
+        result = 31 * result + swing.hashCode()
+        return result
+    }
+}
+
+data class LoudnessProfile(
+    val integratedLufs: Double = -70.0,
+    val headShortTermLufs: Double = -70.0,
+    val tailShortTermLufs: Double = -70.0,
+    val truePeakDbfs: Double = -70.0,
+)
+
 data class MeterHypothesis(
     val beatsPerBar: Int = 4,
     val confidence: Double = 0.0,

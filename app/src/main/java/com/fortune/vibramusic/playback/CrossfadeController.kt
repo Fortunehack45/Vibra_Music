@@ -296,6 +296,7 @@ class CrossfadeController(
         val style: TransitionStyle = TransitionStyle.EQUAL_POWER,
         val bassSwap: Boolean = false,
         val bassSwapFraction: Double = 0.7,
+        val handoffFraction: Double = 0.5,
         val filterSweep: Double = 0.0,
         val vocalOverlap: Double = 0.0,
         val profile: com.fortune.vibramusic.playback.audio.TransitionProfile? = null,
@@ -303,6 +304,8 @@ class CrossfadeController(
 
     private var activeProfile: com.fortune.vibramusic.playback.audio.TransitionProfile? = null
 
+    private var preRollMs = 0L
+    private var isPreRolling = false
     private var fadeStartedAt = 0L
     private var bailStartedAt = 0L
     private var armDeadline = 0L
@@ -660,6 +663,8 @@ class CrossfadeController(
             duration = duration / 1000.0,
             fadeSeconds = fallbackSeconds,
             mode = CrossfadeMode.SMART,
+            advanced = true,
+            requestedStyle = AppSettings.songTransitions.value.style.name,
         )
         // One line per distinct verdict rather than one per 250ms tick, so the
         // log says what the planner decided for this pair without burying it.
@@ -749,6 +754,7 @@ class CrossfadeController(
                 style = plan.transitionStyle,
                 bassSwap = plan.bassSwap,
                 bassSwapFraction = plan.bassSwapFraction,
+                handoffFraction = plan.handoffFraction,
                 filterSweep = plan.filterSweep,
                 vocalOverlap = plan.vocalOverlap,
             ),
@@ -910,6 +916,8 @@ class CrossfadeController(
         smartFadeActive = smart
         incomingCueTimeMs = cueTimeMs.coerceAtLeast(0L)
         incomingPlaybackRate = playbackRate
+        preRollMs = if (smart && incomingCueTimeMs >= 1200L) 1200L else 0L
+        isPreRolling = false
         render = renderStyle
         activeProfile = renderStyle.profile ?: when (renderStyle.style) {
             TransitionStyle.DJ_RISE -> com.fortune.vibramusic.playback.audio.TransitionProfile.rise(renderStyle.bassSwapFraction.toFloat())
@@ -947,7 +955,7 @@ class CrossfadeController(
         // right for the incoming track from its very first decoded frame
         // rather than from the handoff, which is half a blend too late.
         items.getOrNull(nextIndex)?.let(onArmIncoming)
-        into.setMediaItems(items, nextIndex, incomingCueTimeMs)
+        into.setMediaItems(items, nextIndex, (incomingCueTimeMs - preRollMs).coerceAtLeast(0L))
         // Buffers without sounding. Started for real in [startFade].
         into.playWhenReady = false
         into.prepare()
@@ -980,12 +988,36 @@ class CrossfadeController(
         // silence.
         if (expired && !ready) return bail()
 
-        // Wait for the track to actually reach the fade point. [fadeEndMs] is
-        // the track's own duration in standard mode, or a Automix plan's
-        // analyzed mix-out anchor when it ends before the file does.
-        val atFadePoint = fadeEndMs <= 0L || fadeEndMs - out.currentPosition <= fadeMs
+        val transitionStartMs = (fadeEndMs - fadeMs).coerceAtLeast(0L)
+        val remainingToFade = transitionStartMs - out.currentPosition
+
+        // Phase-servo pre-roll: start standby silently 1.2s early
+        if (preRollMs > 0L && remainingToFade <= preRollMs && ready && !into.playWhenReady) {
+            into.volume = 0f
+            into.playWhenReady = true
+            isPreRolling = true
+            Log.d(TAG, "phase-servo pre-roll started: ${remainingToFade}ms remaining")
+        }
+
+        // Apply rate nudge to eliminate startup latency and lock beat phase drift to < 4ms
+        if (isPreRolling && into.isPlaying && remainingToFade > 0L) {
+            val expectedPos = incomingCueTimeMs - (remainingToFade.toDouble() * incomingPlaybackRate).roundToLong()
+            val driftMs = into.currentPosition - expectedPos
+            val baseSpeed = (AppSettings.playbackSpeed.value * incomingPlaybackRate).toFloat()
+            val nudgedSpeed = (baseSpeed * (1.0f - (driftMs.toFloat() / 4000f))).coerceIn(baseSpeed * 0.96f, baseSpeed * 1.04f)
+            if (abs(into.playbackParameters.speed - nudgedSpeed) > 0.003f) {
+                into.setPlaybackSpeed(nudgedSpeed)
+            }
+        }
+
+        val atFadePoint = remainingToFade <= 10L || fadeEndMs <= 0L
         if (!atFadePoint) return
-        if (ready) startFade()
+        if (ready) {
+            val baseSpeed = (AppSettings.playbackSpeed.value * incomingPlaybackRate).toFloat()
+            into.setPlaybackSpeed(baseSpeed)
+            isPreRolling = false
+            startFade()
+        }
     }
 
     /**
@@ -1009,14 +1041,7 @@ class CrossfadeController(
         into.volume = 0f
         into.playWhenReady = true
         fadeStartedAt = SystemClock.elapsedRealtime()
-
-        Log.d(TAG, "handoff at cue=${into.currentPosition}ms out=${out.currentPosition}ms")
-
-        // Before the swap, so the listener follows the session rather than
-        // firing on a player this class is about to demote.
-        listenTo(into)
-        handedOff = true
-        onHandoff(out, into)
+        handedOff = false
 
         // The outgoing player holds the whole queue too, and a standard
         // crossfade runs right up to its track's natural end — at which point
@@ -1036,6 +1061,16 @@ class CrossfadeController(
         // track the session player is no longer showing a position for.
         AppSettings.smartTransitionWindow.value = null
         phase = Phase.FADING
+    }
+
+    private fun performHandoff() {
+        val out = outgoing ?: return
+        val into = incoming ?: return
+        if (handedOff) return
+        listenTo(into)
+        handedOff = true
+        onHandoff(out, into)
+        Log.d(TAG, "handoff performed at cue=${into.currentPosition}ms out=${out.currentPosition}ms")
     }
 
     /**
@@ -1094,6 +1129,11 @@ class CrossfadeController(
         val span = minOf(fadeMs, incomingCap).coerceAtLeast(1L)
         val elapsed = (player.currentPosition - incomingCueTimeMs).coerceAtLeast(0L)
         val progress = (elapsed.toFloat() / span).coerceIn(0f, 1f)
+
+        val handoffThreshold = render.handoffFraction.toFloat().coerceIn(0.1f, 0.9f)
+        if (!handedOff && progress >= handoffThreshold) {
+            performHandoff()
+        }
 
         val rise = activeProfile?.incomingGain?.evaluate(progress) ?: riseGain(progress)
         val fall = activeProfile?.outgoingGain?.evaluate(progress) ?: fallGain(progress)
@@ -1227,10 +1267,13 @@ class CrossfadeController(
         if (phase == Phase.IDLE || phase == Phase.BAILING) return
         Log.d(TAG, "bail from $phase")
         AppSettings.smartMixInProgress.value = false
-        if (!handedOff) {
+        if (phase == Phase.ARMING) {
             // Nothing was ever audible; no ramp to run.
             finish()
             return
+        }
+        if (!handedOff) {
+            performHandoff()
         }
         // Glided open rather than snapped: the incoming track is audible here,
         // and if the bail caught a bass swap mid-handover its low end is
@@ -1291,6 +1334,8 @@ class CrossfadeController(
         queuedItemCount = 0
         incomingCueTimeMs = 0L
         incomingPlaybackRate = 1.0
+        preRollMs = 0L
+        isPreRolling = false
         phase = Phase.IDLE
         if (wasHandedOff) {
             onFadeFinished()

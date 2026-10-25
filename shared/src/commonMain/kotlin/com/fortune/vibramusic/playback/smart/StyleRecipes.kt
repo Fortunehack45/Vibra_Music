@@ -1,5 +1,6 @@
 package com.fortune.vibramusic.playback.smart
 
+import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -23,7 +24,7 @@ object StyleRecipes {
         for (i in 0..steps) {
             val beat = (i.toDouble() / steps) * totalBeats
             val progress = (i.toDouble() / steps).coerceIn(0.0, 1.0)
-            val rad = progress * (Math.PI / 2.0)
+            val rad = progress * (PI / 2.0)
             outGainPoints += LanePoint(beat, cos(rad).toFloat())
             inGainPoints += LanePoint(beat, sin(rad).toFloat())
         }
@@ -250,7 +251,7 @@ object StyleRecipes {
         for (i in 0..steps) {
             val beat = (i.toDouble() / steps) * totalBeats
             val progress = (i.toDouble() / steps).coerceIn(0.0, 1.0)
-            val rad = progress * (Math.PI / 2.0)
+            val rad = progress * (PI / 2.0)
             outGainPoints += LanePoint(beat, cos(rad).toFloat())
             inGainPoints += LanePoint(beat, sin(rad).toFloat())
         }

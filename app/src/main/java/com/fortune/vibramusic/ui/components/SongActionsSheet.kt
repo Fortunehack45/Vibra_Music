@@ -188,6 +188,7 @@ fun SongActionsSheet(
     onOpenSongInfo: (() -> Unit)? = null,
 ) {
     var pickingSleepTimer by remember { mutableStateOf(false) }
+    var showingSongInfo by remember(song.videoId) { mutableStateOf(false) }
     // Read from the thumbnail the row that opened this sheet was already
     // showing, not a larger copy of it: the tint is a blur and a handful of
     // swatches, neither of which a bigger image improves, and going back for
@@ -202,6 +203,10 @@ fun SongActionsSheet(
     TintedSheet(palette = palette, imageUrl = song.thumbnailUrl, modifier = modifier) {
         if (pickingSleepTimer) {
             SleepTimerPicker(palette = palette, onBack = { pickingSleepTimer = false })
+            return@TintedSheet
+        }
+        if (showingSongInfo) {
+            SongInfoPage(song = song, palette = palette, onBack = { showingSongInfo = false })
             return@TintedSheet
         }
 
@@ -361,14 +366,18 @@ fun SongActionsSheet(
                 ActionRow(Icons.Rounded.Share, stringResource(R.string.share), accent = palette.accent, onClick = it)
             }
         }
-        onOpenSongInfo?.let {
-            ActionRow(
-                icon = Icons.Rounded.Info,
-                label = "Song Info",
-                accent = palette.accent,
-                onClick = it,
-            )
-        }
+        ActionRow(
+            icon = Icons.Rounded.Info,
+            label = stringResource(R.string.song_info),
+            accent = palette.accent,
+            onClick = {
+                if (onOpenSongInfo != null) {
+                    onOpenSongInfo()
+                } else {
+                    showingSongInfo = true
+                }
+            },
+        )
         // Last, and only from the player: it is about the track playing right
         // now rather than about the song as a thing in a library, and it is
         // the one row here nobody reaches for by accident.

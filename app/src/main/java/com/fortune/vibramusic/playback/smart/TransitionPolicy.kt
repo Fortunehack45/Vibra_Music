@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Ported from Orchard (https://github.com/SFG5453/Orchard).
  *
  * Copyright (C) 2026 SFG545 (original Orchard implementation)
@@ -58,7 +58,7 @@ const val MIN_BPM = 40.0
 const val MAX_BPM = 220.0
 
 /** How far a tempo pairing may drift from unity and still be considered transparent to stretch. */
-const val MAX_STRETCH_DEVIATION = 0.04
+const val MAX_STRETCH_DEVIATION = 0.08
 
 /**
  * A vocal-activity mask value at or above this counts as singing. A fallback

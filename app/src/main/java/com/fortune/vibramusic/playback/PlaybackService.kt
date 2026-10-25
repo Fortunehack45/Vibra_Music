@@ -125,6 +125,7 @@ import com.fortune.vibramusic.playback.smart.AutomixAnalysisSource
 import com.fortune.vibramusic.playback.smart.VersionAudioAligner
 import com.fortune.vibramusic.widget.MediaWidget
 import com.fortune.vibramusic.widget.MediaWidgetSnapshot
+import com.fortune.vibramusic.wear.WearBridge
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
@@ -922,6 +923,7 @@ class PlaybackService : MediaLibraryService() {
             if (reason == Player.DISCONTINUITY_REASON_SEEK) {
                 if (exoPlayer.isPlaying) pushDiscordPresence(exoPlayer)
                 updateLyricSubtitle()
+                WearBridge.republish(this@PlaybackService, exoPlayer)
             }
         }
 
@@ -1031,6 +1033,7 @@ class PlaybackService : MediaLibraryService() {
         override fun onRepeatModeChanged(repeatMode: Int) {
             val previous = lastRepeatMode
             lastRepeatMode = repeatMode
+            player?.let { WearBridge.republish(this@PlaybackService, it) }
             // Repeat-all loops the queue as it stands; AutoPlay's tracks are the
             // opposite of that — an endless supply of new ones — so they come
             // back out first, and native REPEAT_MODE_ALL then wraps a plain
@@ -1561,6 +1564,7 @@ class PlaybackService : MediaLibraryService() {
         AudioCache.setUpstream(defaultDataSourceFactory)
         mediaSourceFactory = DefaultMediaSourceFactory(AudioCache.playbackFactory(defaultDataSourceFactory))
             .setLoadErrorHandlingPolicy(PermanentAwareLoadErrorPolicy())
+        WearBridge.attachStreams(AudioCache.playbackFactory(defaultDataSourceFactory))
 
         configuredFloatOutput = shouldEnableFloatOutput()
         val exoPlayer = buildPlayer(
@@ -5039,22 +5043,20 @@ class PlaybackService : MediaLibraryService() {
         val liked = LikeState.overrides.value[song.videoId]?.let { it == LikeStatus.LIKE }
             ?: MediaWidgetSnapshot.load(this).takeIf { it.mediaId == song.videoId }?.isLiked
             ?: false
-        MediaWidgetSnapshot.save(
-            this,
-            MediaWidgetSnapshot(
-                mediaId = song.videoId,
-                title = song.title,
-                artist = song.artist,
-                artworkUrl = song.thumbnailUrl,
-                // playWhenReady, not isPlaying — see MediaWidgetSnapshot.isPlaying.
-                isPlaying = playing ?: exoPlayer.playWhenReady,
-                hasPrevious = exoPlayer.hasPreviousMediaItem(),
-                hasNext = exoPlayer.hasNextMediaItem(),
-                isLiked = liked,
-                shuffleEnabled = QueueShuffle.enabled.value,
-            ),
+        val snapshot = MediaWidgetSnapshot(
+            mediaId = song.videoId,
+            title = song.title,
+            artist = song.artist,
+            artworkUrl = song.thumbnailUrl,
+            isPlaying = playing ?: exoPlayer.playWhenReady,
+            hasPrevious = exoPlayer.hasPreviousMediaItem(),
+            hasNext = exoPlayer.hasNextMediaItem(),
+            isLiked = liked,
+            shuffleEnabled = QueueShuffle.enabled.value,
         )
+        MediaWidgetSnapshot.save(this, snapshot)
         MediaWidget.refresh(this)
+        WearBridge.publish(this, snapshot, exoPlayer, playing)
     }
 
     /**
@@ -6254,6 +6256,8 @@ class PlaybackService : MediaLibraryService() {
 
 
     override fun onDestroy() {
+        WearBridge.attachStreams(null)
+        WearBridge.releaseSpeaker()
         closeAudioEffectSession()
         bluetoothTracker.stop()
         audioManager?.unregisterAudioDeviceCallback(outputDeviceCallback)

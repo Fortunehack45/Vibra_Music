@@ -102,7 +102,7 @@ fun LyricShareSheet(
     var palette by remember { mutableStateOf(LyricCardPalette.ARTWORK) }
     var font by remember { mutableStateOf(LyricCardFont.SF_PRO) }
     var alignment by remember { mutableStateOf(LyricCardAlignment.LEFT) }
-    var ratio by remember { mutableStateOf(LyricCardRatio.CARD_3_4) }
+    var ratio by remember { mutableStateOf(LyricCardRatio.SQUARE_1_1) }
     var showArtwork by remember { mutableStateOf(true) }
     var useCoverBackground by remember { mutableStateOf(false) }
 
@@ -242,15 +242,12 @@ fun LyricShareSheet(
                 Spacer(Modifier.height(14.dp))
 
                 // Dynamic Live Card Preview
-                val isFullBleedLyrics =
-                    cardStyle == LyricCardStyle.LYRICS_CARD && ratio == LyricCardRatio.CARD_3_4
                 val previewRatio = poster?.let {
                     it.width.toFloat() / it.height.toFloat().coerceAtLeast(1f)
-                } ?: if (isFullBleedLyrics) 1.25f else ratio.ratio
-                val previewWidthFraction = when {
-                    isFullBleedLyrics -> 0.84f
-                    ratio == LyricCardRatio.CARD_3_4 -> 0.64f
-                    else -> 0.50f
+                } ?: ratio.ratio
+                val previewWidthFraction = when (ratio) {
+                    LyricCardRatio.SQUARE_1_1 -> 0.78f
+                    LyricCardRatio.STORY_9_16 -> 0.52f
                 }
                 Box(
                     modifier = Modifier

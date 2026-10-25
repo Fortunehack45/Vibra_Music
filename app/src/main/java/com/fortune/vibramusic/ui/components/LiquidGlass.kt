@@ -164,6 +164,27 @@ fun Modifier.lightweightLiquidGlass(
 }
 
 /**
+ * Just the rim of liquid glass - the directional [Highlight] that catches the
+ * light along a glass edge - for a control that keeps its own fill.
+ *
+ * Over a flat, stable page the blur and lens of [liquidGlass] would sample a
+ * single colour and change nothing a reader could see; the rim is the part
+ * that reads as glass. No backdrop capture, so it costs a stroke. Nothing at
+ * all while Liquid Glass is off or unsupported.
+ */
+@Composable
+fun Modifier.liquidGlassRim(shape: CornerBasedShape): Modifier {
+    if (!LocalLiquidGlassEnabled.current || !isGlassSupported()) return this
+    val shapeProvider = remember(shape) { ShapeProvider { shape } }
+    return then(
+        HighlightElement(
+            shapeProvider = shapeProvider,
+            highlight = { Highlight.Default },
+        ),
+    )
+}
+
+/**
  * Interactive liquid glass button physics:
  * When pressed, the surface compresses slightly (tactile pressure).
  * When released or clicked, it elastically expands outward in a liquid spring

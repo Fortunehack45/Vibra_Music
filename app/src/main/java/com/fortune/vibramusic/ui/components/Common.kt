@@ -1,5 +1,17 @@
 package com.fortune.vibramusic.ui.components
 
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.keyframes
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.res.stringResource
+import com.fortune.vibramusic.R
+
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -48,8 +60,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.PullToRefreshState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -74,7 +84,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
-import com.fortune.vibramusic.R
 import com.fortune.vibramusic.data.model.ROW_ART_PX
 import com.fortune.vibramusic.data.model.Song
 import com.fortune.vibramusic.data.model.artworkAt
@@ -123,6 +132,21 @@ val ROW_DIVIDER_INSET = PAGE_GUTTER + 68.dp
  * on a phone it does nothing and the bars still line up with the page's content.
  */
 val FLOATING_BAR_MAX_WIDTH = 440.dp
+
+/** A numbered row's track-number column. */
+val TRACK_NUMBER_WIDTH = 24.dp
+
+/** Where a divider under a numbered row starts: at its title, past the number. */
+val NUMBERED_ROW_DIVIDER_INSET = PAGE_GUTTER + TRACK_NUMBER_WIDTH + PAGE_GUTTER
+
+/** How far a row's [RowMoreButton] reaches past the content edge into the gutter. */
+val ROW_MORE_OUTSET = 14.dp
+
+fun Modifier.hangIntoGutter(outset: Dp): Modifier = layout { measurable, constraints ->
+    val placeable = measurable.measure(constraints)
+    val width = (placeable.width - outset.roundToPx()).coerceAtLeast(0)
+    layout(width, placeable.height) { placeable.place(0, 0) }
+}
 
 /**
  * Width of a card in the compact carousels — home shelves, library shelves and
@@ -828,5 +852,75 @@ fun PillTextField(
             keyboardActions = keyboardActions,
             modifier = Modifier.fillMaxWidth(),
         )
+    }
+}
+
+
+@Composable
+fun RowMoreButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    tint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    iconSize: Dp = 20.dp,
+) {
+    Box(
+        modifier = modifier
+            .hangIntoGutter(ROW_MORE_OUTSET)
+            .size(36.dp)
+            .clip(CircleShape)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            Icons.Rounded.MoreVert,
+            contentDescription = stringResource(R.string.more),
+            tint = tint,
+            modifier = Modifier.size(iconSize),
+        )
+    }
+}
+
+@Composable
+fun SearchPlayingBars(modifier: Modifier = Modifier) {
+    val heights = listOf(0.38f, 0.78f, 0.52f).mapIndexed { index, minimum ->
+        val transition = rememberInfiniteTransition(label = "search playing bar $index")
+        val height by transition.animateFloat(
+            initialValue = minimum,
+            targetValue = 1f - (index * 0.12f),
+            animationSpec = infiniteRepeatable(
+                animation = keyframes {
+                    durationMillis = 520 + index * 130
+                    minimum at 0
+                    1f at (260 + index * 50)
+                    minimum at durationMillis
+                },
+                repeatMode = RepeatMode.Reverse,
+            ),
+            label = "search bar height $index",
+        )
+        height
+    }
+    Box(
+        modifier = modifier
+            .size(24.dp)
+            .clip(RoundedCornerShape(6.dp))
+            .background(Color.Black.copy(alpha = 0.52f)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Row(
+            modifier = Modifier.height(14.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+            verticalAlignment = Alignment.Bottom,
+        ) {
+            heights.forEach { height ->
+                Box(
+                    Modifier
+                        .width(3.dp)
+                        .height(14.dp * height)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(Color.White),
+                )
+            }
+        }
     }
 }

@@ -243,7 +243,7 @@ import com.fortune.vibramusic.data.sources.SourceKind
 import com.fortune.vibramusic.data.sources.SourceRegistry
 import com.fortune.vibramusic.ui.components.ListenBrainzTokenAlert
 import com.fortune.vibramusic.ui.components.MiniPlayer
-import com.fortune.vibramusic.ui.player.SongInfoSheet
+import com.fortune.vibramusic.ui.components.SongInfoDialog
 import com.fortune.vibramusic.ui.components.QueueActionNotice
 import com.fortune.vibramusic.ui.components.QueueActionNoticeHost
 import com.fortune.vibramusic.ui.components.TopBarAccountButton
@@ -264,31 +264,6 @@ import com.fortune.vibramusic.data.YtMusicRepository
 import com.fortune.vibramusic.ui.player.NowPlayingScreen
 import com.fortune.vibramusic.ui.screens.DetailScreen
 import com.fortune.vibramusic.ui.screens.ExploreScreen
-import com.fortune.vibramusic.ui.realm.AppRealm
-import com.fortune.vibramusic.ui.components.RealmSwitcher
-import com.fortune.vibramusic.ui.components.SocialBottomBar
-import com.fortune.vibramusic.ui.components.SocialTab
-import com.fortune.vibramusic.ui.social.SocialViewModel
-import com.fortune.vibramusic.ui.social.SocialScreen
-import com.fortune.vibramusic.ui.social.DirectMessagesScreen
-import com.fortune.vibramusic.ui.social.UserProfileScreen
-import com.fortune.vibramusic.ui.social.FriendsDiscoveryScreen
-import com.fortune.vibramusic.ui.social.NotificationsSheet
-import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
-import androidx.compose.material.icons.rounded.Notifications
-import com.fortune.vibramusic.ui.quiz.QuizViewModel
-import com.fortune.vibramusic.ui.quiz.QuizHubScreen
-import com.fortune.vibramusic.ui.quiz.ActiveQuizScreen
-import com.fortune.vibramusic.ui.quiz.QuizResultSheet
-import com.fortune.vibramusic.ui.quiz.QuizLivesDialog
-import com.fortune.vibramusic.ui.quiz.ArtistLeaderboardScreen
-import com.fortune.vibramusic.ui.onboarding.VibraOnboardingFlow
-import com.fortune.vibramusic.data.quiz.QuizGameState
-import com.fortune.vibramusic.data.quiz.QuizArtist
-import com.fortune.vibramusic.data.social.SocialProfile
-import com.fortune.vibramusic.data.social.NotificationType
-import com.fortune.vibramusic.data.social.MusicTrackAttachment
 import com.fortune.vibramusic.ui.screens.LocalMusicScreen
 import com.fortune.vibramusic.ui.screens.HomeScreen
 import com.fortune.vibramusic.ui.screens.LibraryGridPage
@@ -320,6 +295,26 @@ import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
 import dev.chrisbanes.haze.materials.HazeMaterials
+import androidx.activity.compose.BackHandler
+import androidx.compose.material3.SheetState
+import androidx.compose.material3.SheetValue
+import androidx.compose.material3.ModalBottomSheetProperties
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.LocalViewConfiguration
+import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.window.DialogWindowProvider
+import com.fortune.vibramusic.ui.player.LocalPlayerDock
+import com.fortune.vibramusic.ui.player.PlayerDock
+import com.fortune.vibramusic.ui.player.PlayerSheetMotion
+import com.fortune.vibramusic.ui.player.PLAYER_SCRIM_ALPHA
+import com.fortune.vibramusic.ui.player.PlayerSheetShape
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import java.util.Locale
@@ -462,8 +457,6 @@ private fun VibraMusicApp(
     windowHeight: Dp,
     appBackdrop: LayerBackdrop,
     viewModel: MainViewModel = viewModel(),
-    socialViewModel: SocialViewModel = viewModel(),
-    quizViewModel: QuizViewModel = viewModel(),
 ) {
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
@@ -485,28 +478,7 @@ private fun VibraMusicApp(
     val navBarScroll = rememberFloatingTabBarScrollConnection()
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
 
-    var currentRealm by rememberSaveable { mutableStateOf(AppRealm.MUSIC) }
-    var activeLeaderboardArtist by remember { mutableStateOf<QuizArtist?>(null) }
-    var viewingSocialProfile by remember { mutableStateOf<SocialProfile?>(null) }
-    var quizShowLivesDialog by remember { mutableStateOf(false) }
 
-    val socialNavTab by socialViewModel.navTab.collectAsStateWithLifecycle()
-    val socialProfile by socialViewModel.currentProfile.collectAsStateWithLifecycle()
-    val socialActiveChatFriend by socialViewModel.activeChatFriend.collectAsStateWithLifecycle()
-    val socialNotifications by socialViewModel.notifications.collectAsStateWithLifecycle()
-    val socialIsNotificationsOpen by socialViewModel.isNotificationsOpen.collectAsStateWithLifecycle()
-    val vmViewingProfile by socialViewModel.viewingProfile.collectAsStateWithLifecycle()
-    val socialSelectedPostForComments by socialViewModel.selectedPostForComments.collectAsStateWithLifecycle()
-    val socialSuggestedUsers by socialViewModel.suggestedUsersList.collectAsStateWithLifecycle()
-
-    LaunchedEffect(vmViewingProfile) {
-        viewingSocialProfile = vmViewingProfile
-    }
-
-    val quizGameState by quizViewModel.gameState.collectAsStateWithLifecycle()
-    val quizLastResult by quizViewModel.lastResult.collectAsStateWithLifecycle()
-    val quizLivesState by quizViewModel.livesState.collectAsStateWithLifecycle()
-    val hasCompletedOnboarding by AppSettings.hasCompletedOnboarding.collectAsStateWithLifecycle()
     /**
      * Whether the player's sheet is up. The player is always a full-screen
      * take-over raised over the page, on every window size — the library
@@ -515,6 +487,18 @@ private fun VibraMusicApp(
      */
     var showNowPlaying by remember { mutableStateOf(false) }
     var dismissNowPlaying by remember { mutableStateOf<(() -> Unit)?>(null) }
+    val playerDock = remember { PlayerDock() }
+    val motionScope = rememberCoroutineScope()
+    val playerSheetMotion = remember {
+        PlayerSheetMotion(
+            scope = motionScope,
+            dock = playerDock,
+            shown = { showNowPlaying },
+            setShown = { showNowPlaying = it },
+        )
+    }
+    playerSheetMotion.windowInfo = LocalWindowInfo.current
+    playerSheetMotion.flingVelocity = LocalViewConfiguration.current.maximumFlingVelocity
     // The far end of the relay from a widget's artwork. Cleared here rather than
     // where it was set, so the request is spent by being served — see
     // [PlayerDeepLink.handled]. The sheet itself is gated on there being a track,
@@ -523,7 +507,7 @@ private fun VibraMusicApp(
     val openPlayerRequested by PlayerDeepLink.pending.collectAsStateWithLifecycle()
     LaunchedEffect(openPlayerRequested) {
         if (openPlayerRequested) {
-            showNowPlaying = true
+            playerSheetMotion.open()
             PlayerDeepLink.handled()
         }
     }
@@ -1067,15 +1051,7 @@ private fun VibraMusicApp(
         )
     }
 
-    val socialTabs = remember {
-        listOf(
-            BottomTab(SocialTab.FEED.label, SocialTab.FEED.icon),
-            BottomTab(SocialTab.TWIN.label, SocialTab.TWIN.icon),
-            BottomTab(SocialTab.QUIZ.label, SocialTab.QUIZ.icon),
-            BottomTab(SocialTab.MESSAGES.label, SocialTab.MESSAGES.icon),
-            BottomTab(SocialTab.PROFILE.label, SocialTab.PROFILE.icon),
-        )
-    }
+
 
     val scope = rememberCoroutineScope()
 
@@ -1288,19 +1264,7 @@ private fun VibraMusicApp(
         )
         playFrom(songs, index, source)
     }
-    val playTrackAttachment: (MusicTrackAttachment) -> Unit = { attachment ->
-        val resolvedArt = attachment.artworkUrl?.takeIf { it.isNotBlank() }
-            ?: attachment.thumbnailUrl?.takeIf { it.isNotBlank() }
-            ?: "https://i.ytimg.com/vi/${attachment.videoId}/maxresdefault.jpg"
-        val song = Song(
-            videoId = attachment.videoId,
-            title = attachment.title,
-            artist = attachment.artist,
-            durationText = attachment.durationText ?: "",
-            thumbnailUrl = resolvedArt,
-        )
-        playFrom(listOf(song), 0, QueueSource(attachment.title, PlaybackSourceType.BROWSE, attachment.videoId))
-    }
+
     LaunchedEffect(player.song?.videoId) {
         if (optimisticVersionSong?.videoId == player.song?.videoId ||
             (optimisticVersionSong != null && player.song?.videoId != convertedAudioId && player.song?.videoId != convertedVideoId && player.song?.videoId != keepVideoId)
@@ -2466,41 +2430,12 @@ private fun VibraMusicApp(
         BackHandler(enabled = libraryShowAll != null && detail == null) { libraryShowAll = null }
         BackHandler(enabled = detailActiveShelf != null) { detailActiveShelf = null }
 
-        BackHandler(enabled = currentRealm == AppRealm.SOCIAL && detail == null && socialSelectedPostForComments != null) {
-            socialViewModel.closeComments()
-        }
-        BackHandler(enabled = currentRealm == AppRealm.SOCIAL && detail == null && socialSelectedPostForComments == null && activeLeaderboardArtist != null) {
-            activeLeaderboardArtist = null
-        }
-        BackHandler(enabled = currentRealm == AppRealm.SOCIAL && detail == null && socialSelectedPostForComments == null && viewingSocialProfile != null) {
-            socialViewModel.closeUserProfile()
-            viewingSocialProfile = null
-        }
-        BackHandler(enabled = currentRealm == AppRealm.SOCIAL && activeLeaderboardArtist == null && viewingSocialProfile == null && socialSelectedPostForComments == null && socialActiveChatFriend != null) {
-            socialViewModel.closeChat()
-        }
-        BackHandler(enabled = currentRealm == AppRealm.SOCIAL && activeLeaderboardArtist == null && viewingSocialProfile == null && socialSelectedPostForComments == null && socialActiveChatFriend == null && socialNavTab != SocialTab.FEED) {
-            socialViewModel.setNavTab(SocialTab.FEED)
-        }
-        BackHandler(enabled = currentRealm == AppRealm.SOCIAL && activeLeaderboardArtist == null && viewingSocialProfile == null && socialSelectedPostForComments == null && socialActiveChatFriend == null && socialNavTab == SocialTab.FEED && detail == null && !showSettings) {
-            currentRealm = AppRealm.MUSIC
-        }
-
-        if (!hasCompletedOnboarding) {
-            VibraOnboardingFlow(
-                onLaunchSignIn = { webSession = WebSessionMode.SIGN_IN },
-                onComplete = {},
-                googleAccounts = googleAccounts,
-                activeAccountId = activeAccountId,
-                modifier = Modifier.fillMaxSize(),
-            )
-        } else {
-            // On a tablet the page and the player stand side by side rather than
-            // one over the other: everything a phone stacks in a single column —
-            // the feed, the frosted bars, the tab row — becomes the left half of
-            // a row, and the player is the right. Off a tablet the row has the
-            // one child it always had and changes nothing.
-            Row(Modifier.fillMaxSize()) {
+        // On a tablet the page and the player stand side by side rather than
+        // one over the other: everything a phone stacks in a single column —
+        // the feed, the frosted bars, the tab row — becomes the left half of
+        // a row, and the player is the right. Off a tablet the row has the
+        // one child it always had and changes nothing.
+        Row(Modifier.fillMaxSize()) {
             Box(Modifier.weight(1f).fillMaxHeight()) {
                 AnimatedContent(
                     targetState = when {
@@ -2527,9 +2462,6 @@ private fun VibraMusicApp(
                         showReplay -> "replay"
                         detail != null -> detail.browseId
                         podcastShowState != null -> "podcast_show"
-                        currentRealm == AppRealm.SOCIAL && activeLeaderboardArtist != null -> "social_leaderboard_${activeLeaderboardArtist?.id}"
-                        currentRealm == AppRealm.SOCIAL && viewingSocialProfile != null -> "social_profile_${viewingSocialProfile?.id}"
-                        currentRealm == AppRealm.SOCIAL -> "social_tab_${socialNavTab.name}"
                         else -> "$TAB_KEY$selectedTab"
                     },
                     // Tabs swap outright; everything else crossfades.
@@ -2711,7 +2643,6 @@ private fun VibraMusicApp(
                             },
                             onSignOut = {
                                 viewModel.signOut()
-                                socialViewModel.onSignOut()
                             },
                             onOpenListenBrainzLogin = { showListenBrainzLogin = true },
                             onOpenLastfmLogin = { showLastfmLogin = true },
@@ -2747,7 +2678,7 @@ private fun VibraMusicApp(
                     } else if (key == "equalizer") {
                         EqualizerScreen(contentPadding = listPadding)
                     } else if (key == "wear_os") {
-                        WearOsScreen(onBack = { showWearOs = false })
+                        WearOsScreen(contentPadding = listPadding, onBack = { showWearOs = false })
                     } else if (key == "settings") {
                         SettingsScreen(
                             windowWidth = windowWidth,
@@ -2759,7 +2690,6 @@ private fun VibraMusicApp(
                             },
                             onSignOut = {
                                 viewModel.signOut()
-                                socialViewModel.onSignOut()
                             },
                             onAccountScrobbling = { showAccountScrobbling = true },
                             onEqualizer = { showEqualizer = true },
@@ -3007,151 +2937,6 @@ private fun VibraMusicApp(
                             isPlaying = player.isPlaying,
                             contentPadding = listPadding,
                         )
-                    } else if (key.startsWith("social_leaderboard_")) {
-                        activeLeaderboardArtist?.let { artist ->
-                            ArtistLeaderboardScreen(
-                                artist = artist,
-                                onBack = { activeLeaderboardArtist = null },
-                                onChallengeArtist = {
-                                    activeLeaderboardArtist = null
-                                    quizViewModel.startQuizForArtist(artist, onInsufficientLives = { quizShowLivesDialog = true })
-                                },
-                                onOpenArtistDetail = { id, name, artworkUrl ->
-                                    viewModel.openDetail(id, name, "Artist", artworkUrl, BrowseType.ARTIST)
-                                },
-                                onPlaySong = { song ->
-                                    playRadio(song, QueueSource(artist.name, PlaybackSourceType.SEARCH))
-                                },
-                                onOpenProfile = { profile ->
-                                    socialViewModel.openUserProfile(profile)
-                                    viewingSocialProfile = profile
-                                },
-                                contentPadding = listPadding,
-                                hazeState = hazeState,
-                            )
-                        }
-                    } else if (key.startsWith("social_profile_")) {
-                        viewingSocialProfile?.let { profile ->
-                            UserProfileScreen(
-                                profile = profile,
-                                viewModel = socialViewModel,
-                                isSelf = profile.id == (socialProfile?.id ?: ""),
-                                onBack = {
-                                    socialViewModel.closeUserProfile()
-                                    viewingSocialProfile = null
-                                },
-                                onPlayTrack = playTrackAttachment,
-                                onArtistQuizClick = { artist -> activeLeaderboardArtist = artist },
-                                onOpenArtistDetail = { id, name, artworkUrl ->
-                                    viewModel.openDetail(id, name, "Artist", artworkUrl, BrowseType.ARTIST)
-                                },
-                                onOpenPlaylist = { id, title, coverUrl ->
-                                    viewModel.openDetail(id, title, "Playlist", coverUrl, BrowseType.PLAYLIST)
-                                },
-                                activeRealm = currentRealm,
-                                onRealmSelected = { currentRealm = it },
-                                contentPadding = listPadding,
-                                hazeState = hazeState,
-                            )
-                        }
-                    } else if (key.startsWith("social_tab_")) {
-                        when (socialNavTab) {
-                            SocialTab.FEED -> {
-                                SocialScreen(
-                                    viewModel = socialViewModel,
-                                    currentlyPlayingSong = player.song,
-                                    onPlayTrack = playTrackAttachment,
-                                    onOpenProfile = { profile ->
-                                        socialViewModel.openUserProfile(profile)
-                                        viewingSocialProfile = profile
-                                    },
-                                    onOpenArtistDetail = { id, name, artworkUrl ->
-                                        viewModel.openDetail(id, name, "Artist", artworkUrl, BrowseType.ARTIST)
-                                    },
-                                    contentPadding = listPadding,
-                                    hazeState = hazeState,
-                                )
-                            }
-                            SocialTab.TWIN -> {
-                                FriendsDiscoveryScreen(
-                                    currentProfile = socialProfile,
-                                    suggestedProfiles = socialSuggestedUsers,
-                                    onBack = null,
-                                    onSendFriendRequest = { profile ->
-                                        socialViewModel.sendFriendRequest(profile.id)
-                                    },
-                                    onOpenProfile = { profile ->
-                                        socialViewModel.openUserProfile(profile)
-                                        viewingSocialProfile = profile
-                                    },
-                                    onRefreshSuggestions = {
-                                        socialProfile?.id?.let { socialViewModel.loadConnections(it) }
-                                    },
-                                    contentPadding = listPadding,
-                                    hazeState = hazeState,
-                                )
-                            }
-                            SocialTab.QUIZ -> {
-                                QuizHubScreen(
-                                    viewModel = quizViewModel,
-                                    onArtistSelect = { artist ->
-                                        quizViewModel.startQuizForArtist(artist, onInsufficientLives = { quizShowLivesDialog = true })
-                                    },
-                                    onViewArtistLeaderboard = { artist ->
-                                        activeLeaderboardArtist = artist
-                                    },
-                                    contentPadding = listPadding,
-                                    hazeState = hazeState,
-                                )
-                            }
-                            SocialTab.MESSAGES -> {
-                                DirectMessagesScreen(
-                                    viewModel = socialViewModel,
-                                    currentlyPlayingSong = player.song,
-                                    onPlayTrack = playTrackAttachment,
-                                    contentPadding = listPadding,
-                                    hazeState = hazeState,
-                                )
-                            }
-                            SocialTab.PROFILE -> {
-                                val resolvedAvatar = if (!socialProfile?.avatarUrl.isNullOrBlank()) {
-                                    socialProfile?.avatarUrl
-                                } else {
-                                    googleAccounts
-                                        .firstOrNull { it.accountId == activeAccountId }
-                                        ?.profiles
-                                        ?.firstOrNull { it.profileId == activeProfileId }
-                                        ?.avatar
-                                        ?: googleAccounts.firstOrNull()?.profiles?.firstOrNull { !it.avatar.isNullOrBlank() }?.avatar
-                                }
-                                val prof = socialProfile?.let {
-                                    if (it.avatarUrl.isNullOrBlank() && resolvedAvatar != null) it.copy(avatarUrl = resolvedAvatar) else it
-                                } ?: SocialProfile(
-                                    id = "me",
-                                    handle = "listener",
-                                    displayName = "Vibra Listener",
-                                    avatarUrl = resolvedAvatar,
-                                )
-                                UserProfileScreen(
-                                    profile = prof,
-                                    viewModel = socialViewModel,
-                                    isSelf = true,
-                                    onBack = null,
-                                    onPlayTrack = playTrackAttachment,
-                                    onArtistQuizClick = { artist -> activeLeaderboardArtist = artist },
-                                    onOpenArtistDetail = { id, name, artworkUrl ->
-                                        viewModel.openDetail(id, name, "Artist", artworkUrl, BrowseType.ARTIST)
-                                    },
-                                    onOpenPlaylist = { id, title, coverUrl ->
-                                        viewModel.openDetail(id, title, "Playlist", coverUrl, BrowseType.PLAYLIST)
-                                    },
-                                    activeRealm = currentRealm,
-                                    onRealmSelected = { currentRealm = it },
-                                    contentPadding = listPadding,
-                                    hazeState = hazeState,
-                                )
-                            }
-                        }
                     } else when (key.removePrefix(TAB_KEY).toIntOrNull() ?: selectedTab) {
                         TAB_HOME -> HomeScreen(
                             state = homeState,
@@ -3433,13 +3218,6 @@ private fun VibraMusicApp(
                 } else {
                     MaterialTheme.colorScheme.background
                 }
-                val isSocialChatActive = currentRealm == AppRealm.SOCIAL && socialActiveChatFriend != null
-                val isSocialProfileActive = currentRealm == AppRealm.SOCIAL && (viewingSocialProfile != null || socialNavTab == SocialTab.PROFILE)
-                val isSocialPostThreadActive = currentRealm == AppRealm.SOCIAL && socialSelectedPostForComments != null
-                // Suppress global top chrome when in direct chat, viewing a profile, post thread, or viewing artist leaderboard, but never when a detail page is open
-                val isSocialCustomTopActive = detail == null && (isSocialChatActive || (currentRealm == AppRealm.SOCIAL && activeLeaderboardArtist != null) || isSocialProfileActive || isSocialPostThreadActive)
-
-                if (!isSocialCustomTopActive) {
                     BottomFadeScrim(
                         pageColor = chromePageColor,
                         modifier = Modifier
@@ -3473,15 +3251,6 @@ private fun VibraMusicApp(
                         detail != null && detailActiveShelf != null -> detailActiveShelf?.title.orEmpty()
                         detail != null -> detail.title
                         selectedMoodGenre != null -> selectedMoodGenre?.title.orEmpty()
-                        currentRealm == AppRealm.SOCIAL && activeLeaderboardArtist != null -> activeLeaderboardArtist?.name.orEmpty()
-                        currentRealm == AppRealm.SOCIAL && viewingSocialProfile != null -> viewingSocialProfile?.displayName.orEmpty()
-                        currentRealm == AppRealm.SOCIAL -> when (socialNavTab) {
-                            SocialTab.FEED -> "Feed"
-                            SocialTab.TWIN -> "Twin"
-                            SocialTab.QUIZ -> "Music Quiz"
-                            SocialTab.MESSAGES -> "Messages"
-                            SocialTab.PROFILE -> "Profile"
-                        }
                         else -> tabs[selectedTab].let {
                             if (it.label == "Play") stringResource(R.string.listen_now) else it.label
                         }
@@ -3499,8 +3268,7 @@ private fun VibraMusicApp(
                             showDiscord || showHistory ||
                             (libraryShowAll != null && detail == null) ||
                             (detail != null && detailActiveShelf != null) ||
-                            selectedMoodGenre != null ||
-                            (currentRealm == AppRealm.SOCIAL && (activeLeaderboardArtist != null || viewingSocialProfile != null)) -> true
+                            selectedMoodGenre != null -> true
                         // The page leads with its own large "Replay", so the bar
                         // stays out of the way until that has been scrolled off.
                         showReplay -> replayScrolled
@@ -3526,25 +3294,10 @@ private fun VibraMusicApp(
                         detailActiveShelf != null -> ({ detailActiveShelf = null })
                         detail != null -> ({ viewModel.closeDetail(); Unit })
                         selectedMoodGenre != null -> ({ viewModel.closeMoodGenre(); Unit })
-                        currentRealm == AppRealm.SOCIAL && activeLeaderboardArtist != null -> ({ activeLeaderboardArtist = null })
-                        currentRealm == AppRealm.SOCIAL && viewingSocialProfile != null -> ({
-                            socialViewModel.closeUserProfile()
-                            viewingSocialProfile = null
-                        })
-                        currentRealm == AppRealm.SOCIAL && socialActiveChatFriend != null -> ({ socialViewModel.closeChat() })
                         else -> null
                     },
                     modifier = Modifier.align(Alignment.TopCenter),
                     actions = {
-                        // Floating Realm Switcher (Music | Social)
-                        if (!showSettings && !showAccountScrobbling && detail == null && libraryShowAll == null && !showReplay && !showSpotifyLibrary && activeLeaderboardArtist == null) {
-                            RealmSwitcher(
-                                activeRealm = currentRealm,
-                                onRealmSelected = { currentRealm = it },
-                                hazeState = hazeState,
-                                modifier = Modifier.padding(end = 8.dp),
-                            )
-                        }
                         // This is intentionally scoped to Listen together: the
                         // round-trip time is meaningful while coordinating a
                         // party, but would be noise in the rest of the app.
@@ -3701,48 +3454,18 @@ private fun VibraMusicApp(
                             // itself rather than being told.
                             TopBarDownloadButton(onClick = { showDownloadManager = true })
 
-                            if (currentRealm == AppRealm.SOCIAL) {
-                                val unreadNotifications = socialNotifications.count { !it.isRead }
-                                IconButton(onClick = { socialViewModel.openNotifications() }) {
-                                    BadgedBox(
-                                        badge = {
-                                            if (unreadNotifications > 0) {
-                                                Badge(
-                                                    containerColor = MaterialTheme.colorScheme.primary,
-                                                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                                                ) {
-                                                    Text(text = "$unreadNotifications", fontSize = 10.sp)
-                                                }
-                                            }
-                                        },
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Rounded.Notifications,
-                                            contentDescription = "Notifications",
-                                            tint = MaterialTheme.colorScheme.onSurface,
-                                        )
-                                    }
-                                }
-                            }
-
-                            val activeAvatar = if (currentRealm == AppRealm.SOCIAL && !socialProfile?.avatarUrl.isNullOrBlank()) {
-                                socialProfile?.avatarUrl
-                            } else {
-                                googleAccounts
-                                    .firstOrNull { it.accountId == activeAccountId }
-                                    ?.profiles
-                                    ?.firstOrNull { it.profileId == activeProfileId }
-                                    ?.avatar
-                                    ?: googleAccounts.firstOrNull()?.profiles?.firstOrNull { !it.avatar.isNullOrBlank() }?.avatar
-                            }
+                            val activeAvatar = googleAccounts
+                                .firstOrNull { it.accountId == activeAccountId }
+                                ?.profiles
+                                ?.firstOrNull { it.profileId == activeProfileId }
+                                ?.avatar
+                                ?: googleAccounts.firstOrNull()?.profiles?.firstOrNull { !it.avatar.isNullOrBlank() }?.avatar
 
                             TopBarAccountButton(
                                 account = account,
                                 avatarUrl = activeAvatar,
                                 onClick = {
-                                    if (currentRealm == AppRealm.SOCIAL) {
-                                        socialViewModel.setNavTab(SocialTab.PROFILE)
-                                    } else if (signedIn) {
+                                    if (signedIn) {
                                         viewModel.loadChannels()
                                         showAccountSelector = true
                                     } else showSettings = true
@@ -3752,10 +3475,7 @@ private fun VibraMusicApp(
                         }
                     },
                 )
-                }
 
-                val isSocialBottomSuppressed = isSocialChatActive || (currentRealm == AppRealm.SOCIAL && socialSelectedPostForComments != null)
-                if (!isSocialBottomSuppressed) {
                 // Drawn before the bars so their own glass reads on top of it.
                 BottomFadeScrim(
                     withMiniPlayer = player.song != null,
@@ -3775,7 +3495,7 @@ private fun VibraMusicApp(
                     showSources = false
                     showListenTogether = false
                     showEqualizer = false
-        showWearOs = false
+                    showWearOs = false
                     showReplay = false
                     showHistory = false
                     showSpotifyLibrary = false
@@ -3787,24 +3507,6 @@ private fun VibraMusicApp(
                     if (index == TAB_SEARCH) {
                         viewModel.onQueryChange("")
                         searchFocusRequested = true
-                    }
-                }
-
-                val activeNavBarTabs = if (currentRealm == AppRealm.MUSIC) tabs else socialTabs
-                val activeNavBarIndex = if (currentRealm == AppRealm.MUSIC) selectedTab else socialNavTab.ordinal
-                val activeOnTabSelected: (Int) -> Unit = if (currentRealm == AppRealm.MUSIC) {
-                    onTabSelected
-                } else {
-                    { index ->
-                        viewingSocialProfile = null
-                        activeLeaderboardArtist = null
-                        socialViewModel.closeUserProfile()
-                        socialViewModel.closeChat()
-                        if (detail != null) {
-                            viewModel.closeDetail()
-                        }
-                        val tab = SocialTab.entries.getOrNull(index) ?: SocialTab.FEED
-                        socialViewModel.setNavTab(tab)
                     }
                 }
 
@@ -3822,9 +3524,9 @@ private fun VibraMusicApp(
                         )
                         QueueActionNoticeHost(queueNotice)
                         GlassNavBar(
-                            tabs = activeNavBarTabs,
-                            selectedIndex = activeNavBarIndex,
-                            onTabSelected = activeOnTabSelected,
+                            tabs = tabs,
+                            selectedIndex = selectedTab,
+                            onTabSelected = onTabSelected,
                             scrollConnection = navBarScroll,
                             song = player.song,
                             isPlaying = player.isPlaying,
@@ -3865,179 +3567,112 @@ private fun VibraMusicApp(
                                 },
                                 onNext = { controller?.seekToNextMediaItem() },
                                 onPrevious = { controller?.seekToPrevious() },
-                                onExpand = { showNowPlaying = true },
+                                onExpand = { playerSheetMotion.open() },
+                                dock = playerDock,
+                                pull = playerSheetMotion,
                                 controlsLocked = controlsLocked,
                                 onBlockedControl = showHostOnlyNotice,
                                 modifier = Modifier.fillMaxWidth(),
                             )
                             Spacer(Modifier.height(8.dp))
                         }
-                        if (currentRealm == AppRealm.SOCIAL) {
-                            SocialBottomBar(
-                                selectedTab = socialNavTab,
-                                onTabSelected = { tab ->
-                                    viewingSocialProfile = null
-                                    activeLeaderboardArtist = null
-                                    socialViewModel.closeUserProfile()
-                                    socialViewModel.closeChat()
-                                    if (detail != null) {
-                                        viewModel.closeDetail()
-                                    }
-                                    socialViewModel.setNavTab(tab)
-                                },
-                                hazeState = hazeState,
-                            )
-                        } else {
-                            FloatingBottomBar(
-                                tabs = tabs,
-                                selectedIndex = selectedTab,
-                                hazeState = hazeState,
-                                onTabSelected = onTabSelected,
-                            )
-                        }
+                        FloatingBottomBar(
+                            tabs = tabs,
+                            selectedIndex = selectedTab,
+                            hazeState = hazeState,
+                            onTabSelected = onTabSelected,
+                        )
                     }
-                }
                 }
             }
 
-        }
-    }
-
-        // ---- Active Music Quiz Overlay ----
-        if (quizGameState == QuizGameState.COUNTDOWN ||
-            quizGameState == QuizGameState.QUESTION_ACTIVE ||
-            quizGameState == QuizGameState.QUESTION_ANSWERED
-        ) {
-            ActiveQuizScreen(
-                viewModel = quizViewModel,
-                onAbandon = { quizViewModel.abandonQuiz() },
-                hazeState = hazeState,
-            )
-        }
-
-        // ---- Quiz Results Sheet ----
-        quizLastResult?.takeIf { quizGameState == QuizGameState.COMPLETED }?.let { result ->
-            QuizResultSheet(
-                result = result,
-                userHandle = socialProfile?.handle ?: "listener",
-                onDismiss = { quizViewModel.abandonQuiz() },
-                onPlayAgain = {
-                    quizViewModel.startQuizForArtist(
-                        artist = QuizArtist(result.artistId, result.artistName, result.artistArtworkUrl),
-                        onInsufficientLives = { quizShowLivesDialog = true },
-                    )
-                },
-                onViewLeaderboard = {
-                    activeLeaderboardArtist = QuizArtist(result.artistId, result.artistName, result.artistArtworkUrl)
-                    quizViewModel.abandonQuiz()
-                },
-            )
-        }
-
-        // ---- Quiz Lives Dialog ----
-        if (quizShowLivesDialog) {
-            QuizLivesDialog(
-                livesState = quizLivesState,
-                referralCode = socialProfile?.referralCode ?: "vibra_quiz",
-                onDismiss = { quizShowLivesDialog = false },
-            )
-        }
-
-        // ---- Social Notifications Sheet ----
-        if (socialIsNotificationsOpen) {
-            NotificationsSheet(
-                notifications = socialNotifications,
-                onDismiss = { socialViewModel.closeNotifications() },
-                onNotificationClick = { notification ->
-                    socialViewModel.markNotificationRead(notification.id)
-                    if (notification.type == NotificationType.MESSAGE) {
-                        val profile = SocialProfile(
-                            id = notification.actorId,
-                            handle = notification.actorHandle,
-                            displayName = notification.actorName,
-                            avatarUrl = notification.actorAvatar,
-                        )
-                        socialViewModel.openChat(profile)
-                        socialViewModel.setNavTab(SocialTab.MESSAGES)
-                        socialViewModel.closeNotifications()
-                    } else if (notification.targetPostId != null) {
-                        socialViewModel.openCommentsForPostId(notification.targetPostId)
-                        socialViewModel.closeNotifications()
-                    } else if (notification.actorId.isNotBlank()) {
-                        val profile = SocialProfile(
-                            id = notification.actorId,
-                            handle = notification.actorHandle,
-                            displayName = notification.actorName,
-                            avatarUrl = notification.actorAvatar,
-                        )
-                        socialViewModel.openUserProfile(profile)
-                        viewingSocialProfile = profile
-                        socialViewModel.closeNotifications()
-                    }
-                },
-                onMarkAllRead = {
-                    socialNotifications.filter { !it.isRead }.forEach { socialViewModel.markNotificationRead(it.id) }
-                },
-            )
         }
 
         val playerRaised = showNowPlaying && playerSong != null
 
         // ---- Now Playing ----
         if (playerRaised) {
-            val nowPlayingSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-            val sheetScope = rememberCoroutineScope()
-            LaunchedEffect(nowPlayingSheetState) {
-                dismissNowPlaying = {
-                    sheetScope.launch {
-                        try {
-                            nowPlayingSheetState.hide()
-                        } finally {
-                            showNowPlaying = false
-                        }
+            val sheetDensity = LocalDensity.current
+            val confirmSheetValue: (SheetValue) -> Boolean = remember(playerSheetMotion) {
+                { value ->
+                    if (value == SheetValue.Hidden) {
+                        playerSheetMotion.close()
+                        false
+                    } else {
+                        true
                     }
                 }
             }
-            DisposableEffect(Unit) {
+            val nowPlayingSheetState = rememberSaveable(
+                saver = SheetState.Saver(
+                    skipPartiallyExpanded = true,
+                    confirmValueChange = confirmSheetValue,
+                    density = sheetDensity,
+                    skipHiddenState = false,
+                ),
+            ) {
+                SheetState(
+                    skipPartiallyExpanded = true,
+                    density = sheetDensity,
+                    initialValue = if (playerSheetMotion.holding) SheetValue.Expanded else SheetValue.Hidden,
+                    confirmValueChange = confirmSheetValue,
+                )
+            }
+            DisposableEffect(nowPlayingSheetState) {
+                playerSheetMotion.sheet = nowPlayingSheetState
+                playerDock.sheetOffset = playerSheetMotion::position
+                dismissNowPlaying = { playerSheetMotion.close() }
                 onDispose {
+                    playerDock.sheetOffset = null
+                    playerSheetMotion.onSheetGone()
                     dismissNowPlaying = null
                 }
             }
             ModalBottomSheet(
                 onDismissRequest = { showNowPlaying = false },
                 sheetState = nowPlayingSheetState,
-                shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+                scrimColor = Color.Transparent,
+                shape = PlayerSheetShape,
                 containerColor = Color.Transparent,
                 dragHandle = null,
                 contentWindowInsets = { WindowInsets(0, 0, 0, 0) },
-                // M3 caps a bottom sheet at [BottomSheetDefaults.SheetMaxWidth]
-                // (640.dp) and centres it once the window is wider than that —
-                // built for a sheet that's meant to look like a sheet next to
-                // visible content either side. This one is the whole player;
-                // capped at 640dp on a tablet it renders as a narrow card with
-                // the page it's supposed to be covering visible down both
-                // sides. Unspecified opts out of the cap entirely, so the
-                // sheet always spans the full window this app draws it for.
                 sheetMaxWidth = Dp.Unspecified,
+                properties = ModalBottomSheetProperties(shouldDismissOnBackPress = false),
             ) {
-                val currentView = LocalView.current
-                DisposableEffect(currentView) {
-                    var parent = currentView.parent
-                    while (parent != null) {
-                        if (parent is androidx.compose.ui.window.DialogWindowProvider) {
-                            androidx.core.view.WindowCompat.setDecorFitsSystemWindows(parent.window, false)
-                            parent.window.statusBarColor = android.graphics.Color.TRANSPARENT
-                            parent.window.navigationBarColor = android.graphics.Color.TRANSPARENT
-                            break
-                        }
-                        parent = parent.parent
+                BackHandler { playerSheetMotion.close() }
+                val sheetWindow = (LocalView.current.parent as? DialogWindowProvider)?.window
+                DisposableEffect(sheetWindow) {
+                    playerSheetMotion.attachWindow(sheetWindow)
+                    sheetWindow?.let { win ->
+                        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(win, false)
+                        win.statusBarColor = android.graphics.Color.TRANSPARENT
+                        win.navigationBarColor = android.graphics.Color.TRANSPARENT
                     }
-                    onDispose {}
+                    onDispose { }
                 }
-                // Keeps a sheet still "settling" after a lyrics or queue
-                // scroll from taking the next touch meant for that list.
-                Box(Modifier.guardSheetFromContentTouches(nowPlayingSheetState)) {
-                    nowPlaying(playerSong)
+                Box(
+                    Modifier
+                        .offset { IntOffset(0, playerSheetMotion.contentOffsetPx()) }
+                        .drawBehind {
+                            val open = playerDock.openFraction()
+                            if (open > 0f && !(open >= 1f && playerDock.attached)) {
+                                val top = playerSheetMotion.position().takeUnless { it.isNaN() } ?: 0f
+                                drawRect(
+                                    color = Color.Black.copy(alpha = PLAYER_SCRIM_ALPHA * open),
+                                    topLeft = Offset(0f, -top.toInt().toFloat()),
+                                    size = Size(size.width, size.height),
+                                )
+                            }
+                        }
+                        .guardSheetFromContentTouches(nowPlayingSheetState)
+                        .onSizeChanged {
+                            playerDock.sheetTravel = it.height.toFloat()
+                            playerSheetMotion.laidOut = true
+                        },
+                ) {
+                    CompositionLocalProvider(LocalPlayerDock provides playerDock) {
+                        nowPlaying(playerSong)
+                    }
                 }
             }
         }
@@ -4392,7 +4027,7 @@ private fun VibraMusicApp(
         }
 
         songInfoTarget?.let { song ->
-            SongInfoSheet(
+            SongInfoDialog(
                 song = song,
                 onDismiss = { songInfoTarget = null },
             )

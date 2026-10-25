@@ -1303,5 +1303,64 @@
     <string name="spotify_login_manual_cookie" translatable="false">Use Cookie</string>
     <string name="saved_short">Saved</string>
     <string name="cover_background">Darkened cover background</string>
+    <string name="app_icon" translatable="false">App icon</string>
+    <string name="app_icon_default" translatable="false">Default</string>
+    <string name="app_icon_liquid_glass" translatable="false">Liquid Glass</string>
+    <string name="app_icon_liquid_glass_dark" translatable="false">Liquid Glass Dark</string>
+    <string name="app_icon_liquid_glass_clear" translatable="false">Liquid Glass Clear</string>
+    <string name="app_icon_liquid_glass_clear_dark" translatable="false">Liquid Glass Clear Dark</string>
+    <string name="app_icon_samsung_glass" translatable="false">Samsung Glass</string>
+    <string name="app_icon_samsung_glass_dark" translatable="false">Samsung Glass Dark</string>
+    <string name="app_icon_samsung_glass_clear" translatable="false">Samsung Glass Clear</string>
+    <string name="app_icon_samsung_glass_clear_dark" translatable="false">Samsung Glass Clear Dark</string>
+    <string name="app_icon_pixel_glass" translatable="false">Pixel Glass</string>
+    <string name="app_icon_pixel_glass_dark" translatable="false">Pixel Glass Dark</string>
+    <string name="app_icon_pixel_glass_clear" translatable="false">Pixel Glass Clear</string>
+    <string name="app_icon_pixel_glass_clear_dark" translatable="false">Pixel Glass Clear Dark</string>
+    <string name="song_info" translatable="false">Song Info</string>
+    <string name="song_info_album" translatable="false">Album</string>
+    <string name="song_info_release_date" translatable="false">Release date</string>
+    <string name="song_info_views" translatable="false">Plays / views</string>
+    <string name="song_info_likes" translatable="false">Likes</string>
+    <string name="song_info_comments" translatable="false">Comments</string>
+    <string name="song_info_unavailable" translatable="false">Not available</string>
+    <string name="song_info_error" translatable="false">Some information could not be loaded.</string>
+    <string name="song_info_retry" translatable="false">Retry</string>
+    <string name="signed_by" translatable="false">Signed by %1$s</string>
+
+    <!-- Wear OS -->
+    <string name="wear_os_section" translatable="false">Vibra Music for Wear OS</string>
+    <string name="wear_os_page_title" translatable="false">Wear OS</string>
+    <string name="wear_os_your_watches" translatable="false">Your watches</string>
+    <string name="wear_os_value_none" translatable="false">No watch</string>
+    <string name="wear_os_value_not_installed" translatable="false">Not installed</string>
+    <string name="wear_os_value_up_to_date" translatable="false">Up to date</string>
+    <string name="wear_os_looking" translatable="false">Looking for watches…</string>
+    <string name="wear_os_no_watch" translatable="false">No watch connected</string>
+    <string name="wear_os_no_watch_subtitle" translatable="false">Pair a Wear OS watch with this phone in its companion app first.</string>
+    <string name="wear_os_checking" translatable="false">Checking…</string>
+    <string name="wear_os_not_installed" translatable="false">Vibra Music is not on this watch</string>
+    <string name="wear_os_up_to_date" translatable="false">Up to date · %1$s</string>
+    <string name="wear_os_update_available" translatable="false">Update available</string>
+    <string name="wear_os_unknown" translatable="false">Installed · could not check the version</string>
+    <string name="wear_os_sending" translatable="false">Sending to your watch…</string>
+    <string name="wear_os_sent" translatable="false">Sent — finish on your watch if it asks</string>
+    <string name="wear_os_send_failed" translatable="false">Could not send the update (%1$s)</string>
+    <string name="wear_os_install" translatable="false">Install</string>
+    <string name="wear_os_update" translatable="false">Update</string>
+    <string name="wear_os_install_title" translatable="false">Install on your watch</string>
+    <string name="wear_os_step_wifi" translatable="false">Connect your watch to the same Wi-Fi as this phone.</string>
+    <string name="wear_os_step_developer" translatable="false">Turn on Developer options on the watch. Galaxy Watch: Settings -> About watch -> Software information -> tap Software version five times. Pixel Watch: Settings -> System -> About -> tap Build number seven times.</string>
+    <string name="wear_os_step_debugging" translatable="false">In Developer options, turn on ADB debugging and Wireless debugging.</string>
+    <string name="wear_os_step_pair" translatable="false">Tap Pair new device, then enter the six-digit code the watch shows.</string>
+    <string name="wear_os_searching" translatable="false">Looking for your watch on Wi-Fi…</string>
+    <string name="wear_os_found" translatable="false">Found your watch</string>
+    <string name="wear_os_pairing" translatable="false">Pairing…</string>
+    <string name="wear_os_installing" translatable="false">Installing Vibra Music on your watch…</string>
+    <string name="wear_os_installed" translatable="false">Installed. You can turn Wireless debugging off again.</string>
+    <string name="wear_os_failed" translatable="false">That did not work (%1$s). Check the code and try again.</string>
+    <string name="wear_os_unsupported" translatable="false">Installing on a watch needs Android 11 or later on this phone.</string>
+    <string name="wear_os_code_hint" translatable="false">Pairing code</string>
+    <string name="wear_os_done" translatable="false">Done</string>
 </resources>
 

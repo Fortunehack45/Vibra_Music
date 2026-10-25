@@ -24,6 +24,8 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
@@ -332,4 +334,7 @@ private fun Color.dimmed(): Color {
     hsl[2] = 0.10f
     return Color(ColorUtils.HSLToColor(hsl))
 }
+
+fun artworkMeshColors(bitmap: ImageBitmap): List<Color> = paletteOf(bitmap.asAndroidBitmap())
+
 

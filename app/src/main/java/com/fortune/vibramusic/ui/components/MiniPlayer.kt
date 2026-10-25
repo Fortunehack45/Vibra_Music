@@ -6,12 +6,16 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.drag
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -31,7 +35,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
@@ -41,11 +47,19 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.input.pointer.util.addPointerInputChange
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import com.fortune.vibramusic.data.model.ROW_ART_PX
 import com.fortune.vibramusic.data.model.Song
@@ -54,9 +68,12 @@ import com.fortune.vibramusic.data.settings.AppSettings
 import com.fortune.vibramusic.ui.components.thumbnailBorder
 import com.fortune.vibramusic.ui.haptics.Haptic
 import com.fortune.vibramusic.ui.haptics.rememberHaptics
+import com.fortune.vibramusic.ui.player.PlayerDock
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
 import dev.chrisbanes.haze.materials.HazeMaterials
+import kotlin.math.abs
+import kotlin.math.sqrt
 
 /**
  * The transport buttons' touch target. Material's default 48dp is what a bar
@@ -123,6 +140,126 @@ private val ART_CORNER = 8.dp
 /** Distance that makes a horizontal drag an intentional track change. */
 private val TRACK_SWIPE_THRESHOLD = 72.dp
 
+private val PULL_LIFT_EASE = 72.dp
+private const val PULL_LIFT_RATE = 0.5f
+private const val PULL_BIAS = 1.5f
+
+private fun pullLift(pulled: Float, ease: Float): Float =
+    if (pulled <= 0f || ease <= 0f) {
+        0f
+    } else {
+        PULL_LIFT_RATE * 2f * ease * (sqrt(1f + pulled / ease) - 1f)
+    }
+
+interface MiniPlayerPull {
+    fun drag(delta: Float)
+    fun release(velocity: Float)
+}
+
+@Composable
+internal fun Modifier.miniPlayerGestures(
+    pull: MiniPlayerPull?,
+    onNext: () -> Unit,
+    onPrevious: () -> Unit,
+    /** Listening in a party whose host holds the controls. Swipes say so instead of skipping. */
+    locked: Boolean = false,
+    onBlocked: () -> Unit = {},
+): Modifier {
+    val currentPull by rememberUpdatedState(pull)
+    val currentOnNext by rememberUpdatedState(onNext)
+    val currentOnPrevious by rememberUpdatedState(onPrevious)
+    val currentLocked by rememberUpdatedState(locked)
+    val currentOnBlocked by rememberUpdatedState(onBlocked)
+    val scope = rememberCoroutineScope()
+    val lift = remember { mutableFloatStateOf(0f) }
+    val settle = remember { arrayOfNulls<Job>(1) }
+    return pointerInput(Unit) {
+        val trackThreshold = TRACK_SWIPE_THRESHOLD.toPx()
+        val liftEase = PULL_LIFT_EASE.toPx()
+        val maxVelocity = viewConfiguration.maximumFlingVelocity
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false)
+            val pointer = down.id
+            var start: PointerInputChange? = null
+            var vertical = false
+            while (start == null) {
+                val change = awaitPointerEvent().changes.firstOrNull { it.id == pointer }
+                    ?: return@awaitEachGesture
+                if (!change.pressed || change.isConsumed) return@awaitEachGesture
+                val moved = change.position - down.position
+                if (moved.getDistance() < viewConfiguration.touchSlop) continue
+                vertical = moved.y < 0f && abs(moved.x) < -moved.y * PULL_BIAS
+                if (!vertical && abs(moved.x) < abs(moved.y)) return@awaitEachGesture
+                if (vertical && currentPull == null) return@awaitEachGesture
+                change.consume()
+                start = change
+            }
+            val slopped = start ?: return@awaitEachGesture
+
+            if (!vertical) {
+                var dragged = slopped.position.x - down.position.x
+                val finished = drag(pointer) { change ->
+                    dragged += change.positionChange().x
+                    change.consume()
+                }
+                if (!finished) return@awaitEachGesture
+                val crossed = dragged <= -trackThreshold || dragged >= trackThreshold
+                when {
+                    currentLocked -> if (crossed) currentOnBlocked()
+                    dragged <= -trackThreshold -> currentOnNext()
+                    dragged >= trackThreshold -> currentOnPrevious()
+                }
+                return@awaitEachGesture
+            }
+
+            val target = currentPull ?: return@awaitEachGesture
+            settle[0]?.cancel()
+            val tracker = VelocityTracker()
+            tracker.addPointerInputChange(down)
+            tracker.addPointerInputChange(slopped)
+            target.drag(slopped.position.y - down.position.y)
+            var pulled = 0f
+            val finished = drag(pointer) { change ->
+                val delta = change.positionChange().y
+                change.consume()
+                tracker.addPointerInputChange(change)
+                pulled -= delta
+                target.drag(delta)
+                lift.floatValue = pullLift(pulled, liftEase)
+            }
+            target.release(
+                if (finished) tracker.calculateVelocity().y.coerceIn(-maxVelocity, maxVelocity) else 0f,
+            )
+            val from = lift.floatValue
+            settle[0] = scope.launch {
+                animate(
+                    initialValue = from,
+                    targetValue = 0f,
+                    animationSpec = spring(
+                        dampingRatio = 0.65f,
+                        stiffness = Spring.StiffnessMediumLow,
+                    ),
+                ) { value, _ -> lift.floatValue = value }
+            }
+        }
+    }.graphicsLayer { translationY = -lift.floatValue }
+}
+
+@Composable
+internal fun Modifier.playerDockArt(dock: PlayerDock?, corner: Dp): Modifier {
+    if (dock == null) return this
+    val placed = remember { arrayOfNulls<LayoutCoordinates>(1) }
+    DisposableEffect(dock) {
+        onDispose { placed[0]?.let(dock::releaseMiniArt) }
+    }
+    return this
+        .onPlaced { coordinates ->
+            placed[0] = coordinates
+            dock.reportMiniArt(coordinates, corner)
+        }
+        .graphicsLayer { alpha = if (dock.coversMiniArt) 0f else 1f }
+}
+
 /**
  * Shared gesture for both mini-player materials. A left swipe advances through
  * the queue; a right swipe goes back, matching the full player's artwork
@@ -139,9 +276,6 @@ internal fun Modifier.miniPlayerTrackSwipe(
     onBlocked: () -> Unit = {},
 ): Modifier {
     val coroutineScope = rememberCoroutineScope()
-    // Playback state updates can recompose the bar while a finger is down.
-    // Keep the gesture coroutine alive through those updates while still
-    // dispatching to the latest controller callbacks when the drag finishes.
     val currentOnNext by rememberUpdatedState(onNext)
     val currentOnPrevious by rememberUpdatedState(onPrevious)
     val currentLocked by rememberUpdatedState(locked)
@@ -199,19 +333,29 @@ fun MiniPlayer(
     /** @see com.fortune.vibramusic.data.listentogether.ListenTogether.State.controlsLocked */
     controlsLocked: Boolean = false,
     onBlockedControl: () -> Unit = {},
+    dock: PlayerDock? = null,
+    pull: MiniPlayerPull? = null,
     modifier: Modifier = Modifier,
 ) {
     val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
     val haptics = rememberHaptics()
-    val swipeOffset = remember { Animatable(0f) }
-    // percent rather than a dp figure, so the corner stays exactly half the
-    // height if the row's contents ever change it — which is what keeps a pill
-    // a pill instead of a rounded rectangle. Same idiom as [FloatingBottomBar]
-    // directly below it, so the two shapes are the same family.
     val shape = RoundedCornerShape(percent = 50)
     Box(
         modifier = modifier
             .padding(horizontal = PAGE_GUTTER)
+            .miniPlayerGestures(
+                pull = pull,
+                onNext = {
+                    haptics.play(Haptic.SkipNext)
+                    onNext()
+                },
+                onPrevious = {
+                    haptics.play(Haptic.SkipPrevious)
+                    onPrevious()
+                },
+                locked = controlsLocked,
+                onBlocked = onBlockedControl,
+            )
             .clip(shape)
             .then(
                 if (reduceDynamicBlur) {
@@ -224,28 +368,11 @@ fun MiniPlayer(
                 },
             )
             .border(0.5.dp, Color.White.copy(alpha = 0.10f), shape)
-            // Deliberately silent: the whole bar is the target, so it catches
-            // stray taps meant for the page behind it, and the sheet rising is
-            // its own confirmation. The glyphs on it still buzz.
-            .clickable(onClick = onExpand)
-            .miniPlayerTrackSwipe(
-                swipeOffset = swipeOffset,
-                onNext = {
-                    haptics.play(Haptic.SkipNext)
-                    onNext()
-                },
-                onPrevious = {
-                    haptics.play(Haptic.SkipPrevious)
-                    onPrevious()
-                },
-                locked = controlsLocked,
-                onBlocked = onBlockedControl,
-            ),
+            .clickable(onClick = onExpand),
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .graphicsLayer { translationX = swipeOffset.value }
                 .padding(
                     horizontal = ROW_PADDING_HORIZONTAL,
                     vertical = ROW_PADDING_VERTICAL,
@@ -257,6 +384,7 @@ fun MiniPlayer(
                 contentDescription = null,
                 modifier = Modifier
                     .size(40.dp)
+                    .playerDockArt(dock, ART_CORNER)
                     .clip(RoundedCornerShape(ART_CORNER))
                     .thumbnailBorder(RoundedCornerShape(ART_CORNER))
                     .background(MaterialTheme.colorScheme.surfaceVariant),

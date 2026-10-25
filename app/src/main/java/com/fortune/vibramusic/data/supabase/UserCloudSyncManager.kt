@@ -6,6 +6,7 @@ import com.fortune.vibramusic.data.LocalLikesStore
 import com.fortune.vibramusic.data.LocalPlaylistsStore
 import com.fortune.vibramusic.data.model.LikeStatus
 import com.fortune.vibramusic.data.model.Song
+import com.fortune.vibramusic.data.model.UserListeningExperience
 import com.fortune.vibramusic.data.model.UserPlaylist
 import com.fortune.vibramusic.data.settings.AppSettings
 import com.fortune.vibramusic.data.settings.AudioQuality

@@ -39,7 +39,7 @@ enum class LyricCardAlignment(val label: String) {
 }
 
 enum class LyricCardRatio(val label: String, val width: Int, val height: Int, val ratio: Float) {
-    CARD_3_4("Card (3:4)", 1080, 1440, 3f / 4f),
+    SQUARE_1_1("Square (1:1)", 1080, 1080, 1f),
     STORY_9_16("Story (9:16)", 1080, 1920, 9f / 16f),
 }
 
@@ -50,7 +50,7 @@ data class LyricShareConfig(
     val palette: LyricCardPalette = LyricCardPalette.ARTWORK,
     val font: LyricCardFont = LyricCardFont.SF_PRO,
     val alignment: LyricCardAlignment = LyricCardAlignment.LEFT,
-    val ratio: LyricCardRatio = LyricCardRatio.CARD_3_4,
+    val ratio: LyricCardRatio = LyricCardRatio.SQUARE_1_1,
     val showArtwork: Boolean = true,
     val useCoverBackground: Boolean = false,
 )

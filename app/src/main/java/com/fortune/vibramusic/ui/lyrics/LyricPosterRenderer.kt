@@ -30,81 +30,24 @@ import kotlinx.coroutines.withContext
 object LyricPosterRenderer {
 
     const val POSTER_WIDTH = 1080
-    const val POSTER_HEIGHT = 1440
-
-    private const val MARGIN = 88f
+    const val POSTER_HEIGHT = 1080
 
     suspend fun render(
         context: Context,
         config: LyricShareConfig,
     ): Bitmap = withContext(Dispatchers.IO) {
-        // Resolve typography font first so full-bleed lyrics cards can size their height to the text
         val mainTypeface = resolveTypeface(context, config.font)
 
-        val isFullBleedLyrics =
-            config.cardStyle == LyricCardStyle.LYRICS_CARD && config.ratio == LyricCardRatio.CARD_3_4
-
         val posterWidth = config.ratio.width
-        val posterHeight = if (isFullBleedLyrics) {
-            measureFullBleedLyricsHeight(config, mainTypeface, posterWidth)
-        } else {
-            config.ratio.height
-        }
+        val posterHeight = config.ratio.height
 
         val bitmap = Bitmap.createBitmap(posterWidth, posterHeight, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
 
-        // Load artwork if present (support remote thumbnailUrl, localUri, or fallback)
         val artSource = config.song.thumbnailUrl ?: config.song.localUri
         val coverArt = artSource?.let { loadBitmap(context, it) }?.let { ensureSoftwareBitmap(it) }
 
-        // Determine theme colors from palette or population-weighted album cover theme
         val (topColor, bottomColor) = resolveColors(config.palette, coverArt)
-
-        if (isFullBleedLyrics && config.useCoverBackground && coverArt != null) {
-            drawDarkenedCoverSurface(
-                canvas = canvas,
-                coverArt = coverArt,
-                rect = RectF(0f, 0f, posterWidth.toFloat(), posterHeight.toFloat()),
-                cornerRadius = 0f,
-            )
-        } else {
-            val bgTop = if (!isFullBleedLyrics && config.cardStyle == LyricCardStyle.LYRICS_CARD) {
-                ColorUtils.blendARGB(topColor, Color.BLACK, 0.28f)
-            } else {
-                topColor
-            }
-            val bgBottom = if (!isFullBleedLyrics && config.cardStyle == LyricCardStyle.LYRICS_CARD) {
-                ColorUtils.blendARGB(bottomColor, Color.BLACK, 0.42f)
-            } else {
-                bottomColor
-            }
-            val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                shader = LinearGradient(
-                    0f, 0f, 0f, posterHeight.toFloat(),
-                    intArrayOf(
-                        bgTop,
-                        ColorUtils.blendARGB(bgTop, bgBottom, 0.55f),
-                        bgBottom,
-                    ),
-                    floatArrayOf(0f, 0.58f, 1f),
-                    Shader.TileMode.CLAMP,
-                )
-            }
-            canvas.drawRect(0f, 0f, posterWidth.toFloat(), posterHeight.toFloat(), bgPaint)
-
-            // Subtle specular glow on top
-            val glowHeight = (posterHeight * 0.35f).coerceAtMost(440f)
-            val glowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                shader = LinearGradient(
-                    0f, 0f, 0f, glowHeight,
-                    Color.argb(26, 255, 255, 255),
-                    Color.TRANSPARENT,
-                    Shader.TileMode.CLAMP,
-                )
-            }
-            canvas.drawRect(0f, 0f, posterWidth.toFloat(), glowHeight, glowPaint)
-        }
 
         when (config.cardStyle) {
             LyricCardStyle.LYRICS_CARD -> drawLyricsCard(
@@ -118,15 +61,34 @@ object LyricPosterRenderer {
                 topColor = topColor,
                 bottomColor = bottomColor,
             )
-            LyricCardStyle.SONG_CARD -> drawSongCard(
-                context = context,
-                canvas = canvas,
-                config = config,
-                coverArt = coverArt,
-                typeface = mainTypeface,
-                posterWidth = posterWidth,
-                posterHeight = posterHeight,
-            )
+            LyricCardStyle.SONG_CARD -> {
+                // Background for song card
+                val bgTop = ColorUtils.blendARGB(topColor, Color.BLACK, 0.28f)
+                val bgBottom = ColorUtils.blendARGB(bottomColor, Color.BLACK, 0.42f)
+                val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    shader = LinearGradient(
+                        0f, 0f, 0f, posterHeight.toFloat(),
+                        intArrayOf(
+                            bgTop,
+                            ColorUtils.blendARGB(bgTop, bgBottom, 0.55f),
+                            bgBottom,
+                        ),
+                        floatArrayOf(0f, 0.58f, 1f),
+                        Shader.TileMode.CLAMP,
+                    )
+                }
+                canvas.drawRect(0f, 0f, posterWidth.toFloat(), posterHeight.toFloat(), bgPaint)
+
+                drawSongCard(
+                    context = context,
+                    canvas = canvas,
+                    config = config,
+                    coverArt = coverArt,
+                    typeface = mainTypeface,
+                    posterWidth = posterWidth,
+                    posterHeight = posterHeight,
+                )
+            }
         }
 
         bitmap
@@ -161,19 +123,8 @@ object LyricPosterRenderer {
             canvas.drawRect(rect, artPaint)
         }
 
-        // Multi-stop darkened scrim so cover art is rich yet lyrics are high-contrast
         val scrimPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            this.shader = LinearGradient(
-                0f, rect.top, 0f, rect.bottom,
-                intArrayOf(
-                    Color.argb(185, 6, 6, 10),
-                    Color.argb(148, 8, 8, 12),
-                    Color.argb(156, 8, 8, 12),
-                    Color.argb(198, 6, 6, 10),
-                ),
-                floatArrayOf(0f, 0.28f, 0.72f, 1f),
-                Shader.TileMode.CLAMP,
-            )
+            color = Color.argb(175, 12, 12, 16)
         }
         if (cornerRadius > 0f) {
             canvas.drawRoundRect(rect, cornerRadius, cornerRadius, scrimPaint)
@@ -190,14 +141,19 @@ object LyricPosterRenderer {
         y: Float,
         iconSize: Float = 36f,
         textSize: Float = 26f,
+        color: Int = Color.WHITE,
         alpha: Int = 220,
     ) {
         val logo = runCatching {
             ResourcesCompat.getDrawable(context.resources, R.drawable.ic_logo, null)
         }.getOrNull()
 
+        val r = Color.red(color)
+        val g = Color.green(color)
+        val b = Color.blue(color)
+
         if (logo != null) {
-            logo.setTint(Color.argb(alpha, 255, 255, 255))
+            logo.setTint(Color.argb(alpha, r, g, b))
             logo.setBounds(
                 x.toInt(),
                 y.toInt(),
@@ -210,7 +166,7 @@ object LyricPosterRenderer {
         val brandPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             this.typeface = typeface
             this.textSize = textSize
-            this.color = Color.argb(alpha, 255, 255, 255)
+            this.color = Color.argb(alpha, r, g, b)
             letterSpacing = 0.04f
         }
         val fontMetrics = brandPaint.fontMetrics
@@ -232,8 +188,8 @@ object LyricPosterRenderer {
         val lines = config.selectedLines.take(5)
         if (lines.isEmpty()) return
 
-        if (config.ratio == LyricCardRatio.CARD_3_4) {
-            drawFullBleedLyricsCard(
+        if (config.ratio == LyricCardRatio.SQUARE_1_1) {
+            drawSquareLyricsCard(
                 context = context,
                 canvas = canvas,
                 config = config,
@@ -242,25 +198,146 @@ object LyricPosterRenderer {
                 typeface = typeface,
                 posterWidth = posterWidth,
                 posterHeight = posterHeight,
+                topColor = topColor,
+                bottomColor = bottomColor,
             )
-            return
+        } else {
+            drawStoryLyricsCard(
+                context = context,
+                canvas = canvas,
+                config = config,
+                lines = lines,
+                coverArt = coverArt,
+                typeface = typeface,
+                posterWidth = posterWidth,
+                posterHeight = posterHeight,
+                topColor = topColor,
+                bottomColor = bottomColor,
+            )
+        }
+    }
+
+    /**
+     * 1:1 Square Lyrics Card (1080x1080) with balanced vertical centering,
+     * matching the clean square format.
+     */
+    private fun drawSquareLyricsCard(
+        context: Context,
+        canvas: Canvas,
+        config: LyricShareConfig,
+        lines: List<String>,
+        coverArt: Bitmap?,
+        typeface: Typeface,
+        posterWidth: Int,
+        posterHeight: Int,
+        topColor: Int,
+        bottomColor: Int,
+    ) {
+        val cardRect = RectF(0f, 0f, posterWidth.toFloat(), posterHeight.toFloat())
+        val cornerRadius = 56f
+
+        // 1. Draw Card Surface
+        if (config.useCoverBackground && coverArt != null) {
+            drawDarkenedCoverSurface(canvas, coverArt, cardRect, cornerRadius)
+        } else {
+            val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                shader = LinearGradient(
+                    0f, 0f, 0f, posterHeight.toFloat(),
+                    intArrayOf(
+                        topColor,
+                        ColorUtils.blendARGB(topColor, bottomColor, 0.55f),
+                        bottomColor,
+                    ),
+                    floatArrayOf(0f, 0.58f, 1f),
+                    Shader.TileMode.CLAMP,
+                )
+            }
+            canvas.drawRoundRect(cardRect, cornerRadius, cornerRadius, bgPaint)
+
+            // Subtle specular glow on top
+            val glowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                shader = LinearGradient(
+                    0f, 0f, 0f, 380f,
+                    Color.argb(22, 255, 255, 255),
+                    Color.TRANSPARENT,
+                    Shader.TileMode.CLAMP,
+                )
+            }
+            canvas.drawRoundRect(cardRect, cornerRadius, cornerRadius, glowPaint)
         }
 
-        // Story (9:16): centered Spotify-style card inside the vertical story canvas
-        val cardWidth = 900f
-        val cardLeft = (posterWidth - cardWidth) / 2f
-        val cardPadding = 60f
-        val innerWidth = cardWidth - (cardPadding * 2f)
+        // Card Border highlight
+        val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 2.5f
+            color = Color.argb(40, 255, 255, 255)
+        }
+        canvas.drawRoundRect(cardRect, cornerRadius, cornerRadius, borderPaint)
 
-        val thumbSize = 108f
-        val headerHeight = if (config.showArtwork) thumbSize else 88f
+        // 2. Luminance-adaptive text color
+        val isLightBg = !config.useCoverBackground && ColorUtils.calculateLuminance(topColor) > 0.45
+        val textColor = if (isLightBg) Color.parseColor("#101216") else Color.WHITE
+        val subtitleColor = if (isLightBg) Color.argb(190, 16, 18, 22) else Color.argb(205, 255, 255, 255)
+        val brandColor = if (isLightBg) Color.parseColor("#101216") else Color.WHITE
+        val brandAlpha = if (isLightBg) 220 else 238
 
+        val pad = 80f
+        val innerWidth = posterWidth - (pad * 2f)
+
+        // 3. Header (Top)
+        val headerY = pad
+        val thumbSize = 116f
+        val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            this.typeface = typeface
+            textSize = 44f
+            color = textColor
+            if (!isLightBg && config.useCoverBackground) {
+                setShadowLayer(10f, 0f, 3f, Color.argb(120, 0, 0, 0))
+            }
+        }
+        val artistPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            this.typeface = typeface
+            textSize = 30f
+            color = subtitleColor
+            if (!isLightBg && config.useCoverBackground) {
+                setShadowLayer(10f, 0f, 3f, Color.argb(120, 0, 0, 0))
+            }
+        }
+
+        val headerBottom: Float
+        if (config.showArtwork) {
+            if (coverArt != null) {
+                drawSquircleArtwork(canvas, coverArt, pad, headerY, thumbSize, cornerRadius = 24f)
+            } else {
+                drawFallbackArtwork(canvas, config.song.title, pad, headerY, thumbSize, cornerRadius = 24f)
+            }
+            val textLeft = pad + thumbSize + 26f
+            val maxTextWidth = innerWidth - thumbSize - 26f
+
+            canvas.drawText(ellipsised(config.song.title, titlePaint, maxTextWidth), textLeft, headerY + 48f, titlePaint)
+            canvas.drawText(ellipsised(config.song.artist, artistPaint, maxTextWidth), textLeft, headerY + 92f, artistPaint)
+            headerBottom = headerY + thumbSize
+        } else {
+            val textLeft = pad
+            val maxTextWidth = innerWidth
+
+            canvas.drawText(ellipsised(config.song.title, titlePaint, maxTextWidth), textLeft, headerY + 42f, titlePaint)
+            canvas.drawText(ellipsised(config.song.artist, artistPaint, maxTextWidth), textLeft, headerY + 84f, artistPaint)
+            headerBottom = headerY + 90f
+        }
+
+        // 4. Footer (Bottom)
+        val footerIconSize = 42f
+        val footerY = posterHeight - pad - footerIconSize
+
+        // 5. Middle Lyrics - Vertically Centered in Square
+        val availableSpace = footerY - headerBottom
         val (baseFontSize, lineSpacingMult) = when (lines.size) {
-            1 -> Pair(72f, 1.14f)
-            2 -> Pair(64f, 1.14f)
+            1 -> Pair(72f, 1.16f)
+            2 -> Pair(64f, 1.15f)
             3 -> Pair(56f, 1.14f)
             4 -> Pair(50f, 1.13f)
-            else -> Pair(46f, 1.12f)
+            else -> Pair(44f, 1.12f)
         }
 
         val fullLyricsText = lines.joinToString("\n")
@@ -273,13 +350,14 @@ object LyricPosterRenderer {
         val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             this.typeface = typeface
             textSize = baseFontSize
-            color = Color.WHITE
+            color = textColor
             letterSpacing = -0.015f
-            if (config.useCoverBackground && coverArt != null) {
-                setShadowLayer(14f, 0f, 4f, Color.argb(130, 0, 0, 0))
+            if (!isLightBg && config.useCoverBackground && coverArt != null) {
+                setShadowLayer(14f, 0f, 4f, Color.argb(135, 0, 0, 0))
             }
         }
 
+        var fontSize = baseFontSize
         var textLayout = StaticLayout.Builder.obtain(
             fullLyricsText, 0, fullLyricsText.length, textPaint, innerWidth.toInt()
         )
@@ -288,15 +366,10 @@ object LyricPosterRenderer {
             .setIncludePad(false)
             .build()
 
-        val gapBeforeLyrics = 38f
-        val gapAfterLyrics = 40f
-        val footerHeight = 38f
-        val maxCardHeight = posterHeight - 240f
-        val maxLyricsHeight = maxCardHeight - (cardPadding * 2f + headerHeight + gapBeforeLyrics + gapAfterLyrics + footerHeight)
-        var currentFontSize = baseFontSize
-        while (textLayout.height > maxLyricsHeight && currentFontSize > 34f) {
-            currentFontSize -= 3f
-            textPaint.textSize = currentFontSize
+        val maxAllowedLyricsHeight = availableSpace - 50f
+        while (textLayout.height > maxAllowedLyricsHeight && fontSize > 30f) {
+            fontSize -= 2f
+            textPaint.textSize = fontSize
             textLayout = StaticLayout.Builder.obtain(
                 fullLyricsText, 0, fullLyricsText.length, textPaint, innerWidth.toInt()
             )
@@ -306,21 +379,68 @@ object LyricPosterRenderer {
                 .build()
         }
 
-        val contentHeight = cardPadding + headerHeight + gapBeforeLyrics + textLayout.height + gapAfterLyrics + footerHeight + cardPadding
-        val cardHeight = contentHeight.coerceAtMost(maxCardHeight)
+        val lyricsTop = headerBottom + (availableSpace - textLayout.height) / 2f
+        canvas.save()
+        canvas.translate(pad, lyricsTop)
+        textLayout.draw(canvas)
+        canvas.restore()
 
-        val cardTop = (posterHeight - cardHeight) / 2f
-        val cardRect = RectF(cardLeft, cardTop, cardLeft + cardWidth, cardTop + cardHeight)
+        drawBrandBadge(
+            context = context,
+            canvas = canvas,
+            typeface = typeface,
+            x = pad,
+            y = footerY,
+            iconSize = footerIconSize,
+            textSize = 28f,
+            color = brandColor,
+            alpha = brandAlpha,
+        )
+    }
 
-        // Drop shadow behind story card
+    /**
+     * Story (9:16) format with a centered SQUARE card (920x920) inside the vertical canvas.
+     */
+    private fun drawStoryLyricsCard(
+        context: Context,
+        canvas: Canvas,
+        config: LyricShareConfig,
+        lines: List<String>,
+        coverArt: Bitmap?,
+        typeface: Typeface,
+        posterWidth: Int,
+        posterHeight: Int,
+        topColor: Int,
+        bottomColor: Int,
+    ) {
+        val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            shader = LinearGradient(
+                0f, 0f, 0f, posterHeight.toFloat(),
+                intArrayOf(
+                    ColorUtils.blendARGB(topColor, Color.BLACK, 0.28f),
+                    ColorUtils.blendARGB(bottomColor, Color.BLACK, 0.42f),
+                ),
+                floatArrayOf(0f, 1f),
+                Shader.TileMode.CLAMP,
+            )
+        }
+        canvas.drawRect(0f, 0f, posterWidth.toFloat(), posterHeight.toFloat(), bgPaint)
+
+        // Centered SQUARE card inside the 9:16 canvas: 920x920
+        val cardSize = 920f
+        val cardLeft = (posterWidth - cardSize) / 2f
+        val cardTop = (posterHeight - cardSize) / 2f
+        val cardRect = RectF(cardLeft, cardTop, cardLeft + cardSize, cardTop + cardSize)
+        val cornerRadius = 48f
+
         val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.argb(85, 0, 0, 0)
             setShadowLayer(48f, 0f, 22f, Color.argb(120, 0, 0, 0))
         }
-        canvas.drawRoundRect(cardRect, 44f, 44f, shadowPaint)
+        canvas.drawRoundRect(cardRect, cornerRadius, cornerRadius, shadowPaint)
 
         if (config.useCoverBackground && coverArt != null) {
-            drawDarkenedCoverSurface(canvas, coverArt, cardRect, 44f)
+            drawDarkenedCoverSurface(canvas, coverArt, cardRect, cornerRadius)
         } else {
             val cardBgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 shader = LinearGradient(
@@ -330,82 +450,78 @@ object LyricPosterRenderer {
                     Shader.TileMode.CLAMP,
                 )
             }
-            canvas.drawRoundRect(cardRect, 44f, 44f, cardBgPaint)
+            canvas.drawRoundRect(cardRect, cornerRadius, cornerRadius, cardBgPaint)
         }
 
-        // Specular highlight border
-        val cardBorderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
             strokeWidth = 2.5f
             color = Color.argb(48, 255, 255, 255)
         }
-        canvas.drawRoundRect(cardRect, 44f, 44f, cardBorderPaint)
+        canvas.drawRoundRect(cardRect, cornerRadius, cornerRadius, borderPaint)
 
-        val headerY = cardTop + cardPadding
+        val isLightBg = !config.useCoverBackground && ColorUtils.calculateLuminance(topColor) > 0.45
+        val textColor = if (isLightBg) Color.parseColor("#101216") else Color.WHITE
+        val subtitleColor = if (isLightBg) Color.argb(190, 16, 18, 22) else Color.argb(205, 255, 255, 255)
+        val brandColor = if (isLightBg) Color.parseColor("#101216") else Color.WHITE
+        val brandAlpha = if (isLightBg) 220 else 238
+
+        val cardPad = 64f
+        val innerWidth = cardSize - (cardPad * 2f)
+
+        // Header
+        val headerY = cardTop + cardPad
+        val thumbSize = 104f
         val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             this.typeface = typeface
             textSize = 40f
-            color = Color.WHITE
+            color = textColor
+            if (!isLightBg && config.useCoverBackground) {
+                setShadowLayer(10f, 0f, 3f, Color.argb(120, 0, 0, 0))
+            }
         }
         val artistPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             this.typeface = typeface
             textSize = 28f
-            color = Color.argb(205, 255, 255, 255)
+            color = subtitleColor
+            if (!isLightBg && config.useCoverBackground) {
+                setShadowLayer(10f, 0f, 3f, Color.argb(120, 0, 0, 0))
+            }
         }
 
         val headerBottom: Float
         if (config.showArtwork) {
-            val thumbX = cardLeft + cardPadding
+            val thumbX = cardLeft + cardPad
             if (coverArt != null) {
                 drawSquircleArtwork(canvas, coverArt, thumbX, headerY, thumbSize, cornerRadius = 22f)
             } else {
                 drawFallbackArtwork(canvas, config.song.title, thumbX, headerY, thumbSize, cornerRadius = 22f)
             }
             val textLeft = thumbX + thumbSize + 24f
-            val maxTextWidth = cardWidth - (cardPadding * 2f) - thumbSize - 24f
+            val maxTextWidth = innerWidth - thumbSize - 24f
 
-            canvas.drawText(ellipsised(config.song.title, titlePaint, maxTextWidth), textLeft, headerY + 46f, titlePaint)
-            canvas.drawText(ellipsised(config.song.artist, artistPaint, maxTextWidth), textLeft, headerY + 86f, artistPaint)
+            canvas.drawText(ellipsised(config.song.title, titlePaint, maxTextWidth), textLeft, headerY + 44f, titlePaint)
+            canvas.drawText(ellipsised(config.song.artist, artistPaint, maxTextWidth), textLeft, headerY + 84f, artistPaint)
             headerBottom = headerY + thumbSize
         } else {
-            val textLeft = cardLeft + cardPadding
-            val maxTextWidth = cardWidth - (cardPadding * 2f)
+            val textLeft = cardLeft + cardPad
+            val maxTextWidth = innerWidth
 
-            canvas.drawText(ellipsised(config.song.title, titlePaint, maxTextWidth), textLeft, headerY + 40f, titlePaint)
-            canvas.drawText(ellipsised(config.song.artist, artistPaint, maxTextWidth), textLeft, headerY + 78f, artistPaint)
-            headerBottom = headerY + 88f
+            canvas.drawText(ellipsised(config.song.title, titlePaint, maxTextWidth), textLeft, headerY + 38f, titlePaint)
+            canvas.drawText(ellipsised(config.song.artist, artistPaint, maxTextWidth), textLeft, headerY + 76f, artistPaint)
+            headerBottom = headerY + 82f
         }
 
-        val lyricsTop = headerBottom + gapBeforeLyrics
-        canvas.save()
-        canvas.translate(cardLeft + cardPadding, lyricsTop)
-        textLayout.draw(canvas)
-        canvas.restore()
+        val footerIconSize = 38f
+        val footerY = cardTop + cardSize - cardPad - footerIconSize
 
-        val footerY = lyricsTop + textLayout.height + gapAfterLyrics
-        drawBrandBadge(context, canvas, typeface, cardLeft + cardPadding, footerY, iconSize = 38f, textSize = 27f, alpha = 235)
-    }
-
-    private const val FULL_BLEED_PAD = 64f
-    private const val FULL_BLEED_THUMB_SIZE = 112f
-    private const val FULL_BLEED_HEADER_NO_ART = 92f
-    private const val FULL_BLEED_GAP_BEFORE_LYRICS = 38f
-    private const val FULL_BLEED_GAP_AFTER_LYRICS = 40f
-    private const val FULL_BLEED_FOOTER_ICON = 40f
-
-    private fun buildFullBleedLyricsLayout(
-        config: LyricShareConfig,
-        lines: List<String>,
-        typeface: Typeface,
-        innerWidth: Float,
-        withShadow: Boolean,
-    ): StaticLayout {
-        val (initialFontSize, lineSpacingMult) = when (lines.size) {
-            1 -> Pair(74f, 1.14f)
-            2 -> Pair(66f, 1.14f)
-            3 -> Pair(58f, 1.13f)
-            4 -> Pair(52f, 1.12f)
-            else -> Pair(48f, 1.12f)
+        val availableSpace = footerY - headerBottom
+        val (baseFontSize, lineSpacingMult) = when (lines.size) {
+            1 -> Pair(68f, 1.15f)
+            2 -> Pair(60f, 1.14f)
+            3 -> Pair(52f, 1.13f)
+            4 -> Pair(46f, 1.12f)
+            else -> Pair(42f, 1.12f)
         }
 
         val fullLyricsText = lines.joinToString("\n")
@@ -417,15 +533,15 @@ object LyricPosterRenderer {
 
         val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             this.typeface = typeface
-            textSize = initialFontSize
-            color = Color.WHITE
+            textSize = baseFontSize
+            color = textColor
             letterSpacing = -0.015f
-            if (withShadow) {
-                setShadowLayer(16f, 0f, 4f, Color.argb(145, 0, 0, 0))
+            if (!isLightBg && config.useCoverBackground && coverArt != null) {
+                setShadowLayer(14f, 0f, 4f, Color.argb(135, 0, 0, 0))
             }
         }
 
-        var fontSize = initialFontSize
+        var fontSize = baseFontSize
         var textLayout = StaticLayout.Builder.obtain(
             fullLyricsText, 0, fullLyricsText.length, textPaint, innerWidth.toInt()
         )
@@ -434,9 +550,9 @@ object LyricPosterRenderer {
             .setIncludePad(false)
             .build()
 
-        val maxLyricsHeight = 960f
-        while (textLayout.height > maxLyricsHeight && fontSize > 34f) {
-            fontSize -= 3f
+        val maxAllowedLyricsHeight = availableSpace - 40f
+        while (textLayout.height > maxAllowedLyricsHeight && fontSize > 28f) {
+            fontSize -= 2f
             textPaint.textSize = fontSize
             textLayout = StaticLayout.Builder.obtain(
                 fullLyricsText, 0, fullLyricsText.length, textPaint, innerWidth.toInt()
@@ -446,118 +562,23 @@ object LyricPosterRenderer {
                 .setIncludePad(false)
                 .build()
         }
-        return textLayout
-    }
 
-    private fun measureFullBleedLyricsHeight(
-        config: LyricShareConfig,
-        typeface: Typeface,
-        posterWidth: Int,
-    ): Int {
-        val lines = config.selectedLines.take(5).ifEmpty { listOf(config.song.title) }
-        val innerWidth = posterWidth - (FULL_BLEED_PAD * 2f)
-        val headerHeight = if (config.showArtwork) FULL_BLEED_THUMB_SIZE else FULL_BLEED_HEADER_NO_ART
-        val textLayout = buildFullBleedLyricsLayout(
-            config = config,
-            lines = lines,
-            typeface = typeface,
-            innerWidth = innerWidth,
-            withShadow = false,
-        )
-        val total = FULL_BLEED_PAD +
-            headerHeight +
-            FULL_BLEED_GAP_BEFORE_LYRICS +
-            textLayout.height +
-            FULL_BLEED_GAP_AFTER_LYRICS +
-            FULL_BLEED_FOOTER_ICON +
-            FULL_BLEED_PAD
-        return total.toInt().coerceAtLeast(420)
-    }
-
-    /**
-     * Spotify-style full-bleed Lyrics Card:
-     * The card fills the entire canvas edge-to-edge and wraps the header, lyrics, and footer
-     * tightly with no excess blank space above or below the lyrics.
-     */
-    private fun drawFullBleedLyricsCard(
-        context: Context,
-        canvas: Canvas,
-        config: LyricShareConfig,
-        lines: List<String>,
-        coverArt: Bitmap?,
-        typeface: Typeface,
-        posterWidth: Int,
-        posterHeight: Int,
-    ) {
-        val pad = FULL_BLEED_PAD
-        val innerWidth = posterWidth - (pad * 2f)
-
-        // 1. Header at top-left: cover art thumbnail + bold Song Title + Artist
-        val headerY = pad
-        val thumbSize = FULL_BLEED_THUMB_SIZE
-        val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            this.typeface = typeface
-            textSize = 42f
-            color = Color.WHITE
-            if (config.useCoverBackground && coverArt != null) {
-                setShadowLayer(10f, 0f, 3f, Color.argb(115, 0, 0, 0))
-            }
-        }
-        val artistPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            this.typeface = typeface
-            textSize = 30f
-            color = Color.argb(210, 255, 255, 255)
-            if (config.useCoverBackground && coverArt != null) {
-                setShadowLayer(10f, 0f, 3f, Color.argb(115, 0, 0, 0))
-            }
-        }
-
-        val headerBottom: Float
-        if (config.showArtwork) {
-            if (coverArt != null) {
-                drawSquircleArtwork(canvas, coverArt, pad, headerY, thumbSize, cornerRadius = 22f)
-            } else {
-                drawFallbackArtwork(canvas, config.song.title, pad, headerY, thumbSize, cornerRadius = 22f)
-            }
-            val textLeft = pad + thumbSize + 26f
-            val maxTextWidth = innerWidth - thumbSize - 26f
-
-            canvas.drawText(ellipsised(config.song.title, titlePaint, maxTextWidth), textLeft, headerY + 48f, titlePaint)
-            canvas.drawText(ellipsised(config.song.artist, artistPaint, maxTextWidth), textLeft, headerY + 90f, artistPaint)
-            headerBottom = headerY + thumbSize
-        } else {
-            canvas.drawText(ellipsised(config.song.title, titlePaint, innerWidth), pad, headerY + 42f, titlePaint)
-            canvas.drawText(ellipsised(config.song.artist, artistPaint, innerWidth), pad, headerY + 84f, artistPaint)
-            headerBottom = headerY + FULL_BLEED_HEADER_NO_ART
-        }
-
-        // 2. Lyrics placed directly below header with a clean 38px gap
-        val textLayout = buildFullBleedLyricsLayout(
-            config = config,
-            lines = lines,
-            typeface = typeface,
-            innerWidth = innerWidth,
-            withShadow = config.useCoverBackground && coverArt != null,
-        )
-        val lyricsTop = headerBottom + FULL_BLEED_GAP_BEFORE_LYRICS
-
+        val lyricsTop = headerBottom + (availableSpace - textLayout.height) / 2f
         canvas.save()
-        canvas.translate(pad, lyricsTop)
+        canvas.translate(cardLeft + cardPad, lyricsTop)
         textLayout.draw(canvas)
         canvas.restore()
 
-        // 3. Footer placed directly below lyrics with a clean 40px gap
-        val footerY = (lyricsTop + textLayout.height + FULL_BLEED_GAP_AFTER_LYRICS)
-            .coerceAtMost(posterHeight - pad - FULL_BLEED_FOOTER_ICON)
         drawBrandBadge(
             context = context,
             canvas = canvas,
             typeface = typeface,
-            x = pad,
+            x = cardLeft + cardPad,
             y = footerY,
-            iconSize = FULL_BLEED_FOOTER_ICON,
-            textSize = 28f,
-            alpha = 238,
+            iconSize = footerIconSize,
+            textSize = 26f,
+            color = brandColor,
+            alpha = brandAlpha,
         )
     }
 
@@ -572,38 +593,34 @@ object LyricPosterRenderer {
     ) {
         val isCompact = posterHeight < 1600
 
-        // Dimensions of the centered floating card
-        val cardWidth = if (isCompact) 760f else 820f
-        val cardPadding = if (isCompact) 48f else 52f
+        val cardWidth = if (isCompact) 720f else 820f
+        val cardPadding = if (isCompact) 44f else 52f
         val artSize = cardWidth - (cardPadding * 2f)
-        val titleSize = if (isCompact) 46f else 52f
-        val artistSize = if (isCompact) 32f else 36f
-        val badgeSize = if (isCompact) 34f else 38f
-        val badgeTextSize = if (isCompact) 25f else 28f
+        val titleSize = if (isCompact) 44f else 52f
+        val artistSize = if (isCompact) 30f else 36f
+        val badgeSize = if (isCompact) 32f else 38f
+        val badgeTextSize = if (isCompact) 24f else 28f
 
-        val titleSpacing = if (isCompact) 36f else 40f
-        val artistSpacing = if (isCompact) 12f else 14f
-        val badgeSpacing = if (isCompact) 34f else 38f
+        val titleSpacing = if (isCompact) 32f else 40f
+        val artistSpacing = if (isCompact) 10f else 14f
+        val badgeSpacing = if (isCompact) 28f else 38f
 
         val cardHeight = cardPadding + artSize + titleSpacing + titleSize + artistSpacing + artistSize + badgeSpacing + badgeSize + cardPadding
         val cardLeft = (posterWidth - cardWidth) / 2f
         val cardTop = (posterHeight - cardHeight) / 2f
         val cardRect = RectF(cardLeft, cardTop, cardLeft + cardWidth, cardTop + cardHeight)
 
-        // Drop shadow behind floating card
         val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.argb(70, 0, 0, 0)
             setShadowLayer(45f, 0f, 22f, Color.argb(110, 0, 0, 0))
         }
         canvas.drawRoundRect(cardRect, 44f, 44f, shadowPaint)
 
-        // Frosted dark card surface
         val cardBgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.argb(140, 16, 16, 20)
         }
         canvas.drawRoundRect(cardRect, 44f, 44f, cardBgPaint)
 
-        // Specular highlight border
         val cardBorderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
             strokeWidth = 2.5f
@@ -611,7 +628,6 @@ object LyricPosterRenderer {
         }
         canvas.drawRoundRect(cardRect, 44f, 44f, cardBorderPaint)
 
-        // Large Square Artwork inside the card
         val artX = cardLeft + cardPadding
         val artY = cardTop + cardPadding
         if (coverArt != null) {
@@ -620,7 +636,6 @@ object LyricPosterRenderer {
             drawFallbackArtwork(canvas, config.song.title, artX, artY, artSize, cornerRadius = 32f)
         }
 
-        // Title and Artist (Left-aligned under artwork, matching Spotify layout)
         val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             this.typeface = typeface
             textSize = titleSize
@@ -639,7 +654,6 @@ object LyricPosterRenderer {
         canvas.drawText(ellipsised(config.song.title, titlePaint, maxTextWidth), artX, titleY, titlePaint)
         canvas.drawText(ellipsised(config.song.artist, artistPaint, maxTextWidth), artX, artistY, artistPaint)
 
-        // Vibra Music Brand Badge at bottom-left of card
         val badgeY = artistY + badgeSpacing
         drawBrandBadge(context, canvas, typeface, artX, badgeY, iconSize = badgeSize, textSize = badgeTextSize)
     }
@@ -670,7 +684,6 @@ object LyricPosterRenderer {
         val rect = RectF(x, y, x + size, y + size)
         canvas.drawRoundRect(rect, cornerRadius, cornerRadius, paint)
 
-        // Subtle specular highlight on edge
         val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
             strokeWidth = 2f
@@ -724,7 +737,6 @@ object LyricPosterRenderer {
                 val totalPop = swatches.sumOf { it.population }.coerceAtLeast(1)
                 val primary = swatches.first()
 
-                // Compute population-weighted saturation across the main body of the cover (top 85% of pixels)
                 var accPop = 0
                 var weightedSat = 0f
                 for (sw in swatches) {
@@ -735,8 +747,6 @@ object LyricPosterRenderer {
                 }
                 val avgBodySat = weightedSat / accPop.coerceAtLeast(1).toFloat()
 
-                // Only pick a chromatic swatch if it represents a meaningful area of the cover (>= 10% of pixels),
-                // preventing tiny 1% details (like a red badge on a monochrome cover) from hijacking the theme.
                 val meaningfulChromatic = swatches
                     .filter { it.population >= totalPop * 0.10f && it.hsl[1] >= 0.16f }
                     .maxByOrNull { sw ->
@@ -763,7 +773,6 @@ object LyricPosterRenderer {
                 val topSat = chosenHsl[1].coerceIn(0.22f, 0.72f)
                 val topLight = chosenHsl[2].coerceIn(0.25f, 0.42f)
 
-                // Find a secondary swatch that represents a real secondary area (>= 8% pop) or derive from theme
                 val secondarySwatch = swatches
                     .firstOrNull { it !== chosen && it.population >= totalPop * 0.08f }
                 val bottomHue = if (secondarySwatch != null && secondarySwatch.hsl[1] >= 0.12f) {
@@ -825,4 +834,3 @@ object LyricPosterRenderer {
         (SingletonImageLoader.get(context).execute(request) as? SuccessResult)?.image?.toBitmap()
     }.getOrNull()
 }
-

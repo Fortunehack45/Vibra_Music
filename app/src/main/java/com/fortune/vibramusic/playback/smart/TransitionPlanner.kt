@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Ported from Orchard (https://github.com/SFG5453/Orchard), merging its
  * TransitionPlanner.kt and WsolaPlanner.kt into one file.
  *
@@ -107,6 +107,9 @@ enum class TransitionStyle {
 
     /** Filtered handoff for tempi too far apart to blend flat. */
     DJ_FILTER,
+
+    /** Resonant high-pass riser build-up into incoming drop. */
+    DJ_RISE,
 }
 
 /**
@@ -863,7 +866,7 @@ fun planTransition(
     nextTrack: TransitionTrackInfo? = null,
     currentTime: Double = 0.0,
     duration: Double = 0.0,
-    fadeSeconds: Double = 6.0,
+    fadeSeconds: Double = 8.0,
     minFadeSeconds: Double = 1.0,
     mode: CrossfadeMode = CrossfadeMode.STANDARD,
     albumSequential: Boolean = false,
@@ -963,7 +966,7 @@ fun planTransition(
     val nextBpm = nextAnalysis.bpm.orZero()
     val handoffBpm = if (currentBpm > 0) currentBpm else nextBpm
     val sameBeatBlend = currentBpm > 0 && nextBpm > 0 &&
-        abs(1 - normalizedTempoRatio(currentBpm, nextBpm)) <= 0.05 &&
+        abs(1 - normalizedTempoRatio(currentBpm, nextBpm)) <= 0.08 &&
         (analysis.beatConfidence.orZero() >= 0.2 || nextAnalysis.beatConfidence.orZero() >= 0.2)
     val outgoingArrangementOverlap =
         if (sameBeatBlend && mixOutAnchor.type == "content_end") {

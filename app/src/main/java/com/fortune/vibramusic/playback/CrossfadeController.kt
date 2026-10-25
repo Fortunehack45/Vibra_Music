@@ -1334,6 +1334,7 @@ class CrossfadeController(
     private fun rideFilters(progress: Float) {
         when (render.style) {
             TransitionStyle.DJ_FILTER -> rideFilterSweep(progress)
+            TransitionStyle.DJ_RISE -> rideRise(progress)
             TransitionStyle.DJ_BLEND ->
                 if (render.bassSwap) rideBassSwap(progress) else rideVocalSeparation(progress)
             // GAPLESS is an album being played through, where any filtering would
@@ -1469,6 +1470,24 @@ class CrossfadeController(
     }
 
     /**
+     * Riser / build-up transition: sweeps a high-pass filter upwards on the outgoing track,
+     * building tension until the handoff point where incoming drops in full-frequency.
+     */
+    private fun rideRise(progress: Float) {
+        val swapAt = render.bassSwapFraction.coerceIn(0.5, 0.9)
+        val p = progress.toDouble()
+        if (p < swapAt) {
+            val riseProgress = (p / swapAt).coerceIn(0.0, 1.0)
+            val hpCutoff = glide(TransitionFilterProcessor.OFF_HZ.toDouble(), 2000.0, riseProgress.pow(1.5)).toFloat()
+            filters.outgoing(TransitionFilterProcessor.OPEN_HZ, hpCutoff)
+            filters.incoming(TransitionFilterProcessor.OPEN_HZ, glide(1200.0, TransitionFilterProcessor.OFF_HZ.toDouble(), riseProgress).toFloat())
+        } else {
+            filters.outgoing(glide(TransitionFilterProcessor.OPEN_HZ.toDouble(), 400.0, ((p - swapAt) / (1.0 - swapAt)).coerceIn(0.0, 1.0)).toFloat(), 2000f)
+            filters.incoming(TransitionFilterProcessor.OPEN_HZ, TransitionFilterProcessor.OFF_HZ)
+        }
+    }
+
+    /**
      * Geometric interpolation between two cutoffs: [amount] 0 gives [from], 1
      * gives [to].
      *
@@ -1592,7 +1611,7 @@ class CrossfadeController(
          * Once real analysis lands, the overlap is sized from tempo and
          * structure instead and this is never read.
          */
-        const val DEFAULT_SMART_FALLBACK_SECONDS = 6.0
+        const val DEFAULT_SMART_FALLBACK_SECONDS = 8.0
 
         /** Ramp used when a fade is interrupted. */
         const val BAIL_MS = 120L

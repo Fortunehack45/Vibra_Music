@@ -78,6 +78,15 @@ data class ArtworkPalette(
  * and warms into the artwork's, so it never flashes a placeholder tint.
  * "Reduce animation" turns that crossfade into a cut.
  */
+data class ArtworkKeyColors(val background: Color, val accent: Color)
+
+private fun ArtworkKeyColors.toSeed() = Seed(
+    dominant = background,
+    vibrant = accent,
+    edge = background,
+    topBandLuminance = relativeLuminance(background.toArgb()),
+)
+
 @Composable
 fun rememberArtworkPalette(
     imageUrl: String?,
@@ -91,14 +100,16 @@ fun rememberArtworkPalette(
      * out of the cache or off the network.
      */
     artPx: Int = CARD_ART_PX,
+    keyColors: ArtworkKeyColors? = null,
 ): ArtworkPalette {
     val scheme = MaterialTheme.colorScheme
     val reduceAnimation by AppSettings.reduceAnimation.collectAsStateWithLifecycle()
-    val seed = rememberArtworkSeed(imageUrl, artPx)
+    val decoded = rememberArtworkSeed(if (keyColors == null) imageUrl else null, artPx)
+    val seed = keyColors?.toSeed() ?: decoded
     // Whether the colours were there from the first frame. If they were, there
     // is nothing to crossfade *from* and animating would only put a delay in
     // front of a surface that could already be right.
-    val knownUpFront = remember(imageUrl) { seed != null }
+    val knownUpFront = remember(imageUrl) { decoded != null || keyColors != null }
 
     val target = seed?.toPalette(dark) ?: ArtworkPalette(
         background = scheme.background,

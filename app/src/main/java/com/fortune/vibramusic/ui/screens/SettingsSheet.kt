@@ -842,14 +842,9 @@ fun SettingsScreen(
                     }
                 }
             }
-            val wearOsTitle = "Wear OS Companion"
+            val wearOsTitle = stringResource(R.string.wear_os_section)
             row(wearOsTitle, "wear", "watch", "smartwatch", "galaxy watch", "pixel watch") {
-                SettingsRow(
-                    icon = Icons.Rounded.Watch,
-                    title = wearOsTitle,
-                    subtitle = "Setup and control playback from your smartwatch",
-                    onClick = onWearOs,
-                )
+                WearOsSettingsRow(onClick = onWearOs)
             }
             val reduceAnimationTitle = stringResource(R.string.reduce_animation)
             row(reduceAnimationTitle, "motion") {
@@ -2633,8 +2628,23 @@ private fun SongTransitionsRows(
                 onSelect = { AppSettings.setSongTransitionStyle(SongTransitionStyle.CROSSFADE) },
             )
             RowDivider()
+            TransitionStyleRow(
+                icon = Icons.Rounded.GraphicEq,
+                title = "Rise",
+                subtitle = "Resonant high-pass riser build-up into incoming drop",
+                selected = transitions.style == SongTransitionStyle.RISE,
+                onSelect = { AppSettings.setSongTransitionStyle(SongTransitionStyle.RISE) },
+            )
+            RowDivider()
             when (transitions.style) {
-                SongTransitionStyle.CROSSFADE -> SliderRow(
+                SongTransitionStyle.AUTOMIX -> SettingsRow(
+                    icon = Icons.Rounded.Tune,
+                    title = stringResource(R.string.automix_performance),
+                    subtitle = stringResource(R.string.automix_performance_subtitle),
+                    value = automixPerformance.localizedLabel(),
+                    onClick = onAutomixPerformance,
+                )
+                else -> SliderRow(
                     icon = null,
                     title = stringResource(R.string.crossfade_duration),
                     value = stringResource(R.string.seconds_short, transitions.crossfadeSeconds),
@@ -2646,13 +2656,6 @@ private fun SongTransitionsRows(
                     steps = SongTransitions.MAX_CROSSFADE_SECONDS - SongTransitions.MIN_CROSSFADE_SECONDS - 1,
                     startLabel = stringResource(R.string.seconds_short, SongTransitions.MIN_CROSSFADE_SECONDS),
                     endLabel = stringResource(R.string.seconds_short, SongTransitions.MAX_CROSSFADE_SECONDS),
-                )
-                SongTransitionStyle.AUTOMIX -> SettingsRow(
-                    icon = Icons.Rounded.Tune,
-                    title = stringResource(R.string.automix_performance),
-                    subtitle = stringResource(R.string.automix_performance_subtitle),
-                    value = automixPerformance.localizedLabel(),
-                    onClick = onAutomixPerformance,
                 )
             }
         }

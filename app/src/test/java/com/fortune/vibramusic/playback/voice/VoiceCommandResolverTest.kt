@@ -141,4 +141,14 @@ class VoiceCommandResolverTest {
         assertEquals("Evening Chill", VoiceCommandResolver.cleanSpokenQuery("Play my playlist Evening Chill"))
         assertEquals("Starboy by The Weeknd", VoiceCommandResolver.cleanSpokenQuery("Play Starboy by The Weeknd"))
     }
+
+    @Test
+    fun testGenericPlayMusicCommandsResolveToResume() = runBlocking {
+        assertEquals(VoiceResolution.Resume, VoiceCommandResolver.resolve(query = "Play music on Vibra Music"))
+        assertEquals(VoiceResolution.Resume, VoiceCommandResolver.resolve(query = "Play some music"))
+        assertEquals(VoiceResolution.Resume, VoiceCommandResolver.resolve(query = "Start playing music"))
+        assertEquals(VoiceResolution.Resume, VoiceCommandResolver.resolve(query = "Put on some music"))
+        assertEquals(VoiceResolution.Resume, VoiceCommandResolver.resolve(query = "Play music"))
+        assertEquals(VoiceResolution.Resume, VoiceCommandResolver.resolve(query = "music"))
+    }
 }

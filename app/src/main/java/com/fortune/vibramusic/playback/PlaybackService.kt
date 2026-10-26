@@ -1670,9 +1670,11 @@ class PlaybackService : MediaLibraryService() {
                 exoPlayer,
                 controller,
                 onUserIntent = { partySync?.onLocalIntent() },
-            deferPlayToParty = { partySync?.shouldDeferPlay() == true },
-            lockedTransport = { playing -> partySync?.onLockedTransport(playing) == true },
-            ) { lastPublishedSubtitle },
+                deferPlayToParty = { partySync?.shouldDeferPlay() == true },
+                lockedTransport = { playing -> partySync?.onLockedTransport(playing) == true },
+                onEmptyQueuePlay = { restoreOrFetchDefaultQueue() },
+                getSubtitle = { lastPublishedSubtitle },
+            ),
             MediaLibraryCallback(),
         )
             .setId(SESSION_ID)
@@ -5002,6 +5004,65 @@ class PlaybackService : MediaLibraryService() {
         return true
     }
 
+    private suspend fun getDefaultPlayableItems(): List<MediaItem> {
+        val activePlayer = player
+        if (activePlayer != null && activePlayer.mediaItemCount > 0) {
+            return (0 until activePlayer.mediaItemCount).map { activePlayer.getMediaItemAt(it) }
+        }
+        val last = LastPlayed.load()
+        if (last != null && last.songs.isNotEmpty()) {
+            return last.songs.map { it.toMediaItem() }
+        }
+        val downloaded = Downloads.getDownloadedSongs(this@PlaybackService)
+        if (downloaded.isNotEmpty()) {
+            return downloaded.map { it.toMediaItem() }
+        }
+        val localSongs = LocalMediaRepository.getLocalMusic(this@PlaybackService)
+        if (localSongs.isNotEmpty()) {
+            return localSongs.map { it.toMediaItem() }
+        }
+        val recents = cachedRecentsSongs()
+        if (recents.isNotEmpty()) {
+            return recents.map { it.toMediaItem() }
+        }
+        val quickPicks = cachedQuickPicksSongs()
+        if (quickPicks.isNotEmpty()) {
+            return quickPicks.map { it.toMediaItem() }
+        }
+        val fallbackSongs = try {
+            withTimeoutOrNull(2500L) {
+                val home = YtMusicRepository.home().getOrNull()
+                home?.shelves?.flatMap { shelf ->
+                    shelf.items.mapNotNull { it.toMediaItemOrNull() }
+                }?.distinctBy { it.mediaId }
+            } ?: emptyList()
+        } catch (_: Exception) {
+            emptyList()
+        }
+        return fallbackSongs
+    }
+
+    private fun restoreOrFetchDefaultQueue() {
+        val activePlayer = player ?: return
+        val restored = restoreLastQueue(activePlayer)
+        if (restored) {
+            activePlayer.prepare()
+            activePlayer.play()
+        } else {
+            scope.launch(Dispatchers.IO) {
+                val items = getDefaultPlayableItems()
+                if (items.isNotEmpty()) {
+                    withContext(Dispatchers.Main) {
+                        val current = player ?: return@withContext
+                        current.setMediaItems(items, 0, 0L)
+                        current.prepare()
+                        current.play()
+                    }
+                }
+            }
+        }
+    }
+
     /**
      * PCM sample depth the renderer settled on, in bits.
      *
@@ -6494,8 +6555,42 @@ class PlaybackService : MediaLibraryService() {
         private val deferPlayToParty: () -> Boolean,
         /** @see PartySync.onLockedTransport */
         private val lockedTransport: (Boolean) -> Boolean,
+        private val onEmptyQueuePlay: () -> Unit = {},
         private val getSubtitle: () -> String?,
     ) : ForwardingPlayer(player) {
+
+        override fun isCommandAvailable(command: Int): Boolean {
+            return when (command) {
+                Player.COMMAND_PLAY_PAUSE,
+                Player.COMMAND_PREPARE,
+                Player.COMMAND_STOP,
+                Player.COMMAND_SET_MEDIA_ITEM,
+                Player.COMMAND_SEEK_TO_NEXT,
+                Player.COMMAND_SEEK_TO_PREVIOUS,
+                Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM,
+                Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM,
+                Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM,
+                Player.COMMAND_GET_CURRENT_MEDIA_ITEM,
+                Player.COMMAND_GET_TIMELINE -> true
+                else -> super.isCommandAvailable(command)
+            }
+        }
+
+        override fun getAvailableCommands(): Player.Commands {
+            return super.getAvailableCommands().buildUpon()
+                .add(Player.COMMAND_PLAY_PAUSE)
+                .add(Player.COMMAND_PREPARE)
+                .add(Player.COMMAND_STOP)
+                .add(Player.COMMAND_SET_MEDIA_ITEM)
+                .add(Player.COMMAND_SEEK_TO_NEXT)
+                .add(Player.COMMAND_SEEK_TO_PREVIOUS)
+                .add(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
+                .add(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM)
+                .add(Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM)
+                .add(Player.COMMAND_GET_CURRENT_MEDIA_ITEM)
+                .add(Player.COMMAND_GET_TIMELINE)
+                .build()
+        }
 
         /**
          * Whether this device is a listener in a party its host has taken
@@ -6523,7 +6618,20 @@ class PlaybackService : MediaLibraryService() {
             // itself on the party's instant, and starts it anyway if the party
             // never answers. Outside a party this is an ordinary play().
             if (deferPlayToParty()) return
+            if (mediaItemCount == 0) {
+                onEmptyQueuePlay()
+                return
+            }
             super.play()
+        }
+
+        override fun prepare() {
+            onUserIntent()
+            if (mediaItemCount == 0) {
+                onEmptyQueuePlay()
+                return
+            }
+            super.prepare()
         }
 
         override fun pause() {
@@ -7129,7 +7237,20 @@ class PlaybackService : MediaLibraryService() {
                 )
             }
 
-            // 2. Fallback to local downloaded songs (offline-ready)
+            // 2. Fallback to LastPlayed session if available
+            val last = LastPlayed.load()
+            if (last != null && last.songs.isNotEmpty()) {
+                val items = last.songs.map { it.toMediaItem() }
+                val startIndex = last.index.coerceIn(0, items.size - 1)
+                val startPositionMs = last.positionMs.coerceAtLeast(0L)
+                return@future MediaSession.MediaItemsWithStartPosition(
+                    ImmutableList.copyOf(items),
+                    startIndex,
+                    startPositionMs,
+                )
+            }
+
+            // 3. Fallback to local downloaded songs (offline-ready)
             val downloaded = Downloads.getDownloadedSongs(this@PlaybackService)
             if (downloaded.isNotEmpty()) {
                 val items = downloaded.map { it.toMediaItem() }
@@ -7292,6 +7413,9 @@ class PlaybackService : MediaLibraryService() {
                         songs.forEach { songCache[it.videoId] = it }
                         if (songs.isNotEmpty()) {
                             resolved.addAll(songs.map { it.toMediaItem() })
+                        } else {
+                            val defaultItems = getDefaultPlayableItems()
+                            resolved.addAll(defaultItems)
                         }
                     }
                     id.startsWith("playlist:") -> {
@@ -7389,6 +7513,10 @@ class PlaybackService : MediaLibraryService() {
                         }
                     }
                 }
+            }
+            if (resolved.isEmpty()) {
+                val defaults = getDefaultPlayableItems()
+                if (defaults.isNotEmpty()) return defaults
             }
             return if (resolved.isEmpty()) mediaItems else resolved
         }

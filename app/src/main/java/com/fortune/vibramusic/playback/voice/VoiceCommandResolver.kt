@@ -5,6 +5,7 @@ import android.provider.MediaStore
 import com.fortune.vibramusic.R
 import com.fortune.vibramusic.data.LocalPlaylistsStore
 import com.fortune.vibramusic.data.YtMusicRepository
+import com.fortune.vibramusic.data.model.BrowseType
 import com.fortune.vibramusic.data.model.SearchFilter
 import com.fortune.vibramusic.data.model.SearchResult
 import com.fortune.vibramusic.data.model.Song
@@ -68,14 +69,23 @@ object VoiceCommandResolver {
         val explicitAlbum = album?.trim()?.takeIf { it.isNotEmpty() }
         val explicitPlaylist = playlist?.trim()?.takeIf { it.isNotEmpty() }
 
-        // 1. Resume check: empty query and no explicit fields
-        if (rawQuery.isEmpty() && focus.isNullOrEmpty() && explicitTitle == null &&
-            explicitArtist == null && explicitAlbum == null && explicitPlaylist == null) {
-            return VoiceResolution.Resume
-        }
-
         // Clean spoken prefixes like "play", "play my playlist", etc.
         val cleanQuery = stripSpokenPrefixes(rawQuery)
+
+        // 1. Resume check: empty query, or query cleaned down to empty or generic request
+        val isGenericMusicRequest = cleanQuery.isBlank() ||
+                cleanQuery.equals("music", ignoreCase = true) ||
+                cleanQuery.equals("songs", ignoreCase = true) ||
+                cleanQuery.equals("some music", ignoreCase = true) ||
+                cleanQuery.equals("some songs", ignoreCase = true) ||
+                cleanQuery.equals("something", ignoreCase = true)
+
+        if ((rawQuery.isEmpty() || isGenericMusicRequest) &&
+            focus.isNullOrEmpty() && explicitTitle == null &&
+            explicitArtist == null && explicitAlbum == null && explicitPlaylist == null
+        ) {
+            return VoiceResolution.Resume
+        }
 
         // 2. Playlist Focus: check local playlists first, then online playlists
         val isPlaylistFocus = focus == MediaStore.Audio.Playlists.ENTRY_CONTENT_TYPE ||
@@ -231,6 +241,31 @@ object VoiceCommandResolver {
         }
 
         if (effectiveQuery.isNotBlank()) {
+            // First check if query directly names an artist without a specific song
+            val directArtists = YtMusicRepository.search(effectiveQuery, SearchFilter.ARTISTS).getOrNull()
+                ?.filterIsInstance<SearchResult.Browse>()
+            val directArtist = directArtists?.firstOrNull {
+                it.item.title.equals(effectiveQuery, ignoreCase = true)
+            } ?: if (parsedArtist != null) directArtists?.firstOrNull() else null
+
+            if (directArtist != null && parsedTitle == null) {
+                val artistPage = YtMusicRepository.artistPage(directArtist.item.browseId).getOrNull()
+                val songs = artistPage?.songs.orEmpty()
+                if (songs.isNotEmpty()) {
+                    val msg = formatString(
+                        context,
+                        R.string.voice_playing_artist,
+                        "Playing music by ${directArtist.item.title}",
+                        directArtist.item.title
+                    )
+                    return VoiceResolution.PlaySongs(
+                        title = directArtist.item.title,
+                        songs = songs,
+                        announcement = msg
+                    )
+                }
+            }
+
             val songs = YtMusicRepository.search(effectiveQuery, SearchFilter.SONGS).getOrNull()
                 ?.filterIsInstance<SearchResult.Track>()
             val topSong = songs?.firstOrNull()?.song
@@ -248,8 +283,64 @@ object VoiceCommandResolver {
                 )
             }
 
-            // Fallback: check SearchFilter.ALL
+            // Fallback: check SearchFilter.ALL (matches top entity whether track, artist, album, or playlist)
             val allResults = YtMusicRepository.search(effectiveQuery, SearchFilter.ALL).getOrNull().orEmpty()
+            val topBrowse = allResults.firstOrNull() as? SearchResult.Browse
+            if (topBrowse != null) {
+                when (topBrowse.item.type) {
+                    BrowseType.ARTIST -> {
+                        val artistPage = YtMusicRepository.artistPage(topBrowse.item.browseId).getOrNull()
+                        val artistSongs = artistPage?.songs.orEmpty()
+                        if (artistSongs.isNotEmpty()) {
+                            val msg = formatString(
+                                context,
+                                R.string.voice_playing_artist,
+                                "Playing music by ${topBrowse.item.title}",
+                                topBrowse.item.title
+                            )
+                            return VoiceResolution.PlaySongs(
+                                title = topBrowse.item.title,
+                                songs = artistSongs,
+                                announcement = msg
+                            )
+                        }
+                    }
+                    BrowseType.ALBUM -> {
+                        val albumSongs = YtMusicRepository.browseSongs(topBrowse.item.browseId).getOrNull()?.songs
+                        if (!albumSongs.isNullOrEmpty()) {
+                            val msg = formatString(
+                                context,
+                                R.string.voice_playing_album,
+                                "Playing album ${topBrowse.item.title}",
+                                topBrowse.item.title
+                            )
+                            return VoiceResolution.PlaySongs(
+                                title = topBrowse.item.title,
+                                songs = albumSongs,
+                                announcement = msg
+                            )
+                        }
+                    }
+                    BrowseType.PLAYLIST -> {
+                        val playlistSongs = YtMusicRepository.browseSongs(topBrowse.item.browseId).getOrNull()?.songs
+                        if (!playlistSongs.isNullOrEmpty()) {
+                            val msg = formatString(
+                                context,
+                                R.string.voice_playing_playlist,
+                                "Playing playlist ${topBrowse.item.title}",
+                                topBrowse.item.title
+                            )
+                            return VoiceResolution.PlaySongs(
+                                title = topBrowse.item.title,
+                                songs = playlistSongs,
+                                announcement = msg
+                            )
+                        }
+                    }
+                    else -> Unit
+                }
+            }
+
             val fallbackSong = allResults.filterIsInstance<SearchResult.Track>().firstOrNull()?.song
                 ?: allResults.filterIsInstance<SearchResult.TopTrack>().firstOrNull()?.song
             if (fallbackSong != null) {
@@ -287,6 +378,9 @@ object VoiceCommandResolver {
             " on vibra music app", " in vibra music app",
             " on vibra music", " in vibra music",
             " on vibra", " in vibra",
+            " on siren music app", " in siren music app",
+            " on siren music", " in siren music",
+            " on siren", " in siren",
             " using vibra music", " with vibra music",
             " using vibra", " with vibra",
         )
@@ -312,6 +406,9 @@ object VoiceCommandResolver {
             "put on ",
             "go ahead and play ",
             "and play ",
+            "play some music by ",
+            "play some songs by ",
+            "play something by ",
             "play my playlist ",
             "play playlist ",
             "my playlist ",

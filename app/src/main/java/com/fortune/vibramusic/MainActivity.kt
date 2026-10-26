@@ -1735,9 +1735,7 @@ private fun VibraMusicApp(
                         )
                     }
                     VoiceResolution.Resume -> {
-                        if (session.mediaItemCount > 0) {
-                            session.play()
-                        }
+                        session.play()
                     }
                     is VoiceResolution.NotFound -> {
                         val announcement = resolution.announcement
@@ -1750,9 +1748,9 @@ private fun VibraMusicApp(
                 }
             }
             // "Play music", nothing named. The playback service restores its
-            // bounded queue before the controller connects, so this resumes
+            // bounded queue or default tracks if empty, so this resumes
             // both a live session and one recovered after process death.
-            LinkRequest.Resume -> if (session.mediaItemCount > 0) session.play()
+            LinkRequest.Resume -> session.play()
         }
         MusicLink.handled()
     }

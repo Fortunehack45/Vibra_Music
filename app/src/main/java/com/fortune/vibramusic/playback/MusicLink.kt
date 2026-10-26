@@ -87,7 +87,11 @@ object MusicLink {
             // point of the Resume case: "play music" names nothing, and the
             // useful answer is to carry on with what was already on.
             MediaStore.INTENT_ACTION_MEDIA_PLAY_FROM_SEARCH,
-            Intent.ACTION_SEARCH -> extractVoiceRequest(intent) ?: LinkRequest.Resume
+            Intent.ACTION_SEARCH,
+            "android.intent.action.MUSIC_PLAYER" -> extractVoiceRequest(intent) ?: LinkRequest.Resume
+            Intent.ACTION_MAIN -> if (intent.hasCategory(Intent.CATEGORY_APP_MUSIC)) {
+                extractVoiceRequest(intent) ?: LinkRequest.Resume
+            } else extractVoiceRequest(intent)
             else -> extractVoiceRequest(intent)
         } ?: return false
         intent.putExtra(EXTRA_CONSUMED, true)
@@ -99,6 +103,7 @@ object MusicLink {
         val query = (intent.getStringExtra(SearchManager.QUERY)
             ?: intent.getStringExtra("query")
             ?: intent.getStringExtra("q")
+            ?: intent.getStringExtra("music.title")
             ?: intent.getStringExtra("media.name")
             ?: intent.getStringExtra("media_title")
             ?: intent.getStringExtra("media_name")
@@ -107,21 +112,25 @@ object MusicLink {
         val focus = intent.getStringExtra(MediaStore.EXTRA_MEDIA_FOCUS)?.trim()
         val title = (intent.getStringExtra(MediaStore.EXTRA_MEDIA_TITLE)
             ?: intent.getStringExtra("title")
+            ?: intent.getStringExtra("music.title")
             ?: intent.getStringExtra("media_title")).orEmpty().trim().takeIf { it.isNotEmpty() }
 
         val artist = (intent.getStringExtra(MediaStore.EXTRA_MEDIA_ARTIST)
             ?: intent.getStringExtra("artist")
             ?: intent.getStringExtra("artist_name")
+            ?: intent.getStringExtra("music.byArtist.name")
             ?: intent.getStringExtra("media.artist.name")).orEmpty().trim().takeIf { it.isNotEmpty() }
 
         val album = (intent.getStringExtra(MediaStore.EXTRA_MEDIA_ALBUM)
             ?: intent.getStringExtra("album")
             ?: intent.getStringExtra("album_name")
+            ?: intent.getStringExtra("music.inAlbum.name")
             ?: intent.getStringExtra("media.album.name")).orEmpty().trim().takeIf { it.isNotEmpty() }
 
         val playlist = (intent.getStringExtra(MediaStore.EXTRA_MEDIA_PLAYLIST)
             ?: intent.getStringExtra("playlist")
             ?: intent.getStringExtra("playlist_name")
+            ?: intent.getStringExtra("music.inPlaylist.name")
             ?: intent.getStringExtra("media.playlist.name")).orEmpty().trim().takeIf { it.isNotEmpty() }
 
         val genre = (intent.getStringExtra(MediaStore.EXTRA_MEDIA_GENRE)

@@ -1374,36 +1374,38 @@
     <string name="voice_search_prompt">Speak song, artist, album, or playlist</string>
 
     <!-- Mix Feature Strings (ZERO EMOJIS) -->
-    <string name="mix_action_button">Mix</string>
-    <string name="mix_auto">Auto</string>
-    <string name="mix_custom">Custom</string>
-    <string name="mix_preset_fade">Fade</string>
-    <string name="mix_preset_rise">Rise</string>
-    <string name="mix_preset_blend">Blend</string>
-    <string name="mix_preset_wave">Wave</string>
-    <string name="mix_preset_melt">Melt</string>
-    <string name="mix_preset_dissolve">Dissolve</string>
-    <string name="mix_preset_surge">Surge</string>
-    <string name="mix_preset_afterglow">Afterglow</string>
-    <string name="mix_preset_no_transition">No transition</string>
-    <string name="mix_lane_volume">Volume</string>
-    <string name="mix_lane_eq">EQ</string>
-    <string name="mix_lane_filter">Filter</string>
-    <string name="mix_lane_effects">Effects</string>
-    <string name="mix_lane_looping">Looping</string>
-    <string name="mix_editor_title">Transition Editor</string>
-    <string name="mix_save">Save</string>
-    <string name="mix_cancel">Cancel</string>
-    <string name="mix_reset_to_auto">Reset to Auto</string>
-    <string name="mix_bars_count">%1$d Bars</string>
-    <string name="mix_bpm_format">%1$.1f BPM</string>
-    <string name="mix_banner_active">Mix is active</string>
-    <string name="mix_banner_subtitle">DJ transitions active between tracks · Tap chips to customize</string>
-    <string name="mix_enable_on_new">Enable Mix on new playlists</string>
-    <string name="mix_enable_on_new_subtitle">Automatically configures transitions for newly opened playlists</string>
-    <string name="mix_default_length">Default transition length</string>
-    <string name="mix_default_length_subtitle">Default duration in musical bars for auto transitions</string>
-    <string name="mix_beatmatch_default">Beatmatch by default</string>
-    <string name="mix_beatmatch_default_subtitle">Sync tempo and align beat grids between tracks</string>
+    <string name="mix_title" translatable="false">Mix</string>
+    <string name="mix_subtitle" translatable="false">Enable intelligent DJ transitions and harmonic mixing</string>
+    <string name="mix_action_button" translatable="false">Mix</string>
+    <string name="mix_auto" translatable="false">Auto</string>
+    <string name="mix_custom" translatable="false">Custom</string>
+    <string name="mix_preset_fade" translatable="false">Fade</string>
+    <string name="mix_preset_rise" translatable="false">Rise</string>
+    <string name="mix_preset_blend" translatable="false">Blend</string>
+    <string name="mix_preset_wave" translatable="false">Wave</string>
+    <string name="mix_preset_melt" translatable="false">Melt</string>
+    <string name="mix_preset_dissolve" translatable="false">Dissolve</string>
+    <string name="mix_preset_surge" translatable="false">Surge</string>
+    <string name="mix_preset_afterglow" translatable="false">Afterglow</string>
+    <string name="mix_preset_no_transition" translatable="false">No transition</string>
+    <string name="mix_lane_volume" translatable="false">Volume</string>
+    <string name="mix_lane_eq" translatable="false">EQ</string>
+    <string name="mix_lane_filter" translatable="false">Filter</string>
+    <string name="mix_lane_effects" translatable="false">Effects</string>
+    <string name="mix_lane_looping" translatable="false">Looping</string>
+    <string name="mix_editor_title" translatable="false">Transition Editor</string>
+    <string name="mix_save" translatable="false">Save</string>
+    <string name="mix_cancel" translatable="false">Cancel</string>
+    <string name="mix_reset_to_auto" translatable="false">Reset to Auto</string>
+    <string name="mix_bars_count" translatable="false">%1$d Bars</string>
+    <string name="mix_bpm_format" translatable="false">%1$.1f BPM</string>
+    <string name="mix_banner_active" translatable="false">Mix is active</string>
+    <string name="mix_banner_subtitle" translatable="false">DJ transitions active between tracks · Tap chips to customize</string>
+    <string name="mix_enable_on_new" translatable="false">Enable Mix on new playlists</string>
+    <string name="mix_enable_on_new_subtitle" translatable="false">Automatically configures transitions for newly opened playlists</string>
+    <string name="mix_default_length" translatable="false">Default transition length</string>
+    <string name="mix_default_length_subtitle" translatable="false">Default duration in musical bars for auto transitions</string>
+    <string name="mix_beatmatch_default" translatable="false">Beatmatch by default</string>
+    <string name="mix_beatmatch_default_subtitle" translatable="false">Sync tempo and align beat grids between tracks</string>
 </resources>
 

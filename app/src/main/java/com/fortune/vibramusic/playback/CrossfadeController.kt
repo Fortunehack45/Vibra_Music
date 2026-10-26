@@ -9,11 +9,14 @@ import androidx.media3.common.Player
 import androidx.media3.common.Timeline
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import com.fortune.vibramusic.data.LocalPlaylistsStore
 import com.fortune.vibramusic.data.listentogether.ListenTogether
 import com.fortune.vibramusic.data.settings.AppSettings
 import com.fortune.vibramusic.data.settings.SmartAnalysis
 import com.fortune.vibramusic.data.settings.TrackAnalysisState
 import com.fortune.vibramusic.data.settings.TransitionWindow
+import com.fortune.vibramusic.playback.audio.TransitionProfile
+import com.fortune.vibramusic.playback.mix.TransitionPlan as MixTransitionPlan
 import com.fortune.vibramusic.playback.smart.CrossfadeMode
 import com.fortune.vibramusic.playback.smart.TrackAnalysis
 import com.fortune.vibramusic.playback.smart.TransitionStyle
@@ -654,6 +657,20 @@ class CrossfadeController(
         val nextAnalysis = analysisFor(nextItem)
         val analysisState = AppSettings.smartAnalysis.value
 
+        val playlistId = currentItem.mediaMetadata.extras?.getString("siren.playbackSourceId")
+            ?: currentItem.mediaMetadata.extras?.getString("siren.playbackSource")
+            ?: ""
+
+        // Check if Mix is explicitly disabled for this playlist/album
+        if (playlistId.isNotBlank() && !LocalPlaylistsStore.isMixEnabled(playlistId)) {
+            AppSettings.smartTransitionWindow.value = null
+            return
+        }
+
+        val pairId = MixTransitionPlan.pairIdOf(currentItem.mediaId, nextItem.mediaId)
+        val storedPlan = LocalPlaylistsStore.getTransition(playlistId, pairId)
+        val customProfile = storedPlan?.let { TransitionProfile.fromTransitionPlan(it) }
+
         val plan = planTransition(
             analysis = currentAnalysis,
             nextAnalysis = nextAnalysis,
@@ -666,12 +683,49 @@ class CrossfadeController(
             advanced = true,
             requestedStyle = AppSettings.songTransitions.value.style.name,
         )
+
+        val durSec = duration / 1000.0
+        val effectivePlan = if (storedPlan != null) {
+            val startCut = (storedPlan.startCutSeconds ?: (durSec - storedPlan.durationSeconds)).coerceIn(15.0, durSec)
+            val transFade = storedPlan.durationSeconds.coerceAtLeast(1.0)
+            val endSec = (startCut + transFade).coerceAtMost(durSec)
+            val cueSec = storedPlan.mixInSeconds.coerceAtLeast(0.0)
+            val rate = if (storedPlan.beatmatching && currentAnalysis.bpm > 0 && nextAnalysis.bpm > 0) {
+                (currentAnalysis.bpm / nextAnalysis.bpm).coerceIn(0.92, 1.08)
+            } else {
+                1.0
+            }
+            plan.copy(
+                transitionStart = startCut,
+                transitionEnd = endSec,
+                fadeSeconds = transFade,
+                incomingCueTime = cueSec,
+                incomingHandoffTime = cueSec,
+                incomingPlaybackRate = rate,
+                transitionStyle = TransitionStyle.DJ_BLEND,
+                reason = "mix-plan-${storedPlan.mode.name.lowercase()}",
+            )
+        } else {
+            val transStartMs = (plan.transitionStart * 1000).roundToLong()
+            val rem = transStartMs - player.currentPosition
+            if (rem <= 20_000L && analysisState.next != TrackAnalysisState.ANALYSED) {
+                Log.d(TAG, "analysis deadline reached (remaining=${rem}ms): planning fallback FADE, reason=analysis-late")
+                plan.copy(
+                    transitionStyle = TransitionStyle.EQUAL_POWER,
+                    bassSwap = false,
+                    reason = "analysis-late",
+                )
+            } else {
+                plan
+            }
+        }
+
         // One line per distinct verdict rather than one per 250ms tick, so the
         // log says what the planner decided for this pair without burying it.
-        val verdict = "${plan.reason}|${plan.transitionStyle}|fade=${plan.fadeMs}" +
-            "|cue=${plan.incomingCueTime}|rate=${plan.incomingPlaybackRate}" +
-            "|vocalOverlap=${"%.2f".format(Locale.ROOT, plan.vocalOverlap)}" +
-            "|blocked=${plan.blocked}|policy=${plan.policyReasons.joinToString(",")}"
+        val verdict = "${effectivePlan.reason}|${effectivePlan.transitionStyle}|fade=${effectivePlan.fadeMs}" +
+            "|cue=${effectivePlan.incomingCueTime}|rate=${effectivePlan.incomingPlaybackRate}" +
+            "|vocalOverlap=${"%.2f".format(Locale.ROOT, effectivePlan.vocalOverlap)}" +
+            "|blocked=${effectivePlan.blocked}|policy=${effectivePlan.policyReasons.joinToString(",")}"
         if (verdict != lastPlanVerdict) {
             lastPlanVerdict = verdict
             Log.d(
@@ -682,77 +736,30 @@ class CrossfadeController(
             )
         }
 
-        // Gated on *both* tracks being measured, not on the plan alone. Until
-        // then the planner is still sizing the overlap from a fallback that
-        // moves as evidence lands, and a marker that slides along the bar while
-        // you watch it is worse than none. Cleared during the transition itself
-        // by [driveLap], because from that moment these fractions describe a
-        // track the session player has already left.
-        //
-        // Asymmetric on purpose, because the two sides are read for different
-        // things and a head-only result covers one of them completely.
-        //
-        // Where the window *sits* comes almost entirely from the outgoing track:
-        // its content end, its outro, its mix-out anchors. A provisional result
-        // has none of those — [analyzeHead] drops them deliberately rather than
-        // answering confidently about a track it has only seen the opening of —
-        // so the plan falls back to a plain end-of-track window, and the marker
-        // would sit there and then jump backwards when the whole-track pass
-        // lands. That is the sliding marker this guard exists for, so the
-        // outgoing side still has to be finished.
-        //
-        // The incoming side is the opposite case. All the planner asks of it is
-        // tempo, confidence and where it is safe to cue in — which are exactly
-        // the fields a head pass measures, and it measures them over the same
-        // opening window the whole-track pass would. Refining will sharpen those
-        // numbers but not move them, so holding the marker back for it hid a
-        // window that was already correct. Since the incoming track is now
-        // routinely analysed from its opening long before it plays, that was
-        // most of the time the marker was missing.
-        val markable = !plan.blocked &&
-            plan.markerVisible &&
+        val markable = !effectivePlan.blocked &&
+            effectivePlan.markerVisible &&
             duration > 0L &&
-            analysisState.current == TrackAnalysisState.ANALYSED &&
-            analysisState.next in MEASURED_ENOUGH_TO_ENTER_ON
+            (storedPlan != null || (analysisState.current == TrackAnalysisState.ANALYSED && analysisState.next in MEASURED_ENOUGH_TO_ENTER_ON))
         AppSettings.smartTransitionWindow.value = if (markable) {
             TransitionWindow(
-                start = (plan.transitionStart * 1000.0 / duration).toFloat().coerceIn(0f, 1f),
-                end = (plan.transitionEnd * 1000.0 / duration).toFloat().coerceIn(0f, 1f),
+                start = (effectivePlan.transitionStart * 1000.0 / duration).toFloat().coerceIn(0f, 1f),
+                end = (effectivePlan.transitionEnd * 1000.0 / duration).toFloat().coerceIn(0f, 1f),
             )
         } else {
             null
         }
 
-        if (plan.blocked) return
+        if (effectivePlan.blocked) return
 
-        val fade = plan.fadeMs
+        val fade = effectivePlan.fadeMs
         if (fade <= 0L) return
 
-        val transitionStartMs = (plan.transitionStart * 1000).roundToLong()
+        val transitionStartMs = (effectivePlan.transitionStart * 1000).roundToLong()
         val remaining = transitionStartMs - player.currentPosition
         if (SleepTimer.afterTrack.value) {
-            // Automix would start blending into the next track here; the sleep
-            // timer means there is no next track, so run the same fade-out
-            // against silence instead — see [beginSleepFadeOut].
             if (remaining > 0L) return
             beginSleepFadeOut(fade)
             return
-        }
-        // Same arm-ahead margin as the standard path, just measured against
-        // the plan's own start rather than a fixed offset from track end —
-        // an analyzed mix-out anchor can place that start well before the
-        // file actually ends.
-        // Deadline rule: if incoming analysis is incomplete at transitionStart - 20s,
-        // plan an equal-power FADE (6-8s) and log reason analysis-late rather than waiting silently.
-        val effectivePlan = if (remaining <= 20_000L && analysisState.next != TrackAnalysisState.ANALYSED) {
-            Log.d(TAG, "analysis deadline reached (remaining=${remaining}ms): planning fallback FADE, reason=analysis-late")
-            plan.copy(
-                transitionStyle = TransitionStyle.EQUAL_POWER,
-                bassSwap = false,
-                reason = "analysis-late",
-            )
-        } else {
-            plan
         }
 
         if (remaining > ARM_LEAD_MS) return
@@ -770,6 +777,7 @@ class CrossfadeController(
                 handoffFraction = effectivePlan.handoffFraction,
                 filterSweep = effectivePlan.filterSweep,
                 vocalOverlap = effectivePlan.vocalOverlap,
+                profile = customProfile,
             ),
         )
     }

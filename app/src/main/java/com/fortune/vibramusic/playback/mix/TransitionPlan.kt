@@ -58,6 +58,8 @@ data class TransitionPlan(
     val lengthBars: Int = 4,
     val beatmatching: Boolean = true,
     val startOffsetBeats: Float = 0f,
+    val startCutSeconds: Double? = null,
+    val mixInSeconds: Double = 0.0,
     val volume: VolumePlan,
     val eq: EqPlan,
     val filter: FilterPlan,
@@ -66,6 +68,8 @@ data class TransitionPlan(
     val updatedAt: Long = 0L,
     val updatedBy: String = "",
 ) {
+    val durationSeconds: Double get() = lengthBars * 2.0
+
     companion object {
         fun pairIdOf(fromEntryId: String, toEntryId: String): String =
             "${fromEntryId}__${toEntryId}"

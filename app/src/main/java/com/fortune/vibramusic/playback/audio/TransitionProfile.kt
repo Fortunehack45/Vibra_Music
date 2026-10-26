@@ -150,5 +150,59 @@ data class TransitionProfile(
                 incomingEqBands = mapOf(AutomationCurve.PARAM_BASS_IN to inBass),
             )
         }
+
+        /**
+         * Converts a Mix V2 [com.fortune.vibramusic.playback.mix.TransitionPlan] into an executable [TransitionProfile].
+         */
+        fun fromTransitionPlan(plan: com.fortune.vibramusic.playback.mix.TransitionPlan): TransitionProfile {
+            val outPoints = if (plan.volume.out.isNotEmpty()) {
+                plan.volume.out.map { CurvePoint(it.t, it.v.coerceIn(0f, 1f)) }
+            } else {
+                listOf(CurvePoint(0f, 1f), CurvePoint(1f, 0f))
+            }
+            val inPoints = if (plan.volume.`in`.isNotEmpty()) {
+                plan.volume.`in`.map { CurvePoint(it.t, it.v.coerceIn(0f, 1f)) }
+            } else {
+                listOf(CurvePoint(0f, 0f), CurvePoint(1f, 1f))
+            }
+
+            val outGain = AutomationCurve(
+                parameterId = AutomationCurve.PARAM_GAIN_OUT,
+                points = outPoints,
+                interpolation = CurveInterpolation.LINEAR,
+            )
+            val inGain = AutomationCurve(
+                parameterId = AutomationCurve.PARAM_GAIN_IN,
+                points = inPoints,
+                interpolation = CurveInterpolation.LINEAR,
+            )
+
+            val outBass = if (plan.eq.out.low.isNotEmpty()) {
+                AutomationCurve(
+                    parameterId = AutomationCurve.PARAM_BASS_OUT,
+                    points = plan.eq.out.low.map { CurvePoint(it.t, (it.v - 1f) * 24f) },
+                    minValue = -24f,
+                    maxValue = 3f,
+                )
+            } else null
+
+            val inBass = if (plan.eq.`in`.low.isNotEmpty()) {
+                AutomationCurve(
+                    parameterId = AutomationCurve.PARAM_BASS_IN,
+                    points = plan.eq.`in`.low.map { CurvePoint(it.t, (it.v - 1f) * 24f) },
+                    minValue = -24f,
+                    maxValue = 3f,
+                )
+            } else null
+
+            return TransitionProfile(
+                id = plan.pairId.ifBlank { PRESET_CUSTOM },
+                name = "Mix V2 Custom",
+                outgoingGain = outGain,
+                incomingGain = inGain,
+                outgoingEqBands = if (outBass != null) mapOf(AutomationCurve.PARAM_BASS_OUT to outBass) else emptyMap(),
+                incomingEqBands = if (inBass != null) mapOf(AutomationCurve.PARAM_BASS_IN to inBass) else emptyMap(),
+            )
+        }
     }
 }

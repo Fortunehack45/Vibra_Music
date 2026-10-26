@@ -38,6 +38,7 @@ import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.FileUpload
+import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.HighQuality
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Person
@@ -186,6 +187,7 @@ fun SongActionsSheet(
      */
     resolvingLinks: Boolean = false,
     onOpenSongInfo: (() -> Unit)? = null,
+    onCustomizeTransition: (() -> Unit)? = null,
 ) {
     var pickingSleepTimer by remember { mutableStateOf(false) }
     var showingSongInfo by remember(song.videoId) { mutableStateOf(false) }
@@ -340,6 +342,15 @@ fun SongActionsSheet(
                 stringResource(R.string.open_artist),
                 accent = palette.accent,
             ) { onOpenArtist(id) }
+        }
+        onCustomizeTransition?.let {
+            ActionRow(
+                icon = Icons.Rounded.GraphicEq,
+                label = stringResource(R.string.mix_title),
+                value = stringResource(R.string.mix_banner_subtitle),
+                accent = palette.accent,
+                onClick = it,
+            )
         }
         if (showSleepTimer) {
             ActionRow(

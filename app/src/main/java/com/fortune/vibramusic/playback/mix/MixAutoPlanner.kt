@@ -35,10 +35,17 @@ object MixAutoPlanner {
             val fx = MixOptions.findEffectsOption("none")
             val loop = MixOptions.findLoopingOption(0)
 
+            val defaultCut = from?.duration?.takeIf { it > 15.0 }?.let { dur ->
+                from.mixOutTime.takeIf { it > 15.0 && it < dur } ?: (dur - 6.0).coerceAtLeast(15.0)
+            }
+            val defaultIn = to?.mixInTime?.takeIf { it >= 0.0 } ?: 0.0
+
             return base.copy(
                 mode = TransitionMode.AUTO,
                 lengthBars = 2,
                 beatmatching = false,
+                startCutSeconds = defaultCut,
+                mixInSeconds = defaultIn,
                 volume = VolumePlan("smooth-crossfade", vol.out, vol.`in`),
                 eq = EqPlan("end-bass-swap", eq.out, eq.`in`),
                 filter = FilterPlan("none", filter.out, filter.`in`),
@@ -111,10 +118,18 @@ object MixAutoPlanner {
         val fx = MixOptions.findEffectsOption(fxOptionId)
         val loop = MixOptions.findLoopingOption(0)
 
+        val secondsPerBar = (60.0 / from.bpm.coerceAtLeast(40.0)) * 4.0
+        val transitionDurationSeconds = bars * secondsPerBar
+        val defaultCut = from.mixOutTime.takeIf { it > 15.0 && it < from.duration }
+            ?: (from.duration - transitionDurationSeconds).coerceAtLeast(15.0)
+        val defaultIn = to.mixInTime.takeIf { it >= 0.0 && it < (to.duration * 0.4) } ?: 0.0
+
         return base.copy(
             mode = TransitionMode.AUTO,
             lengthBars = bars,
             beatmatching = beatmatching,
+            startCutSeconds = defaultCut,
+            mixInSeconds = defaultIn,
             volume = VolumePlan(volOptionId, vol.out, vol.`in`),
             eq = EqPlan(eqOptionId, eq.out, eq.`in`),
             filter = FilterPlan(filterOptionId, filter.out, filter.`in`),

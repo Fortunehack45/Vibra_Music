@@ -8,6 +8,7 @@ import com.fortune.vibramusic.data.settings.AppSettings
 import com.fortune.vibramusic.playback.mix.MixAutoPlanner
 import com.fortune.vibramusic.playback.mix.TransitionPlan
 import com.fortune.vibramusic.playback.smart.TrackAnalysis
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.serialization.json.Json
 import org.json.JSONArray
 import org.json.JSONObject
@@ -24,6 +25,7 @@ object LocalPlaylistsStore {
     private lateinit var transitionsFile: File
     private val globalTransitions = mutableMapOf<String, MutableMap<String, String>>()
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+    val mixUpdates = MutableStateFlow(0L)
 
     data class StoredPlaylist(
         val id: String,
@@ -295,6 +297,7 @@ object LocalPlaylistsStore {
         if (::mixPrefs.isInitialized) {
             mixPrefs.edit().putBoolean("mix_enabled_$cleanId", enabled).apply()
         }
+        mixUpdates.value = System.currentTimeMillis()
     }
 
     @Synchronized
@@ -332,6 +335,7 @@ object LocalPlaylistsStore {
         val map = globalTransitions.getOrPut(cleanId) { mutableMapOf() }
         map[plan.pairId] = raw
         saveGlobalTransitions()
+        mixUpdates.value = System.currentTimeMillis()
     }
 
     @Synchronized
@@ -374,6 +378,7 @@ object LocalPlaylistsStore {
         }
         p?.let { save() }
         saveGlobalTransitions()
+        mixUpdates.value = System.currentTimeMillis()
     }
 
     @Synchronized

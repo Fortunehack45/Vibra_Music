@@ -205,6 +205,7 @@ import com.fortune.vibramusic.playback.upgradeQuality
 import com.fortune.vibramusic.playback.revertToOriginal
 import com.fortune.vibramusic.playback.swapToVersion
 import com.fortune.vibramusic.playback.smart.VersionAudioAligner
+import com.fortune.vibramusic.data.LocalPlaylistsStore
 import com.fortune.vibramusic.download.DownloadSession
 import com.fortune.vibramusic.download.DownloadStore
 import com.fortune.vibramusic.download.MediaTagger
@@ -4395,6 +4396,19 @@ private fun VibraMusicApp(
                         {
                             browseActions = null
                             scope.launch { Downloads.deleteCollection(context, id) }
+                        }
+                    },
+                    isMixEnabled = target.browseId?.let { LocalPlaylistsStore.isMixEnabled(it) } ?: false,
+                    onToggleMix = target.browseId?.takeIf { target.type != BrowseType.ARTIST }?.let { id ->
+                        {
+                            val next = !LocalPlaylistsStore.isMixEnabled(id)
+                            LocalPlaylistsStore.setMixEnabled(id, next)
+                            if (next && target.songs.size > 1) {
+                                val analysisStore = com.fortune.vibramusic.playback.smart.AnalysisStore(context)
+                                LocalPlaylistsStore.reconcileTransitions(id, target.songs) { s ->
+                                    analysisStore.load(s.videoId)
+                                }
+                            }
                         }
                     },
                 )

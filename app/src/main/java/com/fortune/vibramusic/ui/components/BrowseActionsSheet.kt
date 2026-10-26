@@ -1,6 +1,7 @@
 package com.fortune.vibramusic.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -17,10 +18,14 @@ import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.DeleteForever
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -30,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -45,6 +51,7 @@ import com.fortune.vibramusic.data.model.artworkAt
 import com.fortune.vibramusic.download.DownloadState
 import com.fortune.vibramusic.download.Downloads
 import com.fortune.vibramusic.ui.icons.VibraMusicIcons
+import com.fortune.vibramusic.ui.theme.VibraPurple
 import java.util.Locale
 
 /**
@@ -161,6 +168,8 @@ fun BrowseActionsSheet(
      * also happens to be downloaded.
      */
     onDeleteDownload: (() -> Unit)? = null,
+    isMixEnabled: Boolean = false,
+    onToggleMix: (() -> Unit)? = null,
 ) {
     var renaming by remember { mutableStateOf(false) }
     var confirmingDelete by remember { mutableStateOf(false) }
@@ -193,6 +202,44 @@ fun BrowseActionsSheet(
             stringResource(R.string.add_to_queue),
             onClick = onAddToQueue,
         )
+        if (onToggleMix != null) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onToggleMix)
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.GraphicEq,
+                    contentDescription = null,
+                    tint = if (isMixEnabled) VibraPurple else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(24.dp),
+                )
+                Spacer(Modifier.width(16.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.mix_title),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Text(
+                        text = stringResource(R.string.mix_subtitle),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(
+                    checked = isMixEnabled,
+                    onCheckedChange = { onToggleMix() },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Color.White,
+                        checkedTrackColor = VibraPurple,
+                        checkedBorderColor = VibraPurple,
+                    ),
+                )
+            }
+        }
         onDownloadAll?.let { download ->
             // Saying which of the three it is, rather than offering the same row
             // whatever the state — this is where a release is asked for now that

@@ -281,7 +281,7 @@ object AppSettings {
     val skipSilence = MutableStateFlow(false)
 
     /** Mix feature default preferences. */
-    val mixEnableOnNewPlaylists = MutableStateFlow(true)
+    val mixEnableOnNewPlaylists = MutableStateFlow(false)
     val mixDefaultLengthBars = MutableStateFlow(4)
     val mixDefaultBeatmatching = MutableStateFlow(true)
 
@@ -877,7 +877,7 @@ object AppSettings {
             )
         }.getOrDefault(AutomixPerformanceMode.BALANCED)
         skipSilence.value = prefs.getBoolean(KEY_SKIP_SILENCE, false)
-        mixEnableOnNewPlaylists.value = prefs.getBoolean(KEY_MIX_ENABLE_ON_NEW_PLAYLISTS, true)
+        mixEnableOnNewPlaylists.value = prefs.getBoolean(KEY_MIX_ENABLE_ON_NEW_PLAYLISTS, false)
         mixDefaultLengthBars.value = prefs.getInt(KEY_MIX_DEFAULT_LENGTH_BARS, 4)
         mixDefaultBeatmatching.value = prefs.getBoolean(KEY_MIX_DEFAULT_BEATMATCHING, true)
         outputPcmMode.value = runCatching {

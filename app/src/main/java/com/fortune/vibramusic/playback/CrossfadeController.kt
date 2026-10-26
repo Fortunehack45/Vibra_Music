@@ -742,21 +742,34 @@ class CrossfadeController(
         // the plan's own start rather than a fixed offset from track end —
         // an analyzed mix-out anchor can place that start well before the
         // file actually ends.
+        // Deadline rule: if incoming analysis is incomplete at transitionStart - 20s,
+        // plan an equal-power FADE (6-8s) and log reason analysis-late rather than waiting silently.
+        val effectivePlan = if (remaining <= 20_000L && analysisState.next != TrackAnalysisState.ANALYSED) {
+            Log.d(TAG, "analysis deadline reached (remaining=${remaining}ms): planning fallback FADE, reason=analysis-late")
+            plan.copy(
+                transitionStyle = TransitionStyle.EQUAL_POWER,
+                bassSwap = false,
+                reason = "analysis-late",
+            )
+        } else {
+            plan
+        }
+
         if (remaining > ARM_LEAD_MS) return
 
         begin(
-            fade,
-            endMs = (plan.transitionEnd * 1000).roundToLong(),
+            effectivePlan.fadeMs,
+            endMs = (effectivePlan.transitionEnd * 1000).roundToLong(),
             smart = true,
-            cueTimeMs = (plan.incomingCueTime * 1000).roundToLong(),
-            playbackRate = plan.incomingPlaybackRate,
+            cueTimeMs = (effectivePlan.incomingCueTime * 1000).roundToLong(),
+            playbackRate = effectivePlan.incomingPlaybackRate,
             renderStyle = Render(
-                style = plan.transitionStyle,
-                bassSwap = plan.bassSwap,
-                bassSwapFraction = plan.bassSwapFraction,
-                handoffFraction = plan.handoffFraction,
-                filterSweep = plan.filterSweep,
-                vocalOverlap = plan.vocalOverlap,
+                style = effectivePlan.transitionStyle,
+                bassSwap = effectivePlan.bassSwap,
+                bassSwapFraction = effectivePlan.bassSwapFraction,
+                handoffFraction = effectivePlan.handoffFraction,
+                filterSweep = effectivePlan.filterSweep,
+                vocalOverlap = effectivePlan.vocalOverlap,
             ),
         )
     }
@@ -781,6 +794,15 @@ class CrossfadeController(
         if (currentItem.isVideoOrigin || nextItem.isVideoOrigin) return
         requestAnalysis(currentItem, duration)
         requestAnalysis(nextItem, nextItemDurationMs(nextIndex, nextItem))
+
+        // Lookahead N+2: Warm analysis head for the track following the next item
+        val nextNextIndex = if (nextIndex + 1 < player.mediaItemCount) nextIndex + 1 else C.INDEX_UNSET
+        if (nextNextIndex != C.INDEX_UNSET) {
+            val nextNextItem = player.getMediaItemAt(nextNextIndex)
+            if (!nextNextItem.isVideoOrigin) {
+                requestAnalysis(nextNextItem, nextItemDurationMs(nextNextIndex, nextNextItem))
+            }
+        }
     }
 
     /**
@@ -874,7 +896,7 @@ class CrossfadeController(
         return if (seconds > 0) seconds * 1000L else 0L
     }
 
-    /** Siren Music doesn't carry album metadata on [MediaMetadata] yet, so [TransitionTrackInfo.album] stays blank. */
+    /** Vibra Music doesn't carry album metadata on [MediaMetadata] yet, so [TransitionTrackInfo.album] stays blank. */
     private fun MediaItem.toTransitionInfo(durationMs: Long) = TransitionTrackInfo(
         id = mediaId,
         durationMs = durationMs,

@@ -637,10 +637,24 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
             return null
         }
 
+        val refined = if (grid != null && grid.beats.size >= 4) {
+            GridRefiner.refine(rawBeats = grid.beats, downbeats = grid.downbeats)
+        } else null
+
+        val finalBpm = refined?.bpm ?: grid?.bpm ?: entry?.bpm ?: 0.0
+        val finalConf = refined?.beatConfidence ?: grid?.beatConfidence ?: entry?.beatConfidence ?: 0.0
+        val finalBeats = refined?.beats ?: grid?.beats.orEmpty()
+        val finalDownbeats = refined?.downbeats ?: grid?.downbeats ?: entry?.downbeats.orEmpty()
+        val finalFirstBeat = refined?.firstBeat ?: grid?.firstBeat ?: entry?.firstBeat ?: 0.0
+        val finalInterval = refined?.beatInterval ?: grid?.beatInterval ?: entry?.beatInterval ?: 0.0
+        val gridSource = refined?.gridSource ?: if (grid != null) "model" else if (entry != null) "dsp" else "none"
+        val modelLoaded = grid != null
+
         Log.d(
             TAG,
-            "Analysed head of $trackId: bpm=${grid?.bpm ?: entry?.bpm} " +
-                "conf=${grid?.beatConfidence ?: entry?.beatConfidence} " +
+            "Analysed head of $trackId: bpm=$finalBpm " +
+                "conf=$finalConf " +
+                "grid.source=$gridSource model.loaded=$modelLoaded " +
                 "audibleStart=${entry?.audibleStartTime} pickup=${entry?.pickupTime} " +
                 "introEnd=${entry?.introEndTime} mixInCandidates=${entry?.mixInCandidates?.size ?: 0} " +
                 "over ${"%.1f".format(Locale.ROOT, head.seconds)}s",
@@ -650,11 +664,11 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
             status = TrackAnalysis.STATUS_READY,
             trackId = trackId,
             duration = durationSeconds,
-            bpm = grid?.bpm ?: entry?.bpm ?: 0.0,
-            beatInterval = grid?.beatInterval ?: entry?.beatInterval ?: 0.0,
-            beatConfidence = grid?.beatConfidence ?: entry?.beatConfidence ?: 0.0,
-            downbeats = grid?.downbeats ?: entry?.downbeats.orEmpty(),
-            firstBeat = grid?.firstBeat ?: entry?.firstBeat ?: 0.0,
+            bpm = finalBpm,
+            beatInterval = finalInterval,
+            beatConfidence = finalConf,
+            downbeats = finalDownbeats,
+            firstBeat = finalFirstBeat,
             key = entry?.key.orEmpty(),
             keyConfidence = entry?.keyConfidence ?: 0.0,
             audibleStartTime = entry?.audibleStartTime,
@@ -663,7 +677,11 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
             mixInTime = entry?.mixInTime ?: 0.0,
             mixInCandidates = entry?.mixInCandidates.orEmpty(),
             meter = grid?.meter ?: MeterHypothesis(),
-            beats = grid?.beats.orEmpty(),
+            beats = finalBeats,
+            gridSource = gridSource,
+            modelLoaded = modelLoaded,
+            perBeatConfidences = refined?.perBeatConfidences.orEmpty(),
+            tempoStability = refined?.tempoStability ?: 1.0,
         )
     }
 
@@ -1020,32 +1038,44 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
         val headGrid = head?.grid
         val tailGrid = tail?.grid
 
-        // The tail governs where the outgoing track is mixed out, so it takes precedence; the
-        // head is what a track uses when it is the *incoming* side of a different transition.
+        val combinedBeats = (headGrid?.beats.orEmpty() + tailGrid?.beats.orEmpty()).distinct().sorted()
+        val combinedDownbeats = (headGrid?.downbeats.orEmpty() + tailGrid?.downbeats.orEmpty()).distinct().sorted()
+
         val leading = tailGrid ?: headGrid
+        val refined = if (combinedBeats.size >= 4) {
+            GridRefiner.refine(rawBeats = combinedBeats, downbeats = combinedDownbeats)
+        } else null
+
+        val finalBpm = refined?.bpm ?: leading?.bpm ?: features.bpm
+        val finalConf = refined?.beatConfidence ?: leading?.beatConfidence ?: features.beatConfidence
+        val finalInterval = refined?.beatInterval ?: leading?.beatInterval ?: features.beatInterval
+        val finalBeats = refined?.beats ?: combinedBeats
+        val finalDownbeats = refined?.downbeats ?: combinedDownbeats.ifEmpty { features.downbeats }.sorted()
+        val finalFirstBeat = refined?.firstBeat ?: headGrid?.firstBeat ?: features.firstBeat
+        val gridSource = refined?.gridSource ?: if (leading != null) "model" else "dsp"
+        val modelLoaded = headGrid != null || tailGrid != null
 
         Log.d(
             TAG,
-            "Analysed $trackId: bpm=${leading?.bpm ?: features.bpm} " +
-                "conf=${leading?.beatConfidence ?: features.beatConfidence} " +
+            "Analysed $trackId: bpm=$finalBpm " +
+                "conf=$finalConf " +
+                "grid.source=$gridSource model.loaded=$modelLoaded " +
                 "key=${features.key} contentEnd=${features.contentEndTime} " +
                 "mixOutCandidates=${features.mixOutCandidates.size} " +
                 "vocalMask=${if (head?.vocalMask != null || tail?.vocalMask != null) "model" else "dsp"}",
         )
 
         return WholeTrack(
-                TrackAnalysis(
-                    status = TrackAnalysis.STATUS_READY,
-                    trackId = trackId,
-                    duration = effectiveDuration,
-                    contentEndTime = features.contentEndTime.takeIf { it > 0 } ?: effectiveDuration,
-                    bpm = leading?.bpm ?: features.bpm,
-                beatInterval = leading?.beatInterval ?: features.beatInterval,
-                beatConfidence = leading?.beatConfidence ?: features.beatConfidence,
-                downbeats = (headGrid?.downbeats.orEmpty() + tailGrid?.downbeats.orEmpty())
-                    .ifEmpty { features.downbeats }
-                    .sorted(),
-                firstBeat = headGrid?.firstBeat ?: features.firstBeat,
+            TrackAnalysis(
+                status = TrackAnalysis.STATUS_READY,
+                trackId = trackId,
+                duration = effectiveDuration,
+                contentEndTime = features.contentEndTime.takeIf { it > 0 } ?: effectiveDuration,
+                bpm = finalBpm,
+                beatInterval = finalInterval,
+                beatConfidence = finalConf,
+                downbeats = finalDownbeats,
+                firstBeat = finalFirstBeat,
                 phraseBoundaries = features.phraseBoundaries,
                 key = features.key,
                 keyConfidence = features.keyConfidence,
@@ -1059,10 +1089,6 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
                 mixOutCandidates = features.mixOutCandidates,
                 energyCurve = features.energyCurve,
                 lowEnergyCurve = features.lowEnergyCurve,
-                // The model's mask where it ran, the DSP heuristic's where it didn't. Falling back to
-                // the heuristic rather than to nothing matters because the policy reads an
-                // absent mask and a neutral one identically — as "no evidence" — so a failed model
-                // pass would otherwise silently discard the estimate Phase 1 already had.
                 vocalActivityMask = mergeMasks(features.energyCurve.size, head?.vocalMask, tail?.vocalMask)
                     ?: features.vocalActivityMask,
                 vocalProbability = features.vocalProbability,
@@ -1070,7 +1096,11 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
                 loudnessLufs = features.loudnessLufs,
                 peakDbfs = features.peakDbfs,
                 dynamicRangeDb = features.dynamicRangeDb,
-                beats = (headGrid?.beats.orEmpty() + tailGrid?.beats.orEmpty()).distinct().sorted(),
+                beats = finalBeats,
+                gridSource = gridSource,
+                modelLoaded = modelLoaded,
+                perBeatConfidences = refined?.perBeatConfidences.orEmpty(),
+                tempoStability = refined?.tempoStability ?: 1.0,
             ),
         )
     }

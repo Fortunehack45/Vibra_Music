@@ -116,6 +116,12 @@ data class TrackAnalysis(
     /** Standardized loudness profile (LUFS and true-peak). */
     val loudness: LoudnessProfile? = null,
     /** Analysis format schema version (1 = legacy, 2 = master beat clock v2). */
+        /** Source of the beat grid: "model", "refined_theil_sen", "warp_map", or "dsp". */
+    val gridSource: String = "model",
+    /** Whether the Beat This! ONNX model was successfully loaded and executed. */
+    val modelLoaded: Boolean = false,
+    /** Per-beat confidence score [0..1] aligned with [beats]. */
+    val perBeatConfidences: List<Double> = emptyList(),
     val analysisVersion: Int = 2,
 ) {
     /**

@@ -2,11 +2,11 @@
  * Ported from Orchard (https://github.com/SFG5453/Orchard).
  *
  * Copyright (C) 2026 SFG545 (original Orchard implementation)
- * Copyright (C) 2026 Kushagra Singh (Siren Music adaptation)
+ * Copyright (C) 2026 Kushagra Singh (Vibra Music adaptation)
  *
  * Orchard's original source is licensed under the GNU Affero General Public
  * License, version 3 or later. Per AGPLv3 section 13, this file is combined
- * here into Siren Music -- a work licensed under the GNU General Public
+ * here into Vibra Music -- a work licensed under the GNU General Public
  * License, version 3 or later -- and remains itself governed by the AGPLv3
  * as part of that combination.
  *
@@ -116,6 +116,12 @@ data class TrackAnalysis(
     /** Standardized loudness profile (LUFS and true-peak). */
     val loudness: LoudnessProfile? = null,
     /** Analysis format schema version (1 = legacy, 2 = master beat clock v2). */
+        /** Source of the beat grid: "model", "refined_theil_sen", "warp_map", or "dsp". */
+    val gridSource: String = "model",
+    /** Whether the Beat This! ONNX model was successfully loaded and executed. */
+    val modelLoaded: Boolean = false,
+    /** Per-beat confidence score [0..1] aligned with [beats]. */
+    val perBeatConfidences: List<Double> = emptyList(),
     val analysisVersion: Int = 2,
 ) {
     /**

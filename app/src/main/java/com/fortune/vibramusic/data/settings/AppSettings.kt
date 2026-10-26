@@ -280,6 +280,11 @@ object AppSettings {
     val automixPerformanceMode = MutableStateFlow(AutomixPerformanceMode.BALANCED)
     val skipSilence = MutableStateFlow(false)
 
+    /** Mix feature default preferences. */
+    val mixEnableOnNewPlaylists = MutableStateFlow(true)
+    val mixDefaultLengthBars = MutableStateFlow(4)
+    val mixDefaultBeatmatching = MutableStateFlow(true)
+
     /** Requested PCM representation at the Android AudioTrack boundary. */
     val outputPcmMode = MutableStateFlow(OutputPcmMode.PCM_16)
 
@@ -872,6 +877,9 @@ object AppSettings {
             )
         }.getOrDefault(AutomixPerformanceMode.BALANCED)
         skipSilence.value = prefs.getBoolean(KEY_SKIP_SILENCE, false)
+        mixEnableOnNewPlaylists.value = prefs.getBoolean(KEY_MIX_ENABLE_ON_NEW_PLAYLISTS, true)
+        mixDefaultLengthBars.value = prefs.getInt(KEY_MIX_DEFAULT_LENGTH_BARS, 4)
+        mixDefaultBeatmatching.value = prefs.getBoolean(KEY_MIX_DEFAULT_BEATMATCHING, true)
         outputPcmMode.value = runCatching {
             OutputPcmMode.valueOf(
                 prefs.getString(KEY_OUTPUT_PCM_MODE, OutputPcmMode.PCM_16.name)
@@ -1255,6 +1263,21 @@ object AppSettings {
     fun setSkipSilence(value: Boolean) {
         skipSilence.value = value
         prefs.edit().putBoolean(KEY_SKIP_SILENCE, value).apply()
+    }
+
+    fun setMixEnableOnNewPlaylists(value: Boolean) {
+        mixEnableOnNewPlaylists.value = value
+        prefs.edit().putBoolean(KEY_MIX_ENABLE_ON_NEW_PLAYLISTS, value).apply()
+    }
+
+    fun setMixDefaultLengthBars(value: Int) {
+        mixDefaultLengthBars.value = value
+        prefs.edit().putInt(KEY_MIX_DEFAULT_LENGTH_BARS, value).apply()
+    }
+
+    fun setMixDefaultBeatmatching(value: Boolean) {
+        mixDefaultBeatmatching.value = value
+        prefs.edit().putBoolean(KEY_MIX_DEFAULT_BEATMATCHING, value).apply()
     }
 
     fun setDolbyAtmos(value: Boolean) {
@@ -2138,6 +2161,9 @@ object AppSettings {
     private const val KEY_SMART_FADE = "smart_fade_enabled"
     private const val KEY_AUTOMIX_PERFORMANCE_MODE = "automix_performance_mode"
     private const val KEY_SKIP_SILENCE = "skip_silence"
+    private const val KEY_MIX_ENABLE_ON_NEW_PLAYLISTS = "mix_enable_on_new_playlists"
+    private const val KEY_MIX_DEFAULT_LENGTH_BARS = "mix_default_length_bars"
+    private const val KEY_MIX_DEFAULT_BEATMATCHING = "mix_default_beatmatching"
     private const val KEY_OUTPUT_PCM_MODE = "output_pcm_mode"
     private const val KEY_PREFER_USB_DAC = "prefer_usb_dac"
     private const val KEY_LOUDNESS_NORMALIZATION = "loudness_normalization"

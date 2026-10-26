@@ -135,7 +135,13 @@ import com.fortune.vibramusic.data.model.isSameTrackAs
 import com.fortune.vibramusic.data.settings.AppSettings
 import com.fortune.vibramusic.data.settings.SongSort
 import com.fortune.vibramusic.playback.smart.SmartReorder
+import com.fortune.vibramusic.data.LocalPlaylistsStore
+import com.fortune.vibramusic.playback.mix.MixAutoPlanner
+import com.fortune.vibramusic.playback.mix.TransitionPlan
 import com.fortune.vibramusic.playback.smart.TrackAnalysis
+import com.fortune.vibramusic.ui.components.MixTransitionChip
+import com.fortune.vibramusic.ui.components.TransitionEditorSheet
+import com.fortune.vibramusic.ui.theme.VibraPurple
 import com.fortune.vibramusic.ui.components.CoverPlaceholder
 import com.fortune.vibramusic.ui.components.DownloadedBadge
 import com.fortune.vibramusic.ui.components.ExplicitSongTitle
@@ -247,6 +253,7 @@ private fun String.looksLikeCredit() = CREDIT_SEPARATOR.containsMatchIn(this)
  * Album / artist / playlist page. Rendered inside the main content area
  * rather than as a sheet, so the tab bar and mini player stay visible.
  */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun DetailScreen(
     page: DetailPage,
@@ -289,6 +296,14 @@ fun DetailScreen(
         rawSongs.withIndex().associate { (i, s) -> s.videoId to (i + 1) }
     }
     val isArtist = page.type == BrowseType.ARTIST
+    val isPlaylist = page.type == BrowseType.PLAYLIST
+    var mixEnabled by remember(page.browseId) {
+        mutableStateOf(if (isPlaylist) LocalPlaylistsStore.isMixEnabled(page.browseId) else false)
+    }
+    var transitionsMap by remember(page.browseId) {
+        mutableStateOf(if (isPlaylist) LocalPlaylistsStore.getTransitions(page.browseId) else emptyMap())
+    }
+    var activeTransitionPair by remember { mutableStateOf<Pair<Song, Song>?>(null) }
 
     val topReleaseId = if (isArtist) page.sections.topRelease()?.browseId else null
     LaunchedEffect(topReleaseId) { topReleaseId?.let { onLoadReleaseLibrary?.invoke(it) } }
@@ -427,6 +442,17 @@ fun DetailScreen(
                                 onShuffle = { onShuffle(songs) },
                                 onArtistClick = onArtistClick,
                                 onToggleLibrary = onToggleLibrary,
+                                isPlaylist = isPlaylist,
+                                mixEnabled = mixEnabled,
+                                onToggleMix = {
+                                    val next = !mixEnabled
+                                    mixEnabled = next
+                                    LocalPlaylistsStore.setMixEnabled(page.browseId, next)
+                                    if (next) {
+                                        LocalPlaylistsStore.reconcileTransitions(page.browseId)
+                                        transitionsMap = LocalPlaylistsStore.getTransitions(page.browseId)
+                                    }
+                                },
                             )
                         }
                     }
@@ -573,6 +599,10 @@ fun DetailScreen(
                             ) { position, entry ->
                                 val song = entry.value
                                 val isCurrent = isCurrentRow(song)
+                                val analysis = if (mixEnabled) store.load(song.videoId) else null
+                                val nextSong = matches.getOrNull(position + 1)?.value
+                                val nextAnalysis = if (mixEnabled && nextSong != null) store.load(nextSong.videoId) else null
+
                                 SongRow(
                                     song = if (numbered) {
                                         song
@@ -591,15 +621,34 @@ fun DetailScreen(
                                     isCurrent = isCurrent,
                                     isPlaying = isCurrent && isPlaying,
                                     activeTint = palette.accent,
+                                    mixBpm = analysis?.bpm?.takeIf { mixEnabled },
+                                    mixKey = analysis?.key?.takeIf { mixEnabled },
+                                    mixRelativeToKey = nextAnalysis?.key?.takeIf { mixEnabled },
                                 )
                                 if (position < matches.lastIndex) {
-                                    HorizontalDivider(
-                                        modifier = Modifier.padding(
-                                            start = if (numbered) NUMBERED_ROW_DIVIDER_INSET else ROW_DIVIDER_INSET,
-                                        ),
-                                        thickness = 0.5.dp,
-                                        color = palette.divider,
-                                    )
+                                    if (mixEnabled && nextSong != null) {
+                                        val pairId = TransitionPlan.pairIdOf(song.videoId, nextSong.videoId)
+                                        val plan = transitionsMap[pairId] ?: MixAutoPlanner.autoPlan(
+                                            analysis,
+                                            nextAnalysis,
+                                            song.videoId,
+                                            nextSong.videoId,
+                                        )
+                                        MixTransitionChip(
+                                            plan = plan,
+                                            onClick = {
+                                                activeTransitionPair = song to nextSong
+                                            },
+                                        )
+                                    } else {
+                                        HorizontalDivider(
+                                            modifier = Modifier.padding(
+                                                start = if (numbered) NUMBERED_ROW_DIVIDER_INSET else ROW_DIVIDER_INSET,
+                                            ),
+                                            thickness = 0.5.dp,
+                                            color = palette.divider,
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -677,6 +726,34 @@ fun DetailScreen(
             )
         }
     }
+
+    val activePair = activeTransitionPair
+    if (activePair != null) {
+        val (trackA, trackB) = activePair
+        val analysisA = store.load(trackA.videoId)
+        val analysisB = store.load(trackB.videoId)
+        val pairId = TransitionPlan.pairIdOf(trackA.videoId, trackB.videoId)
+        val currentPlan = transitionsMap[pairId] ?: MixAutoPlanner.autoPlan(
+            analysisA,
+            analysisB,
+            trackA.videoId,
+            trackB.videoId,
+        )
+
+        TransitionEditorSheet(
+            fromSong = trackA,
+            toSong = trackB,
+            fromAnalysis = analysisA,
+            toAnalysis = analysisB,
+            initialPlan = currentPlan,
+            onDismiss = { activeTransitionPair = null },
+            onSave = { updatedPlan ->
+                LocalPlaylistsStore.saveTransition(page.browseId, updatedPlan)
+                transitionsMap = LocalPlaylistsStore.getTransitions(page.browseId)
+                activeTransitionPair = null
+            },
+        )
+    }
 }
 
 @Composable
@@ -690,6 +767,9 @@ private fun ReleaseHeader(
     onShuffle: () -> Unit,
     onArtistClick: ((String, String) -> Unit)?,
     onToggleLibrary: (() -> Unit)?,
+    isPlaylist: Boolean = false,
+    mixEnabled: Boolean = false,
+    onToggleMix: (() -> Unit)? = null,
 ) {
     val (credit, meta) = page.headerLines(songs.size, songs.playtime())
     val artist = songs.firstOrNull()
@@ -825,6 +905,17 @@ private fun ReleaseHeader(
                         onClick = {},
                         size = RELEASE_SIDE_BUTTON,
                         enabled = false,
+                    )
+                }
+                if (isPlaylist && onToggleMix != null) {
+                    CircleIconButton(
+                        icon = Icons.Rounded.GraphicEq,
+                        contentDescription = stringResource(R.string.mix_action_button),
+                        onClick = onToggleMix,
+                        haptic = if (mixEnabled) Haptic.ToggleOff else Haptic.ToggleOn,
+                        size = RELEASE_SIDE_BUTTON,
+                        tint = if (mixEnabled) VibraPurple else null,
+                        activeBackground = if (mixEnabled) VibraPurple.copy(alpha = 0.22f) else null,
                     )
                 }
             }
@@ -1283,6 +1374,8 @@ private fun CircleIconButton(
     haptic: Haptic = Haptic.Tap,
     size: Dp = 50.dp,
     enabled: Boolean = true,
+    tint: Color? = null,
+    activeBackground: Color? = null,
 ) {
     val haptics = rememberHaptics()
     Box(
@@ -1290,9 +1383,9 @@ private fun CircleIconButton(
             .size(size)
             .alpha(if (enabled) 1f else DISABLED_ACTION_ALPHA)
             .clip(CircleShape)
-            .background(Color.White.copy(alpha = LIGHT_FILL_ALPHA), CircleShape)
+            .background(activeBackground ?: Color.White.copy(alpha = LIGHT_FILL_ALPHA), CircleShape)
             .liquidGlassRim(CircleShape)
-            .border(1.dp, Color.White.copy(alpha = TOP_RELEASE_EDGE_ALPHA), CircleShape)
+            .border(1.dp, if (activeBackground != null) VibraPurple.copy(alpha = 0.5f) else Color.White.copy(alpha = TOP_RELEASE_EDGE_ALPHA), CircleShape)
             .clickable(enabled = enabled) {
                 haptics.play(haptic)
                 onClick()
@@ -1302,7 +1395,7 @@ private fun CircleIconButton(
         Icon(
             imageVector = icon,
             contentDescription = contentDescription,
-            tint = MaterialTheme.colorScheme.onSurface,
+            tint = tint ?: MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.size(size * 0.44f),
         )
     }

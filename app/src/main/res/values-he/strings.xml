@@ -1376,4 +1376,29 @@
     <string name="voice_no_results">לא נמצאה מוזיקה עבור \'%1$s\'</string>
     <string name="voice_search">חיפוש קולי</string>
     <string name="voice_search_prompt">אמור שיר, אמן, אלבום או פלייליסט</string>
+
+    <!-- Mix Feature Strings (ZERO EMOJIS) -->
+    <string name="mix_action_button">מיקס</string>
+    <string name="mix_auto">אוטומטי</string>
+    <string name="mix_custom">מותאם אישית</string>
+    <string name="mix_preset_fade">עמעום</string>
+    <string name="mix_preset_rise">Rise</string>
+    <string name="mix_preset_blend">Blend</string>
+    <string name="mix_preset_wave">Wave</string>
+    <string name="mix_preset_melt">Melt</string>
+    <string name="mix_preset_dissolve">המסה</string>
+    <string name="mix_preset_surge">Surge</string>
+    <string name="mix_preset_afterglow">Afterglow</string>
+    <string name="mix_preset_no_transition">ללא מעבר</string>
+    <string name="mix_lane_volume">עוצמת שמע</string>
+    <string name="mix_lane_eq">אקולייזר</string>
+    <string name="mix_lane_filter">מסנן</string>
+    <string name="mix_lane_effects">אפקטים</string>
+    <string name="mix_lane_looping">לופ</string>
+    <string name="mix_editor_title">עורך מעברים</string>
+    <string name="mix_save">שמור</string>
+    <string name="mix_cancel">ביטול</string>
+    <string name="mix_reset_to_auto">אפס לאוטומטי</string>
+    <string name="mix_bars_count">%1$d תיבות</string>
+    <string name="mix_bpm_format">%1$.1f BPM</string>
 </resources>

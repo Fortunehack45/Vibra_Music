@@ -361,6 +361,9 @@ fun SongRow(
     activeTint: Color = VibraPurple,
     /** True while a Downloads row belongs to the current multi-selection. */
     selected: Boolean = false,
+    mixBpm: Double? = null,
+    mixKey: String? = null,
+    mixRelativeToKey: String? = null,
 ) {
     val haptics = rememberHaptics()
     val swipeStateHolder = remember { mutableStateOf<SwipeToDismissBoxState?>(null) }
@@ -399,6 +402,9 @@ fun SongRow(
             isPlaying = isPlaying,
             activeTint = activeTint,
             selected = selected,
+            mixBpm = mixBpm,
+            mixKey = mixKey,
+            mixRelativeToKey = mixRelativeToKey,
         )
         return
     }
@@ -445,6 +451,9 @@ fun SongRow(
             isPlaying = isPlaying,
             activeTint = activeTint,
             selected = selected,
+            mixBpm = mixBpm,
+            mixKey = mixKey,
+            mixRelativeToKey = mixRelativeToKey,
         )
     }
 }
@@ -511,6 +520,9 @@ private fun SongRowContent(
     isPlaying: Boolean = false,
     activeTint: Color = VibraPurple,
     selected: Boolean = false,
+    mixBpm: Double? = null,
+    mixKey: String? = null,
+    mixRelativeToKey: String? = null,
 ) {
     val titleColor by animateColorAsState(
         targetValue = if (isCurrent) activeTint else MaterialTheme.colorScheme.onBackground,
@@ -646,6 +658,14 @@ private fun SongRowContent(
                 color = subtitleColor,
             )
         } else {
+            if (mixBpm != null || mixKey != null) {
+                Spacer(Modifier.width(8.dp))
+                MixBadge(
+                    bpm = mixBpm,
+                    camelotKey = mixKey,
+                    relativeToKey = mixRelativeToKey,
+                )
+            }
             song.durationText?.let {
                 Spacer(Modifier.width(8.dp))
                 Text(

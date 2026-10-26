@@ -96,12 +96,27 @@ class MixEngine(
         lowGain: Float = 1.0f,
         midGain: Float = 1.0f,
         highGain: Float = 1.0f,
+        filterParam: Float = 0.5f,
         stretchRatio: Float = 1.0f
     ) {
         if (nativeHandle != 0L) {
-            nativeSetDeckParameters(nativeHandle, deckId, volume, lowGain, midGain, highGain, stretchRatio)
+            nativeSetDeckParameters(nativeHandle, deckId, volume, lowGain, midGain, highGain, filterParam, stretchRatio)
         } else {
-            kotlinFallbackEngine?.setDeckParameters(deckId, volume, lowGain, midGain, highGain, stretchRatio)
+            kotlinFallbackEngine?.setDeckParameters(deckId, volume, lowGain, midGain, highGain, filterParam, stretchRatio)
+        }
+    }
+
+    fun configureEffects(
+        fxType: Int,
+        sendAmount: Float,
+        tailMode: Int,
+        echoBeats: Float = 0.5f,
+        bpm: Float = 120.0f
+    ) {
+        if (nativeHandle != 0L) {
+            nativeConfigureEffects(nativeHandle, fxType, sendAmount, tailMode, echoBeats, bpm)
+        } else {
+            kotlinFallbackEngine?.configureEffects(fxType, sendAmount, tailMode, echoBeats, bpm)
         }
     }
 
@@ -135,7 +150,16 @@ class MixEngine(
         lowGain: Float,
         midGain: Float,
         highGain: Float,
+        filterParam: Float,
         stretchRatio: Float
+    )
+    private external fun nativeConfigureEffects(
+        handle: Long,
+        fxType: Int,
+        sendAmount: Float,
+        tailMode: Int,
+        echoBeats: Float,
+        bpm: Float
     )
     private external fun nativeSetDeckPlaying(handle: Long, deckId: Int, playing: Boolean)
     private external fun nativeRender(handle: Long, outputArray: FloatArray, offset: Int, numFrames: Int): Int
@@ -396,7 +420,8 @@ internal class KotlinReferenceMixEngine(
         lowGain: Float,
         midGain: Float,
         highGain: Float,
-        stretchRatio: Float
+        filterParam: Float = 0.5f,
+        stretchRatio: Float = 1.0f
     ) {
         if (deckId !in 0..1) return
         val deck = decks[deckId]
@@ -405,6 +430,16 @@ internal class KotlinReferenceMixEngine(
         deck.midGain = midGain.coerceIn(0.0f, 2.0f)
         deck.highGain = highGain.coerceIn(0.0f, 2.0f)
         deck.stretchRatio = stretchRatio.coerceIn(0.5f, 2.0f)
+    }
+
+    fun configureEffects(
+        fxType: Int,
+        sendAmount: Float,
+        tailMode: Int,
+        echoBeats: Float,
+        bpm: Float
+    ) {
+        // Fallback engine: no-op in testing
     }
 
     fun setDeckPlaying(deckId: Int, playing: Boolean) {

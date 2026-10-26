@@ -50,6 +50,58 @@ data class CamelotKey(
         }
     }
 
+    /**
+     * Calculates integer Camelot distance from 0 (identical) to 3 (clash).
+     *
+     * 0: Exactly identical key (e.g. 10A -> 10A)
+     * 1: Adjacent hour (+/- 1) or relative major/minor (e.g. 10A -> 10B, 10A -> 9A/11A)
+     * 2: Diagonal shift (e.g. 10A -> 9B/11B) or 2 hours
+     * 3: Distant key modulation / harmonic clash
+     */
+    fun keyDistance(other: CamelotKey): Int {
+        if (this == other) return 0
+        val rawDiff = abs(this.number - other.number)
+        val wheelDist = min(rawDiff, 12 - rawDiff)
+
+        return when {
+            this.isMajor != other.isMajor && wheelDist == 0 -> 1
+            this.isMajor == other.isMajor && wheelDist == 1 -> 1
+            this.isMajor != other.isMajor && wheelDist == 1 -> 2
+            wheelDist == 2 -> 2
+            else -> 3
+        }
+    }
+
+    /**
+     * Returns an ARGB hex color for this key badge based on harmonic compatibility with [other].
+     * If [other] is null, falls back to the canonical Camelot wheel color for this key's hour.
+     */
+    fun badgeColor(other: CamelotKey? = null): Long {
+        if (other != null) {
+            return when (keyDistance(other)) {
+                0 -> 0xFF3B82F6 // Blue
+                1 -> if (this.isMajor == other.isMajor) 0xFF3B82F6 else 0xFF10B981 // Blue or Emerald
+                2 -> 0xFFEAB308 // Amber / Yellow
+                else -> 0xFFEF4444 // Coral / Red
+            }
+        }
+        return when (number) {
+            1 -> 0xFFE11D48
+            2 -> 0xFF10B981
+            3 -> 0xFF10B981
+            4 -> 0xFFEAB308
+            5 -> 0xFFF97316
+            6 -> 0xFFEF4444
+            7 -> 0xFF06B6D4
+            8 -> 0xFF0EA5E9
+            9 -> 0xFF3B82F6
+            10 -> 0xFF6366F1
+            11 -> 0xFF8B5CF6
+            12 -> 0xFFD946EF
+            else -> 0xFF8B5CF6
+        }
+    }
+
     companion object {
         /**
          * Parses a key string into a [CamelotKey].

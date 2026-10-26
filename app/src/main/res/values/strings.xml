@@ -1372,5 +1372,30 @@
     <string name="voice_no_results">Couldn\'t find music matching \'%1$s\'</string>
     <string name="voice_search">Voice search</string>
     <string name="voice_search_prompt">Speak song, artist, album, or playlist</string>
+
+    <!-- Mix Feature Strings (ZERO EMOJIS) -->
+    <string name="mix_action_button">Mix</string>
+    <string name="mix_auto">Auto</string>
+    <string name="mix_custom">Custom</string>
+    <string name="mix_preset_fade">Fade</string>
+    <string name="mix_preset_rise">Rise</string>
+    <string name="mix_preset_blend">Blend</string>
+    <string name="mix_preset_wave">Wave</string>
+    <string name="mix_preset_melt">Melt</string>
+    <string name="mix_preset_dissolve">Dissolve</string>
+    <string name="mix_preset_surge">Surge</string>
+    <string name="mix_preset_afterglow">Afterglow</string>
+    <string name="mix_preset_no_transition">No transition</string>
+    <string name="mix_lane_volume">Volume</string>
+    <string name="mix_lane_eq">EQ</string>
+    <string name="mix_lane_filter">Filter</string>
+    <string name="mix_lane_effects">Effects</string>
+    <string name="mix_lane_looping">Looping</string>
+    <string name="mix_editor_title">Transition Editor</string>
+    <string name="mix_save">Save</string>
+    <string name="mix_cancel">Cancel</string>
+    <string name="mix_reset_to_auto">Reset to Auto</string>
+    <string name="mix_bars_count">%1$d Bars</string>
+    <string name="mix_bpm_format">%1$.1f BPM</string>
 </resources>
 

@@ -1409,4 +1409,29 @@
     <string name="voice_no_results">Nie znaleziono muzyki pasującej do \'%1$s\'</string>
     <string name="voice_search">Wyszukiwanie głosowe</string>
     <string name="voice_search_prompt">Powiedz utwór, wykonawcę, album lub playlistę</string>
+
+    <!-- Mix Feature Strings (ZERO EMOJIS) -->
+    <string name="mix_action_button">Mix</string>
+    <string name="mix_auto">Auto</string>
+    <string name="mix_custom">Własny</string>
+    <string name="mix_preset_fade">Zanikanie</string>
+    <string name="mix_preset_rise">Rise</string>
+    <string name="mix_preset_blend">Blend</string>
+    <string name="mix_preset_wave">Wave</string>
+    <string name="mix_preset_melt">Melt</string>
+    <string name="mix_preset_dissolve">Rozpłynięcie</string>
+    <string name="mix_preset_surge">Surge</string>
+    <string name="mix_preset_afterglow">Afterglow</string>
+    <string name="mix_preset_no_transition">Bez przejścia</string>
+    <string name="mix_lane_volume">Głośność</string>
+    <string name="mix_lane_eq">Korektor</string>
+    <string name="mix_lane_filter">Filtr</string>
+    <string name="mix_lane_effects">Efekty</string>
+    <string name="mix_lane_looping">Pętla</string>
+    <string name="mix_editor_title">Edytor przejścia</string>
+    <string name="mix_save">Zapisz</string>
+    <string name="mix_cancel">Anuluj</string>
+    <string name="mix_reset_to_auto">Przywróć Auto</string>
+    <string name="mix_bars_count">%1$d taktów</string>
+    <string name="mix_bpm_format">%1$.1f BPM</string>
 </resources>

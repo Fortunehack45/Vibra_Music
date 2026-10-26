@@ -1357,4 +1357,29 @@
     <string name="voice_no_results">ไม่พบเพลงที่ตรงกับ \'%1$s\'</string>
     <string name="voice_search">ค้นหาด้วยเสียง</string>
     <string name="voice_search_prompt">พูดชื่อเพลง ศิลปิน อัลบั้ม หรือเพลย์ลิสต์</string>
+
+    <!-- Mix Feature Strings (ZERO EMOJIS) -->
+    <string name="mix_action_button">มิกซ์</string>
+    <string name="mix_auto">อัตโนมัติ</string>
+    <string name="mix_custom">กำหนดเอง</string>
+    <string name="mix_preset_fade">เฟด</string>
+    <string name="mix_preset_rise">ไรส์</string>
+    <string name="mix_preset_blend">เบลนด์</string>
+    <string name="mix_preset_wave">เวฟ</string>
+    <string name="mix_preset_melt">เมลต์</string>
+    <string name="mix_preset_dissolve">ดิสโซลฟ์</string>
+    <string name="mix_preset_surge">เซิร์จ</string>
+    <string name="mix_preset_afterglow">อาฟเตอร์โกลว์</string>
+    <string name="mix_preset_no_transition">ไม่มีการเปลี่ยนท่อน</string>
+    <string name="mix_lane_volume">ระดับเสียง</string>
+    <string name="mix_lane_eq">EQ</string>
+    <string name="mix_lane_filter">ฟิลเตอร์</string>
+    <string name="mix_lane_effects">เอฟเฟกต์</string>
+    <string name="mix_lane_looping">ลูป</string>
+    <string name="mix_editor_title">เครื่องมือแก้ไขการเปลี่ยนท่อน</string>
+    <string name="mix_save">บันทึก</string>
+    <string name="mix_cancel">ยกเลิก</string>
+    <string name="mix_reset_to_auto">รีเซ็ตเป็นอัตโนมัติ</string>
+    <string name="mix_bars_count">%1$d ห้องเพลง</string>
+    <string name="mix_bpm_format">%1$.1f BPM</string>
 </resources>

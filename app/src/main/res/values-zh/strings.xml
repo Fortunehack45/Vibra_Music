@@ -1351,4 +1351,29 @@
     <string name="voice_no_results">未找到与 \'%1$s\' 匹配的音乐</string>
     <string name="voice_search">语音搜索</string>
     <string name="voice_search_prompt">说出歌曲、歌手、专辑或播放列表</string>
+
+    <!-- Mix Feature Strings (ZERO EMOJIS) -->
+    <string name="mix_action_button">混音</string>
+    <string name="mix_auto">自动</string>
+    <string name="mix_custom">自定义</string>
+    <string name="mix_preset_fade">渐变</string>
+    <string name="mix_preset_rise">渐强</string>
+    <string name="mix_preset_blend">融合</string>
+    <string name="mix_preset_wave">波动</string>
+    <string name="mix_preset_melt">融化</string>
+    <string name="mix_preset_dissolve">溶解</string>
+    <string name="mix_preset_surge">激增</string>
+    <string name="mix_preset_afterglow">余晖</string>
+    <string name="mix_preset_no_transition">无过渡</string>
+    <string name="mix_lane_volume">音量</string>
+    <string name="mix_lane_eq">均衡器</string>
+    <string name="mix_lane_filter">滤波器</string>
+    <string name="mix_lane_effects">音效</string>
+    <string name="mix_lane_looping">循环</string>
+    <string name="mix_editor_title">过渡编辑器</string>
+    <string name="mix_save">保存</string>
+    <string name="mix_cancel">取消</string>
+    <string name="mix_reset_to_auto">重置为自动</string>
+    <string name="mix_bars_count">%1$d小节</string>
+    <string name="mix_bpm_format">%1$.1f BPM</string>
 </resources>

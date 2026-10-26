@@ -3,6 +3,10 @@ package com.fortune.vibramusic.data
 import android.content.Context
 import com.fortune.vibramusic.data.model.Song
 import com.fortune.vibramusic.data.model.UserPlaylist
+import com.fortune.vibramusic.playback.mix.MixAutoPlanner
+import com.fortune.vibramusic.playback.mix.TransitionPlan
+import com.fortune.vibramusic.playback.smart.TrackAnalysis
+import kotlinx.serialization.json.Json
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -14,11 +18,14 @@ import java.util.UUID
  */
 object LocalPlaylistsStore {
     private lateinit var file: File
+    private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
     data class StoredPlaylist(
         val id: String,
         val title: String,
         val songs: MutableList<Song> = mutableListOf(),
+        var mixEnabled: Boolean = false,
+        val transitions: MutableMap<String, String> = mutableMapOf(),
     )
 
     private val playlists = mutableListOf<StoredPlaylist>()
@@ -39,6 +46,16 @@ object LocalPlaylistsStore {
                 val obj = array.getJSONObject(i)
                 val id = obj.getString("id")
                 val title = obj.getString("title")
+                val mixEnabled = obj.optBoolean("mixEnabled", false)
+                val transObj = obj.optJSONObject("transitions")
+                val transMap = mutableMapOf<String, String>()
+                if (transObj != null) {
+                    val keys = transObj.keys()
+                    while (keys.hasNext()) {
+                        val k = keys.next()
+                        transMap[k] = transObj.getString(k)
+                    }
+                }
                 val songsArray = obj.optJSONArray("songs") ?: JSONArray()
                 val songList = mutableListOf<Song>()
                 for (j in 0 until songsArray.length()) {
@@ -54,7 +71,7 @@ object LocalPlaylistsStore {
                         )
                     )
                 }
-                playlists.add(StoredPlaylist(id, title, songList))
+                playlists.add(StoredPlaylist(id, title, songList, mixEnabled, transMap))
             }
         }
     }
@@ -68,6 +85,12 @@ object LocalPlaylistsStore {
                 val obj = JSONObject()
                 obj.put("id", p.id)
                 obj.put("title", p.title)
+                obj.put("mixEnabled", p.mixEnabled)
+                val transObj = JSONObject()
+                for ((k, v) in p.transitions) {
+                    transObj.put(k, v)
+                }
+                obj.put("transitions", transObj)
                 val songsArray = JSONArray()
                 for (s in p.songs) {
                     val sObj = JSONObject()
@@ -138,7 +161,11 @@ object LocalPlaylistsStore {
         val p = playlists.firstOrNull { it.id == cleanId } ?: return false
         if (p.songs.any { it.videoId == song.videoId }) return false
         p.songs.add(song)
-        save()
+        if (p.mixEnabled) {
+            reconcileTransitions(playlistId)
+        } else {
+            save()
+        }
         return true
     }
 
@@ -147,7 +174,13 @@ object LocalPlaylistsStore {
         val cleanId = playlistId.removePrefix("VL").removePrefix("local_")
         val p = playlists.firstOrNull { it.id == cleanId } ?: return false
         val removed = p.songs.removeAll { it.videoId == videoId }
-        if (removed) save()
+        if (removed) {
+            if (p.mixEnabled) {
+                reconcileTransitions(playlistId)
+            } else {
+                save()
+            }
+        }
         return removed
     }
 
@@ -184,6 +217,85 @@ object LocalPlaylistsStore {
     fun deletePlaylist(playlistId: String) {
         val cleanId = playlistId.removePrefix("VL").removePrefix("local_")
         playlists.removeAll { it.id == cleanId }
+        save()
+    }
+
+    @Synchronized
+    fun isMixEnabled(playlistId: String): Boolean {
+        val cleanId = playlistId.removePrefix("VL").removePrefix("local_")
+        return playlists.firstOrNull { it.id == cleanId }?.mixEnabled ?: false
+    }
+
+    @Synchronized
+    fun setMixEnabled(playlistId: String, enabled: Boolean) {
+        val cleanId = playlistId.removePrefix("VL").removePrefix("local_")
+        val p = playlists.firstOrNull { it.id == cleanId } ?: return
+        p.mixEnabled = enabled
+        save()
+    }
+
+    @Synchronized
+    fun getTransition(playlistId: String, pairId: String): TransitionPlan? {
+        val cleanId = playlistId.removePrefix("VL").removePrefix("local_")
+        val raw = playlists.firstOrNull { it.id == cleanId }?.transitions?.get(pairId) ?: return null
+        return runCatching { json.decodeFromString<TransitionPlan>(raw) }.getOrNull()
+    }
+
+    @Synchronized
+    fun getTransitions(playlistId: String): Map<String, TransitionPlan> {
+        val cleanId = playlistId.removePrefix("VL").removePrefix("local_")
+        val map = playlists.firstOrNull { it.id == cleanId }?.transitions ?: return emptyMap()
+        val result = mutableMapOf<String, TransitionPlan>()
+        for ((k, raw) in map) {
+            runCatching { json.decodeFromString<TransitionPlan>(raw) }.getOrNull()?.let {
+                result[k] = it
+            }
+        }
+        return result
+    }
+
+    @Synchronized
+    fun saveTransition(playlistId: String, plan: TransitionPlan) {
+        val cleanId = playlistId.removePrefix("VL").removePrefix("local_")
+        val p = playlists.firstOrNull { it.id == cleanId } ?: return
+        val raw = json.encodeToString(TransitionPlan.serializer(), plan)
+        p.transitions[plan.pairId] = raw
+        save()
+    }
+
+    @Synchronized
+    fun reconcileTransitions(
+        playlistId: String,
+        analysisProvider: ((Song) -> TrackAnalysis?)? = null,
+    ) {
+        val cleanId = playlistId.removePrefix("VL").removePrefix("local_")
+        val p = playlists.firstOrNull { it.id == cleanId } ?: return
+        val songs = p.songs
+        if (songs.size < 2) {
+            p.transitions.clear()
+            save()
+            return
+        }
+
+        val activePairs = (0 until songs.size - 1).map { i ->
+            TransitionPlan.pairIdOf(songs[i].videoId, songs[i + 1].videoId)
+        }.toSet()
+
+        // 1. Remove obsolete transitions
+        p.transitions.keys.retainAll(activePairs)
+
+        // 2. Populate Auto for any new / unconfigured pair
+        for (i in 0 until songs.size - 1) {
+            val s1 = songs[i]
+            val s2 = songs[i + 1]
+            val pairId = TransitionPlan.pairIdOf(s1.videoId, s2.videoId)
+            if (!p.transitions.containsKey(pairId)) {
+                val a1 = analysisProvider?.invoke(s1)
+                val a2 = analysisProvider?.invoke(s2)
+                val plan = MixAutoPlanner.autoPlan(a1, a2, s1.videoId, s2.videoId)
+                p.transitions[pairId] = json.encodeToString(TransitionPlan.serializer(), plan)
+            }
+        }
         save()
     }
 

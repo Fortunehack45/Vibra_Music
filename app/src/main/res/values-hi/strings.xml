@@ -1371,4 +1371,29 @@
     <string name="voice_no_results">\'%1$s\' से मेल खाने वाला संगीत नहीं मिला</string>
     <string name="voice_search">आवाज़ से खोजें</string>
     <string name="voice_search_prompt">गाना, कलाकार, एल्बम या प्लेलिस्ट बोलें</string>
+
+    <!-- Mix Feature Strings (ZERO EMOJIS) -->
+    <string name="mix_action_button">मिक्स</string>
+    <string name="mix_auto">ऑटो</string>
+    <string name="mix_custom">कस्टम</string>
+    <string name="mix_preset_fade">फेड</string>
+    <string name="mix_preset_rise">राइज़</string>
+    <string name="mix_preset_blend">ब्लेंड</string>
+    <string name="mix_preset_wave">वेव</string>
+    <string name="mix_preset_melt">मेल्ट</string>
+    <string name="mix_preset_dissolve">डिसॉल्व</string>
+    <string name="mix_preset_surge">सर्ज</string>
+    <string name="mix_preset_afterglow">आफ्टरग्लो</string>
+    <string name="mix_preset_no_transition">कोई ट्रांज़िशन नहीं</string>
+    <string name="mix_lane_volume">वॉल्यूम</string>
+    <string name="mix_lane_eq">ईक्यू</string>
+    <string name="mix_lane_filter">फ़िल्टर</string>
+    <string name="mix_lane_effects">प्रभाव</string>
+    <string name="mix_lane_looping">लूपिंग</string>
+    <string name="mix_editor_title">ट्रांज़िशन संपादक</string>
+    <string name="mix_save">सहेजें</string>
+    <string name="mix_cancel">रद्द करें</string>
+    <string name="mix_reset_to_auto">ऑटो पर रीसेट करें</string>
+    <string name="mix_bars_count">%1$d बार्स</string>
+    <string name="mix_bpm_format">%1$.1f BPM</string>
 </resources>

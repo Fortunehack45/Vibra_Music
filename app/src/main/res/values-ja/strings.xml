@@ -1352,4 +1352,29 @@
     <string name="voice_no_results">\'%1$s\' に一致する音楽が見つかりませんでした</string>
     <string name="voice_search">音声検索</string>
     <string name="voice_search_prompt">曲、アーティスト、アルバム、プレイリストを話してください</string>
+
+    <!-- Mix Feature Strings (ZERO EMOJIS) -->
+    <string name="mix_action_button">Mix</string>
+    <string name="mix_auto">自動</string>
+    <string name="mix_custom">カスタム</string>
+    <string name="mix_preset_fade">フェード</string>
+    <string name="mix_preset_rise">ライズ</string>
+    <string name="mix_preset_blend">ブレンド</string>
+    <string name="mix_preset_wave">ウェーブ</string>
+    <string name="mix_preset_melt">メルト</string>
+    <string name="mix_preset_dissolve">ディゾルブ</string>
+    <string name="mix_preset_surge">サージ</string>
+    <string name="mix_preset_afterglow">アフターグロー</string>
+    <string name="mix_preset_no_transition">トランジションなし</string>
+    <string name="mix_lane_volume">音量</string>
+    <string name="mix_lane_eq">EQ</string>
+    <string name="mix_lane_filter">フィルター</string>
+    <string name="mix_lane_effects">エフェクト</string>
+    <string name="mix_lane_looping">ループ</string>
+    <string name="mix_editor_title">トランジションエディター</string>
+    <string name="mix_save">保存</string>
+    <string name="mix_cancel">キャンセル</string>
+    <string name="mix_reset_to_auto">自動にリセット</string>
+    <string name="mix_bars_count">%1$d小節</string>
+    <string name="mix_bpm_format">%1$.1f BPM</string>
 </resources>

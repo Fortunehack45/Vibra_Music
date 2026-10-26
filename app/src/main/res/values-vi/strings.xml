@@ -1289,4 +1289,29 @@
     <string name="voice_no_results">Không tìm thấy nhạc phù hợp với \'%1$s\'</string>
     <string name="voice_search">Tìm kiếm bằng giọng nói</string>
     <string name="voice_search_prompt">Nói tên bài hát, nghệ sĩ, album hoặc danh sách phát</string>
+
+    <!-- Mix Feature Strings (ZERO EMOJIS) -->
+    <string name="mix_action_button">Mix</string>
+    <string name="mix_auto">Tự động</string>
+    <string name="mix_custom">Tùy chỉnh</string>
+    <string name="mix_preset_fade">Làm mờ</string>
+    <string name="mix_preset_rise">Tăng dần</string>
+    <string name="mix_preset_blend">Hòa trộn</string>
+    <string name="mix_preset_wave">Lượn sóng</string>
+    <string name="mix_preset_melt">Tan chảy</string>
+    <string name="mix_preset_dissolve">Biến mất dần</string>
+    <string name="mix_preset_surge">Đột biến</string>
+    <string name="mix_preset_afterglow">Hậu biến</string>
+    <string name="mix_preset_no_transition">Không chuyển đoạn</string>
+    <string name="mix_lane_volume">Âm lượng</string>
+    <string name="mix_lane_eq">EQ</string>
+    <string name="mix_lane_filter">Bộ lọc</string>
+    <string name="mix_lane_effects">Hiệu ứng</string>
+    <string name="mix_lane_looping">Vòng lặp</string>
+    <string name="mix_editor_title">Trình chỉnh sửa chuyển đoạn</string>
+    <string name="mix_save">Lưu</string>
+    <string name="mix_cancel">Hủy</string>
+    <string name="mix_reset_to_auto">Đặt lại Tự động</string>
+    <string name="mix_bars_count">%1$d ô nhịp</string>
+    <string name="mix_bpm_format">%1$.1f BPM</string>
 </resources>

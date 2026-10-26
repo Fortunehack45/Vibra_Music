@@ -5,6 +5,8 @@
 #include "lr4_crossover.h"
 #include "limiter.h"
 #include "ring_buffer.h"
+#include "biquad_filter.h"
+#include "effects_bus.h"
 #include <memory>
 #include <mutex>
 #include <atomic>
@@ -16,12 +18,14 @@ struct DeckState {
     int deckId = 0;
     AudioRingBuffer ringBuffer;
     LR4ThreeBand eq;
+    BiquadFilter filter;
     signalsmith::stretch::SignalsmithStretch<float> stretcher;
 
     std::atomic<float> volume{1.0f};
     std::atomic<float> lowGain{1.0f};
     std::atomic<float> midGain{1.0f};
     std::atomic<float> highGain{1.0f};
+    std::atomic<float> filterParam{0.5f};
     std::atomic<float> stretchRatio{1.0f};
 
     std::atomic<bool> isArmed{false};
@@ -42,6 +46,7 @@ private:
     int channels = 2;
 
     DeckState decks[2];
+    EffectsBus effectsBus;
     LookaheadLimiter limiter;
 
     std::vector<float> masterBuffer;
@@ -62,7 +67,8 @@ public:
 
     // Transition arming & parameters
     void armDeck(int deckId, int64_t triggerCountdownFrames, float initialStretch = 1.0f);
-    void setDeckParameters(int deckId, float volume, float lowGain, float midGain, float highGain, float stretchRatio);
+    void setDeckParameters(int deckId, float volume, float lowGain, float midGain, float highGain, float filterParam, float stretchRatio);
+    void configureEffects(int fxType, float sendAmount, int tailMode, float echoBeats = 0.5f, float bpm = 120.0f);
     void setDeckPlaying(int deckId, bool playing);
 
     // Rendering

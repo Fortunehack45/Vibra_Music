@@ -1351,4 +1351,29 @@
     <string name="voice_no_results">Tidak dapat menemukan musik yang cocok dengan \'%1$s\'</string>
     <string name="voice_search">Penelusuran suara</string>
     <string name="voice_search_prompt">Ucapkan lagu, artis, album, atau playlist</string>
+
+    <!-- Mix Feature Strings (ZERO EMOJIS) -->
+    <string name="mix_action_button">Mix</string>
+    <string name="mix_auto">Otomatis</string>
+    <string name="mix_custom">Kustom</string>
+    <string name="mix_preset_fade">Memudar</string>
+    <string name="mix_preset_rise">Rise</string>
+    <string name="mix_preset_blend">Campuran</string>
+    <string name="mix_preset_wave">Gelombang</string>
+    <string name="mix_preset_melt">Meleleh</string>
+    <string name="mix_preset_dissolve">Melarut</string>
+    <string name="mix_preset_surge">Surge</string>
+    <string name="mix_preset_afterglow">Afterglow</string>
+    <string name="mix_preset_no_transition">Tanpa transisi</string>
+    <string name="mix_lane_volume">Volume</string>
+    <string name="mix_lane_eq">EQ</string>
+    <string name="mix_lane_filter">Filter</string>
+    <string name="mix_lane_effects">Efek</string>
+    <string name="mix_lane_looping">Looping</string>
+    <string name="mix_editor_title">Editor Transisi</string>
+    <string name="mix_save">Simpan</string>
+    <string name="mix_cancel">Batal</string>
+    <string name="mix_reset_to_auto">Atur ulang ke Otomatis</string>
+    <string name="mix_bars_count">%1$d Birama</string>
+    <string name="mix_bpm_format">%1$.1f BPM</string>
 </resources>

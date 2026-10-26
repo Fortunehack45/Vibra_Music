@@ -1326,4 +1326,29 @@
     <string name="voice_no_results">\'%1$s\' ile eşleşen müzik bulunamadı</string>
     <string name="voice_search">Sesli arama</string>
     <string name="voice_search_prompt">Şarkı, sanatçı, albüm veya çalma listesi söyleyin</string>
+
+    <!-- Mix Feature Strings (ZERO EMOJIS) -->
+    <string name="mix_action_button">Mix</string>
+    <string name="mix_auto">Otomatik</string>
+    <string name="mix_custom">Özel</string>
+    <string name="mix_preset_fade">Azalma</string>
+    <string name="mix_preset_rise">Rise</string>
+    <string name="mix_preset_blend">Harman</string>
+    <string name="mix_preset_wave">Wave</string>
+    <string name="mix_preset_melt">Melt</string>
+    <string name="mix_preset_dissolve">Dağılma</string>
+    <string name="mix_preset_surge">Surge</string>
+    <string name="mix_preset_afterglow">Afterglow</string>
+    <string name="mix_preset_no_transition">Geçiş yok</string>
+    <string name="mix_lane_volume">Ses</string>
+    <string name="mix_lane_eq">EQ</string>
+    <string name="mix_lane_filter">Filtre</string>
+    <string name="mix_lane_effects">Efektler</string>
+    <string name="mix_lane_looping">Döngü</string>
+    <string name="mix_editor_title">Geçiş Düzenleyici</string>
+    <string name="mix_save">Kaydet</string>
+    <string name="mix_cancel">İptal</string>
+    <string name="mix_reset_to_auto">Otomatiğe sıfırla</string>
+    <string name="mix_bars_count">%1$d Ölçü</string>
+    <string name="mix_bpm_format">%1$.1f BPM</string>
 </resources>

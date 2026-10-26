@@ -25,12 +25,14 @@ void MixEngine::init(float sr, int ch) {
         decks[i].deckId = i;
         decks[i].ringBuffer.init(fifoCapacity, channels);
         decks[i].eq.init(sr, 200.0f, 2500.0f);
+        decks[i].filter.init(sr);
         decks[i].stretcher.presetDefault(channels, sr);
 
         decks[i].volume.store(1.0f, std::memory_order_relaxed);
         decks[i].lowGain.store(1.0f, std::memory_order_relaxed);
         decks[i].midGain.store(1.0f, std::memory_order_relaxed);
         decks[i].highGain.store(1.0f, std::memory_order_relaxed);
+        decks[i].filterParam.store(0.5f, std::memory_order_relaxed);
         decks[i].stretchRatio.store(1.0f, std::memory_order_relaxed);
 
         decks[i].isArmed.store(false, std::memory_order_relaxed);
@@ -45,6 +47,7 @@ void MixEngine::init(float sr, int ch) {
     }
 
     limiter.init(sr, -0.5f, 3.0f, 50.0f);
+    effectsBus.init(sr);
     masterBuffer.resize(16384, 0.0f);
     deckBuffer.resize(16384, 0.0f);
 }
@@ -54,16 +57,19 @@ void MixEngine::reset() {
     for (int i = 0; i < 2; ++i) {
         decks[i].ringBuffer.reset();
         decks[i].eq.reset();
+        decks[i].filter.reset();
         decks[i].stretcher.reset();
         decks[i].volume.store(1.0f, std::memory_order_relaxed);
         decks[i].lowGain.store(1.0f, std::memory_order_relaxed);
         decks[i].midGain.store(1.0f, std::memory_order_relaxed);
         decks[i].highGain.store(1.0f, std::memory_order_relaxed);
+        decks[i].filterParam.store(0.5f, std::memory_order_relaxed);
         decks[i].stretchRatio.store(1.0f, std::memory_order_relaxed);
         decks[i].isArmed.store(false, std::memory_order_relaxed);
         decks[i].isPlaying.store(i == 0, std::memory_order_relaxed);
         decks[i].startSampleCountdown.store(0, std::memory_order_relaxed);
     }
+    effectsBus.reset();
     limiter.reset();
 }
 
@@ -95,13 +101,27 @@ void MixEngine::armDeck(int deckId, int64_t triggerCountdownFrames, float initia
     decks[deckId].isPlaying.store(triggerCountdownFrames <= 0, std::memory_order_release);
 }
 
-void MixEngine::setDeckParameters(int deckId, float volume, float lowGain, float midGain, float highGain, float stretchRatio) {
+void MixEngine::setDeckParameters(int deckId, float volume, float lowGain, float midGain, float highGain, float filterParam, float stretchRatio) {
     if (deckId < 0 || deckId > 1) return;
     decks[deckId].volume.store(std::clamp(volume, 0.0f, 2.0f), std::memory_order_release);
     decks[deckId].lowGain.store(std::clamp(lowGain, 0.0f, 2.0f), std::memory_order_release);
     decks[deckId].midGain.store(std::clamp(midGain, 0.0f, 2.0f), std::memory_order_release);
     decks[deckId].highGain.store(std::clamp(highGain, 0.0f, 2.0f), std::memory_order_release);
+    float clampedFilter = std::clamp(filterParam, 0.0f, 1.0f);
+    decks[deckId].filterParam.store(clampedFilter, std::memory_order_release);
+    decks[deckId].filter.setNormalizedParam(clampedFilter);
     decks[deckId].stretchRatio.store(std::clamp(stretchRatio, 0.5f, 2.0f), std::memory_order_release);
+}
+
+void MixEngine::configureEffects(int fxType, float sendAmount, int tailMode, float echoBeats, float bpm) {
+    std::lock_guard<std::mutex> lock(engineMutex);
+    effectsBus.configure(
+        static_cast<EffectsBus::EffectType>(fxType),
+        sendAmount,
+        static_cast<EffectsBus::TailMode>(tailMode),
+        echoBeats,
+        bpm
+    );
 }
 
 void MixEngine::setDeckPlaying(int deckId, bool playing) {
@@ -209,10 +229,26 @@ size_t MixEngine::render(float* output, size_t numFrames) {
         // Apply 3-band LR4 crossover filter
         deck.eq.process(deckDest, deckDest, static_cast<int>(framesToProcess), low, mid, high);
 
-        // Accumulate into masterBuffer with deck volume
+        // Apply Biquad LPF / HPF sweep
+        for (size_t i = 0; i < framesToProcess; ++i) {
+            deck.filter.process(deckDest[i * 2], deckDest[i * 2 + 1]);
+        }
+
+        // Accumulate into masterBuffer with deck volume and effects
         float* masterDest = masterBuffer.data() + (offsetFrames * channels);
-        for (size_t i = 0; i < framesToProcess * channels; ++i) {
-            masterDest[i] += deckDest[i] * vol;
+        for (size_t i = 0; i < framesToProcess; ++i) {
+            float left = deckDest[i * 2];
+            float right = deckDest[i * 2 + 1];
+
+            if (d == 0) {
+                float wetL = 0.0f, wetR = 0.0f;
+                effectsBus.process(left, right, wetL, wetR);
+                masterDest[i * 2] += left * vol + wetL;
+                masterDest[i * 2 + 1] += right * vol + wetR;
+            } else {
+                masterDest[i * 2] += left * vol;
+                masterDest[i * 2 + 1] += right * vol;
+            }
         }
     }
 

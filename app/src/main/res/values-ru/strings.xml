@@ -1397,4 +1397,29 @@
     <string name="voice_no_results">Не удалось найти музыку по запросу \'%1$s\'</string>
     <string name="voice_search">Голосовой поиск</string>
     <string name="voice_search_prompt">Назовите трек, исполнителя, альбом или плейлист</string>
+
+    <!-- Mix Feature Strings (ZERO EMOJIS) -->
+    <string name="mix_action_button">Микс</string>
+    <string name="mix_auto">Авто</string>
+    <string name="mix_custom">Пользовательский</string>
+    <string name="mix_preset_fade">Затухание</string>
+    <string name="mix_preset_rise">Подъем</string>
+    <string name="mix_preset_blend">Смешивание</string>
+    <string name="mix_preset_wave">Волна</string>
+    <string name="mix_preset_melt">Плавление</string>
+    <string name="mix_preset_dissolve">Растворение</string>
+    <string name="mix_preset_surge">Всплеск</string>
+    <string name="mix_preset_afterglow">Послесвечение</string>
+    <string name="mix_preset_no_transition">Без перехода</string>
+    <string name="mix_lane_volume">Громкость</string>
+    <string name="mix_lane_eq">Эквалайзер</string>
+    <string name="mix_lane_filter">Фильтр</string>
+    <string name="mix_lane_effects">Эффекты</string>
+    <string name="mix_lane_looping">Петля</string>
+    <string name="mix_editor_title">Редактор переходов</string>
+    <string name="mix_save">Сохранить</string>
+    <string name="mix_cancel">Отмена</string>
+    <string name="mix_reset_to_auto">Сбросить на Авто</string>
+    <string name="mix_bars_count">%1$d тактов</string>
+    <string name="mix_bpm_format">%1$.1f BPM</string>
 </resources>

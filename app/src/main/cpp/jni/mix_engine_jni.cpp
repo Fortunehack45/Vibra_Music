@@ -72,10 +72,20 @@ Java_com_fortune_vibramusic_playback_audio_MixEngine_nativeArmDeck(
 JNIEXPORT void JNICALL
 Java_com_fortune_vibramusic_playback_audio_MixEngine_nativeSetDeckParameters(
     JNIEnv* env, jobject thiz, jlong handle, jint deckId,
-    jfloat volume, jfloat lowGain, jfloat midGain, jfloat highGain, jfloat stretchRatio) {
+    jfloat volume, jfloat lowGain, jfloat midGain, jfloat highGain, jfloat filterParam, jfloat stretchRatio) {
     if (handle != 0) {
         auto* engine = reinterpret_cast<vibra::MixEngine*>(handle);
-        engine->setDeckParameters(deckId, volume, lowGain, midGain, highGain, stretchRatio);
+        engine->setDeckParameters(deckId, volume, lowGain, midGain, highGain, filterParam, stretchRatio);
+    }
+}
+
+JNIEXPORT void JNICALL
+Java_com_fortune_vibramusic_playback_audio_MixEngine_nativeConfigureEffects(
+    JNIEnv* env, jobject thiz, jlong handle,
+    jint fxType, jfloat sendAmount, jint tailMode, jfloat echoBeats, jfloat bpm) {
+    if (handle != 0) {
+        auto* engine = reinterpret_cast<vibra::MixEngine*>(handle);
+        engine->configureEffects(fxType, sendAmount, tailMode, echoBeats, bpm);
     }
 }
 

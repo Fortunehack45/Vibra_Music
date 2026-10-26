@@ -175,6 +175,9 @@ import com.fortune.vibramusic.data.cache.OfflineCacheManager
 import com.fortune.vibramusic.playback.AudioCache
 import com.fortune.vibramusic.playback.LinkRequest
 import com.fortune.vibramusic.playback.MusicLink
+import com.fortune.vibramusic.playback.voice.VoiceCommandResolver
+import com.fortune.vibramusic.playback.voice.VoiceResolution
+import android.app.Activity
 import com.fortune.vibramusic.playback.OriginalVersion
 import com.fortune.vibramusic.playback.PlayerDeepLink
 import com.fortune.vibramusic.playback.QueueBuilder
@@ -1707,6 +1710,42 @@ private fun VibraMusicApp(
                     showNowPlaying = false
                     selectedTab = TAB_SEARCH
                     viewModel.searchFor(request.query)
+                }
+            }
+            is LinkRequest.Voice -> {
+                when (val resolution = VoiceCommandResolver.resolve(context, request)) {
+                    is VoiceResolution.PlaySongs -> {
+                        val announcement = resolution.announcement
+                        Toast.makeText(context, announcement, Toast.LENGTH_SHORT).show()
+                        (context as? Activity)?.window?.decorView?.announceForAccessibility(announcement)
+                        val source = QueueSource(
+                            title = resolution.title,
+                            type = PlaybackSourceType.SEARCH,
+                        )
+                        playFrom(resolution.songs, 0, source)
+                    }
+                    is VoiceResolution.PlayRadio -> {
+                        val announcement = resolution.announcement
+                        Toast.makeText(context, announcement, Toast.LENGTH_SHORT).show()
+                        (context as? Activity)?.window?.decorView?.announceForAccessibility(announcement)
+                        playRadio(
+                            resolution.song,
+                            QueueSource(searchLabel, PlaybackSourceType.SEARCH),
+                        )
+                    }
+                    VoiceResolution.Resume -> {
+                        if (session.mediaItemCount > 0) {
+                            session.play()
+                        }
+                    }
+                    is VoiceResolution.NotFound -> {
+                        val announcement = resolution.announcement
+                        Toast.makeText(context, announcement, Toast.LENGTH_SHORT).show()
+                        (context as? Activity)?.window?.decorView?.announceForAccessibility(announcement)
+                        showNowPlaying = false
+                        selectedTab = TAB_SEARCH
+                        viewModel.searchFor(resolution.query)
+                    }
                 }
             }
             // "Play music", nothing named. The playback service restores its

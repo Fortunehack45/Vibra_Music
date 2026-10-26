@@ -15,6 +15,9 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
+import android.provider.MediaStore
+import com.fortune.vibramusic.playback.voice.VoiceCommandResolver
+import com.fortune.vibramusic.playback.voice.VoiceResolution
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import com.fortune.vibramusic.playback.audio.usb.UsbDirectManager
@@ -7237,19 +7240,53 @@ class PlaybackService : MediaLibraryService() {
             for (item in mediaItems) {
                 val id = item.mediaId
                 val searchQuery = item.requestMetadata.searchQuery
+                val extras = item.requestMetadata.extras
                 when {
-                    !searchQuery.isNullOrBlank() -> {
-                        val cached = searchResults[searchQuery]
+                    !searchQuery.isNullOrBlank() || extras != null -> {
+                        val query = searchQuery.orEmpty()
+                        val focus = extras?.getString(MediaStore.EXTRA_MEDIA_FOCUS)
+                        val title = extras?.getString(MediaStore.EXTRA_MEDIA_TITLE)
+                        val artist = extras?.getString(MediaStore.EXTRA_MEDIA_ARTIST)
+                        val album = extras?.getString(MediaStore.EXTRA_MEDIA_ALBUM)
+                        val playlist = extras?.getString(MediaStore.EXTRA_MEDIA_PLAYLIST)
+                        val genre = extras?.getString(MediaStore.EXTRA_MEDIA_GENRE)
+
+                        val cached = if (query.isNotBlank()) searchResults[query] else null
                         val songs = if (!cached.isNullOrEmpty()) {
                             cached
                         } else {
-                            try {
-                                withTimeoutOrNull(3000L) {
-                                    YtMusicRepository.search(searchQuery, SearchFilter.SONGS).getOrNull()
-                                        ?.mapNotNull { if (it is SearchResult.Track) it.song else null }
-                                } ?: emptyList()
+                            val resolution = try {
+                                withTimeoutOrNull(4000L) {
+                                    VoiceCommandResolver.resolve(
+                                        context = this@PlaybackService,
+                                        query = query,
+                                        mediaFocus = focus,
+                                        title = title,
+                                        artist = artist,
+                                        album = album,
+                                        playlist = playlist,
+                                        genre = genre,
+                                    )
+                                }
                             } catch (_: Exception) {
-                                emptyList()
+                                null
+                            }
+
+                            when (resolution) {
+                                is VoiceResolution.PlaySongs -> resolution.songs
+                                is VoiceResolution.PlayRadio -> listOf(resolution.song)
+                                else -> {
+                                    if (query.isNotBlank()) {
+                                        try {
+                                            withTimeoutOrNull(3000L) {
+                                                YtMusicRepository.search(query, SearchFilter.SONGS).getOrNull()
+                                                    ?.mapNotNull { if (it is SearchResult.Track) it.song else null }
+                                            } ?: emptyList()
+                                        } catch (_: Exception) {
+                                            emptyList()
+                                        }
+                                    } else emptyList()
+                                }
                             }
                         }
                         songs.forEach { songCache[it.videoId] = it }

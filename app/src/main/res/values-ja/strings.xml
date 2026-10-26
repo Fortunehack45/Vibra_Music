@@ -1343,4 +1343,11 @@
 
     <string name="saved_short">保存済み</string>
     <string name="cover_background">暗いカバー背景</string>
+
+    <!-- Google Assistant Voice Commands -->
+    <string name="voice_playing_track">%2$sの%1$sを再生しています</string>
+    <string name="voice_playing_artist">%1$sの曲を再生しています</string>
+    <string name="voice_playing_album">アルバム「%1$s」を再生しています</string>
+    <string name="voice_playing_playlist">プレイリスト「%1$s」を再生しています</string>
+    <string name="voice_no_results">\'%1$s\' に一致する音楽が見つかりませんでした</string>
 </resources>

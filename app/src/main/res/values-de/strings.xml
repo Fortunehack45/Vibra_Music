@@ -1362,4 +1362,11 @@
 
     <string name="saved_short">Gespeichert</string>
     <string name="cover_background">Abgedunkelter Cover-Hintergrund</string>
+
+    <!-- Google Assistant Voice Commands -->
+    <string name="voice_playing_track">%1$s von %2$s wird abgespielt</string>
+    <string name="voice_playing_artist">Musik von %1$s wird abgespielt</string>
+    <string name="voice_playing_album">Album %1$s wird abgespielt</string>
+    <string name="voice_playing_playlist">Playlist %1$s wird abgespielt</string>
+    <string name="voice_no_results">Keine Musik für \'%1$s\' gefunden</string>
 </resources>

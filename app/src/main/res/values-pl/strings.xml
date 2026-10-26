@@ -1400,4 +1400,11 @@
 
     <string name="saved_short">Zapisano</string>
     <string name="cover_background">Przyciemnione tło okładki</string>
+
+    <!-- Google Assistant Voice Commands -->
+    <string name="voice_playing_track">Odtwarzanie %1$s – %2$s</string>
+    <string name="voice_playing_artist">Odtwarzanie utworów wykonawcy %1$s</string>
+    <string name="voice_playing_album">Odtwarzanie albumu %1$s</string>
+    <string name="voice_playing_playlist">Odtwarzanie playlisty %1$s</string>
+    <string name="voice_no_results">Nie znaleziono muzyki pasującej do \'%1$s\'</string>
 </resources>

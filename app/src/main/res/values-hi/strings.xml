@@ -1362,4 +1362,11 @@
 
     <string name="saved_short">सहेजा गया</string>
     <string name="cover_background">डार्क कवर बैकग्राउंड</string>
+
+    <!-- Google Assistant Voice Commands -->
+    <string name="voice_playing_track">%2$s का %1$s बजाया जा रहा है</string>
+    <string name="voice_playing_artist">%1$s का संगीत बजाया जा रहा है</string>
+    <string name="voice_playing_album">एल्बम %1$s बजाया जा रहा है</string>
+    <string name="voice_playing_playlist">प्लेलिस्ट %1$s बजाई जा रही है</string>
+    <string name="voice_no_results">\'%1$s\' से मेल खाने वाला संगीत नहीं मिला</string>
 </resources>

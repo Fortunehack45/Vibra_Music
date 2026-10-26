@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.playback
+package com.fortune.vibramusic.playback
 
 import android.app.SearchManager
 import android.content.Intent
@@ -26,12 +26,26 @@ sealed interface LinkRequest {
      */
     data class Search(val query: String, val play: Boolean) : LinkRequest
 
+    /**
+     * Voice request from Google Assistant with structured audio intent parameters.
+     */
+    data class Voice(
+        val rawQuery: String,
+        val mediaFocus: String? = null,
+        val title: String? = null,
+        val artist: String? = null,
+        val album: String? = null,
+        val playlist: String? = null,
+        val genre: String? = null,
+        val play: Boolean = true,
+    ) : LinkRequest
+
     /** "Play music", with nothing said about what. */
     data object Resume : LinkRequest
 }
 
 /**
- * Links and voice requests handed to Siren Music from elsewhere on the device.
+ * Links and voice requests handed to Vibra Music from elsewhere on the device.
  *
  * The same relay [PlayerDeepLink] is, and for the same reason: what has to
  * happen — start a queue, push a page, run a search — is all inside
@@ -54,7 +68,7 @@ object MusicLink {
      * returning the link that launched it. Without this, rotating the phone an
      * hour later would replay the shared song over whatever is playing.
      */
-    private const val EXTRA_CONSUMED = "siren.linkConsumed"
+    private const val EXTRA_CONSUMED = "vibra.linkConsumed"
 
     private val _pending = MutableStateFlow<LinkRequest?>(null)
 
@@ -72,9 +86,31 @@ object MusicLink {
             // The assistant's "play <something>". An empty query is the whole
             // point of the Resume case: "play music" names nothing, and the
             // useful answer is to carry on with what was already on.
-            MediaStore.INTENT_ACTION_MEDIA_PLAY_FROM_SEARCH -> {
+            MediaStore.INTENT_ACTION_MEDIA_PLAY_FROM_SEARCH,
+            Intent.ACTION_SEARCH -> {
                 val query = intent.getStringExtra(SearchManager.QUERY).orEmpty().trim()
-                if (query.isEmpty()) LinkRequest.Resume else LinkRequest.Search(query, play = true)
+                val focus = intent.getStringExtra(MediaStore.EXTRA_MEDIA_FOCUS)
+                val title = intent.getStringExtra(MediaStore.EXTRA_MEDIA_TITLE)?.trim()
+                val artist = intent.getStringExtra(MediaStore.EXTRA_MEDIA_ARTIST)?.trim()
+                val album = intent.getStringExtra(MediaStore.EXTRA_MEDIA_ALBUM)?.trim()
+                val playlist = intent.getStringExtra(MediaStore.EXTRA_MEDIA_PLAYLIST)?.trim()
+                val genre = intent.getStringExtra(MediaStore.EXTRA_MEDIA_GENRE)?.trim()
+
+                if (query.isEmpty() && focus.isNullOrEmpty() && title.isNullOrEmpty() &&
+                    artist.isNullOrEmpty() && album.isNullOrEmpty() && playlist.isNullOrEmpty()) {
+                    LinkRequest.Resume
+                } else {
+                    LinkRequest.Voice(
+                        rawQuery = query,
+                        mediaFocus = focus,
+                        title = title,
+                        artist = artist,
+                        album = album,
+                        playlist = playlist,
+                        genre = genre,
+                        play = true,
+                    )
+                }
             }
             else -> null
         } ?: return false

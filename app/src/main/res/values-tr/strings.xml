@@ -1317,4 +1317,11 @@
 
     <string name="saved_short">Kaydedildi</string>
     <string name="cover_background">Karartılmış kapak arka planı</string>
+
+    <!-- Google Assistant Voice Commands -->
+    <string name="voice_playing_track">%2$s tarafından %1$s çalınıyor</string>
+    <string name="voice_playing_artist">%1$s müzikleri çalınıyor</string>
+    <string name="voice_playing_album">%1$s albümü çalınıyor</string>
+    <string name="voice_playing_playlist">%1$s çalma listesi çalınıyor</string>
+    <string name="voice_no_results">\'%1$s\' ile eşleşen müzik bulunamadı</string>
 </resources>

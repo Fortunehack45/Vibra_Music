@@ -1348,4 +1348,11 @@
 
     <string name="saved_short">บันทึกแล้ว</string>
     <string name="cover_background">พื้นหลังปกแบบมืด</string>
+
+    <!-- Google Assistant Voice Commands -->
+    <string name="voice_playing_track">กำลังเล่น %1$s โดย %2$s</string>
+    <string name="voice_playing_artist">กำลังเล่นเพลงของ %1$s</string>
+    <string name="voice_playing_album">กำลังเล่นอัลบั้ม %1$s</string>
+    <string name="voice_playing_playlist">กำลังเล่นเพลย์ลิสต์ %1$s</string>
+    <string name="voice_no_results">ไม่พบเพลงที่ตรงกับ \'%1$s\'</string>
 </resources>

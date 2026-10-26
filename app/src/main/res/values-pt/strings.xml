@@ -1367,4 +1367,11 @@
 
     <string name="saved_short">Salvo</string>
     <string name="cover_background">Fundo de capa escurecido</string>
+
+    <!-- Google Assistant Voice Commands -->
+    <string name="voice_playing_track">A reproduzir %1$s de %2$s</string>
+    <string name="voice_playing_artist">A reproduzir música de %1$s</string>
+    <string name="voice_playing_album">A reproduzir o álbum %1$s</string>
+    <string name="voice_playing_playlist">A reproduzir a lista de reprodução %1$s</string>
+    <string name="voice_no_results">Não foi possível encontrar música correspondente a \'%1$s\'</string>
 </resources>

@@ -1367,4 +1367,11 @@
 
     <string name="saved_short">נשמר</string>
     <string name="cover_background">רקע עטיפה מוחשך</string>
+
+    <!-- Google Assistant Voice Commands -->
+    <string name="voice_playing_track">משמיע את %1$s מאת %2$s</string>
+    <string name="voice_playing_artist">משמיע מוזיקה מאת %1$s</string>
+    <string name="voice_playing_album">משמיע את האלבום %1$s</string>
+    <string name="voice_playing_playlist">משמיע את הפלייליסט %1$s</string>
+    <string name="voice_no_results">לא נמצאה מוזיקה עבור \'%1$s\'</string>
 </resources>

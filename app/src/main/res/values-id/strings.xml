@@ -1342,4 +1342,11 @@
 
     <string name="saved_short">Tersimpan</string>
     <string name="cover_background">Latar belakang sampul gelap</string>
+
+    <!-- Google Assistant Voice Commands -->
+    <string name="voice_playing_track">Memutar %1$s oleh %2$s</string>
+    <string name="voice_playing_artist">Memutar musik oleh %1$s</string>
+    <string name="voice_playing_album">Memutar album %1$s</string>
+    <string name="voice_playing_playlist">Memutar playlist %1$s</string>
+    <string name="voice_no_results">Tidak dapat menemukan musik yang cocok dengan \'%1$s\'</string>
 </resources>

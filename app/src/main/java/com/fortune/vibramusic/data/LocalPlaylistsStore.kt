@@ -164,6 +164,14 @@ object LocalPlaylistsStore {
     }
 
     @Synchronized
+    fun findPlaylistByTitle(query: String): StoredPlaylist? {
+        val clean = query.trim().lowercase()
+        if (clean.isBlank()) return null
+        return playlists.firstOrNull { it.title.trim().lowercase() == clean }
+            ?: playlists.firstOrNull { it.title.trim().lowercase().contains(clean) }
+    }
+
+    @Synchronized
     fun renamePlaylist(playlistId: String, title: String) {
         val cleanId = playlistId.removePrefix("VL").removePrefix("local_")
         val p = playlists.firstOrNull { it.id == cleanId } ?: return

@@ -1388,4 +1388,11 @@
 
     <string name="saved_short">Сохранено</string>
     <string name="cover_background">Затемнённый фон обложки</string>
+
+    <!-- Google Assistant Voice Commands -->
+    <string name="voice_playing_track">Воспроизведение %1$s — %2$s</string>
+    <string name="voice_playing_artist">Воспроизведение музыки исполнителя %1$s</string>
+    <string name="voice_playing_album">Воспроизведение альбома %1$s</string>
+    <string name="voice_playing_playlist">Воспроизведение плейлиста %1$s</string>
+    <string name="voice_no_results">Не удалось найти музыку по запросу \'%1$s\'</string>
 </resources>

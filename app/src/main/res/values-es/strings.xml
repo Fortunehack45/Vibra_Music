@@ -1334,4 +1334,11 @@
 
     <string name="saved_short">Guardado</string>
     <string name="cover_background">Fondo de portada oscurecido</string>
+
+    <!-- Google Assistant Voice Commands -->
+    <string name="voice_playing_track">Reproduciendo %1$s de %2$s</string>
+    <string name="voice_playing_artist">Reproduciendo música de %1$s</string>
+    <string name="voice_playing_album">Reproduciendo el álbum %1$s</string>
+    <string name="voice_playing_playlist">Reproduciendo la lista %1$s</string>
+    <string name="voice_no_results">No se encontró música para \'%1$s\'</string>
 </resources>

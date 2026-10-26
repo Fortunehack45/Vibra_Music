@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <capability android:name="actions.intent.PLAY_MUSIC">
+        <intent
+            android:action="android.media.action.MEDIA_PLAY_FROM_SEARCH"
+            android:targetPackage="com.fortune.vibramusic"
+            android:targetClass="com.fortune.vibramusic.MainActivity">
+            <parameter
+                android:name="music.title"
+                android:key="query" />
+            <parameter
+                android:name="music.byArtist.name"
+                android:key="android.intent.extra.artist" />
+            <parameter
+                android:name="music.inAlbum.name"
+                android:key="android.intent.extra.album" />
+            <parameter
+                android:name="music.inPlaylist.name"
+                android:key="android.intent.extra.playlist" />
+        </intent>
+    </capability>
+    <capability android:name="actions.intent.OPEN_APP_FEATURE">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.fortune.vibramusic"
+            android:targetClass="com.fortune.vibramusic.MainActivity" />
+    </capability>
+</shortcuts>

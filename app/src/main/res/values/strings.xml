@@ -1363,5 +1363,12 @@
     <string name="wear_os_unsupported" translatable="false">Installing on a watch needs Android 11 or later on this phone.</string>
     <string name="wear_os_code_hint" translatable="false">Pairing code</string>
     <string name="wear_os_done" translatable="false">Done</string>
+
+    <!-- Google Assistant Voice Commands -->
+    <string name="voice_playing_track">Playing %1$s by %2$s</string>
+    <string name="voice_playing_artist">Playing music by %1$s</string>
+    <string name="voice_playing_album">Playing album %1$s</string>
+    <string name="voice_playing_playlist">Playing playlist %1$s</string>
+    <string name="voice_no_results">Couldn\'t find music matching \'%1$s\'</string>
 </resources>
 

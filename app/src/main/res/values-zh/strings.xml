@@ -1342,4 +1342,11 @@
 
     <string name="saved_short">已保存</string>
     <string name="cover_background">暗化封面背景</string>
+
+    <!-- Google Assistant Voice Commands -->
+    <string name="voice_playing_track">正在播放 %2$s 的 %1$s</string>
+    <string name="voice_playing_artist">正在播放 %1$s 的音乐</string>
+    <string name="voice_playing_album">正在播放专辑 %1$s</string>
+    <string name="voice_playing_playlist">正在播放歌单 %1$s</string>
+    <string name="voice_no_results">未找到与 \'%1$s\' 匹配的音乐</string>
 </resources>

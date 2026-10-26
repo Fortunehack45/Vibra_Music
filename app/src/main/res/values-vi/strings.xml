@@ -1280,4 +1280,11 @@
 
     <string name="saved_short">Đã lưu</string>
     <string name="cover_background">Nền ảnh bìa làm tối</string>
+
+    <!-- Google Assistant Voice Commands -->
+    <string name="voice_playing_track">Đang phát %1$s của %2$s</string>
+    <string name="voice_playing_artist">Đang phát nhạc của %1$s</string>
+    <string name="voice_playing_album">Đang phát album %1$s</string>
+    <string name="voice_playing_playlist">Đang phát danh sách phát %1$s</string>
+    <string name="voice_no_results">Không tìm thấy nhạc phù hợp với \'%1$s\'</string>
 </resources>

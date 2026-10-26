@@ -16,6 +16,9 @@ project(vibra_analysis LANGUAGES CXX)
 get_filename_component(VIBRA_NATIVE_DIR
     "${CMAKE_CURRENT_SOURCE_DIR}/../../../../native"
     ABSOLUTE)
+get_filename_component(VIBRA_ROOT_DIR
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../../.."
+    ABSOLUTE)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -35,6 +38,7 @@ add_library(vibra_analysis SHARED
 
 target_include_directories(vibra_analysis PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
+    ${VIBRA_ROOT_DIR}
     ${VIBRA_NATIVE_DIR}
     ${VIBRA_NATIVE_DIR}/engine
 )

@@ -1,5 +1,5 @@
 #include <jni.h>
-#include "native/engine/mix_engine.h"
+#include "engine/mix_engine.h"
 
 extern "C" {
 

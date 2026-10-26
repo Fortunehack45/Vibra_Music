@@ -26,14 +26,17 @@ add_library(vibra_analysis SHARED
     ${VIBRA_NATIVE_DIR}/analyzer/resampler.cpp
     ${VIBRA_NATIVE_DIR}/analyzer/mel_spectrogram.cpp
     ${VIBRA_NATIVE_DIR}/analyzer/vocal_spectrogram.cpp
+    ${VIBRA_NATIVE_DIR}/engine/mix_engine.cpp
     jni/analysis_jni.cpp
     jni/mel_jni.cpp
     jni/vocal_jni.cpp
+    jni/mix_engine_jni.cpp
 )
 
 target_include_directories(vibra_analysis PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${VIBRA_NATIVE_DIR}
+    ${VIBRA_NATIVE_DIR}/engine
 )
 
 # -ffast-math is deliberately NOT enabled: the analyzer's log/mel-adjacent

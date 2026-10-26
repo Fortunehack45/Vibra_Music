@@ -248,6 +248,20 @@ object MixMetricEvaluator {
         return if (medianDt > 0) 60.0 / medianDt else 0.0
     }
 
+    fun detectFlams(samples: FloatArray, sampleRate: Int, bpm: Double): Int {
+        val onsets = detectKickOnsets(samples, sampleRate)
+        val nominalBeatSec = 60.0 / bpm
+        val minIntervalSec = nominalBeatSec * 0.70
+        var flams = 0
+        for (i in 1 until onsets.size) {
+            val interval = onsets[i] - onsets[i - 1]
+            if (interval in 0.040..minIntervalSec) {
+                flams++
+            }
+        }
+        return flams
+    }
+
     private fun computeRms(samples: FloatArray, start: Int, end: Int): Double {
         val s = start.coerceIn(0, samples.size)
         val e = end.coerceIn(0, samples.size)

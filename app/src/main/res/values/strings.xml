@@ -1370,5 +1370,7 @@
     <string name="voice_playing_album">Playing album %1$s</string>
     <string name="voice_playing_playlist">Playing playlist %1$s</string>
     <string name="voice_no_results">Couldn\'t find music matching \'%1$s\'</string>
+    <string name="voice_search">Voice search</string>
+    <string name="voice_search_prompt">Speak song, artist, album, or playlist</string>
 </resources>
 

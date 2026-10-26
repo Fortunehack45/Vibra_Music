@@ -1374,4 +1374,6 @@
     <string name="voice_playing_album">A reproduzir o álbum %1$s</string>
     <string name="voice_playing_playlist">A reproduzir a lista de reprodução %1$s</string>
     <string name="voice_no_results">Não foi possível encontrar música correspondente a \'%1$s\'</string>
+    <string name="voice_search">Pesquisa por voz</string>
+    <string name="voice_search_prompt">Fale uma música, artista, álbum ou playlist</string>
 </resources>

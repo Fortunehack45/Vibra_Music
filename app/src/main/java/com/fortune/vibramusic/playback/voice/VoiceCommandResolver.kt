@@ -279,22 +279,93 @@ object VoiceCommandResolver {
         )
     }
 
-    private fun stripSpokenPrefixes(text: String): String {
+    fun cleanSpokenQuery(text: String): String {
         var res = text.trim()
-        val prefixes = listOf(
-            "play my playlist ", "play playlist ", "my playlist ", "playlist ",
-            "play the album ", "play album ", "the album ", "album ",
-            "play music by ", "play songs by ", "music by ", "songs by ", "play artist ",
-            "play song ", "play track ", "play "
+
+        // 1. Strip trailing app qualifiers (e.g. "on Vibra Music", "in Vibra")
+        val trailingAppPhrases = listOf(
+            " on vibra music app", " in vibra music app",
+            " on vibra music", " in vibra music",
+            " on vibra", " in vibra",
+            " using vibra music", " with vibra music",
+            " using vibra", " with vibra",
         )
-        for (p in prefixes) {
+        for (suffix in trailingAppPhrases) {
+            if (res.endsWith(suffix, ignoreCase = true)) {
+                res = res.substring(0, res.length - suffix.length).trim()
+                break
+            }
+        }
+
+        // 2. Strip conversational preambles
+        val conversationalPrefixes = listOf(
+            "just help me to play ",
+            "just help me play ",
+            "help me to play ",
+            "help me play ",
+            "can you please play ",
+            "can you play ",
+            "please play ",
+            "i want to hear ",
+            "i want to listen to ",
+            "start playing ",
+            "put on ",
+            "go ahead and play ",
+            "and play ",
+            "play my playlist ",
+            "play playlist ",
+            "my playlist ",
+            "play the album ",
+            "play album ",
+            "the album ",
+            "play music by ",
+            "play songs by ",
+            "music by ",
+            "songs by ",
+            "play artist ",
+            "play song ",
+            "play track ",
+            "play ",
+        )
+        for (p in conversationalPrefixes) {
             if (res.startsWith(p, ignoreCase = true)) {
                 res = res.substring(p.length).trim()
                 break
             }
         }
+
+        // 3. Strip leading single/quantity tokens and trailing music/song/track tokens:
+        // Handles "one Asake song" -> "Asake", "some Asake music" -> "Asake", "play Asake song" -> "Asake"
+        val quantityPrefixes = listOf("one ", "a ", "an ", "some ")
+        val trailingTokens = listOf(" song", " songs", " track", " tracks", " music")
+
+        val hasTrailingToken = trailingTokens.any { res.endsWith(it, ignoreCase = true) }
+        if (hasTrailingToken) {
+            for (qp in quantityPrefixes) {
+                if (res.startsWith(qp, ignoreCase = true)) {
+                    res = res.substring(qp.length).trim()
+                    break
+                }
+            }
+            for (tt in trailingTokens) {
+                if (res.endsWith(tt, ignoreCase = true)) {
+                    res = res.substring(0, res.length - tt.length).trim()
+                    break
+                }
+            }
+        } else {
+            for (qp in listOf("one ")) {
+                if (res.startsWith(qp, ignoreCase = true)) {
+                    res = res.substring(qp.length).trim()
+                    break
+                }
+            }
+        }
+
         return res
     }
+
+    private fun stripSpokenPrefixes(text: String): String = cleanSpokenQuery(text)
 
     private fun hasPrefix(text: String, vararg prefixes: String): Boolean {
         val trimmed = text.trim()

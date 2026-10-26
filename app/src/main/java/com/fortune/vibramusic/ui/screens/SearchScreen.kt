@@ -1,5 +1,11 @@
 package com.fortune.vibramusic.ui.screens
 
+import android.app.Activity
+import android.content.Intent
+import android.speech.RecognizerIntent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -132,6 +138,18 @@ fun SearchScreen(
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
+    val context = LocalContext.current
+    val voiceLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val spokenText = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.trim()
+            if (!spokenText.isNullOrBlank()) {
+                onQueryChange(spokenText)
+                onSubmit()
+            }
+        }
+    }
     // Tapping the search tab from the nav bar sets focusRequested;
     // respond by focusing the field and opening the keyboard.
     LaunchedEffect(focusRequested) {
@@ -179,6 +197,15 @@ fun SearchScreen(
                 onQueryChange = onQueryChange,
                 onSubmit = onSubmit,
                 focusRequester = focusRequester,
+                onMicClick = {
+                    val voiceIntent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                        putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                        putExtra(RecognizerIntent.EXTRA_PROMPT, context.getString(R.string.voice_search_prompt))
+                    }
+                    try {
+                        voiceLauncher.launch(voiceIntent)
+                    } catch (_: Exception) {}
+                },
                 modifier = Modifier.padding(start = PAGE_GUTTER, end = PAGE_GUTTER, bottom = 4.dp),
             )
             // The filters only mean something once there is a result set to narrow;

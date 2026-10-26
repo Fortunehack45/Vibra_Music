@@ -1350,4 +1350,6 @@
     <string name="voice_playing_album">アルバム「%1$s」を再生しています</string>
     <string name="voice_playing_playlist">プレイリスト「%1$s」を再生しています</string>
     <string name="voice_no_results">\'%1$s\' に一致する音楽が見つかりませんでした</string>
+    <string name="voice_search">音声検索</string>
+    <string name="voice_search_prompt">曲、アーティスト、アルバム、プレイリストを話してください</string>
 </resources>

@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.ui.components
+package com.fortune.vibramusic.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -17,6 +17,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -51,6 +52,7 @@ fun SearchField(
     focusRequester: FocusRequester = remember { FocusRequester() },
     /** What the empty field says it is for — the one part that changes per screen. */
     placeholder: String = stringResource(R.string.search_hint),
+    onMicClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val focusManager = LocalFocusManager.current
@@ -132,6 +134,21 @@ fun SearchField(
                     contentDescription = stringResource(R.string.clear_search),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(18.dp),
+                )
+            }
+        } else if (onMicClick != null) {
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .clip(CircleShape)
+                    .clickable(onClick = onMicClick),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Rounded.Mic,
+                    contentDescription = stringResource(R.string.voice_search),
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp),
                 )
             }
         }

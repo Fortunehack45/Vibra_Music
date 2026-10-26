@@ -1,5 +1,49 @@
 <?xml version="1.0" encoding="utf-8"?>
 <shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <capability android:name="actions.intent.PLAY_MEDIA">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.fortune.vibramusic"
+            android:targetClass="com.fortune.vibramusic.MainActivity">
+            <url-template android:value="vibramusic://play{?query,artist,album,playlist,genre}" />
+            <parameter
+                android:name="media.name"
+                android:key="query" />
+            <parameter
+                android:name="media.artist.name"
+                android:key="artist" />
+            <parameter
+                android:name="media.album.name"
+                android:key="album" />
+            <parameter
+                android:name="media.playlist.name"
+                android:key="playlist" />
+            <parameter
+                android:name="media.genre.name"
+                android:key="genre" />
+        </intent>
+        <intent
+            android:action="android.media.action.MEDIA_PLAY_FROM_SEARCH"
+            android:targetPackage="com.fortune.vibramusic"
+            android:targetClass="com.fortune.vibramusic.MainActivity">
+            <parameter
+                android:name="media.name"
+                android:key="query" />
+            <parameter
+                android:name="media.artist.name"
+                android:key="android.intent.extra.artist" />
+            <parameter
+                android:name="media.album.name"
+                android:key="android.intent.extra.album" />
+            <parameter
+                android:name="media.playlist.name"
+                android:key="android.intent.extra.playlist" />
+            <parameter
+                android:name="media.genre.name"
+                android:key="android.intent.extra.genre" />
+        </intent>
+    </capability>
+
     <capability android:name="actions.intent.PLAY_MUSIC">
         <intent
             android:action="android.media.action.MEDIA_PLAY_FROM_SEARCH"
@@ -19,6 +63,7 @@
                 android:key="android.intent.extra.playlist" />
         </intent>
     </capability>
+
     <capability android:name="actions.intent.OPEN_APP_FEATURE">
         <intent
             android:action="android.intent.action.VIEW"

@@ -1324,4 +1324,6 @@
     <string name="voice_playing_album">%1$s albümü çalınıyor</string>
     <string name="voice_playing_playlist">%1$s çalma listesi çalınıyor</string>
     <string name="voice_no_results">\'%1$s\' ile eşleşen müzik bulunamadı</string>
+    <string name="voice_search">Sesli arama</string>
+    <string name="voice_search_prompt">Şarkı, sanatçı, albüm veya çalma listesi söyleyin</string>
 </resources>

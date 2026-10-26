@@ -1355,4 +1355,6 @@
     <string name="voice_playing_album">กำลังเล่นอัลบั้ม %1$s</string>
     <string name="voice_playing_playlist">กำลังเล่นเพลย์ลิสต์ %1$s</string>
     <string name="voice_no_results">ไม่พบเพลงที่ตรงกับ \'%1$s\'</string>
+    <string name="voice_search">ค้นหาด้วยเสียง</string>
+    <string name="voice_search_prompt">พูดชื่อเพลง ศิลปิน อัลบั้ม หรือเพลย์ลิสต์</string>
 </resources>

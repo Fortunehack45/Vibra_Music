@@ -1407,4 +1407,6 @@
     <string name="voice_playing_album">Odtwarzanie albumu %1$s</string>
     <string name="voice_playing_playlist">Odtwarzanie playlisty %1$s</string>
     <string name="voice_no_results">Nie znaleziono muzyki pasującej do \'%1$s\'</string>
+    <string name="voice_search">Wyszukiwanie głosowe</string>
+    <string name="voice_search_prompt">Powiedz utwór, wykonawcę, album lub playlistę</string>
 </resources>

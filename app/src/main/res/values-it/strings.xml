@@ -1308,4 +1308,6 @@
     <string name="voice_playing_album">Riproduzione dell\'album %1$s</string>
     <string name="voice_playing_playlist">Riproduzione della playlist %1$s</string>
     <string name="voice_no_results">Nessuna musica trovata per \'%1$s\'</string>
+    <string name="voice_search">Ricerca vocale</string>
+    <string name="voice_search_prompt">Pronuncia brano, artista, album o playlist</string>
 </resources>

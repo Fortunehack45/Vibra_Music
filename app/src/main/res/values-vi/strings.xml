@@ -1287,4 +1287,6 @@
     <string name="voice_playing_album">Đang phát album %1$s</string>
     <string name="voice_playing_playlist">Đang phát danh sách phát %1$s</string>
     <string name="voice_no_results">Không tìm thấy nhạc phù hợp với \'%1$s\'</string>
+    <string name="voice_search">Tìm kiếm bằng giọng nói</string>
+    <string name="voice_search_prompt">Nói tên bài hát, nghệ sĩ, album hoặc danh sách phát</string>
 </resources>

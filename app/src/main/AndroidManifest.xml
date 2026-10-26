@@ -73,6 +73,12 @@
         <package android:name="com.coloros.packageinstaller" />
         <package android:name="com.oppo.packageinstaller" />
         <package android:name="com.vivo.packageinstaller" />
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+        <intent>
+            <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
+        </intent>
     </queries>
 
     <application
@@ -184,6 +190,19 @@
                 <action android:name="android.media.action.MEDIA_PLAY_FROM_SEARCH" />
                 <action android:name="android.intent.action.SEARCH" />
                 <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+
+            <!--
+              Direct voice and assistant App Action deep links.
+              Dispatched by Google Assistant, Gemini, and system voice actions:
+              vibramusic://play?query=... and vibra://play?query=...
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="vibramusic" android:host="play" />
+                <data android:scheme="vibra" android:host="play" />
             </intent-filter>
 
             <!--

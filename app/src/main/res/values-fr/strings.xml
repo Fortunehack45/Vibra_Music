@@ -1370,4 +1370,6 @@
     <string name="voice_playing_album">Lecture de l\'album %1$s</string>
     <string name="voice_playing_playlist">Lecture de la playlist %1$s</string>
     <string name="voice_no_results">Aucune musique trouvée pour \'%1$s\'</string>
+    <string name="voice_search">Recherche vocale</string>
+    <string name="voice_search_prompt">Dites un titre, artiste, album ou playlist</string>
 </resources>

@@ -1349,4 +1349,6 @@
     <string name="voice_playing_album">正在播放专辑 %1$s</string>
     <string name="voice_playing_playlist">正在播放歌单 %1$s</string>
     <string name="voice_no_results">未找到与 \'%1$s\' 匹配的音乐</string>
+    <string name="voice_search">语音搜索</string>
+    <string name="voice_search_prompt">说出歌曲、歌手、专辑或播放列表</string>
 </resources>

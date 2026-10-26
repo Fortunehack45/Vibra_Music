@@ -1369,4 +1369,6 @@
     <string name="voice_playing_album">एल्बम %1$s बजाया जा रहा है</string>
     <string name="voice_playing_playlist">प्लेलिस्ट %1$s बजाई जा रही है</string>
     <string name="voice_no_results">\'%1$s\' से मेल खाने वाला संगीत नहीं मिला</string>
+    <string name="voice_search">आवाज़ से खोजें</string>
+    <string name="voice_search_prompt">गाना, कलाकार, एल्बम या प्लेलिस्ट बोलें</string>
 </resources>

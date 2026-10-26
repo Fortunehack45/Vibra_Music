@@ -79,7 +79,7 @@ object MusicLink {
     fun consume(intent: Intent?): Boolean {
         if (intent == null || intent.getBooleanExtra(EXTRA_CONSUMED, false)) return false
         val request = when (intent.action) {
-            Intent.ACTION_VIEW -> intent.data?.let(::parse)
+            Intent.ACTION_VIEW -> intent.data?.let(::parse) ?: extractVoiceRequest(intent)
             Intent.ACTION_SEND -> intent.getStringExtra(Intent.EXTRA_TEXT)
                 ?.let(::firstUrl)
                 ?.let { parse(Uri.parse(it)) }
@@ -87,36 +87,62 @@ object MusicLink {
             // point of the Resume case: "play music" names nothing, and the
             // useful answer is to carry on with what was already on.
             MediaStore.INTENT_ACTION_MEDIA_PLAY_FROM_SEARCH,
-            Intent.ACTION_SEARCH -> {
-                val query = intent.getStringExtra(SearchManager.QUERY).orEmpty().trim()
-                val focus = intent.getStringExtra(MediaStore.EXTRA_MEDIA_FOCUS)
-                val title = intent.getStringExtra(MediaStore.EXTRA_MEDIA_TITLE)?.trim()
-                val artist = intent.getStringExtra(MediaStore.EXTRA_MEDIA_ARTIST)?.trim()
-                val album = intent.getStringExtra(MediaStore.EXTRA_MEDIA_ALBUM)?.trim()
-                val playlist = intent.getStringExtra(MediaStore.EXTRA_MEDIA_PLAYLIST)?.trim()
-                val genre = intent.getStringExtra(MediaStore.EXTRA_MEDIA_GENRE)?.trim()
-
-                if (query.isEmpty() && focus.isNullOrEmpty() && title.isNullOrEmpty() &&
-                    artist.isNullOrEmpty() && album.isNullOrEmpty() && playlist.isNullOrEmpty()) {
-                    LinkRequest.Resume
-                } else {
-                    LinkRequest.Voice(
-                        rawQuery = query,
-                        mediaFocus = focus,
-                        title = title,
-                        artist = artist,
-                        album = album,
-                        playlist = playlist,
-                        genre = genre,
-                        play = true,
-                    )
-                }
-            }
-            else -> null
+            Intent.ACTION_SEARCH -> extractVoiceRequest(intent) ?: LinkRequest.Resume
+            else -> extractVoiceRequest(intent)
         } ?: return false
         intent.putExtra(EXTRA_CONSUMED, true)
         _pending.value = request
         return true
+    }
+
+    private fun extractVoiceRequest(intent: Intent): LinkRequest? {
+        val query = (intent.getStringExtra(SearchManager.QUERY)
+            ?: intent.getStringExtra("query")
+            ?: intent.getStringExtra("q")
+            ?: intent.getStringExtra("media.name")
+            ?: intent.getStringExtra("media_title")
+            ?: intent.getStringExtra("media_name")
+            ?: intent.getStringExtra(MediaStore.EXTRA_MEDIA_TITLE)).orEmpty().trim()
+
+        val focus = intent.getStringExtra(MediaStore.EXTRA_MEDIA_FOCUS)?.trim()
+        val title = (intent.getStringExtra(MediaStore.EXTRA_MEDIA_TITLE)
+            ?: intent.getStringExtra("title")
+            ?: intent.getStringExtra("media_title")).orEmpty().trim().takeIf { it.isNotEmpty() }
+
+        val artist = (intent.getStringExtra(MediaStore.EXTRA_MEDIA_ARTIST)
+            ?: intent.getStringExtra("artist")
+            ?: intent.getStringExtra("artist_name")
+            ?: intent.getStringExtra("media.artist.name")).orEmpty().trim().takeIf { it.isNotEmpty() }
+
+        val album = (intent.getStringExtra(MediaStore.EXTRA_MEDIA_ALBUM)
+            ?: intent.getStringExtra("album")
+            ?: intent.getStringExtra("album_name")
+            ?: intent.getStringExtra("media.album.name")).orEmpty().trim().takeIf { it.isNotEmpty() }
+
+        val playlist = (intent.getStringExtra(MediaStore.EXTRA_MEDIA_PLAYLIST)
+            ?: intent.getStringExtra("playlist")
+            ?: intent.getStringExtra("playlist_name")
+            ?: intent.getStringExtra("media.playlist.name")).orEmpty().trim().takeIf { it.isNotEmpty() }
+
+        val genre = (intent.getStringExtra(MediaStore.EXTRA_MEDIA_GENRE)
+            ?: intent.getStringExtra("genre")
+            ?: intent.getStringExtra("media.genre.name")).orEmpty().trim().takeIf { it.isNotEmpty() }
+
+        val hasAnyField = query.isNotEmpty() || !focus.isNullOrEmpty() || title != null ||
+                artist != null || album != null || playlist != null || genre != null
+
+        if (!hasAnyField) return null
+
+        return LinkRequest.Voice(
+            rawQuery = query,
+            mediaFocus = focus,
+            title = title,
+            artist = artist,
+            album = album,
+            playlist = playlist,
+            genre = genre,
+            play = true,
+        )
     }
 
     /**
@@ -142,6 +168,39 @@ object MusicLink {
      * as through the browser.
      */
     fun parse(uri: Uri): LinkRequest? {
+        val scheme = uri.scheme?.lowercase()
+        if (scheme == "vibramusic" || scheme == "vibra") {
+            val host = uri.host?.lowercase()
+            val path = uri.path?.lowercase().orEmpty().trimStart('/')
+            if (host == "play" || path == "play" || path.startsWith("play/")) {
+                val query = (uri.getQueryParameter("query")
+                    ?: uri.getQueryParameter("q")
+                    ?: uri.getQueryParameter("title")
+                    ?: uri.getQueryParameter("media.name")).orEmpty().trim()
+                val artist = (uri.getQueryParameter("artist")
+                    ?: uri.getQueryParameter("media.artist.name")).orEmpty().trim().takeIf { it.isNotEmpty() }
+                val album = (uri.getQueryParameter("album")
+                    ?: uri.getQueryParameter("media.album.name")).orEmpty().trim().takeIf { it.isNotEmpty() }
+                val playlist = (uri.getQueryParameter("playlist")
+                    ?: uri.getQueryParameter("media.playlist.name")).orEmpty().trim().takeIf { it.isNotEmpty() }
+                val genre = (uri.getQueryParameter("genre")
+                    ?: uri.getQueryParameter("media.genre.name")).orEmpty().trim().takeIf { it.isNotEmpty() }
+
+                return if (query.isEmpty() && artist == null && album == null && playlist == null && genre == null) {
+                    LinkRequest.Resume
+                } else {
+                    LinkRequest.Voice(
+                        rawQuery = query,
+                        artist = artist,
+                        album = album,
+                        playlist = playlist,
+                        genre = genre,
+                        play = true,
+                    )
+                }
+            }
+        }
+
         val host = uri.host?.lowercase()?.removePrefix("www.") ?: return null
         val segments = uri.pathSegments.orEmpty()
         if (host == "youtu.be") {

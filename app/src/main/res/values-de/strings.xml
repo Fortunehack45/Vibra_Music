@@ -1369,4 +1369,6 @@
     <string name="voice_playing_album">Album %1$s wird abgespielt</string>
     <string name="voice_playing_playlist">Playlist %1$s wird abgespielt</string>
     <string name="voice_no_results">Keine Musik für \'%1$s\' gefunden</string>
+    <string name="voice_search">Sprachsuche</string>
+    <string name="voice_search_prompt">Sprich Titel, Interpret, Album oder Playlist</string>
 </resources>

@@ -1374,4 +1374,6 @@
     <string name="voice_playing_album">משמיע את האלבום %1$s</string>
     <string name="voice_playing_playlist">משמיע את הפלייליסט %1$s</string>
     <string name="voice_no_results">לא נמצאה מוזיקה עבור \'%1$s\'</string>
+    <string name="voice_search">חיפוש קולי</string>
+    <string name="voice_search_prompt">אמור שיר, אמן, אלבום או פלייליסט</string>
 </resources>

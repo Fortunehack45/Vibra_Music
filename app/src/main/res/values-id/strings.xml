@@ -1349,4 +1349,6 @@
     <string name="voice_playing_album">Memutar album %1$s</string>
     <string name="voice_playing_playlist">Memutar playlist %1$s</string>
     <string name="voice_no_results">Tidak dapat menemukan musik yang cocok dengan \'%1$s\'</string>
+    <string name="voice_search">Penelusuran suara</string>
+    <string name="voice_search_prompt">Ucapkan lagu, artis, album, atau playlist</string>
 </resources>

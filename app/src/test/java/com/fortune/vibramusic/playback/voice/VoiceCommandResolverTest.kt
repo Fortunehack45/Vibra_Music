@@ -127,4 +127,18 @@ class VoiceCommandResolverTest {
         assertEquals("Top Hits Offline", playSongs.title)
         assertEquals("test_vid_local", playSongs.songs.first().videoId)
     }
+
+    @Test
+    fun testCleanSpokenQueryConversationalPhrases() {
+        assertEquals("Asake", VoiceCommandResolver.cleanSpokenQuery("And play one Asake song"))
+        assertEquals("Asake", VoiceCommandResolver.cleanSpokenQuery("Just help me to play one Asake song"))
+        assertEquals("Asake", VoiceCommandResolver.cleanSpokenQuery("Play Asake on Vibra Music"))
+        assertEquals("Asake", VoiceCommandResolver.cleanSpokenQuery("Play Asake on Vibra"))
+        assertEquals("Asake", VoiceCommandResolver.cleanSpokenQuery("Play one Asake song"))
+        assertEquals("Asake", VoiceCommandResolver.cleanSpokenQuery("Play songs by Asake"))
+        assertEquals("Asake", VoiceCommandResolver.cleanSpokenQuery("music by Asake"))
+        assertEquals("Burna Boy", VoiceCommandResolver.cleanSpokenQuery("Play some Burna Boy music"))
+        assertEquals("Evening Chill", VoiceCommandResolver.cleanSpokenQuery("Play my playlist Evening Chill"))
+        assertEquals("Starboy by The Weeknd", VoiceCommandResolver.cleanSpokenQuery("Play Starboy by The Weeknd"))
+    }
 }

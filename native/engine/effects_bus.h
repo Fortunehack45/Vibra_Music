@@ -23,7 +23,7 @@ public:
 private:
     float sampleRate = 44100.0f;
     EffectType type = EffectType::NONE;
-    TailMode tail = TailMode.CUT;
+    TailMode tail = TailMode::CUT;
     float sendAmount = 0.0f;
 
     // Echo delay buffer (stereo, max 2 seconds)

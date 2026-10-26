@@ -1081,6 +1081,7 @@
     <string name="sort_date_added_toggle">Дата добавления</string>
 
     <string name="sort_default">По умолчанию</string>
+    <string name="sort_smart_flow">Smart Flow (BPM и тональность)</string>
 
     <string name="sort_library">Сортировка</string>
 

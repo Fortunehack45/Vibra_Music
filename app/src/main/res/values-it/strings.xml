@@ -1052,6 +1052,7 @@
     <string name="sort_songs">Ordina brani</string>
 
     <string name="sort_default">Ordine predefinito</string>
+    <string name="sort_smart_flow">Smart Flow (BPM e tonalità)</string>
 
     <string name="unsubscribe">Annulla iscrizione</string>
 

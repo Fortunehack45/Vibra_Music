@@ -1060,6 +1060,7 @@
     <string name="sort_date_added_toggle">תאריך הוספה</string>
 
     <string name="sort_default">סדר ברירת מחדל</string>
+    <string name="sort_smart_flow">Smart Flow (BPM ומפתח)</string>
 
     <string name="sort_library">מיין</string>
 

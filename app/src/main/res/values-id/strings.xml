@@ -1035,6 +1035,7 @@
     <string name="sort_date_added_toggle">Tanggal ditambahkan</string>
 
     <string name="sort_default">Urutan default</string>
+    <string name="sort_smart_flow">Smart Flow (BPM &amp; Kunci)</string>
 
     <string name="sort_library">Urutkan</string>
 

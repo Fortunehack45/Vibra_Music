@@ -1034,6 +1034,7 @@
     <string name="sort_songs">Şarkıları sırala</string>
 
     <string name="sort_default">Varsayılan sıra</string>
+    <string name="sort_smart_flow">Smart Flow (BPM ve Anahtar)</string>
 
     <string name="unsubscribe">Abonelikten çık</string>
 

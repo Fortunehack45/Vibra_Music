@@ -1051,6 +1051,7 @@
     <string name="sort_songs">Ordenar canciones</string>
 
     <string name="sort_default">Orden predeterminado</string>
+    <string name="sort_smart_flow">Smart Flow (BPM y tonalidad)</string>
 
     <string name="unsubscribe">Cancelar suscripción</string>
 

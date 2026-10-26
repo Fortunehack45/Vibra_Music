@@ -1055,6 +1055,7 @@
     <string name="sort_date_added_toggle">Hinzugefügt am</string>
 
     <string name="sort_default">Standardreihenfolge</string>
+    <string name="sort_smart_flow">Smart Flow (BPM &amp; Tonart)</string>
 
     <string name="sort_library">Sortieren</string>
 

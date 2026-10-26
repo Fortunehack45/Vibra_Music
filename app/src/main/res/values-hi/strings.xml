@@ -1055,6 +1055,7 @@
     <string name="sort_date_added_toggle">जोड़े जाने की तारीख</string>
 
     <string name="sort_default">डिफ़ॉल्ट क्रम</string>
+    <string name="sort_smart_flow">Smart Flow (BPM और कुंजी)</string>
 
     <string name="sort_library">क्रमबद्ध करें</string>
 

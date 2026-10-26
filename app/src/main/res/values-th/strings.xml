@@ -1110,6 +1110,7 @@
     <string name="sort_date_added_toggle">Date added</string>
 
     <string name="sort_default">Default order</string>
+    <string name="sort_smart_flow">Smart Flow (BPM และคีย์)</string>
 
     <string name="sort_library">Sort</string>
 

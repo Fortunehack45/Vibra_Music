@@ -1060,6 +1060,7 @@
     <string name="sort_date_added_toggle">Data de adição</string>
 
     <string name="sort_default">Ordem padrão</string>
+    <string name="sort_smart_flow">Smart Flow (BPM e tom)</string>
 
     <string name="sort_library">Ordenar</string>
 

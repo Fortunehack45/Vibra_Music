@@ -4280,6 +4280,7 @@ private fun VibraMusicApp(
             // Compose. Both are read from collected state so this sheet actually
             // recomposes when the answer arrives.
             val ownedPlaylists by viewModel.playlistOwned.collectAsStateWithLifecycle()
+            val mixUpdates by LocalPlaylistsStore.mixUpdates.collectAsStateWithLifecycle()
             val playlist = target.browseId
                 ?.takeIf { signedIn && ownedPlaylists[it] == true }
                 ?.let { id -> playlists.firstOrNull { it.browseId == id } }
@@ -4398,7 +4399,7 @@ private fun VibraMusicApp(
                             scope.launch { Downloads.deleteCollection(context, id) }
                         }
                     },
-                    isMixEnabled = target.browseId?.let { LocalPlaylistsStore.isMixEnabled(it) } ?: false,
+                    isMixEnabled = target.browseId?.let { id -> LocalPlaylistsStore.isMixEnabled(id) } ?: false,
                     onToggleMix = target.browseId?.takeIf { target.type != BrowseType.ARTIST }?.let { id ->
                         {
                             val next = !LocalPlaylistsStore.isMixEnabled(id)

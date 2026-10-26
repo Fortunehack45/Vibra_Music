@@ -70,21 +70,21 @@ fun MixBadge(
         }
 
         if (parsedKey != null) {
-            val badgeColor = Color(parsedKey.badgeColor(parsedRelKey))
+            val badgeColor = Color(parsedKey.badgeColor())
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(4.dp))
                     .background(badgeColor)
-                    .padding(horizontal = 5.dp, vertical = 1.dp),
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
                     text = parsedKey.code,
                     style = MaterialTheme.typography.labelSmall.copy(
-                        fontSize = 10.sp,
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                     ),
-                    color = Color.White,
+                    color = Color(0xFF000000),
                     maxLines = 1,
                 )
             }
@@ -92,17 +92,17 @@ fun MixBadge(
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(4.dp))
-                    .background(Color.White.copy(alpha = 0.08f))
-                    .padding(horizontal = 5.dp, vertical = 1.dp),
+                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
                     text = "--",
                     style = MaterialTheme.typography.labelSmall.copy(
-                        fontSize = 10.sp,
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                     ),
-                    color = Color.White.copy(alpha = 0.45f),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f),
                     maxLines = 1,
                 )
             }

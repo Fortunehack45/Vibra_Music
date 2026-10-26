@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Modeled on Orchard's own TrackAnalyzer (https://github.com/SFG5453/Orchard).
  * Phase 1 was the DSP-only pass (native/analyzer/audio_analysis.cpp); Phase 2
  * adds the Beat This! ONNX model (see [BeatTracker]) and Phase 3 the
@@ -641,7 +641,8 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
             GridRefiner.refine(rawBeats = grid.beats, downbeats = grid.downbeats)
         } else null
 
-        val finalBpm = refined?.bpm ?: grid?.bpm ?: entry?.bpm ?: 0.0
+        val rawBpm = refined?.bpm ?: grid?.bpm ?: entry?.bpm ?: 0.0
+        val finalBpm = normalizeBpm(rawBpm)
         val finalConf = refined?.beatConfidence ?: grid?.beatConfidence ?: entry?.beatConfidence ?: 0.0
         val finalBeats = refined?.beats ?: grid?.beats.orEmpty()
         val finalDownbeats = refined?.downbeats ?: grid?.downbeats ?: entry?.downbeats.orEmpty()
@@ -1046,7 +1047,8 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
             GridRefiner.refine(rawBeats = combinedBeats, downbeats = combinedDownbeats)
         } else null
 
-        val finalBpm = refined?.bpm ?: leading?.bpm ?: features.bpm
+        val rawBpm = refined?.bpm ?: leading?.bpm ?: features.bpm
+        val finalBpm = normalizeBpm(rawBpm)
         val finalConf = refined?.beatConfidence ?: leading?.beatConfidence ?: features.beatConfidence
         val finalInterval = refined?.beatInterval ?: leading?.beatInterval ?: features.beatInterval
         val finalBeats = refined?.beats ?: combinedBeats
@@ -1297,6 +1299,18 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
 
     private companion object {
         const val TAG = "VibraMusicTrackAnalyzer"
+
+        fun normalizeBpm(raw: Double): Double {
+            if (raw <= 0.0) return 0.0
+            var b = raw
+            while (b < 75.0) {
+                b *= 2.0
+            }
+            while (b > 165.0) {
+                b /= 2.0
+            }
+            return b
+        }
 
         /**
          * What an unmeasured instant reads as. Below the policy's VOCAL_ACTIVE_THRESHOLD by

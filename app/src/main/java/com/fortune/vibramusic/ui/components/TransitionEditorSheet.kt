@@ -1,12 +1,13 @@
 package com.fortune.vibramusic.ui.components
 
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
+import android.content.Context
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
+import android.os.Build
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -23,27 +24,32 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Repeat
 import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material.icons.rounded.Sync
+import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -51,20 +57,25 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -85,17 +96,24 @@ import com.fortune.vibramusic.playback.smart.EnergySample
 import com.fortune.vibramusic.playback.smart.TrackAnalysis
 import com.fortune.vibramusic.ui.haptics.Haptic
 import com.fortune.vibramusic.ui.haptics.rememberHaptics
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.hypot
 import kotlin.math.sin
 
 private val VibraPurple = Color(0xFF8B5CF6)
+private val VolumeBlue = Color(0xFF38BDF8)
+private val EqYellow = Color(0xFFFACC15)
+private val FilterPink = Color(0xFFEC4899)
+private val EffectsWhite = Color(0xFFFFFFFF)
+private val LoopingOrange = Color(0xFFF97316)
 
 /**
  * Full interactive Transition Editor Sheet matching Spotify's Mix editor parity,
- * styled in Vibra Music's Apple-meets-Spotify dark liquid-glass aesthetic.
- * Renders in a full-screen Dialog covering the mini player and bottom navigation completely.
+ * styled in Vibra Music's liquid-glass aesthetic.
+ * Renders in a full-screen Dialog covering the entire screen.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -109,7 +127,9 @@ fun TransitionEditorSheet(
     onDismiss: () -> Unit,
     sheetState: SheetState? = null,
 ) {
+    val context = LocalContext.current
     val haptics = rememberHaptics()
+    val scope = rememberCoroutineScope()
 
     var plan by remember(initialPlan, fromSong.videoId, toSong.videoId) {
         mutableStateOf(
@@ -123,42 +143,80 @@ fun TransitionEditorSheet(
     }
 
     var isPreviewPlaying by remember { mutableStateOf(false) }
-    val pagerState = rememberPagerState(initialPage = 0) { 5 }
-    var isCustomizing by remember { mutableStateOf(plan.mode == TransitionMode.CUSTOM) }
+    var playheadProgress by remember { mutableFloatStateOf(0f) }
+    var isDraggingPoint by remember { mutableStateOf(false) }
+    var focusedLane by remember { mutableStateOf<LaneId?>(null) }
+    var showLoopingSheet by remember { mutableStateOf(false) }
     var showLengthMenu by remember { mutableStateOf(false) }
 
     val durationA = remember(fromSong, fromAnalysis) { getSongDurationSeconds(fromSong, fromAnalysis) }
     val durationB = remember(toSong, toAnalysis) { getSongDurationSeconds(toSong, toAnalysis) }
 
-    // Color definitions for the 5 automation lanes
-    val volumeColor = Color(0xFF3B82F6) // Blue
-    val eqColor = Color(0xFFF59E0B)     // Yellow
-    val filterColor = Color(0xFFEC4899) // Pink
-    val effectsColor = Color(0xFFFFFFFF)// White
-    val loopingColor = Color(0xFFF97316)// Orange
+    // Audio Focus Manager for Real Audio Preview
+    val audioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
+    var audioFocusRequest: AudioFocusRequest? by remember { mutableStateOf(null) }
 
-    val currentLaneColor = when (pagerState.currentPage) {
-        0 -> volumeColor
-        1 -> eqColor
-        2 -> filterColor
-        3 -> effectsColor
-        else -> loopingColor
+    fun stopPreview() {
+        isPreviewPlaying = false
+        playheadProgress = 0f
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            audioFocusRequest?.let { audioManager.abandonAudioFocusRequest(it) }
+        } else {
+            @Suppress("DEPRECATION")
+            audioManager.abandonAudioFocus(null)
+        }
+        audioFocusRequest = null
     }
 
-    // Playhead animation
-    val infiniteTransition = rememberInfiniteTransition(label = "playhead loop")
-    val animatedPlayhead by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 4000, easing = LinearEasing),
-        ),
-        label = "playhead",
-    )
-    val playheadProgress = if (isPreviewPlaying) animatedPlayhead else 0f
+    fun startPreview() {
+        isPreviewPlaying = true
+        playheadProgress = 0f
+
+        // Request transient audio focus to cleanly pause background music
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val req = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
+                .setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                        .build()
+                )
+                .build()
+            audioFocusRequest = req
+            audioManager.requestAudioFocus(req)
+        } else {
+            @Suppress("DEPRECATION")
+            audioManager.requestAudioFocus(null, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
+        }
+
+        // Animate playhead and evaluate blend progression
+        scope.launch {
+            val totalDurationMs = (plan.durationSeconds * 1000.0).toLong().coerceAtLeast(2000L)
+            val startTime = System.currentTimeMillis()
+            while (isPreviewPlaying) {
+                val elapsed = System.currentTimeMillis() - startTime
+                val progress = (elapsed.toFloat() / totalDurationMs.toFloat()).coerceIn(0f, 1f)
+                playheadProgress = progress
+                if (progress >= 1f) {
+                    stopPreview()
+                    break
+                }
+                delay(30L)
+            }
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            stopPreview()
+        }
+    }
 
     Dialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = {
+            stopPreview()
+            onDismiss()
+        },
         properties = DialogProperties(
             usePlatformDefaultWidth = false,
             decorFitsSystemWindows = false,
@@ -183,53 +241,80 @@ fun TransitionEditorSheet(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
-                    IconButton(onClick = onDismiss) {
-                        Icon(
-                            imageVector = Icons.Rounded.Close,
-                            contentDescription = "Close",
-                            tint = Color.White,
-                            modifier = Modifier.size(24.dp),
-                        )
+                    if (focusedLane != null) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { focusedLane = null }
+                                .padding(horizontal = 4.dp, vertical = 4.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                contentDescription = "Back",
+                                tint = Color.White,
+                                modifier = Modifier.size(22.dp),
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = focusedLane?.name?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = Color.White,
+                            )
+                        }
+                    } else {
+                        IconButton(onClick = {
+                            stopPreview()
+                            onDismiss()
+                        }) {
+                            Icon(
+                                imageVector = Icons.Rounded.Close,
+                                contentDescription = "Close",
+                                tint = Color.White,
+                                modifier = Modifier.size(24.dp),
+                            )
+                        }
                     }
 
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(Color.White.copy(alpha = 0.12f))
-                                .padding(horizontal = 8.dp, vertical = 2.dp),
-                        ) {
-                            Text(
-                                text = "Beta",
-                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                color = Color.White.copy(alpha = 0.8f),
-                            )
-                        }
-
-                        IconButton(
-                            onClick = {
-                                val reset = MixAutoPlanner.autoPlan(
-                                    fromAnalysis,
-                                    toAnalysis,
-                                    fromSong.videoId,
-                                    toSong.videoId,
+                        if (focusedLane == null) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(Color.White.copy(alpha = 0.12f))
+                                    .padding(horizontal = 8.dp, vertical = 2.dp),
+                            ) {
+                                Text(
+                                    text = "Beta",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = Color.White.copy(alpha = 0.8f),
                                 )
-                                plan = reset
-                                isCustomizing = false
-                            },
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Refresh,
-                                contentDescription = "Reset to Auto",
-                                tint = Color.White.copy(alpha = 0.7f),
-                                modifier = Modifier.size(20.dp),
-                            )
+                            }
+
+                            IconButton(
+                                onClick = {
+                                    val reset = MixAutoPlanner.autoPlan(
+                                        fromAnalysis,
+                                        toAnalysis,
+                                        fromSong.videoId,
+                                        toSong.videoId,
+                                    )
+                                    plan = reset
+                                },
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Refresh,
+                                    contentDescription = "Reset to Auto",
+                                    tint = Color.White.copy(alpha = 0.7f),
+                                    modifier = Modifier.size(20.dp),
+                                )
+                            }
                         }
 
-                        // Save Button (Vibra Purple pill)
+                        // Save / Done Button (Vibra Purple pill)
                         Box(
                             modifier = Modifier
                                 .height(34.dp)
@@ -237,14 +322,19 @@ fun TransitionEditorSheet(
                                 .background(VibraPurple)
                                 .clickable {
                                     haptics.play(Haptic.Select)
-                                    onSave(plan.copy(updatedAt = System.currentTimeMillis()))
-                                    onDismiss()
+                                    if (focusedLane != null) {
+                                        focusedLane = null
+                                    } else {
+                                        stopPreview()
+                                        onSave(plan.copy(updatedAt = System.currentTimeMillis()))
+                                        onDismiss()
+                                    }
                                 }
                                 .padding(horizontal = 18.dp),
                             contentAlignment = Alignment.Center,
                         ) {
                             Text(
-                                text = "Save",
+                                text = if (focusedLane != null) "Done" else "Save",
                                 style = MaterialTheme.typography.labelMedium.copy(
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White,
@@ -254,10 +344,11 @@ fun TransitionEditorSheet(
                     }
                 }
 
+                val scrollState = rememberScrollState()
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .verticalScroll(rememberScrollState()),
+                        .verticalScroll(scrollState, enabled = !isDraggingPoint),
                 ) {
                     // Outgoing Track Header & Cut Scrubber (Song Shortening)
                     val minCutA = 15.0
@@ -302,7 +393,6 @@ fun TransitionEditorSheet(
                                     startCutSeconds = newSec.toDouble().coerceIn(minCutA, maxCutA),
                                     mode = TransitionMode.CUSTOM,
                                 )
-                                isCustomizing = true
                             },
                             valueRange = minCutA.toFloat()..durationA.toFloat().coerceAtLeast(minCutA.toFloat() + 1f),
                             colors = SliderDefaults.colors(
@@ -318,7 +408,7 @@ fun TransitionEditorSheet(
 
                     Spacer(Modifier.height(4.dp))
 
-                    // Dual Waveform Canvas with Curves and Playhead
+                    // Dual Waveform Canvas with Spotify-Parity Multi-Lane Curves & Looping Block
                     DualWaveformEditor(
                         plan = plan,
                         fromAnalysis = fromAnalysis,
@@ -326,32 +416,28 @@ fun TransitionEditorSheet(
                         fromSongId = fromSong.videoId,
                         toSongId = toSong.videoId,
                         durationA = durationA,
-                        activeLane = when (pagerState.currentPage) {
-                            0 -> LaneId.VOLUME
-                            1 -> LaneId.EQ
-                            2 -> LaneId.FILTER
-                            3 -> LaneId.EFFECTS
-                            else -> LaneId.LOOPING
-                        },
-                        laneColor = currentLaneColor,
+                        focusedLane = focusedLane,
                         playhead = playheadProgress,
                         isPlaying = isPreviewPlaying,
-                        isCustomizing = isCustomizing,
                         onPlayToggle = {
                             haptics.play(Haptic.Resume)
-                            isPreviewPlaying = !isPreviewPlaying
+                            if (isPreviewPlaying) {
+                                stopPreview()
+                            } else {
+                                startPreview()
+                            }
                         },
-                        onBeginEditing = {
-                            isCustomizing = true
+                        onDragPointActive = { active ->
+                            isDraggingPoint = active
                         },
                         onPointsChanged = { updatedOut, updatedIn ->
-                            plan = when (pagerState.currentPage) {
-                                0 -> plan.copy(
+                            plan = when (focusedLane) {
+                                LaneId.VOLUME -> plan.copy(
                                     mode = TransitionMode.CUSTOM,
                                     presetId = null,
                                     volume = plan.volume.copy(option = "custom", out = updatedOut, `in` = updatedIn),
                                 )
-                                1 -> plan.copy(
+                                LaneId.EQ -> plan.copy(
                                     mode = TransitionMode.CUSTOM,
                                     presetId = null,
                                     eq = plan.eq.copy(
@@ -360,12 +446,12 @@ fun TransitionEditorSheet(
                                         `in` = plan.eq.`in`.copy(low = updatedIn),
                                     ),
                                 )
-                                2 -> plan.copy(
+                                LaneId.FILTER -> plan.copy(
                                     mode = TransitionMode.CUSTOM,
                                     presetId = null,
                                     filter = plan.filter.copy(option = "custom", out = updatedOut, `in` = updatedIn),
                                 )
-                                3 -> plan.copy(
+                                LaneId.EFFECTS -> plan.copy(
                                     mode = TransitionMode.CUSTOM,
                                     presetId = null,
                                     effects = plan.effects.copy(option = "custom", curve = updatedOut),
@@ -467,7 +553,6 @@ fun TransitionEditorSheet(
                                     mixInSeconds = newSec.toDouble().coerceIn(0.0, maxCueB),
                                     mode = TransitionMode.CUSTOM,
                                 )
-                                isCustomizing = true
                             },
                             valueRange = 0f..maxCueB.toFloat(),
                             colors = SliderDefaults.colors(
@@ -483,214 +568,316 @@ fun TransitionEditorSheet(
 
                     Spacer(Modifier.height(12.dp))
 
-                    // Presets Horizontal Row
-                    Text(
-                        text = "Presets",
-                        style = MaterialTheme.typography.titleSmall.copy(
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 13.sp,
-                        ),
-                        color = Color.White.copy(alpha = 0.65f),
-                        modifier = Modifier.padding(horizontal = 18.dp),
-                    )
-
-                    Spacer(Modifier.height(8.dp))
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState())
-                            .padding(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        // Auto Preset
-                        val isAuto = plan.mode == TransitionMode.AUTO
-                        PresetPill(
-                            label = "Auto",
-                            icon = Icons.Rounded.AutoAwesome,
-                            isSelected = isAuto,
-                            onClick = {
-                                haptics.play(Haptic.Select)
-                                plan = MixAutoPlanner.autoPlan(fromAnalysis, toAnalysis, fromSong.videoId, toSong.videoId)
-                                isCustomizing = false
-                            },
+                    if (focusedLane == null) {
+                        // Presets Horizontal Row
+                        Text(
+                            text = "Presets",
+                            style = MaterialTheme.typography.titleSmall.copy(
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 13.sp,
+                            ),
+                            color = Color.White.copy(alpha = 0.65f),
+                            modifier = Modifier.padding(horizontal = 18.dp),
                         )
 
-                        // Custom Indicator
-                        val isCustom = plan.mode == TransitionMode.CUSTOM
-                        PresetPill(
-                            label = "Custom",
-                            isSelected = isCustom,
-                            onClick = {
-                                haptics.play(Haptic.Select)
-                                isCustomizing = true
-                                plan = plan.copy(mode = TransitionMode.CUSTOM, presetId = null)
-                            },
-                        )
+                        Spacer(Modifier.height(8.dp))
 
-                        // Standard Presets
-                        MixPresets.presets.forEach { preset ->
-                            val isSelected = plan.mode == TransitionMode.PRESET && plan.presetId == preset.id
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState())
+                                .padding(horizontal = 16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            val isAuto = plan.mode == TransitionMode.AUTO
                             PresetPill(
-                                label = preset.label,
-                                isSelected = isSelected,
+                                label = "Auto",
+                                icon = Icons.Rounded.AutoAwesome,
+                                isSelected = isAuto,
                                 onClick = {
                                     haptics.play(Haptic.Select)
-                                    isCustomizing = false
-                                    plan = TransitionPlan.applyPreset(plan, preset)
+                                    plan = MixAutoPlanner.autoPlan(fromAnalysis, toAnalysis, fromSong.videoId, toSong.videoId)
                                 },
                             )
-                        }
-                    }
 
-                    Spacer(Modifier.height(8.dp))
-
-                    // Beatmatching Row
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 4.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Color.White.copy(alpha = 0.06f))
-                            .padding(horizontal = 14.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Sync,
-                                contentDescription = null,
-                                tint = VibraPurple,
-                                modifier = Modifier.size(20.dp),
+                            val isCustom = plan.mode == TransitionMode.CUSTOM
+                            PresetPill(
+                                label = "Custom",
+                                isSelected = isCustom,
+                                onClick = {
+                                    haptics.play(Haptic.Select)
+                                    plan = plan.copy(mode = TransitionMode.CUSTOM, presetId = null)
+                                },
                             )
-                            Spacer(Modifier.width(10.dp))
-                            Column {
-                                Text(
-                                    text = "Beatmatching",
-                                    style = MaterialTheme.typography.labelMedium.copy(
-                                        fontWeight = FontWeight.SemiBold,
-                                        fontSize = 13.sp,
-                                    ),
-                                    color = Color.White,
-                                )
-                                Text(
-                                    text = "Lock tempo and align downbeats across transition",
-                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                                    color = Color.White.copy(alpha = 0.6f),
+
+                            MixPresets.presets.forEach { preset ->
+                                val isSelected = plan.mode == TransitionMode.PRESET && plan.presetId == preset.id
+                                PresetPill(
+                                    label = preset.label,
+                                    isSelected = isSelected,
+                                    onClick = {
+                                        haptics.play(Haptic.Select)
+                                        plan = TransitionPlan.applyPreset(plan, preset)
+                                    },
                                 )
                             }
                         }
-                        Switch(
-                            checked = plan.beatmatching,
-                            onCheckedChange = { plan = plan.copy(beatmatching = it) },
-                            colors = SwitchDefaults.colors(
-                                checkedTrackColor = VibraPurple,
-                                checkedThumbColor = Color.White,
+
+                        Spacer(Modifier.height(14.dp))
+
+                        // Vertical Lanes List matching Spotify
+                        Text(
+                            text = "Mix Parameters",
+                            style = MaterialTheme.typography.titleSmall.copy(
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 13.sp,
                             ),
+                            color = Color.White.copy(alpha = 0.65f),
+                            modifier = Modifier.padding(horizontal = 18.dp),
                         )
-                    }
 
-                    Spacer(Modifier.height(12.dp))
+                        Spacer(Modifier.height(8.dp))
 
-                    // 5-Lane Pager
-                    HorizontalPager(
-                        state = pagerState,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(260.dp),
-                    ) { page ->
-                        when (page) {
-                            0 -> VolumeLaneCard(
-                                plan = plan,
-                                color = volumeColor,
-                                isCustomizing = isCustomizing,
-                                onCustomizeToggle = { isCustomizing = !isCustomizing },
-                                onOptionSelected = { optId ->
-                                    val opt = MixOptions.findVolumeOption(optId)
-                                    val curves = opt.build(plan.lengthBars)
-                                    plan = plan.copy(
-                                        volume = plan.volume.copy(option = optId, out = curves.out, `in` = curves.`in`),
-                                    )
-                                },
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            // Volume Lane Row
+                            SpotifyLaneRow(
+                                title = "Volume",
+                                subtitle = plan.volume.option.replaceFirstChar { it.uppercase() },
+                                color = VolumeBlue,
+                                icon = Icons.AutoMirrored.Rounded.VolumeUp,
+                                onClick = { focusedLane = LaneId.VOLUME },
                             )
-                            1 -> EqLaneCard(
-                                plan = plan,
-                                color = eqColor,
-                                isCustomizing = isCustomizing,
-                                onCustomizeToggle = { isCustomizing = !isCustomizing },
-                                onOptionSelected = { optId ->
-                                    val opt = MixOptions.findEqOption(optId)
-                                    val bands = opt.build(plan.lengthBars)
-                                    plan = plan.copy(
-                                        eq = plan.eq.copy(option = optId, out = bands.out, `in` = bands.`in`),
-                                    )
-                                },
-                            )
-                            2 -> FilterLaneCard(
-                                plan = plan,
-                                color = filterColor,
-                                isCustomizing = isCustomizing,
-                                onCustomizeToggle = { isCustomizing = !isCustomizing },
-                                onOptionSelected = { optId ->
-                                    val opt = MixOptions.findFilterOption(optId)
-                                    val curves = opt.build(plan.lengthBars)
-                                    plan = plan.copy(
-                                        filter = plan.filter.copy(option = optId, out = curves.out, `in` = curves.`in`),
-                                    )
-                                },
-                            )
-                            3 -> EffectsLaneCard(
-                                plan = plan,
-                                color = effectsColor,
-                                isCustomizing = isCustomizing,
-                                onCustomizeToggle = { isCustomizing = !isCustomizing },
-                                onOptionSelected = { optId ->
-                                    val opt = MixOptions.findEffectsOption(optId)
-                                    plan = plan.copy(
-                                        effects = plan.effects.copy(
-                                            option = optId,
-                                            type = opt.type,
-                                            echoBeats = opt.echoBeats,
-                                            tail = opt.tail,
-                                            curve = opt.curve,
-                                        ),
-                                    )
-                                },
-                            )
-                            else -> LoopingLaneCard(
-                                plan = plan,
-                                color = loopingColor,
-                                onOptionSelected = { beats ->
-                                    val opt = MixOptions.findLoopingOption(beats)
-                                    plan = plan.copy(
-                                        looping = plan.looping.copy(option = opt.id, beats = opt.beats),
-                                    )
-                                },
-                            )
-                        }
-                    }
 
-                    // Pager Dots Indicator
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 10.dp),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        repeat(5) { index ->
-                            val isSelected = pagerState.currentPage == index
-                            Box(
+                            // EQ Low Lane Row
+                            SpotifyLaneRow(
+                                title = "EQ Low",
+                                subtitle = plan.eq.option.replaceFirstChar { it.uppercase() },
+                                color = EqYellow,
+                                icon = Icons.Rounded.GraphicEq,
+                                onClick = { focusedLane = LaneId.EQ },
+                            )
+
+                            // Filter Lane Row
+                            SpotifyLaneRow(
+                                title = "Filter",
+                                subtitle = plan.filter.option.replaceFirstChar { it.uppercase() },
+                                color = FilterPink,
+                                icon = Icons.Rounded.Tune,
+                                onClick = { focusedLane = LaneId.FILTER },
+                            )
+
+                            // Effects Lane Row
+                            SpotifyLaneRow(
+                                title = "Effects",
+                                subtitle = plan.effects.option.replaceFirstChar { it.uppercase() },
+                                color = EffectsWhite,
+                                icon = Icons.Rounded.AutoAwesome,
+                                onClick = { focusedLane = LaneId.EFFECTS },
+                            )
+
+                            // Looping Lane Row
+                            val loopText = if (plan.looping.beats > 0) "${plan.looping.beats} beat loop" else "None"
+                            SpotifyLaneRow(
+                                title = "Looping",
+                                subtitle = loopText,
+                                color = LoopingOrange,
+                                icon = Icons.Rounded.Repeat,
+                                onClick = { showLoopingSheet = true },
+                            )
+
+                            // Beatmatching Row
+                            Row(
                                 modifier = Modifier
-                                    .padding(horizontal = 4.dp)
-                                    .size(if (isSelected) 7.dp else 5.dp)
-                                    .clip(CircleShape)
-                                    .background(if (isSelected) Color.White else Color.White.copy(alpha = 0.25f)),
-                            )
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(Color.White.copy(alpha = 0.06f))
+                                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.weight(1f),
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Sync,
+                                        contentDescription = null,
+                                        tint = VibraPurple,
+                                        modifier = Modifier.size(20.dp),
+                                    )
+                                    Spacer(Modifier.width(12.dp))
+                                    Column {
+                                        Text(
+                                            text = "Beatmatching",
+                                            style = MaterialTheme.typography.labelMedium.copy(
+                                                fontWeight = FontWeight.SemiBold,
+                                                fontSize = 14.sp,
+                                            ),
+                                            color = Color.White,
+                                        )
+                                        Text(
+                                            text = "Lock tempo and align downbeats across transition",
+                                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                                            color = Color.White.copy(alpha = 0.6f),
+                                        )
+                                    }
+                                }
+                                Switch(
+                                    checked = plan.beatmatching,
+                                    onCheckedChange = { plan = plan.copy(beatmatching = it) },
+                                    colors = SwitchDefaults.colors(
+                                        checkedTrackColor = VibraPurple,
+                                        checkedThumbColor = Color.White,
+                                    ),
+                                )
+                            }
                         }
+                    } else {
+                        // Lane-Specific Customization Options when a lane is focused
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 6.dp),
+                        ) {
+                            when (focusedLane) {
+                                LaneId.VOLUME -> VolumeLaneCard(
+                                    plan = plan,
+                                    color = VolumeBlue,
+                                    isCustomizing = true,
+                                    onCustomizeToggle = {},
+                                    onOptionSelected = { optId ->
+                                        val opt = MixOptions.findVolumeOption(optId)
+                                        val curves = opt.build(plan.lengthBars)
+                                        plan = plan.copy(
+                                            volume = plan.volume.copy(option = optId, out = curves.out, `in` = curves.`in`),
+                                        )
+                                    },
+                                )
+                                LaneId.EQ -> EqLaneCard(
+                                    plan = plan,
+                                    color = EqYellow,
+                                    isCustomizing = true,
+                                    onCustomizeToggle = {},
+                                    onOptionSelected = { optId ->
+                                        val opt = MixOptions.findEqOption(optId)
+                                        val bands = opt.build(plan.lengthBars)
+                                        plan = plan.copy(
+                                            eq = plan.eq.copy(option = optId, out = bands.out, `in` = bands.`in`),
+                                        )
+                                    },
+                                )
+                                LaneId.FILTER -> FilterLaneCard(
+                                    plan = plan,
+                                    color = FilterPink,
+                                    isCustomizing = true,
+                                    onCustomizeToggle = {},
+                                    onOptionSelected = { optId ->
+                                        val opt = MixOptions.findFilterOption(optId)
+                                        val curves = opt.build(plan.lengthBars)
+                                        plan = plan.copy(
+                                            filter = plan.filter.copy(option = optId, out = curves.out, `in` = curves.`in`),
+                                        )
+                                    },
+                                )
+                                LaneId.EFFECTS -> EffectsLaneCard(
+                                    plan = plan,
+                                    color = EffectsWhite,
+                                    isCustomizing = true,
+                                    onCustomizeToggle = {},
+                                    onOptionSelected = { optId ->
+                                        val opt = MixOptions.findEffectsOption(optId)
+                                        plan = plan.copy(
+                                            effects = plan.effects.copy(
+                                                option = optId,
+                                                type = opt.type,
+                                                echoBeats = opt.echoBeats,
+                                                tail = opt.tail,
+                                                curve = opt.curve,
+                                            ),
+                                        )
+                                    },
+                                )
+                                else -> {}
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Looping Discrete Bottom Sheet
+            if (showLoopingSheet) {
+                ModalBottomSheet(
+                    onDismissRequest = { showLoopingSheet = false },
+                    containerColor = Color(0xFF18181B),
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 12.dp),
+                    ) {
+                        Text(
+                            text = "Looping",
+                            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                            color = Color.White,
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = "Select loop length for track transition",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.White.copy(alpha = 0.6f),
+                        )
+                        Spacer(Modifier.height(16.dp))
+
+                        val loopingOptions = listOf(
+                            0 to "None",
+                            1 to "1 beat loop",
+                            2 to "2 beat loop",
+                            4 to "4 beat loop",
+                            8 to "8 beat loop",
+                            16 to "16 beat loop",
+                        )
+
+                        loopingOptions.forEach { (beats, label) ->
+                            val isSelected = plan.looping.beats == beats
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable {
+                                        haptics.play(Haptic.Select)
+                                        val optId = if (beats == 0) "none" else "${beats}_beats"
+                                        plan = plan.copy(
+                                            looping = plan.looping.copy(option = optId, beats = beats),
+                                        )
+                                        showLoopingSheet = false
+                                    }
+                                    .padding(vertical = 12.dp, horizontal = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    text = label,
+                                    style = MaterialTheme.typography.bodyLarge.copy(
+                                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                                    ),
+                                    color = if (isSelected) Color.White else Color.White.copy(alpha = 0.8f),
+                                )
+                                if (isSelected) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Check,
+                                        contentDescription = "Selected",
+                                        tint = LoopingOrange,
+                                        modifier = Modifier.size(20.dp),
+                                    )
+                                }
+                            }
+                        }
+                        Spacer(Modifier.height(24.dp))
                     }
                 }
             }
@@ -699,6 +886,68 @@ fun TransitionEditorSheet(
 }
 
 // Sub-components
+
+@Composable
+private fun SpotifyLaneRow(
+    title: String,
+    subtitle: String,
+    color: Color,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color.White.copy(alpha = 0.06f))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.weight(1f),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(color.copy(alpha = 0.18f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = color,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+            Spacer(Modifier.width(14.dp))
+            Column {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.labelMedium.copy(
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 15.sp,
+                    ),
+                    color = Color.White,
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 12.sp),
+                    color = Color.White.copy(alpha = 0.65f),
+                )
+            }
+        }
+        Icon(
+            imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+            contentDescription = null,
+            tint = Color.White.copy(alpha = 0.45f),
+            modifier = Modifier.size(18.dp),
+        )
+    }
+}
 
 @Composable
 private fun TrackHeaderRow(
@@ -817,27 +1066,25 @@ private fun DualWaveformEditor(
     fromSongId: String,
     toSongId: String,
     durationA: Double,
-    activeLane: LaneId,
-    laneColor: Color,
+    focusedLane: LaneId?,
     playhead: Float,
     isPlaying: Boolean,
-    isCustomizing: Boolean,
     onPlayToggle: () -> Unit,
-    onBeginEditing: () -> Unit,
+    onDragPointActive: (Boolean) -> Unit,
     onPointsChanged: (outPoints: List<Point>, inPoints: List<Point>) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var selectedPointId by remember { mutableStateOf<String?>(null) }
 
-    val outPoints = when (activeLane) {
+    val activeOutPoints = when (focusedLane) {
         LaneId.VOLUME -> plan.volume.out
         LaneId.EQ -> plan.eq.out.low
         LaneId.FILTER -> plan.filter.out
         LaneId.EFFECTS -> plan.effects.curve
-        LaneId.LOOPING -> emptyList()
+        else -> emptyList()
     }
 
-    val inPoints = when (activeLane) {
+    val activeInPoints = when (focusedLane) {
         LaneId.VOLUME -> plan.volume.`in`
         LaneId.EQ -> plan.eq.`in`.low
         LaneId.FILTER -> plan.filter.`in`
@@ -853,40 +1100,40 @@ private fun DualWaveformEditor(
         Canvas(
             modifier = Modifier
                 .fillMaxSize()
-                .pointerInput(outPoints, inPoints) {
+                .pointerInput(focusedLane, activeOutPoints, activeInPoints) {
+                    if (focusedLane == null) return@pointerInput
                     detectTapGestures { offset ->
-                        onBeginEditing()
                         val w = size.width.toFloat()
                         val h = size.height.toFloat()
                         val halfH = h * 0.5f
 
-                        if (offset.y <= halfH && outPoints.isNotEmpty()) {
-                            val (dist, t) = Curves.distanceToCurvePx(outPoints, w, halfH, offset.x, offset.y)
+                        if (offset.y <= halfH && activeOutPoints.isNotEmpty()) {
+                            val (dist, t) = Curves.distanceToCurvePx(activeOutPoints, w, halfH, offset.x, offset.y)
                             if (dist < 60f) {
-                                val next = Curves.addPointOnLine(outPoints, t)
-                                onPointsChanged(next, inPoints)
+                                val next = Curves.addPointOnLine(activeOutPoints, t)
+                                onPointsChanged(next, activeInPoints)
                             }
-                        } else if (offset.y > halfH && inPoints.isNotEmpty()) {
+                        } else if (offset.y > halfH && activeInPoints.isNotEmpty()) {
                             val localY = offset.y - halfH
-                            val (dist, t) = Curves.distanceToCurvePx(inPoints, w, halfH, offset.x, localY)
+                            val (dist, t) = Curves.distanceToCurvePx(activeInPoints, w, halfH, offset.x, localY)
                             if (dist < 60f) {
-                                val next = Curves.addPointOnLine(inPoints, t)
-                                onPointsChanged(outPoints, next)
+                                val next = Curves.addPointOnLine(activeInPoints, t)
+                                onPointsChanged(activeOutPoints, next)
                             }
                         }
                     }
                 }
-                .pointerInput(outPoints, inPoints) {
+                .pointerInput(focusedLane, activeOutPoints, activeInPoints) {
+                    if (focusedLane == null) return@pointerInput
                     detectDragGestures(
                         onDragStart = { offset ->
-                            onBeginEditing()
+                            onDragPointActive(true)
                             val w = size.width.toFloat()
                             val h = size.height.toFloat()
                             val halfH = h * 0.5f
 
                             var foundId: String? = null
-                            // 75f (~28dp) generous touch radius
-                            for (p in outPoints) {
+                            for (p in activeOutPoints) {
                                 val px = p.t * w
                                 val py = (1f - p.v) * halfH
                                 if (hypot(offset.x - px, offset.y - py) < 75f) {
@@ -895,7 +1142,7 @@ private fun DualWaveformEditor(
                                 }
                             }
                             if (foundId == null) {
-                                for (p in inPoints) {
+                                for (p in activeInPoints) {
                                     val px = p.t * w
                                     val py = halfH + (1f - p.v) * halfH
                                     if (hypot(offset.x - px, offset.y - py) < 75f) {
@@ -904,28 +1151,9 @@ private fun DualWaveformEditor(
                                     }
                                 }
                             }
-                            if (foundId == null) {
-                                // If touched near curve line, add point immediately
-                                if (offset.y <= halfH && outPoints.isNotEmpty()) {
-                                    val (dist, t) = Curves.distanceToCurvePx(outPoints, w, halfH, offset.x, offset.y)
-                                    if (dist < 50f) {
-                                        val next = Curves.addPointOnLine(outPoints, t)
-                                        onPointsChanged(next, inPoints)
-                                        foundId = next.minByOrNull { abs(it.t - t) }?.id
-                                    }
-                                } else if (offset.y > halfH && inPoints.isNotEmpty()) {
-                                    val localY = offset.y - halfH
-                                    val (dist, t) = Curves.distanceToCurvePx(inPoints, w, halfH, offset.x, localY)
-                                    if (dist < 50f) {
-                                        val next = Curves.addPointOnLine(inPoints, t)
-                                        onPointsChanged(outPoints, next)
-                                        foundId = next.minByOrNull { abs(it.t - t) }?.id
-                                    }
-                                }
-                            }
                             selectedPointId = foundId
                         },
-                        onDrag = { change, dragAmount ->
+                        onDrag = { change, _ ->
                             change.consume()
                             val id = selectedPointId ?: return@detectDragGestures
                             val w = size.width.toFloat()
@@ -935,18 +1163,24 @@ private fun DualWaveformEditor(
                             val currentPos = change.position
                             val normT = (currentPos.x / w).coerceIn(0.01f, 0.99f)
 
-                            if (outPoints.any { it.id == id }) {
+                            if (activeOutPoints.any { it.id == id }) {
                                 val normV = (1f - (currentPos.y / halfH)).coerceIn(0f, 1f)
-                                val updated = Curves.movePoint(outPoints, id, normT, normV)
-                                onPointsChanged(updated, inPoints)
-                            } else if (inPoints.any { it.id == id }) {
+                                val updated = Curves.movePoint(activeOutPoints, id, normT, normV)
+                                onPointsChanged(updated, activeInPoints)
+                            } else if (activeInPoints.any { it.id == id }) {
                                 val normV = (1f - ((currentPos.y - halfH) / halfH)).coerceIn(0f, 1f)
-                                val updated = Curves.movePoint(inPoints, id, normT, normV)
-                                onPointsChanged(outPoints, updated)
+                                val updated = Curves.movePoint(activeInPoints, id, normT, normV)
+                                onPointsChanged(activeOutPoints, updated)
                             }
                         },
-                        onDragEnd = { selectedPointId = null },
-                        onDragCancel = { selectedPointId = null },
+                        onDragEnd = {
+                            selectedPointId = null
+                            onDragPointActive(false)
+                        },
+                        onDragCancel = {
+                            selectedPointId = null
+                            onDragPointActive(false)
+                        },
                     )
                 },
         ) {
@@ -968,7 +1202,7 @@ private fun DualWaveformEditor(
                 )
             }
 
-            // Real Multi-Band Waveform Rendering
+            // Real Multi-Band Waveform Rendering with Dynamic Time Translation
             val cutA = plan.startCutSeconds ?: (durationA - plan.durationSeconds)
             val startSecA = (cutA - plan.durationSeconds).coerceAtLeast(0.0)
             val windowSecA = plan.durationSeconds
@@ -989,30 +1223,29 @@ private fun DualWaveformEditor(
                 for (x in 0 until w.toInt() step 4) {
                     val xf = x.toFloat()
                     val normX = xf / w
+                    val time = if (isOutgoing) startSecA + normX * windowSecA else cueB + normX * windowSecB
 
                     val (highEnergy, bassEnergy, coreEnergy) = if (isOutgoing) {
-                        if (hasRealAnalysisA) {
-                            val time = startSecA + normX * windowSecA
-                            val core = sampleEnergyAt(fromAnalysis!!.energyCurve, time).toFloat().coerceIn(0.08f, 1f)
+                        if (hasRealAnalysisA && fromAnalysis != null) {
+                            val core = sampleEnergyAt(fromAnalysis.energyCurve, time).toFloat().coerceIn(0.08f, 1f)
                             val bass = if (fromAnalysis.lowEnergyCurve.isNotEmpty()) {
                                 sampleEnergyAt(fromAnalysis.lowEnergyCurve, time).toFloat().coerceIn(0.04f, 1f)
                             } else core * 0.7f
                             val high = (core - bass).coerceAtLeast(0.05f)
                             Triple(high, bass, core)
                         } else {
-                            fallbackWaveformEnergy(xf, seed)
+                            fallbackWaveformEnergy(time, seed)
                         }
                     } else {
-                        if (hasRealAnalysisB) {
-                            val time = cueB + normX * windowSecB
-                            val core = sampleEnergyAt(toAnalysis!!.energyCurve, time).toFloat().coerceIn(0.08f, 1f)
+                        if (hasRealAnalysisB && toAnalysis != null) {
+                            val core = sampleEnergyAt(toAnalysis.energyCurve, time).toFloat().coerceIn(0.08f, 1f)
                             val bass = if (toAnalysis.lowEnergyCurve.isNotEmpty()) {
                                 sampleEnergyAt(toAnalysis.lowEnergyCurve, time).toFloat().coerceIn(0.04f, 1f)
                             } else core * 0.7f
                             val high = (core - bass).coerceAtLeast(0.05f)
                             Triple(high, bass, core)
                         } else {
-                            fallbackWaveformEnergy(xf, seed)
+                            fallbackWaveformEnergy(time, seed)
                         }
                     }
 
@@ -1053,8 +1286,45 @@ private fun DualWaveformEditor(
                 strokeWidth = 1f,
             )
 
-            // Draw Automation Curves
-            fun drawCurvePoints(points: List<Point>, topOffset: Float) {
+            // Looping Amber Region on Deck A (matching Spotify screenshot)
+            if (plan.looping.beats > 0) {
+                val totalBeats = (plan.lengthBars * 4).toFloat().coerceAtLeast(4f)
+                val loopWidthFraction = (plan.looping.beats.toFloat() / totalBeats).coerceIn(0.05f, 0.95f)
+                val loopStartX = w * (1f - loopWidthFraction)
+                val loopWidth = w * loopWidthFraction
+
+                drawRect(
+                    color = LoopingOrange.copy(alpha = 0.28f),
+                    topLeft = Offset(loopStartX, 0f),
+                    size = Size(loopWidth, halfH),
+                )
+                drawLine(
+                    color = LoopingOrange,
+                    start = Offset(loopStartX, 0f),
+                    end = Offset(loopStartX, halfH),
+                    strokeWidth = 3f,
+                )
+                drawLine(
+                    color = LoopingOrange,
+                    start = Offset(loopStartX, 0f),
+                    end = Offset(w, 0f),
+                    strokeWidth = 2f,
+                )
+                drawLine(
+                    color = LoopingOrange,
+                    start = Offset(loopStartX, halfH),
+                    end = Offset(w, halfH),
+                    strokeWidth = 2f,
+                )
+            }
+
+            // Draw Automation Curves with 3.5f stroke thickness
+            fun drawSingleCurve(
+                points: List<Point>,
+                topOffset: Float,
+                color: Color,
+                showPoints: Boolean,
+            ) {
                 if (points.size < 2) return
                 val sorted = Curves.sortPoints(points)
 
@@ -1066,20 +1336,48 @@ private fun DualWaveformEditor(
                     val y = topOffset + (1f - v) * halfH
                     if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
                 }
-                drawPath(path, color = laneColor, style = Stroke(width = 2.5f, cap = StrokeCap.Round))
 
-                // Draw Control Points
-                for (p in sorted) {
-                    val px = p.t * w
-                    val py = topOffset + (1f - p.v) * halfH
-                    drawCircle(color = laneColor, radius = 8f, center = Offset(px, py))
-                    drawCircle(color = Color.White, radius = 3.5f, center = Offset(px, py))
+                // Outer soft glow stroke
+                drawPath(path, color = color.copy(alpha = 0.35f), style = Stroke(width = 7f, cap = StrokeCap.Round))
+                // Solid main curve stroke (thick 3.5f)
+                drawPath(path, color = color, style = Stroke(width = 3.5f, cap = StrokeCap.Round))
+
+                if (showPoints) {
+                    for (p in sorted) {
+                        val px = p.t * w
+                        val py = topOffset + (1f - p.v) * halfH
+                        drawCircle(color = color, radius = 9f, center = Offset(px, py))
+                        drawCircle(color = Color.White, radius = 4f, center = Offset(px, py))
+                    }
                 }
             }
 
-            drawCurvePoints(outPoints, 0f)
-            if (activeLane != LaneId.EFFECTS) {
-                drawCurvePoints(inPoints, halfH)
+            if (focusedLane == null) {
+                // Overview Mode: Overlay all active automation curves simultaneously!
+                // 1. Volume (Cyan/Blue)
+                drawSingleCurve(plan.volume.out, 0f, VolumeBlue, showPoints = false)
+                drawSingleCurve(plan.volume.`in`, halfH, VolumeBlue, showPoints = false)
+
+                // 2. EQ Low (Yellow)
+                drawSingleCurve(plan.eq.out.low, 0f, EqYellow, showPoints = false)
+                drawSingleCurve(plan.eq.`in`.low, halfH, EqYellow, showPoints = false)
+
+                // 3. Filter (Pink)
+                drawSingleCurve(plan.filter.out, 0f, FilterPink, showPoints = false)
+                drawSingleCurve(plan.filter.`in`, halfH, FilterPink, showPoints = false)
+            } else {
+                // Focused Lane Mode: Render only focused lane with interactive draggable points
+                val color = when (focusedLane) {
+                    LaneId.VOLUME -> VolumeBlue
+                    LaneId.EQ -> EqYellow
+                    LaneId.FILTER -> FilterPink
+                    LaneId.EFFECTS -> EffectsWhite
+                    else -> LoopingOrange
+                }
+                drawSingleCurve(activeOutPoints, 0f, color, showPoints = true)
+                if (focusedLane != LaneId.EFFECTS) {
+                    drawSingleCurve(activeInPoints, halfH, color, showPoints = true)
+                }
             }
 
             // Draw Moving Playhead (Vibra Purple vertical bar)
@@ -1089,7 +1387,7 @@ private fun DualWaveformEditor(
                     color = VibraPurple,
                     start = Offset(phX, 0f),
                     end = Offset(phX, h),
-                    strokeWidth = 2.5f,
+                    strokeWidth = 3f,
                 )
             }
         }
@@ -1097,9 +1395,9 @@ private fun DualWaveformEditor(
         // Center Play / Stop toggle button
         Box(
             modifier = Modifier
-                .size(36.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(Color(0xFF27272A).copy(alpha = 0.9f))
+                .size(40.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(Color(0xFF27272A).copy(alpha = 0.95f))
                 .clickable(onClick = onPlayToggle),
             contentAlignment = Alignment.Center,
         ) {
@@ -1107,7 +1405,7 @@ private fun DualWaveformEditor(
                 imageVector = if (isPlaying) Icons.Rounded.Stop else Icons.Rounded.PlayArrow,
                 contentDescription = if (isPlaying) "Stop" else "Play",
                 tint = Color.White,
-                modifier = Modifier.size(20.dp),
+                modifier = Modifier.size(22.dp),
             )
         }
     }
@@ -1126,8 +1424,6 @@ private fun VolumeLaneCard(
     LaneContainer(
         title = "Volume",
         color = color,
-        isCustomizing = isCustomizing,
-        onCustomizeToggle = onCustomizeToggle,
     ) {
         MixOptions.volumeOptions.forEach { opt ->
             val isSelected = plan.volume.option == opt.id
@@ -1149,8 +1445,6 @@ private fun EqLaneCard(
     LaneContainer(
         title = "EQ",
         color = color,
-        isCustomizing = isCustomizing,
-        onCustomizeToggle = onCustomizeToggle,
     ) {
         MixOptions.eqOptions.forEach { opt ->
             val isSelected = plan.eq.option == opt.id
@@ -1172,8 +1466,6 @@ private fun FilterLaneCard(
     LaneContainer(
         title = "Filter",
         color = color,
-        isCustomizing = isCustomizing,
-        onCustomizeToggle = onCustomizeToggle,
     ) {
         MixOptions.filterOptions.forEach { opt ->
             val isSelected = plan.filter.option == opt.id
@@ -1195,8 +1487,6 @@ private fun EffectsLaneCard(
     LaneContainer(
         title = "Effects",
         color = color,
-        isCustomizing = isCustomizing,
-        onCustomizeToggle = onCustomizeToggle,
     ) {
         MixOptions.effectsOptions.forEach { opt ->
             val isSelected = plan.effects.option == opt.id
@@ -1208,85 +1498,44 @@ private fun EffectsLaneCard(
 }
 
 @Composable
-private fun LoopingLaneCard(
-    plan: TransitionPlan,
-    color: Color,
-    onOptionSelected: (Int) -> Unit,
-) {
-    LaneContainer(
-        title = "Looping",
-        color = color,
-        isCustomizing = false,
-        onCustomizeToggle = {},
-    ) {
-        MixOptions.loopingOptions.forEach { opt ->
-            val isSelected = plan.looping.beats == opt.beats
-            LaneOptionRow(label = opt.label, isSelected = isSelected) {
-                onOptionSelected(opt.beats)
-            }
-        }
-    }
-}
-
-@Composable
 private fun LaneContainer(
     title: String,
     color: Color,
-    isCustomizing: Boolean,
-    onCustomizeToggle: () -> Unit,
     content: @Composable () -> Unit,
 ) {
     Column(
         modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp)
+            .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
             .background(Color(0xFF1C1C1E))
             .padding(16.dp),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .width(4.dp)
-                        .height(18.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(color),
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 17.sp,
-                    ),
-                    color = Color.White,
-                )
-            }
-
-            Text(
-                text = if (isCustomizing) "Editing" else "Customize",
-                style = MaterialTheme.typography.labelMedium.copy(
-                    fontWeight = FontWeight.Bold,
-                    color = VibraPurple,
-                ),
+            Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(6.dp))
-                    .clickable(onClick = onCustomizeToggle)
-                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                    .width(4.dp)
+                    .height(18.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(color),
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 17.sp,
+                ),
+                color = Color.White,
             )
         }
 
         Spacer(Modifier.height(12.dp))
 
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState()),
+            modifier = Modifier.fillMaxWidth(),
         ) {
             content()
         }
@@ -1348,13 +1597,14 @@ private fun sampleEnergyAt(
     return energyList[idx].energy
 }
 
-private fun fallbackWaveformEnergy(xf: Float, seed: Float): Triple<Float, Float, Float> {
-    val s1 = sin((xf * 0.08f) + seed) * 0.5f + 0.5f
-    val s2 = sin((xf * 0.22f) + seed * 2f) * 0.3f
-    val s3 = sin((xf * 0.55f) + seed * 3f) * 0.2f
-    val total = (s1 + s2 + s3).coerceIn(0.1f, 1.0f)
-    val bass = (sin((xf * 0.04f) + seed) * 0.4f + 0.6f) * total
-    val high = (abs(sin(xf * 0.35f)) * 0.5f + 0.5f) * total
+private fun fallbackWaveformEnergy(time: Double, seed: Float): Triple<Float, Float, Float> {
+    val t = time.toFloat()
+    val s1 = sin((t * 2.5f) + seed) * 0.45f + 0.5f
+    val s2 = sin((t * 6.2f) + seed * 1.7f) * 0.3f
+    val s3 = sin((t * 14.1f) + seed * 2.9f) * 0.2f
+    val total = (s1 + s2 + s3).coerceIn(0.12f, 1.0f)
+    val bass = (sin((t * 1.8f) + seed) * 0.4f + 0.6f) * total
+    val high = (abs(sin(t * 8.5f)) * 0.5f + 0.5f) * total
     return Triple(high, bass, total)
 }
 

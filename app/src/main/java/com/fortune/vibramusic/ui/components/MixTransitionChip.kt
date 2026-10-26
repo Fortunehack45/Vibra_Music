@@ -61,10 +61,13 @@ fun MixTransitionChip(
     }
 
     val accentColor = when (mode) {
-        TransitionMode.AUTO -> Color(0xFF10B981) // Emerald sparkle
-        TransitionMode.CUSTOM -> Color(0xFF8B5CF6) // Vibra purple
+        TransitionMode.AUTO -> Color(0xFF8B5CF6) // Vibra Purple
+        TransitionMode.CUSTOM -> Color(0xFF8B5CF6) // Vibra Purple
         TransitionMode.PRESET -> Color(0xFFF59E0B) // Amber
     }
+
+    val chipBg = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+    val chipBorder = MaterialTheme.colorScheme.outline.copy(alpha = 0.20f)
 
     Column(
         modifier = modifier.padding(vertical = 2.dp),
@@ -85,8 +88,8 @@ fun MixTransitionChip(
                 .padding(start = 18.dp)
                 .height(28.dp)
                 .clip(RoundedCornerShape(14.dp))
-                .background(Color.White.copy(alpha = 0.08f))
-                .border(0.5.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(14.dp))
+                .background(chipBg)
+                .border(0.5.dp, chipBorder, RoundedCornerShape(14.dp))
                 .clickable {
                     haptics.play(Haptic.Select)
                     onClick()

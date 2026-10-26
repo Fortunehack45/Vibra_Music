@@ -192,7 +192,14 @@ object GridRefiner {
             perBeatConfidences.add(confidence)
         }
 
-        val finalBpm = 60.0 / robustInterval
+        var finalBpm = 60.0 / robustInterval
+        while (finalBpm > 0.0 && finalBpm < 75.0) {
+            finalBpm *= 2.0
+        }
+        while (finalBpm > 165.0) {
+            finalBpm /= 2.0
+        }
+        val effectiveInterval = if (finalBpm > 0.0) 60.0 / finalBpm else robustInterval
         val avgConfidence = perBeatConfidences.average().coerceIn(0.1, 0.98)
 
         // Align candidate downbeats to closest refined beats
@@ -208,7 +215,7 @@ object GridRefiner {
             beats = refinedBeats,
             downbeats = finalDownbeats,
             bpm = finalBpm,
-            beatInterval = robustInterval,
+            beatInterval = effectiveInterval,
             firstBeat = refinedBeats.first(),
             beatConfidence = avgConfidence,
             perBeatConfidences = perBeatConfidences,

@@ -42,6 +42,23 @@ class CamelotKeyTest {
         assertNotNull(fSharpMin)
         assertEquals(11, fSharpMin?.number)
         assertEquals(false, fSharpMin?.isMajor)
+
+        // Unicode sharp/flat notation from C++ DSP analyzer
+        val cSharpMinUnicode = CamelotKey.parse("C♯ minor")
+        assertNotNull(cSharpMinUnicode)
+        assertEquals("12A", cSharpMinUnicode?.code)
+
+        val eFlatMajUnicode = CamelotKey.parse("E♭ major")
+        assertNotNull(eFlatMajUnicode)
+        assertEquals("5B", eFlatMajUnicode?.code)
+
+        val fSharpMajUnicode = CamelotKey.parse("F♯ major")
+        assertNotNull(fSharpMajUnicode)
+        assertEquals("2B", fSharpMajUnicode?.code)
+
+        val bFlatMajUnicode = CamelotKey.parse("B♭ major")
+        assertNotNull(bFlatMajUnicode)
+        assertEquals("6B", bFlatMajUnicode?.code)
     }
 
     @Test

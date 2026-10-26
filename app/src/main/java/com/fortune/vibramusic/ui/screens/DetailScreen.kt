@@ -299,6 +299,7 @@ fun DetailScreen(
     val isArtist = page.type == BrowseType.ARTIST
     val canMix = !isArtist && (page.type == BrowseType.PLAYLIST || page.type == BrowseType.ALBUM || page.browseId.startsWith("local:") || rawSongs.size > 1)
     val mixUpdates by LocalPlaylistsStore.mixUpdates.collectAsStateWithLifecycle()
+    val analysisUpdates by com.fortune.vibramusic.playback.smart.AnalysisStore.analysisUpdates.collectAsStateWithLifecycle()
     val mixEnabled = remember(page.browseId, mixUpdates) {
         if (canMix) LocalPlaylistsStore.isMixEnabled(page.browseId) else false
     }
@@ -311,6 +312,11 @@ fun DetailScreen(
         if (canMix && mixEnabled && songs.size > 1 && transitionsMap.isEmpty()) {
             LocalPlaylistsStore.reconcileTransitions(page.browseId, songs) { song ->
                 store.load(song.videoId)
+            }
+        }
+        if (canMix && mixEnabled && songs.isNotEmpty()) {
+            songs.forEach { song ->
+                com.fortune.vibramusic.playback.smart.AcousticCatalogService.resolve(context, song, store)
             }
         }
     }
@@ -599,8 +605,22 @@ fun DetailScreen(
                                 val song = entry.value
                                 val isCurrent = isCurrentRow(song)
                                 val analysis = if (mixEnabled) store.load(song.videoId) else null
+                                val acoustic = if (mixEnabled) com.fortune.vibramusic.playback.smart.AcousticCatalogService.get(song) else null
+                                if (mixEnabled && acoustic != null && (analysis == null || analysis.bpm != acoustic.bpm || analysis.key != acoustic.camelotKey)) {
+                                    val healed = (analysis ?: TrackAnalysis(
+                                        status = TrackAnalysis.STATUS_READY,
+                                        trackId = song.videoId,
+                                        duration = 180.0,
+                                    )).copy(
+                                        bpm = acoustic.bpm,
+                                        key = acoustic.camelotKey,
+                                        beatInterval = 60.0 / acoustic.bpm,
+                                    )
+                                    store.save(song.videoId, healed)
+                                }
                                 val nextSong = matches.getOrNull(position + 1)?.value
                                 val nextAnalysis = if (mixEnabled && nextSong != null) store.load(nextSong.videoId) else null
+                                val nextAcoustic = if (mixEnabled && nextSong != null) com.fortune.vibramusic.playback.smart.AcousticCatalogService.get(nextSong) else null
 
                                 SongRow(
                                     song = if (numbered) {
@@ -620,20 +640,27 @@ fun DetailScreen(
                                     isCurrent = isCurrent,
                                     isPlaying = isCurrent && isPlaying,
                                     activeTint = palette.accent,
-                                    mixBpm = analysis?.bpm?.takeIf { mixEnabled },
-                                    mixKey = analysis?.key?.takeIf { mixEnabled },
-                                    mixRelativeToKey = nextAnalysis?.key?.takeIf { mixEnabled },
+                                    mixBpm = (acoustic?.bpm ?: analysis?.bpm)?.let { b ->
+                                        var nb = b
+                                        while (nb > 0.0 && nb < 75.0) nb *= 2.0
+                                        while (nb > 165.0) nb /= 2.0
+                                        nb
+                                    }?.takeIf { mixEnabled },
+                                    mixKey = (acoustic?.camelotKey ?: analysis?.key?.takeIf { it.isNotBlank() })?.takeIf { mixEnabled },
+                                    mixRelativeToKey = (nextAcoustic?.camelotKey ?: nextAnalysis?.key?.takeIf { it.isNotBlank() })?.takeIf { mixEnabled },
                                     mixActive = mixEnabled,
                                 )
                                 if (position < matches.lastIndex) {
                                     if (mixEnabled && nextSong != null) {
                                         val pairId = TransitionPlan.pairIdOf(song.videoId, nextSong.videoId)
-                                        val plan = transitionsMap[pairId] ?: MixAutoPlanner.autoPlan(
-                                            analysis,
-                                            nextAnalysis,
-                                            song.videoId,
-                                            nextSong.videoId,
-                                        )
+                                        val plan = transitionsMap[pairId]
+                                            ?: LocalPlaylistsStore.getUniversalTransition(pairId)
+                                            ?: MixAutoPlanner.autoPlan(
+                                                analysis,
+                                                nextAnalysis,
+                                                song.videoId,
+                                                nextSong.videoId,
+                                            )
                                         MixTransitionChip(
                                             plan = plan,
                                             onClick = {
@@ -733,7 +760,9 @@ fun DetailScreen(
         val analysisA = store.load(trackA.videoId)
         val analysisB = store.load(trackB.videoId)
         val pairId = TransitionPlan.pairIdOf(trackA.videoId, trackB.videoId)
-        val currentPlan = transitionsMap[pairId] ?: MixAutoPlanner.autoPlan(
+        val currentPlan = transitionsMap[pairId]
+            ?: LocalPlaylistsStore.getUniversalTransition(pairId)
+            ?: MixAutoPlanner.autoPlan(
             analysisA,
             analysisB,
             trackA.videoId,

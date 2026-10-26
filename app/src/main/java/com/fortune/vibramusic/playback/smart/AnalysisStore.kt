@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.playback.smart
+package com.fortune.vibramusic.playback.smart
 
 import android.content.Context
 import android.util.Log
@@ -107,6 +107,7 @@ class AnalysisStore(private val context: Context) {
             temporary.writeText(json.encodeToString(Stored.serializer(), Stored.of(analysis)))
             if (!temporary.renameTo(file)) temporary.delete()
             known[trackId] = true
+            analysisUpdates.value = System.currentTimeMillis()
         }.onFailure { Log.w(TAG, "Could not store analysis for $trackId", it) }
         prune()
     }
@@ -175,28 +176,37 @@ class AnalysisStore(private val context: Context) {
         val tempoStability: Double = 1.0,
         val analysisVersion: Int = 2,
     ) {
-        fun toAnalysis(trackId: String) = TrackAnalysis(
-            status = TrackAnalysis.STATUS_READY,
-            trackId = trackId,
-            duration = duration,
-            bpm = bpm,
-            beatInterval = beatInterval,
-            beatConfidence = beatConfidence,
-            firstBeat = firstBeat,
-            downbeats = downbeats,
-            phraseBoundaries = phraseBoundaries,
-            key = key,
-            keyConfidence = keyConfidence,
-            audibleStartTime = audibleStartTime,
-            pickupTime = pickupTime,
-            introEndTime = introEndTime,
-            outroStartTime = outroStartTime,
-            contentEndTime = contentEndTime,
-            mixInTime = mixInTime,
-            mixOutTime = mixOutTime,
-            mixInCandidates = mixInCandidates.map { it.toCue() },
-            mixOutCandidates = mixOutCandidates.map { it.toCue() },
-            energyCurve = energyCurve.map { it.toSample() },
+        fun toAnalysis(trackId: String): TrackAnalysis {
+            var normBpm = bpm
+            while (normBpm > 0.0 && normBpm < 75.0) {
+                normBpm *= 2.0
+            }
+            while (normBpm > 165.0) {
+                normBpm /= 2.0
+            }
+            val normInterval = if (normBpm > 0.0) 60.0 / normBpm else beatInterval
+            return TrackAnalysis(
+                status = TrackAnalysis.STATUS_READY,
+                trackId = trackId,
+                duration = duration,
+                bpm = normBpm,
+                beatInterval = normInterval,
+                beatConfidence = beatConfidence,
+                firstBeat = firstBeat,
+                downbeats = downbeats,
+                phraseBoundaries = phraseBoundaries,
+                key = key,
+                keyConfidence = keyConfidence,
+                audibleStartTime = audibleStartTime,
+                pickupTime = pickupTime,
+                introEndTime = introEndTime,
+                outroStartTime = outroStartTime,
+                contentEndTime = contentEndTime,
+                mixInTime = mixInTime,
+                mixOutTime = mixOutTime,
+                mixInCandidates = mixInCandidates.map { it.toCue() },
+                mixOutCandidates = mixOutCandidates.map { it.toCue() },
+                energyCurve = energyCurve.map { it.toSample() },
             lowEnergyCurve = lowEnergyCurve.map { it.toSample() },
             vocalActivityMask = vocalActivityMask,
             vocalProbability = vocalProbability,
@@ -215,8 +225,9 @@ class AnalysisStore(private val context: Context) {
             tempoStability = tempoStability,
             analysisVersion = analysisVersion,
         )
+    }
 
-        companion object {
+    companion object {
             fun of(analysis: TrackAnalysis) = Stored(
                 duration = analysis.duration,
                 bpm = analysis.bpm,
@@ -274,9 +285,11 @@ class AnalysisStore(private val context: Context) {
         }
     }
 
-    private companion object {
+    companion object {
         const val TAG = "VibraMusicAnalysisStore"
         const val DIRECTORY = "smart_analysis"
+
+        val analysisUpdates = kotlinx.coroutines.flow.MutableStateFlow(0L)
 
         /**
          * Bump whenever a stored number starts being computed differently.

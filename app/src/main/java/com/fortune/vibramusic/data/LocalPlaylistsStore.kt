@@ -26,6 +26,7 @@ object LocalPlaylistsStore {
     private val globalTransitions = mutableMapOf<String, MutableMap<String, String>>()
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     val mixUpdates = MutableStateFlow(0L)
+    const val UNIVERSAL_KEY = "_universal_"
 
     data class StoredPlaylist(
         val id: String,
@@ -305,18 +306,25 @@ object LocalPlaylistsStore {
         val cleanId = cleanPlaylistId(playlistId)
         val raw = playlists.firstOrNull { it.id == cleanId }?.transitions?.get(pairId)
             ?: globalTransitions[cleanId]?.get(pairId)
+            ?: globalTransitions[UNIVERSAL_KEY]?.get(pairId)
             ?: return null
+        return runCatching { json.decodeFromString<TransitionPlan>(raw) }.getOrNull()
+    }
+
+    @Synchronized
+    fun getUniversalTransition(pairId: String): TransitionPlan? {
+        val raw = globalTransitions[UNIVERSAL_KEY]?.get(pairId) ?: return null
         return runCatching { json.decodeFromString<TransitionPlan>(raw) }.getOrNull()
     }
 
     @Synchronized
     fun getTransitions(playlistId: String): Map<String, TransitionPlan> {
         val cleanId = cleanPlaylistId(playlistId)
-        val map = playlists.firstOrNull { it.id == cleanId }?.transitions
-            ?: globalTransitions[cleanId]
-            ?: return emptyMap()
+        val map = (playlists.firstOrNull { it.id == cleanId }?.transitions ?: globalTransitions[cleanId]).orEmpty()
+        val universal = globalTransitions[UNIVERSAL_KEY].orEmpty()
+        val combined = universal + map
         val result = mutableMapOf<String, TransitionPlan>()
-        for ((k, raw) in map) {
+        for ((k, raw) in combined) {
             runCatching { json.decodeFromString<TransitionPlan>(raw) }.getOrNull()?.let {
                 result[k] = it
             }
@@ -328,12 +336,16 @@ object LocalPlaylistsStore {
     fun saveTransition(playlistId: String, plan: TransitionPlan) {
         val cleanId = cleanPlaylistId(playlistId)
         val raw = json.encodeToString(TransitionPlan.serializer(), plan)
-        playlists.firstOrNull { it.id == cleanId }?.let {
-            it.transitions[plan.pairId] = raw
-            save()
+        if (cleanId.isNotBlank()) {
+            playlists.firstOrNull { it.id == cleanId }?.let {
+                it.transitions[plan.pairId] = raw
+                save()
+            }
+            val map = globalTransitions.getOrPut(cleanId) { mutableMapOf() }
+            map[plan.pairId] = raw
         }
-        val map = globalTransitions.getOrPut(cleanId) { mutableMapOf() }
-        map[plan.pairId] = raw
+        val universalMap = globalTransitions.getOrPut(UNIVERSAL_KEY) { mutableMapOf() }
+        universalMap[plan.pairId] = raw
         saveGlobalTransitions()
         mixUpdates.value = System.currentTimeMillis()
     }

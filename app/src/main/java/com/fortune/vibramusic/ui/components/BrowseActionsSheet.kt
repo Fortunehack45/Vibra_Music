@@ -203,17 +203,25 @@ fun BrowseActionsSheet(
             onClick = onAddToQueue,
         )
         if (onToggleMix != null) {
+            var localMixEnabled by remember(isMixEnabled) { mutableStateOf(isMixEnabled) }
+            val haptics = com.fortune.vibramusic.ui.haptics.rememberHaptics()
+            val toggleAction = {
+                val next = !localMixEnabled
+                localMixEnabled = next
+                haptics.play(com.fortune.vibramusic.ui.haptics.Haptic.Select)
+                onToggleMix()
+            }
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable(onClick = onToggleMix)
+                    .clickable(onClick = toggleAction)
                     .padding(horizontal = 20.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(
                     imageVector = Icons.Rounded.GraphicEq,
                     contentDescription = null,
-                    tint = if (isMixEnabled) VibraPurple else MaterialTheme.colorScheme.onSurfaceVariant,
+                    tint = if (localMixEnabled) VibraPurple else MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(24.dp),
                 )
                 Spacer(Modifier.width(16.dp))
@@ -230,8 +238,8 @@ fun BrowseActionsSheet(
                     )
                 }
                 Switch(
-                    checked = isMixEnabled,
-                    onCheckedChange = { onToggleMix() },
+                    checked = localMixEnabled,
+                    onCheckedChange = null,
                     colors = SwitchDefaults.colors(
                         checkedThumbColor = Color.White,
                         checkedTrackColor = VibraPurple,

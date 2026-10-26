@@ -79,26 +79,26 @@ data class CamelotKey(
     fun badgeColor(other: CamelotKey? = null): Long {
         if (other != null) {
             return when (keyDistance(other)) {
-                0 -> 0xFF3B82F6 // Blue
-                1 -> if (this.isMajor == other.isMajor) 0xFF3B82F6 else 0xFF10B981 // Blue or Emerald
-                2 -> 0xFFEAB308 // Amber / Yellow
-                else -> 0xFFEF4444 // Coral / Red
+                0 -> 0xFF56D9C2
+                1 -> if (this.isMajor == other.isMajor) 0xFF56D9C2 else 0xFF46C779
+                2 -> 0xFFD5CB9D
+                else -> 0xFFDA76A0
             }
         }
         return when (number) {
-            1 -> 0xFFE11D48
-            2 -> 0xFF10B981
-            3 -> 0xFF10B981
-            4 -> 0xFFEAB308
-            5 -> 0xFFF97316
-            6 -> 0xFFEF4444
-            7 -> 0xFF06B6D4
-            8 -> 0xFF0EA5E9
-            9 -> 0xFF3B82F6
-            10 -> 0xFF6366F1
-            11 -> 0xFF8B5CF6
-            12 -> 0xFFD946EF
-            else -> 0xFF8B5CF6
+            1 -> 0xFF56D9C2 // Teal / Aqua (#56D9C2)
+            2 -> 0xFF46C779 // Emerald Green (#46C779)
+            3 -> 0xFF34D399 // Mint Green (#34D399)
+            4 -> 0xFFD5CB9D // Warm Gold / Khaki (#D5CB9D)
+            5 -> 0xFFF59E0B // Amber (#F59E0B)
+            6 -> 0xFFFB923C // Coral / Orange (#FB923C)
+            7 -> 0xFFDA76A0 // Rose / Pink (#DA76A0)
+            8 -> 0xFFCF9AC7 // Lilac / Purple (#CF9AC7)
+            9 -> 0xFF818CF8 // Indigo (#818CF8)
+            10 -> 0xFF60A5FA // Cornflower Blue (#60A5FA)
+            11 -> 0xFF38BDF8 // Sky Blue (#38BDF8)
+            12 -> 0xFF15CDCC // Electric Cyan (#15CDCC)
+            else -> 0xFFCF9AC7
         }
     }
 
@@ -122,8 +122,11 @@ data class CamelotKey(
 
             // 2. Normalize standard notation
             val normalized = clean.lowercase()
+                .replace("♯", "#")
+                .replace("♭", "b")
                 .replace("major", "maj")
                 .replace("minor", "m")
+                .replace("min", "m")
                 .replace(" ", "")
 
             return PITCH_TO_CAMELOT[normalized]

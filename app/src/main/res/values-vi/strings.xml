@@ -1314,4 +1314,13 @@
     <string name="mix_reset_to_auto">Đặt lại Tự động</string>
     <string name="mix_bars_count">%1$d ô nhịp</string>
     <string name="mix_bpm_format">%1$.1f BPM</string>
+
+    <string name="mix_banner_active">Mix đang bật</string>
+    <string name="mix_banner_subtitle">Chuyển tiếp DJ đang hoạt động · Nhấn để tùy chỉnh</string>
+    <string name="mix_enable_on_new">Bật Mix trên danh sách phát mới</string>
+    <string name="mix_enable_on_new_subtitle">Tự động định cấu hình chuyển tiếp cho danh sách mới mở</string>
+    <string name="mix_default_length">Độ dài chuyển tiếp mặc định</string>
+    <string name="mix_default_length_subtitle">Thời lượng tính bằng ô nhịp cho chuyển tiếp tự động</string>
+    <string name="mix_beatmatch_default">Khớp nhịp theo mặc định</string>
+    <string name="mix_beatmatch_default_subtitle">Đồng bộ hóa nhịp độ và căn chỉnh lưới nhịp</string>
 </resources>

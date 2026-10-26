@@ -1396,4 +1396,13 @@
     <string name="mix_reset_to_auto">Auf Auto zurücksetzen</string>
     <string name="mix_bars_count">%1$d Takte</string>
     <string name="mix_bpm_format">%1$.1f BPM</string>
+
+    <string name="mix_banner_active">Mix ist aktiv</string>
+    <string name="mix_banner_subtitle">DJ-Übergänge zwischen Titeln aktiv · Tippe auf Chips zum Anpassen</string>
+    <string name="mix_enable_on_new">Mix bei neuen Playlists aktivieren</string>
+    <string name="mix_enable_on_new_subtitle">Übergänge für neu geöffnete Playlists automatisch konfigurieren</string>
+    <string name="mix_default_length">Standard-Übergangslänge</string>
+    <string name="mix_default_length_subtitle">Standarddauer in Takten für automatische Übergänge</string>
+    <string name="mix_beatmatch_default">Standardmäßig Beatmatching</string>
+    <string name="mix_beatmatch_default_subtitle">Tempo synchronisieren und Beat-Raster zwischen Titeln ausrichten</string>
 </resources>

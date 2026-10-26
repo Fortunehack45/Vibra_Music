@@ -35,24 +35,35 @@ fun MixBadge(
     bpm: Double?,
     camelotKey: String?,
     relativeToKey: String? = null,
+    showPlaceholder: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val parsedKey = CamelotKey.parse(camelotKey)
     val parsedRelKey = CamelotKey.parse(relativeToKey)
+
+    if (bpm == null && parsedKey == null && !showPlaceholder) return
 
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.End,
         verticalArrangement = Arrangement.Center,
     ) {
-        if (bpm != null && bpm > 0.0) {
+        val bpmText = if (bpm != null && bpm > 0.0) {
+            "${bpm.roundToInt()} bpm"
+        } else if (showPlaceholder) {
+            "-- bpm"
+        } else {
+            null
+        }
+
+        if (bpmText != null) {
             Text(
-                text = "${bpm.roundToInt()} bpm",
+                text = bpmText,
                 style = MaterialTheme.typography.labelSmall.copy(
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Medium,
                 ),
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = if (bpm != null) 0.85f else 0.40f),
                 maxLines = 1,
             )
             Spacer(Modifier.height(2.dp))
@@ -74,6 +85,24 @@ fun MixBadge(
                         fontWeight = FontWeight.Bold,
                     ),
                     color = Color.White,
+                    maxLines = 1,
+                )
+            }
+        } else if (showPlaceholder) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(Color.White.copy(alpha = 0.08f))
+                    .padding(horizontal = 5.dp, vertical = 1.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "--",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                    ),
+                    color = Color.White.copy(alpha = 0.45f),
                     maxLines = 1,
                 )
             }

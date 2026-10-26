@@ -1376,4 +1376,13 @@
     <string name="mix_reset_to_auto">重置为自动</string>
     <string name="mix_bars_count">%1$d小节</string>
     <string name="mix_bpm_format">%1$.1f BPM</string>
+
+    <string name="mix_banner_active">混音已激活</string>
+    <string name="mix_banner_subtitle">曲目间已启用 DJ 过渡 · 点击标签进行自定义</string>
+    <string name="mix_enable_on_new">在新播放列表中启用混音</string>
+    <string name="mix_enable_on_new_subtitle">为新打开的播放列表自动配置过渡</string>
+    <string name="mix_default_length">默认过渡长度</string>
+    <string name="mix_default_length_subtitle">自动过渡的默认小节长度</string>
+    <string name="mix_beatmatch_default">默认节拍匹配</string>
+    <string name="mix_beatmatch_default_subtitle">在曲目之间同步速度并对齐节拍网格</string>
 </resources>

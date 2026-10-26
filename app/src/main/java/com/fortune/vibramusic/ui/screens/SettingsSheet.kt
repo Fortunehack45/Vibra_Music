@@ -75,7 +75,10 @@ import androidx.compose.material.icons.rounded.MusicOff
 import androidx.compose.material.icons.rounded.MotionPhotosOff
 import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.PlaylistAddCheck
 import androidx.compose.material.icons.rounded.PlaylistPlay
+import androidx.compose.material.icons.rounded.Speed
+import androidx.compose.material.icons.rounded.Straighten
 import androidx.compose.material.icons.rounded.SignalCellularAlt
 import androidx.compose.material.icons.rounded.SmartDisplay
 import androidx.compose.material.icons.rounded.Storage
@@ -2637,13 +2640,69 @@ private fun SongTransitionsRows(
             )
             RowDivider()
             when (transitions.style) {
-                SongTransitionStyle.AUTOMIX -> SettingsRow(
-                    icon = Icons.Rounded.Tune,
-                    title = stringResource(R.string.automix_performance),
-                    subtitle = stringResource(R.string.automix_performance_subtitle),
-                    value = automixPerformance.localizedLabel(),
-                    onClick = onAutomixPerformance,
-                )
+                SongTransitionStyle.AUTOMIX -> {
+                    val mixOnNewPlaylists by AppSettings.mixEnableOnNewPlaylists.collectAsStateWithLifecycle()
+                    val defaultBars by AppSettings.mixDefaultLengthBars.collectAsStateWithLifecycle()
+                    val beatmatching by AppSettings.mixDefaultBeatmatching.collectAsStateWithLifecycle()
+
+                    SettingsRow(
+                        icon = Icons.Rounded.PlaylistAddCheck,
+                        title = stringResource(R.string.mix_enable_on_new),
+                        subtitle = stringResource(R.string.mix_enable_on_new_subtitle),
+                        trailing = {
+                            Switch(
+                                checked = mixOnNewPlaylists,
+                                onCheckedChange = AppSettings::setMixEnableOnNewPlaylists,
+                                colors = SwitchDefaults.colors(
+                                    checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                    checkedBorderColor = MaterialTheme.colorScheme.primary,
+                                ),
+                            )
+                        },
+                        onClick = { AppSettings.setMixEnableOnNewPlaylists(!mixOnNewPlaylists) },
+                    )
+                    RowDivider()
+                    SettingsRow(
+                        icon = Icons.Rounded.Straighten,
+                        title = stringResource(R.string.mix_default_length),
+                        subtitle = stringResource(R.string.mix_default_length_subtitle),
+                        value = stringResource(R.string.mix_bars_count, defaultBars),
+                        onClick = {
+                            val nextBars = when (defaultBars) {
+                                2 -> 4
+                                4 -> 8
+                                8 -> 16
+                                else -> 2
+                            }
+                            AppSettings.setMixDefaultLengthBars(nextBars)
+                        },
+                    )
+                    RowDivider()
+                    SettingsRow(
+                        icon = Icons.Rounded.Speed,
+                        title = stringResource(R.string.mix_beatmatch_default),
+                        subtitle = stringResource(R.string.mix_beatmatch_default_subtitle),
+                        trailing = {
+                            Switch(
+                                checked = beatmatching,
+                                onCheckedChange = AppSettings::setMixDefaultBeatmatching,
+                                colors = SwitchDefaults.colors(
+                                    checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                    checkedBorderColor = MaterialTheme.colorScheme.primary,
+                                ),
+                            )
+                        },
+                        onClick = { AppSettings.setMixDefaultBeatmatching(!beatmatching) },
+                    )
+                    RowDivider()
+                    SettingsRow(
+                        icon = Icons.Rounded.Tune,
+                        title = stringResource(R.string.automix_performance),
+                        subtitle = stringResource(R.string.automix_performance_subtitle),
+                        value = automixPerformance.localizedLabel(),
+                        onClick = onAutomixPerformance,
+                    )
+                }
                 else -> SliderRow(
                     icon = null,
                     title = stringResource(R.string.crossfade_duration),

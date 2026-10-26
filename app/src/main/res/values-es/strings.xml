@@ -1368,4 +1368,13 @@
     <string name="mix_reset_to_auto">Restablecer a Auto</string>
     <string name="mix_bars_count">%1$d compases</string>
     <string name="mix_bpm_format">%1$.1f BPM</string>
+
+    <string name="mix_banner_active">Mix está activo</string>
+    <string name="mix_banner_subtitle">Transiciones DJ activas entre canciones · Toca los chips para personalizar</string>
+    <string name="mix_enable_on_new">Activar Mix en nuevas listas</string>
+    <string name="mix_enable_on_new_subtitle">Configura transiciones automáticamente en listas recién abiertas</string>
+    <string name="mix_default_length">Duración predeterminada de transición</string>
+    <string name="mix_default_length_subtitle">Duración en compases para transiciones automáticas</string>
+    <string name="mix_beatmatch_default">Sincronizar ritmo por defecto</string>
+    <string name="mix_beatmatch_default_subtitle">Sincroniza el tempo y alinea la cuadrícula de ritmos</string>
 </resources>

@@ -97,8 +97,8 @@ import kotlin.math.sin
 fun TransitionEditorSheet(
     fromSong: Song,
     toSong: Song,
-    fromAnalysis: TrackAnalysis?,
-    toAnalysis: TrackAnalysis?,
+    fromAnalysis: TrackAnalysis? = null,
+    toAnalysis: TrackAnalysis? = null,
     initialPlan: TransitionPlan?,
     onSave: (TransitionPlan) -> Unit,
     onDismiss: () -> Unit,

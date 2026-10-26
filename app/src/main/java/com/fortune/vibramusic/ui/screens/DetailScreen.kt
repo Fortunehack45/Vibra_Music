@@ -46,6 +46,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Album
@@ -296,14 +297,23 @@ fun DetailScreen(
         rawSongs.withIndex().associate { (i, s) -> s.videoId to (i + 1) }
     }
     val isArtist = page.type == BrowseType.ARTIST
-    val isPlaylist = page.type == BrowseType.PLAYLIST
+    val canMix = !isArtist && (page.type == BrowseType.PLAYLIST || page.type == BrowseType.ALBUM || page.browseId.startsWith("local:") || rawSongs.size > 1)
     var mixEnabled by remember(page.browseId) {
-        mutableStateOf(if (isPlaylist) LocalPlaylistsStore.isMixEnabled(page.browseId) else false)
+        mutableStateOf(if (canMix) LocalPlaylistsStore.isMixEnabled(page.browseId) else false)
     }
     var transitionsMap by remember(page.browseId) {
-        mutableStateOf(if (isPlaylist) LocalPlaylistsStore.getTransitions(page.browseId) else emptyMap())
+        mutableStateOf(if (canMix) LocalPlaylistsStore.getTransitions(page.browseId) else emptyMap())
     }
     var activeTransitionPair by remember { mutableStateOf<Pair<Song, Song>?>(null) }
+
+    LaunchedEffect(page.browseId, mixEnabled, songs.size) {
+        if (canMix && mixEnabled && songs.size > 1 && transitionsMap.isEmpty()) {
+            LocalPlaylistsStore.reconcileTransitions(page.browseId, songs) { song ->
+                store.load(song.videoId)
+            }
+            transitionsMap = LocalPlaylistsStore.getTransitions(page.browseId)
+        }
+    }
 
     val topReleaseId = if (isArtist) page.sections.topRelease()?.browseId else null
     LaunchedEffect(topReleaseId) { topReleaseId?.let { onLoadReleaseLibrary?.invoke(it) } }
@@ -442,15 +452,30 @@ fun DetailScreen(
                                 onShuffle = { onShuffle(songs) },
                                 onArtistClick = onArtistClick,
                                 onToggleLibrary = onToggleLibrary,
-                                isPlaylist = isPlaylist,
+                                isPlaylist = canMix,
                                 mixEnabled = mixEnabled,
                                 onToggleMix = {
                                     val next = !mixEnabled
                                     mixEnabled = next
                                     LocalPlaylistsStore.setMixEnabled(page.browseId, next)
                                     if (next) {
-                                        LocalPlaylistsStore.reconcileTransitions(page.browseId)
+                                        LocalPlaylistsStore.reconcileTransitions(page.browseId, songs) { song ->
+                                            store.load(song.videoId)
+                                        }
                                         transitionsMap = LocalPlaylistsStore.getTransitions(page.browseId)
+                                    }
+                                },
+                            )
+                        }
+                    }
+
+                    if (canMix && mixEnabled && songs.size > 1) {
+                        item(key = "mix-banner") {
+                            MixStatusBanner(
+                                count = songs.size - 1,
+                                onCustomizeFirst = {
+                                    if (songs.size >= 2) {
+                                        activeTransitionPair = songs[0] to songs[1]
                                     }
                                 },
                             )
@@ -624,6 +649,7 @@ fun DetailScreen(
                                     mixBpm = analysis?.bpm?.takeIf { mixEnabled },
                                     mixKey = analysis?.key?.takeIf { mixEnabled },
                                     mixRelativeToKey = nextAnalysis?.key?.takeIf { mixEnabled },
+                                    mixActive = mixEnabled,
                                 )
                                 if (position < matches.lastIndex) {
                                     if (mixEnabled && nextSong != null) {
@@ -914,8 +940,8 @@ private fun ReleaseHeader(
                         onClick = onToggleMix,
                         haptic = if (mixEnabled) Haptic.ToggleOff else Haptic.ToggleOn,
                         size = RELEASE_SIDE_BUTTON,
-                        tint = if (mixEnabled) VibraPurple else null,
-                        activeBackground = if (mixEnabled) VibraPurple.copy(alpha = 0.22f) else null,
+                        tint = if (mixEnabled) Color.White else VibraPurple,
+                        activeBackground = if (mixEnabled) VibraPurple else VibraPurple.copy(alpha = 0.16f),
                     )
                 }
             }
@@ -1979,5 +2005,50 @@ private fun List<Song>.playtime(): String? {
         minutes <= 0 -> null
         minutes < 60 -> stringResource(R.string.minutes_short, minutes.toInt())
         else -> stringResource(R.string.hours_minutes_short, (minutes / 60).toInt(), (minutes % 60).toInt())
+    }
+}
+
+@Composable
+private fun MixStatusBanner(
+    count: Int,
+    onCustomizeFirst: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = HEADER_GUTTER, vertical = 6.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(VibraPurple.copy(alpha = 0.12f))
+            .border(0.5.dp, VibraPurple.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
+            .clickable(onClick = onCustomizeFirst)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.GraphicEq,
+            contentDescription = null,
+            tint = VibraPurple,
+            modifier = Modifier.size(20.dp),
+        )
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = stringResource(R.string.mix_banner_active),
+                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = stringResource(R.string.mix_banner_subtitle),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.80f),
+            )
+        }
+        Icon(
+            imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+            modifier = Modifier.size(18.dp),
+        )
     }
 }

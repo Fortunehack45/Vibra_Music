@@ -1351,4 +1351,13 @@
     <string name="mix_reset_to_auto">Otomatiğe sıfırla</string>
     <string name="mix_bars_count">%1$d Ölçü</string>
     <string name="mix_bpm_format">%1$.1f BPM</string>
+
+    <string name="mix_banner_active">Mix aktif</string>
+    <string name="mix_banner_subtitle">Parçalar arasında DJ geçişleri aktif · Özelleştirmek için dokunun</string>
+    <string name="mix_enable_on_new">Yeni çalma listelerinde Mix\'i etkinleştir</string>
+    <string name="mix_enable_on_new_subtitle">Yeni açılan çalma listeleri için geçişleri otomatik ayarla</string>
+    <string name="mix_default_length">Varsayılan geçiş süresi</string>
+    <string name="mix_default_length_subtitle">Otomatik geçişler için ölçü cinsinden süre</string>
+    <string name="mix_beatmatch_default">Varsayılan ritim eşleme</string>
+    <string name="mix_beatmatch_default_subtitle">Parçalar arasında tempoyu ve ritim kılavuzunu eşitle</string>
 </resources>

@@ -1401,4 +1401,13 @@
     <string name="mix_reset_to_auto">אפס לאוטומטי</string>
     <string name="mix_bars_count">%1$d תיבות</string>
     <string name="mix_bpm_format">%1$.1f BPM</string>
+
+    <string name="mix_banner_active">המיקס פעיל</string>
+    <string name="mix_banner_subtitle">מעברי DJ פעילים בין רצועות · הקש להתאמה אישית</string>
+    <string name="mix_enable_on_new">הפעל מיקס בפלייליסטים חדשים</string>
+    <string name="mix_enable_on_new_subtitle">הגדר אוטומטית מעברים עבור פלייליסטים שנפתחו לאחרונה</string>
+    <string name="mix_default_length">אורך מעבר ברירת מחדל</string>
+    <string name="mix_default_length_subtitle">משך בתיבות עבור מעברים אוטומטיים</string>
+    <string name="mix_beatmatch_default">התאמת ביטים כברירת מחדל</string>
+    <string name="mix_beatmatch_default_subtitle">סנכרן קצב וישר את רשת הביטים בין השירים</string>
 </resources>

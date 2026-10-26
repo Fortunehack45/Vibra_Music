@@ -247,8 +247,8 @@
     <string name="song_transitions">Song transitions</string>
     <string name="crossfade_style_subtitle">Fades each song out as the next one fades in, over a set time</string>
     <string name="crossfade_duration">Crossfade duration</string>
-    <string name="automix">Automix [BETA]</string>
-    <string name="automix_performance">Automix performance</string>
+    <string name="automix">Mix [BETA]</string>
+    <string name="automix_performance">Mix analysis performance</string>
     <string name="automix_performance_subtitle">Sets how much CPU background analysis may use</string>
     <string name="automix_performance_warning">Higher performance analyses tracks faster, but can use more battery and make the phone warmer.</string>
     <string name="automix_mode_efficient">Efficient</string>
@@ -851,7 +851,7 @@
     <string name="version_cut_fetching">fetching</string>
     <string name="version_cut_measuring">analyzing</string>
     <string name="version_cut_aligned">aligned</string>
-    <string name="automix_enabled_subtitle">Times and blends every transition from the tracks themselves. Turn it off if the phone gets hot or playback stutters.</string>
+    <string name="automix_enabled_subtitle">Times and blends every transition in real time with dynamic curves, beatmatching, EQ and effects.</string>
     <string name="automix_disabled_subtitle">Times and blends transitions automatically, without a slider. Performance may vary on slower devices.</string>
     <string name="no_lyrics_sources_enabled">None. Lyrics will not be fetched.</string>
     <string name="song_cache_large_subtitle">Keeps up to %1$s of downloaded audio on disk. This can take a noticeable share of your free space.</string>
@@ -1397,5 +1397,13 @@
     <string name="mix_reset_to_auto">Reset to Auto</string>
     <string name="mix_bars_count">%1$d Bars</string>
     <string name="mix_bpm_format">%1$.1f BPM</string>
+    <string name="mix_banner_active">Mix is active</string>
+    <string name="mix_banner_subtitle">DJ transitions active between tracks · Tap chips to customize</string>
+    <string name="mix_enable_on_new">Enable Mix on new playlists</string>
+    <string name="mix_enable_on_new_subtitle">Automatically configures transitions for newly opened playlists</string>
+    <string name="mix_default_length">Default transition length</string>
+    <string name="mix_default_length_subtitle">Default duration in musical bars for auto transitions</string>
+    <string name="mix_beatmatch_default">Beatmatch by default</string>
+    <string name="mix_beatmatch_default_subtitle">Sync tempo and align beat grids between tracks</string>
 </resources>
 

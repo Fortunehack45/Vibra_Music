@@ -364,6 +364,7 @@ fun SongRow(
     mixBpm: Double? = null,
     mixKey: String? = null,
     mixRelativeToKey: String? = null,
+    mixActive: Boolean = false,
 ) {
     val haptics = rememberHaptics()
     val swipeStateHolder = remember { mutableStateOf<SwipeToDismissBoxState?>(null) }
@@ -405,6 +406,7 @@ fun SongRow(
             mixBpm = mixBpm,
             mixKey = mixKey,
             mixRelativeToKey = mixRelativeToKey,
+            mixActive = mixActive,
         )
         return
     }
@@ -454,6 +456,7 @@ fun SongRow(
             mixBpm = mixBpm,
             mixKey = mixKey,
             mixRelativeToKey = mixRelativeToKey,
+            mixActive = mixActive,
         )
     }
 }
@@ -523,6 +526,7 @@ private fun SongRowContent(
     mixBpm: Double? = null,
     mixKey: String? = null,
     mixRelativeToKey: String? = null,
+    mixActive: Boolean = false,
 ) {
     val titleColor by animateColorAsState(
         targetValue = if (isCurrent) activeTint else MaterialTheme.colorScheme.onBackground,
@@ -658,12 +662,13 @@ private fun SongRowContent(
                 color = subtitleColor,
             )
         } else {
-            if (mixBpm != null || mixKey != null) {
+            if (mixActive || mixBpm != null || mixKey != null) {
                 Spacer(Modifier.width(8.dp))
                 MixBadge(
                     bpm = mixBpm,
                     camelotKey = mixKey,
                     relativeToKey = mixRelativeToKey,
+                    showPlaceholder = mixActive,
                 )
             }
             song.durationText?.let {

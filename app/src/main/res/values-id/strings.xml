@@ -1376,4 +1376,13 @@
     <string name="mix_reset_to_auto">Atur ulang ke Otomatis</string>
     <string name="mix_bars_count">%1$d Birama</string>
     <string name="mix_bpm_format">%1$.1f BPM</string>
+
+    <string name="mix_banner_active">Mix aktif</string>
+    <string name="mix_banner_subtitle">Transisi DJ aktif antar lagu · Ketuk chip untuk menyesuaikan</string>
+    <string name="mix_enable_on_new">Aktifkan Mix di playlist baru</string>
+    <string name="mix_enable_on_new_subtitle">Secara otomatis mengatur transisi untuk playlist baru</string>
+    <string name="mix_default_length">Panjang transisi default</string>
+    <string name="mix_default_length_subtitle">Durasi dalam birama untuk transisi otomatis</string>
+    <string name="mix_beatmatch_default">Beatmatch secara default</string>
+    <string name="mix_beatmatch_default_subtitle">Sinkronkan tempo dan sejajarkan kisi ketukan</string>
 </resources>

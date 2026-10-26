@@ -77,6 +77,13 @@ import coil3.compose.AsyncImage
 import com.fortune.vibramusic.ui.components.thumbnailBorder
 import com.fortune.vibramusic.ui.components.rememberRemoteArtworkUrl
 import com.fortune.vibramusic.ui.icons.VibraMusicIcons
+import com.fortune.vibramusic.ui.components.MixTransitionChip
+import com.fortune.vibramusic.ui.components.TransitionEditorSheet
+import com.fortune.vibramusic.data.LocalPlaylistsStore
+import com.fortune.vibramusic.data.settings.AppSettings
+import com.fortune.vibramusic.playback.mix.MixAutoPlanner
+import com.fortune.vibramusic.playback.mix.TransitionPlan
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.fortune.vibramusic.data.model.QueueTier
 import com.fortune.vibramusic.data.model.Song
 import com.fortune.vibramusic.playback.autoplaySectionStart
@@ -205,6 +212,7 @@ private fun LazyItemScope.queueMotion(): Modifier =
     Modifier.animateItem(fadeInSpec = null, fadeOutSpec = null, placementSpec = QUEUE_ROW_MOTION)
 
 /** The live queue, in the player itself. */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 internal fun InlineQueue(
     queue: List<Song>,
@@ -247,6 +255,8 @@ internal fun InlineQueue(
         ?: contextSong?.albumName?.takeIf { it.isNotBlank() }
         ?: nowPlaying?.song?.playbackSource?.takeIf { it.isNotBlank() }
         ?: nowPlaying?.song?.albumName?.takeIf { it.isNotBlank() }
+
+    var activeTransitionPair by remember { mutableStateOf<Pair<Song, Song>?>(null) }
 
     // Back to the top on a track change — snapped the first time, animated
     // after — but never mid-drag, which would pull the list from under the finger.
@@ -316,6 +326,25 @@ internal fun InlineQueue(
                             modifier = queueMotion(),
                         )
                     }
+                    val nextSong = tracks.user.firstOrNull()?.song
+                        ?: tracks.context.firstOrNull()?.song
+                        ?: tracks.autoplay.firstOrNull()?.song
+                    if (nextSong != null) {
+                        item(key = "now-playing-mix-chip") {
+                            val plan = remember(nowPlaying.song.videoId, nextSong.videoId) {
+                                val pairId = TransitionPlan.pairIdOf(nowPlaying.song.videoId, nextSong.videoId)
+                                LocalPlaylistsStore.getTransition(nowPlaying.song.playbackSource ?: "", pairId)
+                                    ?: MixAutoPlanner.autoPlan(null, null, nowPlaying.song.videoId, nextSong.videoId)
+                            }
+                            MixTransitionChip(
+                                plan = plan,
+                                onClick = {
+                                    activeTransitionPair = nowPlaying.song to nextSong
+                                },
+                                modifier = Modifier.padding(start = 28.dp).then(queueMotion()),
+                            )
+                        }
+                    }
                 }
                 if (tracks.user.isNotEmpty()) {
                     item(key = "header-user-queue") {
@@ -364,6 +393,22 @@ internal fun InlineQueue(
                     )
                 }
             }
+        }
+
+        activeTransitionPair?.let { (fromSong, toSong) ->
+            val pairId = TransitionPlan.pairIdOf(fromSong.videoId, toSong.videoId)
+            val initialPlan = LocalPlaylistsStore.getTransition(fromSong.playbackSource ?: "", pairId)
+                ?: MixAutoPlanner.autoPlan(null, null, fromSong.videoId, toSong.videoId)
+            TransitionEditorSheet(
+                fromSong = fromSong,
+                toSong = toSong,
+                initialPlan = initialPlan,
+                onDismiss = { activeTransitionPair = null },
+                onSave = { updatedPlan ->
+                    LocalPlaylistsStore.saveTransition(fromSong.playbackSource ?: "", updatedPlan)
+                    activeTransitionPair = null
+                },
+            )
         }
     }
 }

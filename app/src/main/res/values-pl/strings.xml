@@ -1434,4 +1434,13 @@
     <string name="mix_reset_to_auto">Przywróć Auto</string>
     <string name="mix_bars_count">%1$d taktów</string>
     <string name="mix_bpm_format">%1$.1f BPM</string>
+
+    <string name="mix_banner_active">Mix jest aktywny</string>
+    <string name="mix_banner_subtitle">Przejścia DJ aktywne między utworami · Dotknij, aby dostosować</string>
+    <string name="mix_enable_on_new">Włącz Mix na nowych playlistach</string>
+    <string name="mix_enable_on_new_subtitle">Automatycznie konfiguruj przejścia dla nowo otwartych playlist</string>
+    <string name="mix_default_length">Domyślna długość przejścia</string>
+    <string name="mix_default_length_subtitle">Długość w taktach dla automatycznych przejść</string>
+    <string name="mix_beatmatch_default">Domyślne dopasowanie tempa</string>
+    <string name="mix_beatmatch_default_subtitle">Synchronizuj tempo i siatkę rytmu między utworami</string>
 </resources>

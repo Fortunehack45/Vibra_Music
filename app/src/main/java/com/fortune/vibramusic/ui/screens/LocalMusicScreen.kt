@@ -91,6 +91,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
@@ -1272,6 +1273,8 @@ private fun DrillDownActionRow(
     onSongClick: (List<Song>, Int) -> Unit,
     onShuffle: (List<Song>) -> Unit,
 ) {
+    val isLight = MaterialTheme.colorScheme.surface.luminance() > 0.5f
+    val buttonBorderColor = if (isLight) Color.Black.copy(alpha = 0.08f) else Color.White.copy(alpha = 0.10f)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1284,14 +1287,14 @@ private fun DrillDownActionRow(
                 .size(50.dp)
                 .clip(CircleShape)
                 .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.6f))
-                .border(0.5.dp, Color.White.copy(alpha = 0.10f), CircleShape)
+                .border(0.5.dp, buttonBorderColor, CircleShape)
                 .clickable { if (songs.isNotEmpty()) onShuffle(songs) },
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 VibraMusicIcons.Shuffle,
                 contentDescription = stringResource(R.string.shuffle),
-                tint = if (isSystemInDarkTheme()) Color.White else Color.Black,
+                tint = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.size(18.dp),
             )
         }
@@ -1300,7 +1303,7 @@ private fun DrillDownActionRow(
                 .height(50.dp)
                 .clip(CircleShape)
                 .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.6f))
-                .border(0.5.dp, Color.White.copy(alpha = 0.10f), CircleShape)
+                .border(0.5.dp, buttonBorderColor, CircleShape)
                 .clickable { if (songs.isNotEmpty()) onSongClick(songs, 0) }
                 .padding(horizontal = 32.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -1561,26 +1564,35 @@ private fun LocalSearchField(
                 )
             }
             val useLiquidGlass = LocalLiquidGlassEnabled.current && isGlassSupported()
+            val isLight = MaterialTheme.colorScheme.surface.luminance() > 0.5f
             val dropdownShape = RoundedCornerShape(18.dp)
+            val containerColor = if (useLiquidGlass) {
+                if (isLight) Color(0xFFF9F9FB).copy(alpha = 0.96f) else Color(0xFF16161A).copy(alpha = 0.90f)
+            } else {
+                MaterialTheme.colorScheme.surface
+            }
+            val borderColor = if (isLight) Color.Black.copy(alpha = 0.08f) else GLASS_EDGE_COLOR
             DropdownMenu(
                 expanded = sortMenuOpen,
                 onDismissRequest = { sortMenuOpen = false },
                 shape = dropdownShape,
-                containerColor = if (useLiquidGlass) {
-                    Color(0xFF16161A).copy(alpha = 0.88f)
-                } else {
-                    MaterialTheme.colorScheme.surface
-                },
-                border = BorderStroke(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR),
+                containerColor = containerColor,
+                border = BorderStroke(GLASS_EDGE_WIDTH, borderColor),
             ) {
                 LocalMusicSort.entries.forEach { option ->
                     DropdownMenuItem(
-                        text = { Text(option.localizedLabel()) },
+                        text = {
+                            Text(
+                                text = option.localizedLabel(),
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                        },
                         trailingIcon = if (option == sortOrder) {
                             {
                                 Icon(
                                     Icons.Rounded.Check,
                                     contentDescription = stringResource(R.string.selected),
+                                    tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(18.dp),
                                 )
                             }
@@ -1618,6 +1630,7 @@ private fun DownloadSelectionBar(
     /** Copies the selection to WebDAV; null (no server configured) hides the action. */
     onUpload: (() -> Unit)? = null,
 ) {
+    val isLight = MaterialTheme.colorScheme.surface.luminance() > 0.5f
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -1630,14 +1643,14 @@ private fun DownloadSelectionBar(
             Icon(
                 Icons.Rounded.Check,
                 contentDescription = stringResource(R.string.select_all),
-                tint = if (isSystemInDarkTheme()) Color.White else MaterialTheme.colorScheme.primary,
+                tint = if (isLight) MaterialTheme.colorScheme.primary else Color.White,
                 modifier = Modifier.size(20.dp),
             )
         }
         Text(
             text = "$count ${stringResource(R.string.selected)}",
             style = MaterialTheme.typography.titleSmall,
-            color = if (isSystemInDarkTheme()) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+            color = if (isLight) MaterialTheme.colorScheme.onSurfaceVariant else Color.White,
             modifier = Modifier.weight(1f),
         )
         onUpload?.let { upload ->

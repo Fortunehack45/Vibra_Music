@@ -1396,4 +1396,13 @@
     <string name="mix_reset_to_auto">ऑटो पर रीसेट करें</string>
     <string name="mix_bars_count">%1$d बार्स</string>
     <string name="mix_bpm_format">%1$.1f BPM</string>
+
+    <string name="mix_banner_active">मिक्स सक्रिय है</string>
+    <string name="mix_banner_subtitle">ट्रैक के बीच डीजे बदलाव सक्रिय · अनुकूलित करने के लिए टैप करें</string>
+    <string name="mix_enable_on_new">नई प्लेलिस्ट पर मिक्स सक्षम करें</string>
+    <string name="mix_enable_on_new_subtitle">नई खुली प्लेलिस्ट के लिए बदलाव स्वचालित रूप से कॉन्फ़िगर करें</string>
+    <string name="mix_default_length">डिफ़ॉल्ट बदलाव लंबाई</string>
+    <string name="mix_default_length_subtitle">स्वचालित बदलाव के लिए बार में डिफ़ॉल्ट अवधि</string>
+    <string name="mix_beatmatch_default">डिफ़ॉल्ट रूप से बीटमैच</string>
+    <string name="mix_beatmatch_default_subtitle">ट्रैक के बीच टेम्पो सिंक करें और बीट ग्रिड संरेखित करें</string>
 </resources>

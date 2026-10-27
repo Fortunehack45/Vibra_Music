@@ -617,7 +617,11 @@ fun TransitionEditorSheet(
                                 isSelected = isAuto,
                                 onClick = {
                                     haptics.play(Haptic.Select)
-                                    plan = MixAutoPlanner.autoPlan(fromAnalysis, toAnalysis, fromSong.videoId, toSong.videoId)
+                                    val auto = MixAutoPlanner.autoPlan(fromAnalysis, toAnalysis, fromSong.videoId, toSong.videoId)
+                                    plan = auto
+                                    if (effectiveIsPlaying) {
+                                        controller?.previewTransition(fromSong, toSong, auto)
+                                    }
                                 },
                             )
 
@@ -638,7 +642,11 @@ fun TransitionEditorSheet(
                                     isSelected = isSelected,
                                     onClick = {
                                         haptics.play(Haptic.Select)
-                                        plan = TransitionPlan.applyPreset(plan, preset)
+                                        val updated = TransitionPlan.applyPreset(plan, preset)
+                                        plan = updated
+                                        if (effectiveIsPlaying) {
+                                            controller?.previewTransition(fromSong, toSong, updated)
+                                        }
                                     },
                                 )
                             }
@@ -1160,8 +1168,35 @@ private fun DualWaveformEditor(
                             }
                         }
 
+                        // If not on an existing point, check if touch is within 60px of the curve line.
+                        // If near the curve, immediately create and insert a new point, and start dragging it right away!
+                        if (targetPointId == null) {
+                            if (down.position.y <= halfH && activeOutPoints.isNotEmpty()) {
+                                val (dist, t) = Curves.distanceToCurvePx(activeOutPoints, w, halfH, down.position.x, down.position.y)
+                                if (dist < 60f) {
+                                    val next = Curves.addPointOnLine(activeOutPoints, t)
+                                    val newPt = next.firstOrNull { np -> activeOutPoints.none { it.id == np.id } }
+                                    if (newPt != null) {
+                                        targetPointId = newPt.id
+                                        onPointsChanged(next, activeInPoints)
+                                    }
+                                }
+                            } else if (down.position.y > halfH && activeInPoints.isNotEmpty()) {
+                                val localY = down.position.y - halfH
+                                val (dist, t) = Curves.distanceToCurvePx(activeInPoints, w, halfH, down.position.x, localY)
+                                if (dist < 60f) {
+                                    val next = Curves.addPointOnLine(activeInPoints, t)
+                                    val newPt = next.firstOrNull { np -> activeInPoints.none { it.id == np.id } }
+                                    if (newPt != null) {
+                                        targetPointId = newPt.id
+                                        onPointsChanged(activeOutPoints, next)
+                                    }
+                                }
+                            }
+                        }
+
+                        // If a point is targeted (either preexisting or newly created in this touch), drag it immediately in that single gesture!
                         if (targetPointId != null) {
-                            // Immediately claim pointer on touch down to lock out parent vertical scroll!
                             down.consume()
                             selectedPointId = targetPointId
                             onDragPointActive(true)
@@ -1190,38 +1225,6 @@ private fun DualWaveformEditor(
                             }
                             selectedPointId = null
                             onDragPointActive(false)
-                        } else {
-                            // Touch was not on an existing point. Detect tap without consuming down so parent can scroll if dragged.
-                            var isDrag = false
-                            val downPos = down.position
-                            while (true) {
-                                val event = awaitPointerEvent()
-                                val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                                if (!change.pressed) {
-                                    // Released touch: if stationary, it was a deliberate tap to add a point on the curve
-                                    if (!isDrag && hypot(change.position.x - downPos.x, change.position.y - downPos.y) < 20f) {
-                                        val offset = downPos
-                                        if (offset.y <= halfH && activeOutPoints.isNotEmpty()) {
-                                            val (dist, t) = Curves.distanceToCurvePx(activeOutPoints, w, halfH, offset.x, offset.y)
-                                            if (dist < 60f) {
-                                                val next = Curves.addPointOnLine(activeOutPoints, t)
-                                                onPointsChanged(next, activeInPoints)
-                                            }
-                                        } else if (offset.y > halfH && activeInPoints.isNotEmpty()) {
-                                            val localY = offset.y - halfH
-                                            val (dist, t) = Curves.distanceToCurvePx(activeInPoints, w, halfH, offset.x, localY)
-                                            if (dist < 60f) {
-                                                val next = Curves.addPointOnLine(activeInPoints, t)
-                                                onPointsChanged(activeOutPoints, next)
-                                            }
-                                        }
-                                    }
-                                    break
-                                }
-                                if (hypot(change.position.x - downPos.x, change.position.y - downPos.y) > 20f) {
-                                    isDrag = true
-                                }
-                            }
                         }
                     }
                 },

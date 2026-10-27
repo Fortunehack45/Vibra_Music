@@ -2105,6 +2105,22 @@ class PlaybackService : MediaLibraryService() {
     private var previewPlayerB: ExoPlayer? = null
     private var wasPlayingBeforePreview: Boolean = false
 
+    private fun buildPreviewPlayer(filter: TransitionFilterProcessor): ExoPlayer = ExoPlayer.Builder(this)
+        .setRenderersFactory(silenceSkippingRenderers(SpatialAudioProcessor(), EqualizerProcessor(), filter))
+        .setMediaSourceFactory(requireNotNull(mediaSourceFactory))
+        .setLoadControl(
+            DefaultLoadControl.Builder()
+                .setBufferDurationsMs(
+                    /* minBufferMs = */ 15_000,
+                    /* maxBufferMs = */ 30_000,
+                    /* bufferForPlaybackMs = */ 1_000,
+                    /* bufferForPlaybackAfterRebufferMs = */ 2_000,
+                )
+                .build()
+        )
+        .setAudioAttributes(AUDIO_ATTRIBUTES, /* handleAudioFocus = */ false)
+        .build()
+
     private fun startTransitionPreview(args: Bundle) {
         val fromBundle = args.getBundle(EXTRA_PREVIEW_FROM_SONG) ?: return
         val toBundle = args.getBundle(EXTRA_PREVIEW_TO_SONG) ?: return
@@ -2126,9 +2142,10 @@ class PlaybackService : MediaLibraryService() {
             active?.pause()
         }
 
-        val meter = DefaultBandwidthMeter.getSingletonInstance(this)
-        val playerA = buildAuditionPlayer(meter)
-        val playerB = buildAuditionPlayer(meter)
+        val filterA = TransitionFilterProcessor()
+        val filterB = TransitionFilterProcessor()
+        val playerA = buildPreviewPlayer(filterA)
+        val playerB = buildPreviewPlayer(filterB)
         previewPlayerA = playerA
         previewPlayerB = playerB
 
@@ -2151,6 +2168,13 @@ class PlaybackService : MediaLibraryService() {
             AppSettings.transitionPreviewPlaying.value = true
             AppSettings.transitionPreviewProgress.value = -1.0f
 
+            // Await Deck A buffering to STATE_READY before starting countdown (up to 8s timeout)
+            val waitStart = SystemClock.elapsedRealtime()
+            while (isActive && playerA.playbackState != Player.STATE_READY && playerA.playbackState != Player.STATE_ENDED) {
+                if (SystemClock.elapsedRealtime() - waitStart > 8000L) break
+                delay(40L)
+            }
+
             // Phase 1: 3-Second Lead-In on Deck A
             playerA.volume = 1f
             playerB.volume = 0f
@@ -2164,7 +2188,7 @@ class PlaybackService : MediaLibraryService() {
                 delay(30L)
             }
 
-            // Phase 2: Active Transition Blend over blendSec
+            // Phase 2: Active Transition Blend over blendSec with Volume and EQ/Filter DSP
             playerB.play()
             val blendStart = SystemClock.elapsedRealtime()
             val blendMs = (blendSec * 1000.0).toLong().coerceAtLeast(1000L)
@@ -2177,6 +2201,24 @@ class PlaybackService : MediaLibraryService() {
 
                 playerA.volume = (fall * trim).coerceIn(0f, 1f)
                 playerB.volume = (rise * trim).coerceIn(0f, 1f)
+
+                // Ride Filters and EQ for preview in real time
+                val outLp = profile.outgoingLowPass?.evaluate(p) ?: TransitionFilterProcessor.OPEN_HZ
+                val outHp = profile.outgoingHighPass?.evaluate(p) ?: TransitionFilterProcessor.OFF_HZ
+                val inLp = profile.incomingLowPass?.evaluate(p) ?: TransitionFilterProcessor.OPEN_HZ
+                val inHp = profile.incomingHighPass?.evaluate(p) ?: TransitionFilterProcessor.OFF_HZ
+                filterA.setCutoffs(outLp, outHp)
+                filterB.setCutoffs(inLp, inHp)
+
+                val outBass = profile.outgoingEqBands[com.fortune.vibramusic.playback.audio.AutomationCurve.PARAM_BASS_OUT]?.evaluate(p) ?: 0f
+                val outMid = profile.outgoingEqBands[com.fortune.vibramusic.playback.audio.AutomationCurve.PARAM_MID_OUT]?.evaluate(p) ?: 0f
+                val outTreble = profile.outgoingEqBands[com.fortune.vibramusic.playback.audio.AutomationCurve.PARAM_TREBLE_OUT]?.evaluate(p) ?: 0f
+                val inBass = profile.incomingEqBands[com.fortune.vibramusic.playback.audio.AutomationCurve.PARAM_BASS_IN]?.evaluate(p) ?: 0f
+                val inMid = profile.incomingEqBands[com.fortune.vibramusic.playback.audio.AutomationCurve.PARAM_MID_IN]?.evaluate(p) ?: 0f
+                val inTreble = profile.incomingEqBands[com.fortune.vibramusic.playback.audio.AutomationCurve.PARAM_TREBLE_IN]?.evaluate(p) ?: 0f
+                filterA.setEq(outBass, outMid, outTreble)
+                filterB.setEq(inBass, inMid, inTreble)
+
                 AppSettings.transitionPreviewProgress.value = p
                 delay(30L)
             }
@@ -6797,6 +6839,7 @@ class PlaybackService : MediaLibraryService() {
         override fun seekTo(positionMs: Long) {
             if (locked()) return
             onUserIntent()
+            crossfade.cancel()
             super.seekTo(positionMs)
         }
 
@@ -6815,6 +6858,7 @@ class PlaybackService : MediaLibraryService() {
         override fun seekToPrevious() {
             if (locked()) return
             onUserIntent()
+            crossfade.cancel()
             super.seekToPrevious()
         }
 
@@ -6833,6 +6877,7 @@ class PlaybackService : MediaLibraryService() {
         override fun setMediaItems(mediaItems: List<MediaItem>, resetPosition: Boolean) {
             if (locked()) return
             onUserIntent()
+            crossfade.cancel()
             super.setMediaItems(mediaItems, resetPosition)
         }
 
@@ -6843,6 +6888,7 @@ class PlaybackService : MediaLibraryService() {
         ) {
             if (locked()) return
             onUserIntent()
+            crossfade.cancel()
             super.setMediaItems(mediaItems, startIndex, startPositionMs)
         }
 
@@ -6918,7 +6964,7 @@ class PlaybackService : MediaLibraryService() {
         override fun seekTo(mediaItemIndex: Int, positionMs: Long) {
             if (locked()) return
             onUserIntent()
-            crossfade.onSkipRequested()
+            crossfade.cancel()
             if (mediaItemIndex !in 0 until wrappedPlayer.mediaItemCount) return
             val skipped = skippedByQueueJump(currentMediaItemIndex, mediaItemIndex)
             if (skipped == null) {
@@ -6964,14 +7010,14 @@ class PlaybackService : MediaLibraryService() {
         override fun seekToPreviousMediaItem() {
             if (locked()) return
             onUserIntent()
-            crossfade.onSkipRequested()
+            crossfade.cancel()
             wrappedPlayer.seekToPrevious()
         }
 
         override fun seekToNextMediaItem() {
             if (locked()) return
             onUserIntent()
-            crossfade.onSkipRequested()
+            crossfade.cancel()
             wrappedPlayer.seekToNextMediaItem()
         }
 

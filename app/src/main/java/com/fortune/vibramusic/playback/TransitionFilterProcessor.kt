@@ -124,12 +124,12 @@ class TransitionFilterProcessor : BaseAudioProcessor() {
 
         val targetLow = targetLowPassHz
         val targetHigh = targetHighPassHz
-        val parked = targetLow >= OPEN_HZ && targetHigh <= OFF_HZ &&
-            currentLowPassHz >= OPEN_HZ - SETTLED_HZ && currentHighPassHz <= OFF_HZ + SETTLED_HZ
+        val parked = !isFiltering
         if (parked) {
             return
         }
 
+        val eqActive = bassGain != 1.0f || midGain != 1.0f || trebleGain != 1.0f
         var remaining = frameCount
         var frameOffset = 0
         while (remaining > 0) {
@@ -147,6 +147,7 @@ class TransitionFilterProcessor : BaseAudioProcessor() {
                     var sample = block.samples[baseIdx + channel]
                     if (lowOn) sample = lowPass(channel, sample)
                     if (highOn) sample = highPass(channel, sample)
+                    if (eqActive) sample = applyEq(channel, sample)
                     // Headroom preserved: no clamping to [-1.0f, +1.0f]
                     block.samples[baseIdx + channel] = sample
                 }

@@ -388,27 +388,24 @@ class CrossfadeController(
             newPosition: Player.PositionInfo,
             reason: Int,
         ) {
-            // The listener moving the playhead is something no half-finished
-            // crossfade should survive. Nothing this class does registers here
-            // any more: the handoff is a role swap, not a seek.
-            if (reason == Player.DISCONTINUITY_REASON_SEEK) bail()
+            // The listener moving the playhead cancels any transition in flight
+            // immediately so the active player continues playing the seeked position.
+            if (reason == Player.DISCONTINUITY_REASON_SEEK) cancel()
         }
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
             when (reason) {
                 // Something replaced the queue out from under the fade — a new
                 // album, a new search result — so the tail still playing is a
-                // leftover of a session that no longer exists. Note that this
-                // does *not* fire when AutoPlay appends to the end, since the
-                // playing item doesn't change: extending the queue mid-fade is
-                // harmless and shouldn't cost the listener the blend.
+                // leftover of a session that no longer exists. Cancel cleanly
+                // without forcing handoff to the old incoming track.
                 Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED -> {
                     val current = (incoming ?: outgoing)?.currentMediaItem
                     if (mediaItem != null && current != null && mediaItem.mediaId != current.mediaId) {
-                        bail()
+                        cancel()
                     }
                 }
-                Player.MEDIA_ITEM_TRANSITION_REASON_SEEK -> bail()
+                Player.MEDIA_ITEM_TRANSITION_REASON_SEEK -> cancel()
             }
         }
 
@@ -476,7 +473,41 @@ class CrossfadeController(
      * player this class has finished with.
      */
     fun onSkipRequested() {
-        if (phase != Phase.IDLE) bail()
+        if (phase != Phase.IDLE) cancel()
+    }
+
+    /**
+     * Immediately aborts any transition in flight without forcing a handoff.
+     *
+     * Called when the user explicitly commands a track change, queue jump,
+     * seek, or replay: the incoming standby player is retired and the active
+     * player restored to full volume rather than having the session hijacked
+     * by a track the listener did not ask for.
+     */
+    fun cancel() {
+        if (phase == Phase.IDLE) return
+        Log.d(TAG, "cancel transition from phase=$phase handedOff=$handedOff")
+        tickerJob?.cancel()
+        AppSettings.smartMixInProgress.value = false
+        AppSettings.smartTransitionWindow.value = null
+        filters.open()
+        render = Render()
+        activeProfile = null
+
+        if (handedOff) {
+            active().volume = 1f
+            standby().let(::retire)
+        } else {
+            active().volume = 1f
+            incoming?.let(::retire)
+        }
+
+        outgoing = null
+        incoming = null
+        handedOff = false
+        queuedItemCount = 0
+        phase = Phase.IDLE
+        start()
     }
 
     // ---- Ticker -------------------------------------------------------------

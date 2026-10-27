@@ -17,6 +17,7 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.runtime.collectAsState
 import com.fortune.vibramusic.data.settings.AppSettings
 import com.fortune.vibramusic.data.settings.ThemeMode
+import com.fortune.vibramusic.ui.theme.SystemBarIcons
 import com.fortune.vibramusic.ui.theme.VibraMusicTheme
 import androidx.compose.ui.graphics.luminance
 import com.fortune.vibramusic.playback.previewTransition
@@ -158,6 +159,11 @@ fun TransitionEditorSheet(
     val textTertiary = if (isDark) Color.White.copy(alpha = 0.45f) else Color(0xFFA1A1AA)
     val pillBg = if (isDark) Color.White.copy(alpha = 0.12f) else Color.Black.copy(alpha = 0.06f)
     val sliderInactive = if (isDark) Color.White.copy(alpha = 0.15f) else Color.Black.copy(alpha = 0.12f)
+    val laneVolColor = if (isDark) VolumeBlue else Color(0xFF0284C7)
+    val laneEqColor = if (isDark) EqYellow else Color(0xFFD97706)
+    val laneFilterColor = if (isDark) FilterPink else Color(0xFFDB2777)
+    val laneEffectsColor = if (isDark) EffectsWhite else VibraPurple
+    val laneLoopColor = if (isDark) LoopingOrange else Color(0xFFEA580C)
 
     var plan by remember(initialPlan, fromSong.videoId, toSong.videoId) {
         mutableStateOf(
@@ -264,6 +270,7 @@ fun TransitionEditorSheet(
         ),
     ) {
         VibraMusicTheme(darkTheme = isDark) {
+            SystemBarIcons(dark = !isDark)
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -517,7 +524,7 @@ fun TransitionEditorSheet(
                         Row(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(Color.White.copy(alpha = 0.08f))
+                                .background(pillBg)
                                 .clickable { showLengthMenu = true }
                                 .padding(horizontal = 12.dp, vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically,
@@ -525,12 +532,12 @@ fun TransitionEditorSheet(
                             Text(
                                 text = "${plan.lengthBars} bars (${plan.durationSeconds.toInt()}s)",
                                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                                color = Color.White.copy(alpha = 0.85f),
+                                color = textPrimary,
                             )
                             Icon(
                                 imageVector = Icons.Rounded.KeyboardArrowDown,
                                 contentDescription = null,
-                                tint = Color.White.copy(alpha = 0.6f),
+                                tint = textSecondary,
                                 modifier = Modifier.size(16.dp),
                             )
                         }
@@ -698,7 +705,7 @@ fun TransitionEditorSheet(
                             SpotifyLaneRow(
                                 title = "Volume",
                                 subtitle = plan.volume.option.replaceFirstChar { it.uppercase() },
-                                color = VolumeBlue,
+                                color = laneVolColor,
                                 icon = Icons.AutoMirrored.Rounded.VolumeUp,
                                 onClick = { focusedLane = LaneId.VOLUME },
                             )
@@ -707,7 +714,7 @@ fun TransitionEditorSheet(
                             SpotifyLaneRow(
                                 title = "EQ Low",
                                 subtitle = plan.eq.option.replaceFirstChar { it.uppercase() },
-                                color = EqYellow,
+                                color = laneEqColor,
                                 icon = Icons.Rounded.GraphicEq,
                                 onClick = { focusedLane = LaneId.EQ },
                             )
@@ -716,7 +723,7 @@ fun TransitionEditorSheet(
                             SpotifyLaneRow(
                                 title = "Filter",
                                 subtitle = plan.filter.option.replaceFirstChar { it.uppercase() },
-                                color = FilterPink,
+                                color = laneFilterColor,
                                 icon = Icons.Rounded.Tune,
                                 onClick = { focusedLane = LaneId.FILTER },
                             )
@@ -725,7 +732,7 @@ fun TransitionEditorSheet(
                             SpotifyLaneRow(
                                 title = "Effects",
                                 subtitle = plan.effects.option.replaceFirstChar { it.uppercase() },
-                                color = EffectsWhite,
+                                color = laneEffectsColor,
                                 icon = Icons.Rounded.AutoAwesome,
                                 onClick = { focusedLane = LaneId.EFFECTS },
                             )
@@ -735,7 +742,7 @@ fun TransitionEditorSheet(
                             SpotifyLaneRow(
                                 title = "Looping",
                                 subtitle = loopText,
-                                color = LoopingOrange,
+                                color = laneLoopColor,
                                 icon = Icons.Rounded.Repeat,
                                 onClick = { showLoopingSheet = true },
                             )
@@ -750,7 +757,7 @@ fun TransitionEditorSheet(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(12.dp))
-                                    .background(Color.White.copy(alpha = 0.06f))
+                                    .background(if (isDark) Color.White.copy(alpha = 0.06f) else Color.Black.copy(alpha = 0.04f))
                                     .clickable(onClick = toggleBeatmatching)
                                     .padding(horizontal = 14.dp, vertical = 10.dp),
                                 verticalAlignment = Alignment.CenterVertically,
@@ -763,7 +770,7 @@ fun TransitionEditorSheet(
                                     Icon(
                                         imageVector = Icons.Rounded.Sync,
                                         contentDescription = null,
-                                        tint = if (plan.beatmatching) VibraPurple else Color.White.copy(alpha = 0.4f),
+                                        tint = if (plan.beatmatching) VibraPurple else (if (isDark) Color.White.copy(alpha = 0.4f) else Color(0xFFA1A1AA)),
                                         modifier = Modifier.size(20.dp),
                                     )
                                     Spacer(Modifier.width(12.dp))
@@ -774,12 +781,12 @@ fun TransitionEditorSheet(
                                                 fontWeight = FontWeight.SemiBold,
                                                 fontSize = 14.sp,
                                             ),
-                                            color = if (plan.beatmatching) Color.White else Color.White.copy(alpha = 0.7f),
+                                            color = if (plan.beatmatching) VibraPurple else textPrimary,
                                         )
                                         Text(
                                             text = "Lock tempo and align downbeats across transition",
                                             style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                                            color = Color.White.copy(alpha = 0.5f),
+                                            color = textSecondary,
                                         )
                                     }
                                 }
@@ -790,9 +797,9 @@ fun TransitionEditorSheet(
                                         checkedTrackColor = VibraPurple,
                                         checkedThumbColor = Color.White,
                                         checkedBorderColor = Color.Transparent,
-                                        uncheckedTrackColor = Color(0xFF27272A),
-                                        uncheckedThumbColor = Color(0xFFA1A1AA),
-                                        uncheckedBorderColor = Color(0xFF3F3F46),
+                                        uncheckedTrackColor = if (isDark) Color(0xFF27272A) else Color(0xFFE4E4E7),
+                                        uncheckedThumbColor = if (isDark) Color(0xFFA1A1AA) else Color.White,
+                                        uncheckedBorderColor = if (isDark) Color(0xFF3F3F46) else Color(0xFFD4D4D8),
                                     ),
                                 )
                             }
@@ -807,7 +814,7 @@ fun TransitionEditorSheet(
                             when (focusedLane) {
                                 LaneId.VOLUME -> VolumeLaneCard(
                                     plan = plan,
-                                    color = VolumeBlue,
+                                    color = laneVolColor,
                                     isCustomizing = true,
                                     onCustomizeToggle = {},
                                     onOptionSelected = { optId ->
@@ -820,7 +827,7 @@ fun TransitionEditorSheet(
                                 )
                                 LaneId.EQ -> EqLaneCard(
                                     plan = plan,
-                                    color = EqYellow,
+                                    color = laneEqColor,
                                     isCustomizing = true,
                                     onCustomizeToggle = {},
                                     onOptionSelected = { optId ->
@@ -833,7 +840,7 @@ fun TransitionEditorSheet(
                                 )
                                 LaneId.FILTER -> FilterLaneCard(
                                     plan = plan,
-                                    color = FilterPink,
+                                    color = laneFilterColor,
                                     isCustomizing = true,
                                     onCustomizeToggle = {},
                                     onOptionSelected = { optId ->
@@ -846,7 +853,7 @@ fun TransitionEditorSheet(
                                 )
                                 LaneId.EFFECTS -> EffectsLaneCard(
                                     plan = plan,
-                                    color = EffectsWhite,
+                                    color = laneEffectsColor,
                                     isCustomizing = true,
                                     onCustomizeToggle = {},
                                     onOptionSelected = { optId ->
@@ -873,7 +880,7 @@ fun TransitionEditorSheet(
             if (showLoopingSheet) {
                 ModalBottomSheet(
                     onDismissRequest = { showLoopingSheet = false },
-                    containerColor = Color(0xFF18181B),
+                    containerColor = if (isDark) Color(0xFF18181B) else Color.White,
                 ) {
                     Column(
                         modifier = Modifier
@@ -883,13 +890,13 @@ fun TransitionEditorSheet(
                         Text(
                             text = "Looping",
                             style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                            color = Color.White,
+                            color = textPrimary,
                         )
                         Spacer(Modifier.height(4.dp))
                         Text(
                             text = "Select loop length for track transition",
                             style = MaterialTheme.typography.bodySmall,
-                            color = Color.White.copy(alpha = 0.6f),
+                            color = textSecondary,
                         )
                         Spacer(Modifier.height(16.dp))
 
@@ -925,7 +932,7 @@ fun TransitionEditorSheet(
                                     style = MaterialTheme.typography.bodyLarge.copy(
                                         fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
                                     ),
-                                    color = if (isSelected) Color.White else Color.White.copy(alpha = 0.8f),
+                                    color = if (isSelected) VibraPurple else textPrimary,
                                 )
                                 if (isSelected) {
                                     Icon(
@@ -1391,23 +1398,23 @@ private fun DualWaveformEditor(
 
                     val maxAmp = halfH * 0.44f
 
-                    // High transients / upper frequencies (Cyan/Blue)
+                    // High transients / upper frequencies
                     drawLine(
-                        color = Color(0xFF38BDF8),
+                        color = if (isDark) Color(0xFF38BDF8) else Color(0xFF0284C7),
                         start = Offset(xf, midY - highEnergy * maxAmp * 1.1f),
                         end = Offset(xf, midY + highEnergy * maxAmp * 1.1f),
                         strokeWidth = 2f,
                     )
-                    // Low frequencies / bass energy (Amber/Orange)
+                    // Low frequencies / bass energy
                     drawLine(
-                        color = Color(0xFFF59E0B),
+                        color = if (isDark) Color(0xFFF59E0B) else Color(0xFFD97706),
                         start = Offset(xf, midY - bassEnergy * maxAmp * 0.75f),
                         end = Offset(xf, midY + bassEnergy * maxAmp * 0.75f),
                         strokeWidth = 2f,
                     )
-                    // Core RMS center body (Light White)
+                    // Core RMS center body
                     drawLine(
-                        color = Color(0xFFE2E8F0),
+                        color = if (isDark) Color(0xFFE2E8F0) else Color(0xFF64748B),
                         start = Offset(xf, midY - coreEnergy * maxAmp * 0.3f),
                         end = Offset(xf, midY + coreEnergy * maxAmp * 0.3f),
                         strokeWidth = 1.5f,
@@ -1420,7 +1427,7 @@ private fun DualWaveformEditor(
 
             // Divider between outgoing and incoming tracks
             drawLine(
-                color = Color.White.copy(alpha = 0.12f),
+                color = if (isDark) Color.White.copy(alpha = 0.12f) else Color.Black.copy(alpha = 0.08f),
                 start = Offset(0f, halfH),
                 end = Offset(w, halfH),
                 strokeWidth = 1f,
@@ -1492,27 +1499,33 @@ private fun DualWaveformEditor(
                 }
             }
 
+            val cVol = if (isDark) VolumeBlue else Color(0xFF0284C7)
+            val cEq = if (isDark) EqYellow else Color(0xFFD97706)
+            val cFilter = if (isDark) FilterPink else Color(0xFFDB2777)
+            val cEffects = if (isDark) EffectsWhite else Color(0xFF7C3AED)
+            val cLoop = if (isDark) LoopingOrange else Color(0xFFEA580C)
+
             if (focusedLane == null) {
                 // Overview Mode: Overlay all active automation curves simultaneously!
-                // 1. Volume (Cyan/Blue)
-                drawSingleCurve(plan.volume.out, 0f, VolumeBlue, showPoints = false)
-                drawSingleCurve(plan.volume.`in`, halfH, VolumeBlue, showPoints = false)
+                // 1. Volume
+                drawSingleCurve(plan.volume.out, 0f, cVol, showPoints = false)
+                drawSingleCurve(plan.volume.`in`, halfH, cVol, showPoints = false)
 
-                // 2. EQ Low (Yellow)
-                drawSingleCurve(plan.eq.out.low, 0f, EqYellow, showPoints = false)
-                drawSingleCurve(plan.eq.`in`.low, halfH, EqYellow, showPoints = false)
+                // 2. EQ Low
+                drawSingleCurve(plan.eq.out.low, 0f, cEq, showPoints = false)
+                drawSingleCurve(plan.eq.`in`.low, halfH, cEq, showPoints = false)
 
-                // 3. Filter (Pink)
-                drawSingleCurve(plan.filter.out, 0f, FilterPink, showPoints = false)
-                drawSingleCurve(plan.filter.`in`, halfH, FilterPink, showPoints = false)
+                // 3. Filter
+                drawSingleCurve(plan.filter.out, 0f, cFilter, showPoints = false)
+                drawSingleCurve(plan.filter.`in`, halfH, cFilter, showPoints = false)
             } else {
                 // Focused Lane Mode: Render only focused lane with interactive draggable points
                 val color = when (focusedLane) {
-                    LaneId.VOLUME -> VolumeBlue
-                    LaneId.EQ -> EqYellow
-                    LaneId.FILTER -> FilterPink
-                    LaneId.EFFECTS -> EffectsWhite
-                    else -> LoopingOrange
+                    LaneId.VOLUME -> cVol
+                    LaneId.EQ -> cEq
+                    LaneId.FILTER -> cFilter
+                    LaneId.EFFECTS -> cEffects
+                    else -> cLoop
                 }
                 drawSingleCurve(activeOutPoints, 0f, color, showPoints = true)
                 if (focusedLane != LaneId.EFFECTS) {

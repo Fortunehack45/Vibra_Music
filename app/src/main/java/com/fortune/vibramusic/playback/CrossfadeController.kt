@@ -699,7 +699,7 @@ class CrossfadeController(
         }
 
         val pairId = MixTransitionPlan.pairIdOf(currentItem.mediaId, nextItem.mediaId)
-        val storedPlan = LocalPlaylistsStore.getTransition(playlistId, pairId)
+        val storedPlan = LocalPlaylistsStore.getTransition(playlistId, pairId) ?: LocalPlaylistsStore.getUniversalTransition(pairId)
         val customProfile = storedPlan?.let { TransitionProfile.fromTransitionPlan(it) }
 
         val plan = planTransition(

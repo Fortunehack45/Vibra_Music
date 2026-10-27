@@ -2158,10 +2158,19 @@ class PlaybackService : MediaLibraryService() {
 
         val blendSec = plan.durationSeconds.coerceAtLeast(1.0)
         val durA = fromSong.durationMillis().takeIf { it > 0 }?.let { it.toDouble() / 1000.0 } ?: 180.0
-        val mixOutSec = (plan.startCutSeconds ?: (durA - blendSec)).coerceAtLeast(10.0)
+        val mixOutSec = (plan.startCutSeconds ?: (durA - blendSec)).coerceIn(15.0, durA)
         val mixInSec = plan.mixInSeconds.coerceAtLeast(0.0)
-        val startSecA = (mixOutSec - blendSec - 3.0).coerceAtLeast(0.0)
+        val startSecA = (mixOutSec - 3.0).coerceAtLeast(0.0)
         val profile = com.fortune.vibramusic.playback.audio.TransitionProfile.fromTransitionPlan(plan)
+
+        val analysisA = trackAnalyzer.analysisFor(fromSong.videoId)
+        val analysisB = trackAnalyzer.analysisFor(toSong.videoId)
+        val rate = if (plan.beatmatching && analysisA.bpm > 0 && analysisB.bpm > 0) {
+            (analysisA.bpm / analysisB.bpm).coerceIn(0.92, 1.08)
+        } else {
+            1.0
+        }
+        playerB.setPlaybackSpeed(rate.toFloat())
 
         playerA.seekTo((startSecA * 1000.0).toLong())
         playerB.seekTo((mixInSec * 1000.0).toLong())

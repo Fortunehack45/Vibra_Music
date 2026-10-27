@@ -5,6 +5,7 @@ import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.os.Build
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -140,6 +141,14 @@ fun TransitionEditorSheet(
     val context = LocalContext.current
     val haptics = rememberHaptics()
     val scope = rememberCoroutineScope()
+    val isDark = isSystemInDarkTheme()
+
+    val sheetBg = if (isDark) Color(0xFF09090B) else Color.White
+    val textPrimary = if (isDark) Color.White else Color(0xFF18181B)
+    val textSecondary = if (isDark) Color.White.copy(alpha = 0.65f) else Color(0xFF71717A)
+    val textTertiary = if (isDark) Color.White.copy(alpha = 0.45f) else Color(0xFFA1A1AA)
+    val pillBg = if (isDark) Color.White.copy(alpha = 0.12f) else Color.Black.copy(alpha = 0.06f)
+    val sliderInactive = if (isDark) Color.White.copy(alpha = 0.15f) else Color.Black.copy(alpha = 0.12f)
 
     var plan by remember(initialPlan, fromSong.videoId, toSong.videoId) {
         mutableStateOf(
@@ -248,7 +257,7 @@ fun TransitionEditorSheet(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0xFF09090B))
+                .background(sheetBg)
                 .systemBarsPadding(),
         ) {
             Column(
@@ -275,14 +284,14 @@ fun TransitionEditorSheet(
                             Icon(
                                 imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                                 contentDescription = "Back",
-                                tint = Color.White,
+                                tint = textPrimary,
                                 modifier = Modifier.size(22.dp),
                             )
                             Spacer(Modifier.width(8.dp))
                             Text(
                                 text = focusedLane?.name?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "",
                                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                color = Color.White,
+                                color = textPrimary,
                             )
                         }
                     } else {
@@ -293,7 +302,7 @@ fun TransitionEditorSheet(
                             Icon(
                                 imageVector = Icons.Rounded.Close,
                                 contentDescription = "Close",
-                                tint = Color.White,
+                                tint = textPrimary,
                                 modifier = Modifier.size(24.dp),
                             )
                         }
@@ -307,13 +316,13 @@ fun TransitionEditorSheet(
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(6.dp))
-                                    .background(Color.White.copy(alpha = 0.12f))
+                                    .background(pillBg)
                                     .padding(horizontal = 8.dp, vertical = 2.dp),
                             ) {
                                 Text(
                                     text = "Beta",
                                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                    color = Color.White.copy(alpha = 0.8f),
+                                    color = textPrimary.copy(alpha = 0.85f),
                                 )
                             }
 
@@ -331,7 +340,7 @@ fun TransitionEditorSheet(
                                 Icon(
                                     imageVector = Icons.Rounded.Refresh,
                                     contentDescription = "Reset to Auto",
-                                    tint = Color.White.copy(alpha = 0.7f),
+                                    tint = textSecondary,
                                     modifier = Modifier.size(20.dp),
                                 )
                             }
@@ -406,7 +415,7 @@ fun TransitionEditorSheet(
                             Text(
                                 text = "Shorten / Cut point",
                                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                                color = Color.White.copy(alpha = 0.5f),
+                                color = textTertiary,
                             )
                         }
                         Slider(
@@ -421,7 +430,7 @@ fun TransitionEditorSheet(
                             colors = SliderDefaults.colors(
                                 thumbColor = VibraPurple,
                                 activeTrackColor = VibraPurple,
-                                inactiveTrackColor = Color.White.copy(alpha = 0.15f),
+                                inactiveTrackColor = sliderInactive,
                             ),
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -566,7 +575,7 @@ fun TransitionEditorSheet(
                             Text(
                                 text = "Cue point",
                                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                                color = Color.White.copy(alpha = 0.5f),
+                                color = textTertiary,
                             )
                         }
                         Slider(
@@ -581,7 +590,7 @@ fun TransitionEditorSheet(
                             colors = SliderDefaults.colors(
                                 thumbColor = VibraPurple,
                                 activeTrackColor = VibraPurple,
-                                inactiveTrackColor = Color.White.copy(alpha = 0.15f),
+                                inactiveTrackColor = sliderInactive,
                             ),
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -599,7 +608,7 @@ fun TransitionEditorSheet(
                                 fontWeight = FontWeight.SemiBold,
                                 fontSize = 13.sp,
                             ),
-                            color = Color.White.copy(alpha = 0.65f),
+                            color = textSecondary,
                             modifier = Modifier.padding(horizontal = 18.dp),
                         )
 
@@ -663,7 +672,7 @@ fun TransitionEditorSheet(
                                 fontWeight = FontWeight.SemiBold,
                                 fontSize = 13.sp,
                             ),
-                            color = Color.White.copy(alpha = 0.65f),
+                            color = textSecondary,
                             modifier = Modifier.padding(horizontal = 18.dp),
                         )
 
@@ -936,11 +945,17 @@ private fun SpotifyLaneRow(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     onClick: () -> Unit,
 ) {
+    val isDark = isSystemInDarkTheme()
+    val rowBg = if (isDark) Color.White.copy(alpha = 0.06f) else Color.Black.copy(alpha = 0.04f)
+    val titleColor = if (isDark) Color.White else Color(0xFF18181B)
+    val subtitleColor = if (isDark) Color.White.copy(alpha = 0.65f) else Color(0xFF71717A)
+    val chevronColor = if (isDark) Color.White.copy(alpha = 0.45f) else Color(0xFFA1A1AA)
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(Color.White.copy(alpha = 0.06f))
+            .background(rowBg)
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -972,19 +987,19 @@ private fun SpotifyLaneRow(
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 15.sp,
                     ),
-                    color = Color.White,
+                    color = titleColor,
                 )
                 Text(
                     text = subtitle,
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 12.sp),
-                    color = Color.White.copy(alpha = 0.65f),
+                    color = subtitleColor,
                 )
             }
         }
         Icon(
             imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
             contentDescription = null,
-            tint = Color.White.copy(alpha = 0.45f),
+            tint = chevronColor,
             modifier = Modifier.size(18.dp),
         )
     }
@@ -998,6 +1013,11 @@ private fun TrackHeaderRow(
     relativeKey: String?,
     modifier: Modifier = Modifier,
 ) {
+    val isDark = isSystemInDarkTheme()
+    val rowPrimary = if (isDark) Color.White else Color(0xFF18181B)
+    val rowSecondary = if (isDark) Color.White.copy(alpha = 0.6f) else Color(0xFF71717A)
+    val durationColor = if (isDark) Color.White.copy(alpha = 0.6f) else Color(0xFF71717A)
+
     Row(
         modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -1027,7 +1047,7 @@ private fun TrackHeaderRow(
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 14.sp,
                     ),
-                    color = Color.White,
+                    color = rowPrimary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -1036,7 +1056,7 @@ private fun TrackHeaderRow(
                     style = MaterialTheme.typography.bodySmall.copy(
                         fontSize = 12.sp,
                     ),
-                    color = Color.White.copy(alpha = 0.6f),
+                    color = rowSecondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -1056,7 +1076,7 @@ private fun TrackHeaderRow(
                 Text(
                     text = it,
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                    color = Color.White.copy(alpha = 0.6f),
+                    color = durationColor,
                 )
             }
         }
@@ -1070,11 +1090,23 @@ private fun PresetPill(
     onClick: () -> Unit,
     icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
 ) {
+    val isDark = isSystemInDarkTheme()
+    val bg = if (isSelected) {
+        if (isDark) Color.White else Color(0xFF18181B)
+    } else {
+        if (isDark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.05f)
+    }
+    val fg = if (isSelected) {
+        if (isDark) Color.Black else Color.White
+    } else {
+        if (isDark) Color.White else Color(0xFF18181B)
+    }
+
     Row(
         modifier = Modifier
             .height(34.dp)
             .clip(RoundedCornerShape(8.dp))
-            .background(if (isSelected) Color.White else Color.White.copy(alpha = 0.08f))
+            .background(bg)
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -1084,7 +1116,7 @@ private fun PresetPill(
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = if (isSelected) Color.Black else Color.White,
+                tint = fg,
                 modifier = Modifier.size(15.dp),
             )
             Spacer(Modifier.width(6.dp))
@@ -1093,7 +1125,7 @@ private fun PresetPill(
             text = label,
             style = MaterialTheme.typography.labelMedium.copy(
                 fontWeight = FontWeight.SemiBold,
-                color = if (isSelected) Color.Black else Color.White,
+                color = fg,
             ),
         )
     }
@@ -1136,11 +1168,18 @@ private fun DualWaveformEditor(
     val currentInPoints by rememberUpdatedState(activeInPoints)
     val currentOnPointsChanged by rememberUpdatedState(onPointsChanged)
     val currentOnDragPointActive by rememberUpdatedState(onDragPointActive)
+    val haptics = rememberHaptics()
+    val isDark = isSystemInDarkTheme()
+
+    val waveformBg = if (isDark) Color(0xFF18181B) else Color(0xFFF4F4F6)
+    val waveformBorder = if (isDark) Color.Transparent else Color(0xFFE4E4E7)
+    val gridColor = if (isDark) Color.White else Color.Black
 
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
-            .background(Color(0xFF18181B)),
+            .background(waveformBg)
+            .border(1.dp, waveformBorder, RoundedCornerShape(12.dp)),
         contentAlignment = Alignment.Center,
     ) {
         Canvas(
@@ -1219,6 +1258,9 @@ private fun DualWaveformEditor(
                             selectedPointId = targetPointId
                             currentOnDragPointActive(true)
 
+                            var totalDragDist = 0f
+                            val downPos = down.position
+
                             // Continuous drag loop
                             while (true) {
                                 val event = awaitPointerEvent()
@@ -1229,6 +1271,9 @@ private fun DualWaveformEditor(
                                 }
                                 change.consume()
                                 val currentPos = change.position
+                                val dist = hypot(currentPos.x - downPos.x, currentPos.y - downPos.y)
+                                if (dist > totalDragDist) totalDragDist = dist
+
                                 val normT = (currentPos.x / w).coerceIn(0.015f, 0.985f)
 
                                 if (isTargetOut) {
@@ -1243,6 +1288,22 @@ private fun DualWaveformEditor(
                             }
                             selectedPointId = null
                             currentOnDragPointActive(false)
+
+                            // If touch was a simple click/tap without dragging (moved < 15px), undo/remove this point!
+                            if (totalDragDist < 15f) {
+                                val isStart = if (isTargetOut) runningOut.firstOrNull()?.id == targetPointId else runningIn.firstOrNull()?.id == targetPointId
+                                val isEnd = if (isTargetOut) runningOut.lastOrNull()?.id == targetPointId else runningIn.lastOrNull()?.id == targetPointId
+                                if (!isStart && !isEnd) {
+                                    haptics.play(Haptic.Tick)
+                                    if (isTargetOut) {
+                                        runningOut = Curves.removePoint(runningOut, targetPointId)
+                                        currentOnPointsChanged(runningOut, runningIn)
+                                    } else {
+                                        runningIn = Curves.removePoint(runningIn, targetPointId)
+                                        currentOnPointsChanged(runningOut, runningIn)
+                                    }
+                                }
+                            }
                         }
                     }
                 },
@@ -1258,7 +1319,7 @@ private fun DualWaveformEditor(
             for (i in 0..bars) {
                 val x = i * step
                 drawLine(
-                    color = Color.White.copy(alpha = if (i % 4 == 0) 0.15f else 0.06f),
+                    color = gridColor.copy(alpha = if (i % 4 == 0) (if (isDark) 0.15f else 0.12f) else (if (isDark) 0.06f else 0.05f)),
                     start = Offset(x, 0f),
                     end = Offset(x, h),
                     strokeWidth = if (i % 4 == 0) 1.5f else 0.75f,
@@ -1458,11 +1519,14 @@ private fun DualWaveformEditor(
 
         // Center Play / Stop toggle button
         val isBuffering = isPlaying && playhead < 0f
+        val playBtnBg = if (isDark) Color(0xFF27272A).copy(alpha = 0.95f) else Color(0xFFE4E4E7).copy(alpha = 0.95f)
+        val playBtnTint = if (isDark) Color.White else Color(0xFF18181B)
+
         Box(
             modifier = Modifier
                 .size(40.dp)
                 .clip(RoundedCornerShape(10.dp))
-                .background(Color(0xFF27272A).copy(alpha = 0.95f))
+                .background(playBtnBg)
                 .clickable(onClick = onPlayToggle),
             contentAlignment = Alignment.Center,
         ) {
@@ -1476,7 +1540,7 @@ private fun DualWaveformEditor(
                 Icon(
                     imageVector = if (isPlaying) Icons.Rounded.Stop else Icons.Rounded.PlayArrow,
                     contentDescription = if (isPlaying) "Stop" else "Play",
-                    tint = Color.White,
+                    tint = playBtnTint,
                     modifier = Modifier.size(22.dp),
                 )
             }
@@ -1576,11 +1640,15 @@ private fun LaneContainer(
     color: Color,
     content: @Composable () -> Unit,
 ) {
+    val isDark = isSystemInDarkTheme()
+    val containerBg = if (isDark) Color(0xFF1C1C1E) else Color(0xFFF4F4F6)
+    val titleColor = if (isDark) Color.White else Color(0xFF18181B)
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(Color(0xFF1C1C1E))
+            .background(containerBg)
             .padding(16.dp),
     ) {
         Row(
@@ -1601,7 +1669,7 @@ private fun LaneContainer(
                     fontWeight = FontWeight.Bold,
                     fontSize = 17.sp,
                 ),
-                color = Color.White,
+                color = titleColor,
             )
         }
 
@@ -1621,6 +1689,9 @@ private fun LaneOptionRow(
     isSelected: Boolean,
     onClick: () -> Unit,
 ) {
+    val isDark = isSystemInDarkTheme()
+    val optColor = if (isDark) Color.White else Color(0xFF18181B)
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1636,7 +1707,7 @@ private fun LaneOptionRow(
                 fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
                 fontSize = 15.sp,
             ),
-            color = Color.White,
+            color = optColor,
         )
 
         if (isSelected) {

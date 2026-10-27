@@ -179,6 +179,40 @@ fun MediaController.swapToVersion(targetSong: Song) {
     )
 }
 
+/**
+ * Commands the playback service to run a real audio preview of the transition
+ * between [fromSong] and [toSong] with 3-second lead-in and 3-second lead-out.
+ */
+fun MediaController.previewTransition(
+    fromSong: Song,
+    toSong: Song,
+    plan: com.fortune.vibramusic.playback.mix.TransitionPlan,
+) {
+    val planJson = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }.encodeToString(
+        com.fortune.vibramusic.playback.mix.TransitionPlan.serializer(),
+        plan,
+    )
+    val args = bundleOf(
+        EXTRA_PREVIEW_FROM_SONG to fromSong.toSongBundle(),
+        EXTRA_PREVIEW_TO_SONG to toSong.toSongBundle(),
+        EXTRA_PREVIEW_PLAN_JSON to planJson,
+    )
+    sendCustomCommand(
+        SessionCommand(ACTION_PREVIEW_TRANSITION, args),
+        args,
+    )
+}
+
+/**
+ * Commands the playback service to stop any active transition preview and restore background playback.
+ */
+fun MediaController.stopPreviewTransition() {
+    sendCustomCommand(
+        SessionCommand(ACTION_STOP_PREVIEW_TRANSITION, Bundle.EMPTY),
+        Bundle.EMPTY,
+    )
+}
+
 fun Song.toSongBundle(): Bundle = bundleOf(
     "videoId" to videoId,
     "title" to title,

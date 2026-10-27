@@ -776,6 +776,19 @@ object AppSettings {
     val smartMixInProgress = MutableStateFlow(false)
 
     /**
+     * Whether a transition preview session is actively playing in the transition editor.
+     */
+    val transitionPreviewPlaying = MutableStateFlow(false)
+
+    /**
+     * Normalized transition preview progress:
+     * - < 0.0f: 3-second lead-in on Deck A
+     * - 0.0f .. 1.0f: Active crossfade transition across Deck A and Deck B
+     * - > 1.0f: 3-second lead-out on Deck B
+     */
+    val transitionPreviewProgress = MutableStateFlow(0f)
+
+    /**
      * True while a version switch is fetching and analysing the other cut
      * before playback actually moves. Drains into the loading bar drawn along
      * the scrubber itself — `ThinSlider.loading` — so the wait reads as work

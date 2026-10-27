@@ -11,6 +11,35 @@ import kotlin.math.abs
 object MixAutoPlanner {
     const val MAX_STRETCH: Float = 0.08f // 8% maximum allowable tempo stretch
 
+    /**
+     * Dynamically calculates how many seconds to shorten/cut from the song outro
+     * in Auto mode based on total track length (10% to 30%).
+     */
+    fun calculateAutoOutroCutSeconds(durationSec: Double): Double {
+        if (durationSec <= 0.0) return 0.0
+        val cutFraction = when {
+            durationSec >= 300.0 -> 0.28 // 28% cut for 5+ min tracks (e.g. 6 min song cuts ~1:40)
+            durationSec >= 210.0 -> 0.22 // 22% cut for 3.5 - 5 min tracks (e.g. 4 min song cuts ~53s)
+            durationSec >= 150.0 -> 0.16 // 16% cut for 2.5 - 3.5 min tracks (e.g. 2:40 song cuts ~26s)
+            durationSec >= 90.0  -> 0.12 // 12% cut for 1.5 - 2.5 min tracks (e.g. 2 min song cuts ~14s)
+            else                 -> 0.08 // 8% cut for short tracks
+        }
+        return durationSec * cutFraction
+    }
+
+    /**
+     * Dynamically calculates cue-in / intro cut for the incoming track.
+     */
+    fun calculateAutoIntroCutSeconds(durationSec: Double): Double {
+        if (durationSec <= 0.0) return 0.0
+        val introCut = when {
+            durationSec >= 240.0 -> 8.0
+            durationSec >= 150.0 -> 5.0
+            else -> 2.0
+        }
+        return introCut.coerceAtMost(durationSec * 0.15)
+    }
+
     fun canBeatmatch(bpmOut: Double, bpmIn: Double): Boolean {
         if (bpmOut <= 0.0 || bpmIn <= 0.0) return false
         val ratio = bpmOut / bpmIn
@@ -35,10 +64,15 @@ object MixAutoPlanner {
             val fx = MixOptions.findEffectsOption("none")
             val loop = MixOptions.findLoopingOption(0)
 
-            val defaultCut = from?.duration?.takeIf { it > 15.0 }?.let { dur ->
-                from.mixOutTime.takeIf { it > 15.0 && it < dur } ?: (dur - 6.0).coerceAtLeast(15.0)
-            }
-            val defaultIn = to?.mixInTime?.takeIf { it >= 0.0 } ?: 0.0
+            val durA = from?.duration?.takeIf { it > 10.0 } ?: 180.0
+            val durB = to?.duration?.takeIf { it > 10.0 } ?: 180.0
+            val outroCutA = calculateAutoOutroCutSeconds(durA)
+            val introCutB = calculateAutoIntroCutSeconds(durB)
+
+            val defaultCut = from?.mixOutTime?.takeIf { it > 15.0 && it < (durA - 5.0) }
+                ?: (durA - outroCutA).coerceIn(15.0, durA - 4.0)
+            val defaultIn = to?.mixInTime?.takeIf { it >= 0.0 && it < (durB * 0.35) }
+                ?: introCutB
 
             return base.copy(
                 mode = TransitionMode.AUTO,
@@ -120,9 +154,16 @@ object MixAutoPlanner {
 
         val secondsPerBar = (60.0 / from.bpm.coerceAtLeast(40.0)) * 4.0
         val transitionDurationSeconds = bars * secondsPerBar
-        val defaultCut = from.mixOutTime.takeIf { it > 15.0 && it < from.duration }
-            ?: (from.duration - transitionDurationSeconds).coerceAtLeast(15.0)
-        val defaultIn = to.mixInTime.takeIf { it >= 0.0 && it < (to.duration * 0.4) } ?: 0.0
+
+        val durA = from.duration.takeIf { it > 10.0 } ?: 180.0
+        val durB = to.duration.takeIf { it > 10.0 } ?: 180.0
+        val outroCutA = calculateAutoOutroCutSeconds(durA)
+        val introCutB = calculateAutoIntroCutSeconds(durB)
+
+        val defaultCut = from.mixOutTime.takeIf { it > 15.0 && it < (durA - transitionDurationSeconds - 2.0) }
+            ?: (durA - outroCutA).coerceIn(15.0, durA - transitionDurationSeconds)
+        val defaultIn = to.mixInTime.takeIf { it >= 0.0 && it < (durB * 0.35) }
+            ?: introCutB
 
         return base.copy(
             mode = TransitionMode.AUTO,

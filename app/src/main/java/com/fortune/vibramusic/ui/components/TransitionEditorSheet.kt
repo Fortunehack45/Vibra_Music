@@ -11,6 +11,14 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.runtime.collectAsState
+import com.fortune.vibramusic.data.settings.AppSettings
+import com.fortune.vibramusic.playback.previewTransition
+import com.fortune.vibramusic.playback.rememberMediaController
+import com.fortune.vibramusic.playback.stopPreviewTransition
+import kotlin.math.hypot
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -149,6 +157,13 @@ fun TransitionEditorSheet(
     var showLoopingSheet by remember { mutableStateOf(false) }
     var showLengthMenu by remember { mutableStateOf(false) }
 
+    val controller = rememberMediaController()
+    val servicePreviewPlaying by AppSettings.transitionPreviewPlaying.collectAsState()
+    val servicePreviewProgress by AppSettings.transitionPreviewProgress.collectAsState()
+
+    val effectiveIsPlaying = servicePreviewPlaying || isPreviewPlaying
+    val effectivePlayhead = if (servicePreviewPlaying) servicePreviewProgress else playheadProgress
+
     val durationA = remember(fromSong, fromAnalysis) { getSongDurationSeconds(fromSong, fromAnalysis) }
     val durationB = remember(toSong, toAnalysis) { getSongDurationSeconds(toSong, toAnalysis) }
 
@@ -159,6 +174,7 @@ fun TransitionEditorSheet(
     fun stopPreview() {
         isPreviewPlaying = false
         playheadProgress = 0f
+        controller?.stopPreviewTransition()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             audioFocusRequest?.let { audioManager.abandonAudioFocusRequest(it) }
         } else {
@@ -169,6 +185,11 @@ fun TransitionEditorSheet(
     }
 
     fun startPreview() {
+        if (controller != null) {
+            controller.previewTransition(fromSong, toSong, plan)
+            return
+        }
+
         isPreviewPlaying = true
         playheadProgress = 0f
 
@@ -417,11 +438,11 @@ fun TransitionEditorSheet(
                         toSongId = toSong.videoId,
                         durationA = durationA,
                         focusedLane = focusedLane,
-                        playhead = playheadProgress,
-                        isPlaying = isPreviewPlaying,
+                        playhead = effectivePlayhead,
+                        isPlaying = effectiveIsPlaying,
                         onPlayToggle = {
                             haptics.play(Haptic.Resume)
-                            if (isPreviewPlaying) {
+                            if (effectiveIsPlaying) {
                                 stopPreview()
                             } else {
                                 startPreview()
@@ -691,12 +712,18 @@ fun TransitionEditorSheet(
                             )
 
                             // Beatmatching Row
+                            val toggleBeatmatching = {
+                                val next = !plan.beatmatching
+                                haptics.play(if (next) Haptic.ToggleOn else Haptic.ToggleOff)
+                                plan = plan.copy(beatmatching = next)
+                            }
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(12.dp))
                                     .background(Color.White.copy(alpha = 0.06f))
-                                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                                    .clickable(onClick = toggleBeatmatching)
+                                    .padding(horizontal = 14.dp, vertical = 10.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween,
                             ) {
@@ -707,7 +734,7 @@ fun TransitionEditorSheet(
                                     Icon(
                                         imageVector = Icons.Rounded.Sync,
                                         contentDescription = null,
-                                        tint = VibraPurple,
+                                        tint = if (plan.beatmatching) VibraPurple else Color.White.copy(alpha = 0.4f),
                                         modifier = Modifier.size(20.dp),
                                     )
                                     Spacer(Modifier.width(12.dp))
@@ -718,21 +745,25 @@ fun TransitionEditorSheet(
                                                 fontWeight = FontWeight.SemiBold,
                                                 fontSize = 14.sp,
                                             ),
-                                            color = Color.White,
+                                            color = if (plan.beatmatching) Color.White else Color.White.copy(alpha = 0.7f),
                                         )
                                         Text(
                                             text = "Lock tempo and align downbeats across transition",
                                             style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                                            color = Color.White.copy(alpha = 0.6f),
+                                            color = Color.White.copy(alpha = 0.5f),
                                         )
                                     }
                                 }
                                 Switch(
                                     checked = plan.beatmatching,
-                                    onCheckedChange = { plan = plan.copy(beatmatching = it) },
+                                    onCheckedChange = { toggleBeatmatching() },
                                     colors = SwitchDefaults.colors(
                                         checkedTrackColor = VibraPurple,
                                         checkedThumbColor = Color.White,
+                                        checkedBorderColor = Color.Transparent,
+                                        uncheckedTrackColor = Color(0xFF27272A),
+                                        uncheckedThumbColor = Color(0xFFA1A1AA),
+                                        uncheckedBorderColor = Color(0xFF3F3F46),
                                     ),
                                 )
                             }
@@ -1102,86 +1133,97 @@ private fun DualWaveformEditor(
                 .fillMaxSize()
                 .pointerInput(focusedLane, activeOutPoints, activeInPoints) {
                     if (focusedLane == null) return@pointerInput
-                    detectTapGestures { offset ->
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
                         val w = size.width.toFloat()
                         val h = size.height.toFloat()
                         val halfH = h * 0.5f
 
-                        if (offset.y <= halfH && activeOutPoints.isNotEmpty()) {
-                            val (dist, t) = Curves.distanceToCurvePx(activeOutPoints, w, halfH, offset.x, offset.y)
-                            if (dist < 60f) {
-                                val next = Curves.addPointOnLine(activeOutPoints, t)
-                                onPointsChanged(next, activeInPoints)
-                            }
-                        } else if (offset.y > halfH && activeInPoints.isNotEmpty()) {
-                            val localY = offset.y - halfH
-                            val (dist, t) = Curves.distanceToCurvePx(activeInPoints, w, halfH, offset.x, localY)
-                            if (dist < 60f) {
-                                val next = Curves.addPointOnLine(activeInPoints, t)
-                                onPointsChanged(activeOutPoints, next)
+                        // Check if down landed on an existing point (80px radius for finger precision)
+                        var targetPointId: String? = null
+                        for (p in activeOutPoints) {
+                            val px = p.t * w
+                            val py = (1f - p.v) * halfH
+                            if (hypot(down.position.x - px, down.position.y - py) < 80f) {
+                                targetPointId = p.id
+                                break
                             }
                         }
-                    }
-                }
-                .pointerInput(focusedLane, activeOutPoints, activeInPoints) {
-                    if (focusedLane == null) return@pointerInput
-                    detectDragGestures(
-                        onDragStart = { offset ->
-                            onDragPointActive(true)
-                            val w = size.width.toFloat()
-                            val h = size.height.toFloat()
-                            val halfH = h * 0.5f
-
-                            var foundId: String? = null
-                            for (p in activeOutPoints) {
+                        if (targetPointId == null) {
+                            for (p in activeInPoints) {
                                 val px = p.t * w
-                                val py = (1f - p.v) * halfH
-                                if (hypot(offset.x - px, offset.y - py) < 75f) {
-                                    foundId = p.id
+                                val py = halfH + (1f - p.v) * halfH
+                                if (hypot(down.position.x - px, down.position.y - py) < 80f) {
+                                    targetPointId = p.id
                                     break
                                 }
                             }
-                            if (foundId == null) {
-                                for (p in activeInPoints) {
-                                    val px = p.t * w
-                                    val py = halfH + (1f - p.v) * halfH
-                                    if (hypot(offset.x - px, offset.y - py) < 75f) {
-                                        foundId = p.id
-                                        break
-                                    }
+                        }
+
+                        if (targetPointId != null) {
+                            // Immediately claim pointer on touch down to lock out parent vertical scroll!
+                            down.consume()
+                            selectedPointId = targetPointId
+                            onDragPointActive(true)
+
+                            // Continuous drag loop
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                if (!change.pressed) {
+                                    change.consume()
+                                    break
+                                }
+                                change.consume()
+                                val currentPos = change.position
+                                val normT = (currentPos.x / w).coerceIn(0.01f, 0.99f)
+
+                                if (activeOutPoints.any { it.id == targetPointId }) {
+                                    val normV = (1f - (currentPos.y / halfH)).coerceIn(0f, 1f)
+                                    val updated = Curves.movePoint(activeOutPoints, targetPointId, normT, normV)
+                                    onPointsChanged(updated, activeInPoints)
+                                } else if (activeInPoints.any { it.id == targetPointId }) {
+                                    val normV = (1f - ((currentPos.y - halfH) / halfH)).coerceIn(0f, 1f)
+                                    val updated = Curves.movePoint(activeInPoints, targetPointId, normT, normV)
+                                    onPointsChanged(activeOutPoints, updated)
                                 }
                             }
-                            selectedPointId = foundId
-                        },
-                        onDrag = { change, _ ->
-                            change.consume()
-                            val id = selectedPointId ?: return@detectDragGestures
-                            val w = size.width.toFloat()
-                            val h = size.height.toFloat()
-                            val halfH = h * 0.5f
-
-                            val currentPos = change.position
-                            val normT = (currentPos.x / w).coerceIn(0.01f, 0.99f)
-
-                            if (activeOutPoints.any { it.id == id }) {
-                                val normV = (1f - (currentPos.y / halfH)).coerceIn(0f, 1f)
-                                val updated = Curves.movePoint(activeOutPoints, id, normT, normV)
-                                onPointsChanged(updated, activeInPoints)
-                            } else if (activeInPoints.any { it.id == id }) {
-                                val normV = (1f - ((currentPos.y - halfH) / halfH)).coerceIn(0f, 1f)
-                                val updated = Curves.movePoint(activeInPoints, id, normT, normV)
-                                onPointsChanged(activeOutPoints, updated)
+                            selectedPointId = null
+                            onDragPointActive(false)
+                        } else {
+                            // Touch was not on an existing point. Detect tap without consuming down so parent can scroll if dragged.
+                            var isDrag = false
+                            val downPos = down.position
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                if (!change.pressed) {
+                                    // Released touch: if stationary, it was a deliberate tap to add a point on the curve
+                                    if (!isDrag && hypot(change.position.x - downPos.x, change.position.y - downPos.y) < 20f) {
+                                        val offset = downPos
+                                        if (offset.y <= halfH && activeOutPoints.isNotEmpty()) {
+                                            val (dist, t) = Curves.distanceToCurvePx(activeOutPoints, w, halfH, offset.x, offset.y)
+                                            if (dist < 60f) {
+                                                val next = Curves.addPointOnLine(activeOutPoints, t)
+                                                onPointsChanged(next, activeInPoints)
+                                            }
+                                        } else if (offset.y > halfH && activeInPoints.isNotEmpty()) {
+                                            val localY = offset.y - halfH
+                                            val (dist, t) = Curves.distanceToCurvePx(activeInPoints, w, halfH, offset.x, localY)
+                                            if (dist < 60f) {
+                                                val next = Curves.addPointOnLine(activeInPoints, t)
+                                                onPointsChanged(activeOutPoints, next)
+                                            }
+                                        }
+                                    }
+                                    break
+                                }
+                                if (hypot(change.position.x - downPos.x, change.position.y - downPos.y) > 20f) {
+                                    isDrag = true
+                                }
                             }
-                        },
-                        onDragEnd = {
-                            selectedPointId = null
-                            onDragPointActive(false)
-                        },
-                        onDragCancel = {
-                            selectedPointId = null
-                            onDragPointActive(false)
-                        },
-                    )
+                        }
+                    }
                 },
         ) {
             val w = size.width
@@ -1381,10 +1423,11 @@ private fun DualWaveformEditor(
             }
 
             // Draw Moving Playhead (Vibra Purple vertical bar)
-            if (playhead > 0f) {
-                val phX = playhead * w
+            if (isPlaying || playhead > 0f) {
+                val clamped = playhead.coerceIn(0f, 1f)
+                val phX = clamped * w
                 drawLine(
-                    color = VibraPurple,
+                    color = if (playhead < 0f) VibraPurple.copy(alpha = 0.5f) else VibraPurple,
                     start = Offset(phX, 0f),
                     end = Offset(phX, h),
                     strokeWidth = 3f,

@@ -16,6 +16,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
 import android.provider.MediaStore
+import com.fortune.vibramusic.data.model.durationMillis
 import com.fortune.vibramusic.playback.voice.VoiceCommandResolver
 import com.fortune.vibramusic.playback.voice.VoiceResolution
 import kotlinx.coroutines.sync.Mutex
@@ -234,6 +235,13 @@ const val EXTRA_REORDER_ORDER = "siren.reorder.order"
  */
 const val ACTION_QUEUE_DRAG = "com.fortune.vibramusic.action.QUEUE_DRAG"
 const val EXTRA_QUEUE_DRAG_ACTIVE = "siren.queueDrag.active"
+
+/** Session commands driving real audio transition preview with 3s lead-in and 3s lead-out. */
+const val ACTION_PREVIEW_TRANSITION = "com.fortune.vibramusic.action.PREVIEW_TRANSITION"
+const val ACTION_STOP_PREVIEW_TRANSITION = "com.fortune.vibramusic.action.STOP_PREVIEW_TRANSITION"
+const val EXTRA_PREVIEW_FROM_SONG = "siren.preview.from_song"
+const val EXTRA_PREVIEW_TO_SONG = "siren.preview.to_song"
+const val EXTRA_PREVIEW_PLAN_JSON = "siren.preview.plan_json"
 
 /** A full first page for an explicitly requested station. */
 private const val INITIAL_STATION_TRACKS = 24
@@ -1705,6 +1713,12 @@ class PlaybackService : MediaLibraryService() {
 
                 override fun outgoing(lowPassHz: Float, highPassHz: Float) =
                     spareFilter.setCutoffs(lowPassHz, highPassHz)
+
+                override fun incomingEq(bassDb: Float, midDb: Float, trebleDb: Float) =
+                    activeFilter.setEq(bassDb, midDb, trebleDb)
+
+                override fun outgoingEq(bassDb: Float, midDb: Float, trebleDb: Float) =
+                    spareFilter.setEq(bassDb, midDb, trebleDb)
             },
             analysisRunningFor = { item -> trackAnalyzer.isAnalysing(item.mediaId) },
             onArmIncoming = { item -> player?.let(::warmLoudnessFigures) },
@@ -2083,6 +2097,127 @@ class PlaybackService : MediaLibraryService() {
                     AppSettings.versionAlignmentInProgress.value = false
                 }
             }
+        }
+    }
+
+    private var previewJob: Job? = null
+    private var previewPlayerA: ExoPlayer? = null
+    private var previewPlayerB: ExoPlayer? = null
+    private var wasPlayingBeforePreview: Boolean = false
+
+    private fun startTransitionPreview(args: Bundle) {
+        val fromBundle = args.getBundle(EXTRA_PREVIEW_FROM_SONG) ?: return
+        val toBundle = args.getBundle(EXTRA_PREVIEW_TO_SONG) ?: return
+        val planJson = args.getString(EXTRA_PREVIEW_PLAN_JSON) ?: return
+        val fromSong = songFromBundle(fromBundle)
+        val toSong = songFromBundle(toBundle)
+        val plan = runCatching {
+            kotlinx.serialization.json.Json { ignoreUnknownKeys = true }.decodeFromString(
+                com.fortune.vibramusic.playback.mix.TransitionPlan.serializer(),
+                planJson,
+            )
+        }.getOrNull() ?: return
+
+        stopTransitionPreview(restorePlayback = false)
+
+        val active = player
+        wasPlayingBeforePreview = active?.isPlaying == true
+        if (wasPlayingBeforePreview) {
+            active?.pause()
+        }
+
+        val meter = DefaultBandwidthMeter.getSingletonInstance(this)
+        val playerA = buildAuditionPlayer(meter)
+        val playerB = buildAuditionPlayer(meter)
+        previewPlayerA = playerA
+        previewPlayerB = playerB
+
+        playerA.setMediaItem(fromSong.toMediaItem())
+        playerB.setMediaItem(toSong.toMediaItem())
+        playerA.prepare()
+        playerB.prepare()
+
+        val blendSec = plan.durationSeconds.coerceAtLeast(1.0)
+        val durA = fromSong.durationMillis().takeIf { it > 0 }?.let { it.toDouble() / 1000.0 } ?: 180.0
+        val mixOutSec = (plan.startCutSeconds ?: (durA - blendSec)).coerceAtLeast(10.0)
+        val mixInSec = plan.mixInSeconds.coerceAtLeast(0.0)
+        val startSecA = (mixOutSec - blendSec - 3.0).coerceAtLeast(0.0)
+        val profile = com.fortune.vibramusic.playback.audio.TransitionProfile.fromTransitionPlan(plan)
+
+        playerA.seekTo((startSecA * 1000.0).toLong())
+        playerB.seekTo((mixInSec * 1000.0).toLong())
+
+        previewJob = scope.launch(Dispatchers.Main) {
+            AppSettings.transitionPreviewPlaying.value = true
+            AppSettings.transitionPreviewProgress.value = -1.0f
+
+            // Phase 1: 3-Second Lead-In on Deck A
+            playerA.volume = 1f
+            playerB.volume = 0f
+            playerA.play()
+
+            val leadInStart = SystemClock.elapsedRealtime()
+            while (isActive && SystemClock.elapsedRealtime() - leadInStart < 3000L) {
+                val elapsed = SystemClock.elapsedRealtime() - leadInStart
+                val leadProgress = -1.0f + (elapsed.toFloat() / 3000f)
+                AppSettings.transitionPreviewProgress.value = leadProgress
+                delay(30L)
+            }
+
+            // Phase 2: Active Transition Blend over blendSec
+            playerB.play()
+            val blendStart = SystemClock.elapsedRealtime()
+            val blendMs = (blendSec * 1000.0).toLong().coerceAtLeast(1000L)
+            while (isActive && SystemClock.elapsedRealtime() - blendStart < blendMs) {
+                val elapsed = SystemClock.elapsedRealtime() - blendStart
+                val p = (elapsed.toFloat() / blendMs.toFloat()).coerceIn(0f, 1f)
+                val rise = profile.incomingGain?.evaluate(p) ?: p
+                val fall = profile.outgoingGain?.evaluate(p) ?: (1f - p)
+                val trim = blendHeadroom(rise, fall).let { it * it }
+
+                playerA.volume = (fall * trim).coerceIn(0f, 1f)
+                playerB.volume = (rise * trim).coerceIn(0f, 1f)
+                AppSettings.transitionPreviewProgress.value = p
+                delay(30L)
+            }
+
+            // Phase 3: 3-Second Lead-Out on Deck B
+            playerA.volume = 0f
+            playerA.pause()
+            playerB.volume = 1f
+            AppSettings.transitionPreviewProgress.value = 1.0f
+
+            val leadOutStart = SystemClock.elapsedRealtime()
+            while (isActive && SystemClock.elapsedRealtime() - leadOutStart < 3000L) {
+                val elapsed = SystemClock.elapsedRealtime() - leadOutStart
+                val leadProgress = 1.0f + (elapsed.toFloat() / 3000f)
+                AppSettings.transitionPreviewProgress.value = leadProgress
+                delay(30L)
+            }
+
+            // Clean finish
+            stopTransitionPreview(restorePlayback = true)
+        }
+    }
+
+    private fun stopTransitionPreview(restorePlayback: Boolean = true) {
+        previewJob?.cancel()
+        previewJob = null
+
+        previewPlayerA?.stop()
+        previewPlayerA?.release()
+        previewPlayerA = null
+
+        previewPlayerB?.stop()
+        previewPlayerB?.release()
+        previewPlayerB = null
+
+        AppSettings.transitionPreviewPlaying.value = false
+        AppSettings.transitionPreviewProgress.value = 0f
+
+        if (restorePlayback && wasPlayingBeforePreview) {
+            wasPlayingBeforePreview = false
+            player?.play()
         }
     }
 
@@ -6929,6 +7064,8 @@ class PlaybackService : MediaLibraryService() {
                 ACTION_TOGGLE_FAVORITE -> session.player.currentMediaItem?.mediaId?.let {
                     toggleFavoriteFromNotification(it)
                 }
+                ACTION_PREVIEW_TRANSITION -> startTransitionPreview(args)
+                ACTION_STOP_PREVIEW_TRANSITION -> stopTransitionPreview()
                 else -> return Futures.immediateFuture(
                     SessionResult(SessionError.ERROR_NOT_SUPPORTED),
                 )

@@ -51,6 +51,18 @@ class TransitionFilterProcessor : BaseAudioProcessor() {
     private val highA3 = FloatArray(STAGES)
     private val highK = FloatArray(STAGES)
 
+    @Volatile
+    private var bassGain: Float = 1.0f
+
+    @Volatile
+    private var midGain: Float = 1.0f
+
+    @Volatile
+    private var trebleGain: Float = 1.0f
+
+    private var eqLowState = FloatArray(0)
+    private var eqHighState = FloatArray(0)
+
     /**
      * Aims the filter. [lowPassHz] at or above [OPEN_HZ] and [highPassHz] at or
      * below [OFF_HZ] mean "not filtering", which is the state this returns to
@@ -61,12 +73,27 @@ class TransitionFilterProcessor : BaseAudioProcessor() {
         targetHighPassHz = highPassHz.coerceIn(OFF_HZ, MAX_HIGH_PASS_HZ)
     }
 
-    /** Parks both filters. Glided, not snapped. */
-    fun open() = setCutoffs(OPEN_HZ, OFF_HZ)
+    /**
+     * Sets per-band EQ gain in decibels for transition automation.
+     */
+    fun setEq(bassDb: Float, midDb: Float, trebleDb: Float) {
+        bassGain = Math.pow(10.0, (bassDb.coerceIn(-36f, 6f) / 20f).toDouble()).toFloat()
+        midGain = Math.pow(10.0, (midDb.coerceIn(-36f, 6f) / 20f).toDouble()).toFloat()
+        trebleGain = Math.pow(10.0, (trebleDb.coerceIn(-36f, 6f) / 20f).toDouble()).toFloat()
+    }
+
+    /** Parks both filters and resets EQ gains. Glided, not snapped. */
+    fun open() {
+        setCutoffs(OPEN_HZ, OFF_HZ)
+        bassGain = 1.0f
+        midGain = 1.0f
+        trebleGain = 1.0f
+    }
 
     val isFiltering: Boolean
         get() = targetLowPassHz < OPEN_HZ || targetHighPassHz > OFF_HZ ||
-            currentLowPassHz < OPEN_HZ - SETTLED_HZ || currentHighPassHz > OFF_HZ + SETTLED_HZ
+            currentLowPassHz < OPEN_HZ - SETTLED_HZ || currentHighPassHz > OFF_HZ + SETTLED_HZ ||
+            bassGain != 1.0f || midGain != 1.0f || trebleGain != 1.0f
 
     /**
      * Configures the Float32 DSP engine for [sampleRate] and [channelCount].
@@ -78,6 +105,10 @@ class TransitionFilterProcessor : BaseAudioProcessor() {
         if (lowState.size != requiredSize) {
             lowState = FloatArray(requiredSize)
             highState = FloatArray(requiredSize)
+        }
+        if (eqLowState.size != channelCount) {
+            eqLowState = FloatArray(channelCount)
+            eqHighState = FloatArray(channelCount)
         }
         currentLowPassHz = targetLowPassHz
         currentHighPassHz = targetHighPassHz
@@ -144,6 +175,8 @@ class TransitionFilterProcessor : BaseAudioProcessor() {
     override fun onFlush() {
         lowState.fill(0f)
         highState.fill(0f)
+        eqLowState.fill(0f)
+        eqHighState.fill(0f)
         currentLowPassHz = targetLowPassHz
         currentHighPassHz = targetHighPassHz
     }
@@ -151,8 +184,13 @@ class TransitionFilterProcessor : BaseAudioProcessor() {
     override fun onReset() {
         targetLowPassHz = OPEN_HZ
         targetHighPassHz = OFF_HZ
+        bassGain = 1.0f
+        midGain = 1.0f
+        trebleGain = 1.0f
         lowState = FloatArray(0)
         highState = FloatArray(0)
+        eqLowState = FloatArray(0)
+        eqHighState = FloatArray(0)
         channelCount = 0
         sampleRate = 0
     }
@@ -166,8 +204,7 @@ class TransitionFilterProcessor : BaseAudioProcessor() {
 
         val targetLow = targetLowPassHz
         val targetHigh = targetHighPassHz
-        val parked = targetLow >= OPEN_HZ && targetHigh <= OFF_HZ &&
-            currentLowPassHz >= OPEN_HZ - SETTLED_HZ && currentHighPassHz <= OFF_HZ + SETTLED_HZ
+        val parked = !isFiltering
         if (parked) {
             outputBuffer.put(inputBuffer)
             outputBuffer.flip()
@@ -178,6 +215,7 @@ class TransitionFilterProcessor : BaseAudioProcessor() {
         outputBuffer.order(ByteOrder.nativeOrder())
 
         val invScale = 1.0f / 32768.0f
+        val eqActive = bassGain != 1.0f || midGain != 1.0f || trebleGain != 1.0f
         var remaining = frameCount
         while (remaining > 0) {
             val subBlock = min(remaining, GLIDE_FRAMES)
@@ -193,12 +231,30 @@ class TransitionFilterProcessor : BaseAudioProcessor() {
                     var sample = inputBuffer.short.toFloat() * invScale
                     if (lowOn) sample = lowPass(channel, sample)
                     if (highOn) sample = highPass(channel, sample)
+                    if (eqActive) sample = applyEq(channel, sample)
                     outputBuffer.putShort(PcmBoundary.clamp16FromFloat(sample))
                 }
             }
             remaining -= subBlock
         }
         outputBuffer.flip()
+    }
+
+    private fun applyEq(channel: Int, input: Float): Float {
+        if (channel >= eqLowState.size || channel >= eqHighState.size) return input
+        val sr = sampleRate.coerceAtLeast(1)
+        val alphaLow = (2.0 * Math.PI * 250.0 / sr).toFloat().coerceIn(0.001f, 0.5f)
+        val alphaHigh = (2.0 * Math.PI * 3500.0 / sr).toFloat().coerceIn(0.001f, 0.5f)
+
+        val low = eqLowState[channel] + alphaLow * (input - eqLowState[channel])
+        eqLowState[channel] = low
+
+        val highPrev = eqHighState[channel]
+        val high = (1f - alphaHigh) * (highPrev + input - low)
+        eqHighState[channel] = high
+
+        val mid = input - low - high
+        return low * bassGain + mid * midGain + high * trebleGain
     }
 
     // ---- Filter ------------------------------------------------------------

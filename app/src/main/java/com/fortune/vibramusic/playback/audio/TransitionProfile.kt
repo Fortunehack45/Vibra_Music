@@ -177,22 +177,101 @@ data class TransitionProfile(
                 interpolation = CurveInterpolation.LINEAR,
             )
 
-            val outBass = if (plan.eq.out.low.isNotEmpty()) {
-                AutomationCurve(
+            val outEqBands = mutableMapOf<String, AutomationCurve>()
+            if (plan.eq.out.low.isNotEmpty()) {
+                outEqBands[AutomationCurve.PARAM_BASS_OUT] = AutomationCurve(
                     parameterId = AutomationCurve.PARAM_BASS_OUT,
                     points = plan.eq.out.low.map { CurvePoint(it.t, (it.v - 1f) * 24f) },
                     minValue = -24f,
                     maxValue = 3f,
                 )
-            } else null
+            }
+            if (plan.eq.out.mid.isNotEmpty()) {
+                outEqBands[AutomationCurve.PARAM_MID_OUT] = AutomationCurve(
+                    parameterId = AutomationCurve.PARAM_MID_OUT,
+                    points = plan.eq.out.mid.map { CurvePoint(it.t, (it.v - 1f) * 24f) },
+                    minValue = -24f,
+                    maxValue = 3f,
+                )
+            }
+            if (plan.eq.out.high.isNotEmpty()) {
+                outEqBands[AutomationCurve.PARAM_TREBLE_OUT] = AutomationCurve(
+                    parameterId = AutomationCurve.PARAM_TREBLE_OUT,
+                    points = plan.eq.out.high.map { CurvePoint(it.t, (it.v - 1f) * 24f) },
+                    minValue = -24f,
+                    maxValue = 3f,
+                )
+            }
 
-            val inBass = if (plan.eq.`in`.low.isNotEmpty()) {
-                AutomationCurve(
+            val inEqBands = mutableMapOf<String, AutomationCurve>()
+            if (plan.eq.`in`.low.isNotEmpty()) {
+                inEqBands[AutomationCurve.PARAM_BASS_IN] = AutomationCurve(
                     parameterId = AutomationCurve.PARAM_BASS_IN,
                     points = plan.eq.`in`.low.map { CurvePoint(it.t, (it.v - 1f) * 24f) },
                     minValue = -24f,
                     maxValue = 3f,
                 )
+            }
+            if (plan.eq.`in`.mid.isNotEmpty()) {
+                inEqBands[AutomationCurve.PARAM_MID_IN] = AutomationCurve(
+                    parameterId = AutomationCurve.PARAM_MID_IN,
+                    points = plan.eq.`in`.mid.map { CurvePoint(it.t, (it.v - 1f) * 24f) },
+                    minValue = -24f,
+                    maxValue = 3f,
+                )
+            }
+            if (plan.eq.`in`.high.isNotEmpty()) {
+                inEqBands[AutomationCurve.PARAM_TREBLE_IN] = AutomationCurve(
+                    parameterId = AutomationCurve.PARAM_TREBLE_IN,
+                    points = plan.eq.`in`.high.map { CurvePoint(it.t, (it.v - 1f) * 24f) },
+                    minValue = -24f,
+                    maxValue = 3f,
+                )
+            }
+
+            // Map Filter curves into Low-Pass and High-Pass sweeps
+            val outLpPoints = mutableListOf<CurvePoint>()
+            val outHpPoints = mutableListOf<CurvePoint>()
+            if (plan.filter.out.isNotEmpty()) {
+                for (p in plan.filter.out) {
+                    val v = p.v.coerceIn(0f, 1f)
+                    val lpHz = if (v < 0.5f) {
+                        (200.0 * Math.pow(100.0, (v * 2.0).toDouble())).toFloat()
+                    } else 20000f
+                    val hpHz = if (v > 0.5f) {
+                        (20.0 * Math.pow(200.0, ((v - 0.5f) * 2.0).toDouble())).toFloat()
+                    } else 20f
+                    outLpPoints.add(CurvePoint(p.t, lpHz))
+                    outHpPoints.add(CurvePoint(p.t, hpHz))
+                }
+            }
+            val outLpCurve = if (outLpPoints.any { it.value < 19500f }) {
+                AutomationCurve(AutomationCurve.PARAM_LOWPASS_OUT, outLpPoints, minValue = 200f, maxValue = 20000f)
+            } else null
+            val outHpCurve = if (outHpPoints.any { it.value > 25f }) {
+                AutomationCurve(AutomationCurve.PARAM_HIGHPASS_OUT, outHpPoints, minValue = 20f, maxValue = 4000f)
+            } else null
+
+            val inLpPoints = mutableListOf<CurvePoint>()
+            val inHpPoints = mutableListOf<CurvePoint>()
+            if (plan.filter.`in`.isNotEmpty()) {
+                for (p in plan.filter.`in`) {
+                    val v = p.v.coerceIn(0f, 1f)
+                    val lpHz = if (v < 0.5f) {
+                        (200.0 * Math.pow(100.0, (v * 2.0).toDouble())).toFloat()
+                    } else 20000f
+                    val hpHz = if (v > 0.5f) {
+                        (20.0 * Math.pow(200.0, ((v - 0.5f) * 2.0).toDouble())).toFloat()
+                    } else 20f
+                    inLpPoints.add(CurvePoint(p.t, lpHz))
+                    inHpPoints.add(CurvePoint(p.t, hpHz))
+                }
+            }
+            val inLpCurve = if (inLpPoints.any { it.value < 19500f }) {
+                AutomationCurve(AutomationCurve.PARAM_LOWPASS_IN, inLpPoints, minValue = 200f, maxValue = 20000f)
+            } else null
+            val inHpCurve = if (inHpPoints.any { it.value > 25f }) {
+                AutomationCurve(AutomationCurve.PARAM_HIGHPASS_IN, inHpPoints, minValue = 20f, maxValue = 4000f)
             } else null
 
             return TransitionProfile(
@@ -200,8 +279,12 @@ data class TransitionProfile(
                 name = "Mix V2 Custom",
                 outgoingGain = outGain,
                 incomingGain = inGain,
-                outgoingEqBands = if (outBass != null) mapOf(AutomationCurve.PARAM_BASS_OUT to outBass) else emptyMap(),
-                incomingEqBands = if (inBass != null) mapOf(AutomationCurve.PARAM_BASS_IN to inBass) else emptyMap(),
+                outgoingLowPass = outLpCurve,
+                outgoingHighPass = outHpCurve,
+                incomingLowPass = inLpCurve,
+                incomingHighPass = inHpCurve,
+                outgoingEqBands = outEqBands,
+                incomingEqBands = inEqBands,
             )
         }
     }

@@ -28,11 +28,11 @@ enum class SongTransitionStyle {
  * How one song gives way to the next: whether songs blend at all, which
  * [style] they blend in, and how long a crossfade runs.
  *
- * Automix is turned on automatically by default to deliver professional DJ-style
- * seamless transitions out of the box.
+ * Transitions are turned off by default to preserve original playback flow
+ * until explicitly enabled by the listener.
  */
 data class SongTransitions(
-    val enabled: Boolean = true,
+    val enabled: Boolean = false,
     val style: SongTransitionStyle = SongTransitionStyle.AUTOMIX,
     /** The crossfade length, [MIN_CROSSFADE_SECONDS] to [MAX_CROSSFADE_SECONDS]. */
     val crossfadeSeconds: Int = DEFAULT_CROSSFADE_SECONDS,

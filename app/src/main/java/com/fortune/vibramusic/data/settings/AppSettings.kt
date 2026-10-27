@@ -262,7 +262,7 @@ object AppSettings {
     // which now reads [effectiveAudioQuality] and nothing else.
 
     val songTransitions = MutableStateFlow(SongTransitions())
-    val crossfadeSeconds = MutableStateFlow(SongTransitions.DEFAULT_CROSSFADE_SECONDS)
+    val crossfadeSeconds = MutableStateFlow(0)
 
     /**
      * Lets Automix's analyzer decide the transition's timing and length
@@ -274,7 +274,7 @@ object AppSettings {
      *
      * See [com.fortune.vibramusic.playback.smart.TransitionPlanner].
      */
-    val smartFadeEnabled = MutableStateFlow(true)
+    val smartFadeEnabled = MutableStateFlow(false)
 
     /** The CPU budget used by Beat This! and vocal analysis for Automix. */
     val automixPerformanceMode = MutableStateFlow(AutomixPerformanceMode.BALANCED)

@@ -8,13 +8,13 @@ import org.junit.Test
 class SongTransitionsTest {
 
     @Test
-    fun defaultSettingsAreEnabledWithAutomixAndEightSecondsCrossfade() {
+    fun defaultSettingsAreDisabledWithAutomixAndEightSecondsCrossfade() {
         val transitions = SongTransitions()
-        assertTrue(transitions.enabled)
+        assertFalse(transitions.enabled)
         assertEquals(SongTransitionStyle.AUTOMIX, transitions.style)
         assertEquals(8, transitions.crossfadeSeconds)
-        assertTrue(transitions.automix)
-        assertEquals(8, transitions.playbackCrossfadeSeconds)
+        assertFalse(transitions.automix)
+        assertEquals(0, transitions.playbackCrossfadeSeconds)
     }
 
     @Test

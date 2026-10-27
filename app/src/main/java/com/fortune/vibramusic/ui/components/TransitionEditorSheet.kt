@@ -57,7 +57,9 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -1130,6 +1132,11 @@ private fun DualWaveformEditor(
         else -> emptyList()
     }
 
+    val currentOutPoints by rememberUpdatedState(activeOutPoints)
+    val currentInPoints by rememberUpdatedState(activeInPoints)
+    val currentOnPointsChanged by rememberUpdatedState(onPointsChanged)
+    val currentOnDragPointActive by rememberUpdatedState(onDragPointActive)
+
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
@@ -1139,7 +1146,7 @@ private fun DualWaveformEditor(
         Canvas(
             modifier = Modifier
                 .fillMaxSize()
-                .pointerInput(focusedLane, activeOutPoints, activeInPoints) {
+                .pointerInput(focusedLane) {
                     if (focusedLane == null) return@pointerInput
                     awaitEachGesture {
                         val down = awaitFirstDown(requireUnconsumed = false)
@@ -1147,22 +1154,29 @@ private fun DualWaveformEditor(
                         val h = size.height.toFloat()
                         val halfH = h * 0.5f
 
+                        var runningOut = currentOutPoints
+                        var runningIn = currentInPoints
+
                         // Check if down landed on an existing point (80px radius for finger precision)
                         var targetPointId: String? = null
-                        for (p in activeOutPoints) {
+                        var isTargetOut = false
+
+                        for (p in runningOut) {
                             val px = p.t * w
                             val py = (1f - p.v) * halfH
                             if (hypot(down.position.x - px, down.position.y - py) < 80f) {
                                 targetPointId = p.id
+                                isTargetOut = true
                                 break
                             }
                         }
                         if (targetPointId == null) {
-                            for (p in activeInPoints) {
+                            for (p in runningIn) {
                                 val px = p.t * w
                                 val py = halfH + (1f - p.v) * halfH
                                 if (hypot(down.position.x - px, down.position.y - py) < 80f) {
                                     targetPointId = p.id
+                                    isTargetOut = false
                                     break
                                 }
                             }
@@ -1171,25 +1185,29 @@ private fun DualWaveformEditor(
                         // If not on an existing point, check if touch is within 60px of the curve line.
                         // If near the curve, immediately create and insert a new point, and start dragging it right away!
                         if (targetPointId == null) {
-                            if (down.position.y <= halfH && activeOutPoints.isNotEmpty()) {
-                                val (dist, t) = Curves.distanceToCurvePx(activeOutPoints, w, halfH, down.position.x, down.position.y)
+                            if (down.position.y <= halfH && runningOut.isNotEmpty()) {
+                                val (dist, t) = Curves.distanceToCurvePx(runningOut, w, halfH, down.position.x, down.position.y)
                                 if (dist < 60f) {
-                                    val next = Curves.addPointOnLine(activeOutPoints, t)
-                                    val newPt = next.firstOrNull { np -> activeOutPoints.none { it.id == np.id } }
+                                    val next = Curves.addPointOnLine(runningOut, t)
+                                    val newPt = next.firstOrNull { np -> runningOut.none { it.id == np.id } }
                                     if (newPt != null) {
                                         targetPointId = newPt.id
-                                        onPointsChanged(next, activeInPoints)
+                                        isTargetOut = true
+                                        runningOut = next
+                                        currentOnPointsChanged(runningOut, runningIn)
                                     }
                                 }
-                            } else if (down.position.y > halfH && activeInPoints.isNotEmpty()) {
+                            } else if (down.position.y > halfH && runningIn.isNotEmpty()) {
                                 val localY = down.position.y - halfH
-                                val (dist, t) = Curves.distanceToCurvePx(activeInPoints, w, halfH, down.position.x, localY)
+                                val (dist, t) = Curves.distanceToCurvePx(runningIn, w, halfH, down.position.x, localY)
                                 if (dist < 60f) {
-                                    val next = Curves.addPointOnLine(activeInPoints, t)
-                                    val newPt = next.firstOrNull { np -> activeInPoints.none { it.id == np.id } }
+                                    val next = Curves.addPointOnLine(runningIn, t)
+                                    val newPt = next.firstOrNull { np -> runningIn.none { it.id == np.id } }
                                     if (newPt != null) {
                                         targetPointId = newPt.id
-                                        onPointsChanged(activeOutPoints, next)
+                                        isTargetOut = false
+                                        runningIn = next
+                                        currentOnPointsChanged(runningOut, runningIn)
                                     }
                                 }
                             }
@@ -1199,7 +1217,7 @@ private fun DualWaveformEditor(
                         if (targetPointId != null) {
                             down.consume()
                             selectedPointId = targetPointId
-                            onDragPointActive(true)
+                            currentOnDragPointActive(true)
 
                             // Continuous drag loop
                             while (true) {
@@ -1211,20 +1229,20 @@ private fun DualWaveformEditor(
                                 }
                                 change.consume()
                                 val currentPos = change.position
-                                val normT = (currentPos.x / w).coerceIn(0.01f, 0.99f)
+                                val normT = (currentPos.x / w).coerceIn(0.015f, 0.985f)
 
-                                if (activeOutPoints.any { it.id == targetPointId }) {
+                                if (isTargetOut) {
                                     val normV = (1f - (currentPos.y / halfH)).coerceIn(0f, 1f)
-                                    val updated = Curves.movePoint(activeOutPoints, targetPointId, normT, normV)
-                                    onPointsChanged(updated, activeInPoints)
-                                } else if (activeInPoints.any { it.id == targetPointId }) {
+                                    runningOut = Curves.movePoint(runningOut, targetPointId, normT, normV)
+                                    currentOnPointsChanged(runningOut, runningIn)
+                                } else {
                                     val normV = (1f - ((currentPos.y - halfH) / halfH)).coerceIn(0f, 1f)
-                                    val updated = Curves.movePoint(activeInPoints, targetPointId, normT, normV)
-                                    onPointsChanged(activeOutPoints, updated)
+                                    runningIn = Curves.movePoint(runningIn, targetPointId, normT, normV)
+                                    currentOnPointsChanged(runningOut, runningIn)
                                 }
                             }
                             selectedPointId = null
-                            onDragPointActive(false)
+                            currentOnDragPointActive(false)
                         }
                     }
                 },
@@ -1439,6 +1457,7 @@ private fun DualWaveformEditor(
         }
 
         // Center Play / Stop toggle button
+        val isBuffering = isPlaying && playhead < 0f
         Box(
             modifier = Modifier
                 .size(40.dp)
@@ -1447,12 +1466,20 @@ private fun DualWaveformEditor(
                 .clickable(onClick = onPlayToggle),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(
-                imageVector = if (isPlaying) Icons.Rounded.Stop else Icons.Rounded.PlayArrow,
-                contentDescription = if (isPlaying) "Stop" else "Play",
-                tint = Color.White,
-                modifier = Modifier.size(22.dp),
-            )
+            if (isBuffering) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    color = VibraPurple,
+                    strokeWidth = 2.dp,
+                )
+            } else {
+                Icon(
+                    imageVector = if (isPlaying) Icons.Rounded.Stop else Icons.Rounded.PlayArrow,
+                    contentDescription = if (isPlaying) "Stop" else "Play",
+                    tint = Color.White,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
         }
     }
 }

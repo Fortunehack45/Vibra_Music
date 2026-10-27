@@ -101,7 +101,7 @@ object Curves {
     fun addPointOnLine(points: List<Point>, t: Float): List<Point> {
         if (points.size >= MAX_POINTS) return points
         val sorted = sortPoints(points)
-        val clampedT = clamp01(t)
+        val clampedT = t.coerceIn(0.015f, 0.985f)
         val v = evaluate(sorted, clampedT)
         val owner = sorted.lastOrNull { it.t <= clampedT }
         val p = Point(
@@ -123,8 +123,14 @@ object Curves {
         val idx = sorted.indexOfFirst { it.id == id }
         if (idx < 0) return points
 
-        val isEnd = idx == 0 || idx == sorted.size - 1
-        val targetT = if (isEnd) sorted[idx].t else clamp01(t)
+        val isStartBoundary = sorted.firstOrNull()?.let { it.id == id && it.t == 0f } ?: false
+        val isEndBoundary = sorted.lastOrNull()?.let { it.id == id && it.t == 1f } ?: false
+
+        val targetT = when {
+            isStartBoundary -> 0f
+            isEndBoundary -> 1f
+            else -> t.coerceIn(0.015f, 0.985f)
+        }
         val targetV = clamp01(v)
 
         val updated = sorted.map { p ->

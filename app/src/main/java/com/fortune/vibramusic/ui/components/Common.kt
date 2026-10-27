@@ -68,6 +68,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
@@ -369,13 +370,14 @@ fun SongRow(
     val haptics = rememberHaptics()
     val swipeStateHolder = remember { mutableStateOf<SwipeToDismissBoxState?>(null) }
     var boxWidth by remember { mutableFloatStateOf(0f) }
+    var isArmed by remember { mutableStateOf(false) }
 
     val currentOnSwipeToQueue by rememberUpdatedState(onSwipeToQueue)
     val currentOnSwipePlayNext by rememberUpdatedState(onSwipePlayNext)
 
     val swipeState = rememberSwipeToDismissBoxState(
         confirmValueChange = { value ->
-            if (value != SwipeToDismissBoxValue.Settled) {
+            if (value != SwipeToDismissBoxValue.Settled && isArmed) {
                 haptics.play(Haptic.Select)
                 if (value == SwipeToDismissBoxValue.StartToEnd) {
                     (currentOnSwipePlayNext ?: currentOnSwipeToQueue)?.invoke()
@@ -383,9 +385,10 @@ fun SongRow(
                     (currentOnSwipeToQueue ?: currentOnSwipePlayNext)?.invoke()
                 }
             }
+            isArmed = false
             false // never actually dismiss; snap back
         },
-        positionalThreshold = { distance -> distance * 0.45f },
+        positionalThreshold = { distance -> distance * 0.50f },
     )
     swipeStateHolder.value = swipeState
 
@@ -418,19 +421,17 @@ fun SongRow(
     LaunchedEffect(swipeState, boxWidth) {
         if (boxWidth <= 0f) return@LaunchedEffect
         val armAt = boxWidth * 0.45f
-        var armed = false
         snapshotFlow { try { swipeState.requireOffset() } catch (e: Exception) { 0f } }
             .collect { offset ->
                 val travelled = abs(offset)
                 when {
-                    !armed && travelled >= armAt -> {
-                        armed = true
+                    !isArmed && travelled >= armAt -> {
+                        isArmed = true
                         haptics.play(Haptic.Tick)
                     }
-                    // Silent, and with hysteresis: dragging back under the line
-                    // re-arms, but so does the spring-back after a successful
-                    // queue, and that must not buzz the same gesture twice.
-                    armed && travelled < armAt * 0.8f -> armed = false
+                    isArmed && travelled < armAt * 0.70f -> {
+                        isArmed = false
+                    }
                 }
             }
     }
@@ -465,18 +466,23 @@ fun SongRow(
 @Composable
 private fun QueueSwipeBackground(swipeState: SwipeToDismissBoxState) {
     val playNext by AppSettings.swipeToPlayNext.collectAsStateWithLifecycle()
+    val density = LocalDensity.current
+    val minRevealPx = remember(density) { with(density) { 20.dp.toPx() } }
+
     Row(
         modifier = Modifier
             .fillMaxSize()
             .drawWithContent {
                 val offset = try { swipeState.requireOffset() } catch (e: Exception) { 0f }
-                if (offset > 0f) {
-                    clipRect(left = 0f, top = 0f, right = offset, bottom = size.height) {
-                        this@drawWithContent.drawContent()
-                    }
-                } else if (offset < 0f) {
-                    clipRect(left = size.width + offset, top = 0f, right = size.width, bottom = size.height) {
-                        this@drawWithContent.drawContent()
+                if (abs(offset) > minRevealPx) {
+                    if (offset > 0f) {
+                        clipRect(left = 0f, top = 0f, right = offset, bottom = size.height) {
+                            this@drawWithContent.drawContent()
+                        }
+                    } else if (offset < 0f) {
+                        clipRect(left = size.width + offset, top = 0f, right = size.width, bottom = size.height) {
+                            this@drawWithContent.drawContent()
+                        }
                     }
                 }
             }

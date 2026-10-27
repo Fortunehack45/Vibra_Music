@@ -747,6 +747,8 @@ class PlaybackService : MediaLibraryService() {
     private val swapVersionCommand = SessionCommand(ACTION_SWAP_VERSION, Bundle.EMPTY)
     private val reorderQueueCommand = SessionCommand(ACTION_REORDER_QUEUE, Bundle.EMPTY)
     private val queueDragCommand = SessionCommand(ACTION_QUEUE_DRAG, Bundle.EMPTY)
+    private val previewTransitionCommand = SessionCommand(ACTION_PREVIEW_TRANSITION, Bundle.EMPTY)
+    private val stopPreviewTransitionCommand = SessionCommand(ACTION_STOP_PREVIEW_TRANSITION, Bundle.EMPTY)
 
     private var favoriteActionJob: Job? = null
     private var stationActionJob: Job? = null
@@ -2118,7 +2120,7 @@ class PlaybackService : MediaLibraryService() {
                 )
                 .build()
         )
-        .setAudioAttributes(AUDIO_ATTRIBUTES, /* handleAudioFocus = */ false)
+        .setAudioAttributes(AUDIO_ATTRIBUTES, /* handleAudioFocus = */ true)
         .build()
 
     private fun startTransitionPreview(args: Bundle) {
@@ -2171,8 +2173,13 @@ class PlaybackService : MediaLibraryService() {
             // Await Deck A buffering to STATE_READY before starting countdown (up to 8s timeout)
             val waitStart = SystemClock.elapsedRealtime()
             while (isActive && playerA.playbackState != Player.STATE_READY && playerA.playbackState != Player.STATE_ENDED) {
-                if (SystemClock.elapsedRealtime() - waitStart > 8000L) break
-                delay(40L)
+                val err = playerA.playerError
+                if (err != null) {
+                    TrackLog.e("PlaybackService", "Preview player A error: ${err.message}", err)
+                    break
+                }
+                if (SystemClock.elapsedRealtime() - waitStart > 4000L) break
+                delay(30L)
             }
 
             // Phase 1: 3-Second Lead-In on Deck A
@@ -7058,6 +7065,8 @@ class PlaybackService : MediaLibraryService() {
                     .add(swapVersionCommand)
                     .add(reorderQueueCommand)
                     .add(queueDragCommand)
+                    .add(previewTransitionCommand)
+                    .add(stopPreviewTransitionCommand)
             }
 
             return MediaSession.ConnectionResult.AcceptedResultBuilder(session)

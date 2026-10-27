@@ -16,6 +16,9 @@ data class TransitionProfile(
     val incomingHighPass: AutomationCurve? = null,
     val outgoingEqBands: Map<String, AutomationCurve> = emptyMap(),
     val incomingEqBands: Map<String, AutomationCurve> = emptyMap(),
+    val effectsCurve: AutomationCurve? = null,
+    val effectsType: com.fortune.vibramusic.playback.mix.EffectType? = null,
+    val echoBeats: Float? = null,
 ) {
     companion object {
         const val PRESET_EQUAL_POWER = "equal_power"
@@ -181,7 +184,7 @@ data class TransitionProfile(
             if (plan.eq.out.low.isNotEmpty()) {
                 outEqBands[AutomationCurve.PARAM_BASS_OUT] = AutomationCurve(
                     parameterId = AutomationCurve.PARAM_BASS_OUT,
-                    points = plan.eq.out.low.map { CurvePoint(it.t, (it.v - 1f) * 24f) },
+                    points = plan.eq.out.low.map { CurvePoint(it.t, if (it.v <= 0.05f) -36f else (it.v - 1f) * 24f) },
                     minValue = -24f,
                     maxValue = 3f,
                 )
@@ -207,7 +210,7 @@ data class TransitionProfile(
             if (plan.eq.`in`.low.isNotEmpty()) {
                 inEqBands[AutomationCurve.PARAM_BASS_IN] = AutomationCurve(
                     parameterId = AutomationCurve.PARAM_BASS_IN,
-                    points = plan.eq.`in`.low.map { CurvePoint(it.t, (it.v - 1f) * 24f) },
+                    points = plan.eq.`in`.low.map { CurvePoint(it.t, if (it.v <= 0.05f) -36f else (it.v - 1f) * 24f) },
                     minValue = -24f,
                     maxValue = 3f,
                 )
@@ -236,20 +239,22 @@ data class TransitionProfile(
                 for (p in plan.filter.out) {
                     val v = p.v.coerceIn(0f, 1f)
                     val lpHz = if (v < 0.5f) {
-                        (200.0 * Math.pow(100.0, (v * 2.0).toDouble())).toFloat()
+                        val norm = (v / 0.5f).coerceIn(0f, 1f)
+                        (60.0 * Math.pow(20000.0 / 60.0, norm.toDouble())).toFloat()
                     } else 20000f
                     val hpHz = if (v > 0.5f) {
-                        (20.0 * Math.pow(200.0, ((v - 0.5f) * 2.0).toDouble())).toFloat()
+                        val norm = ((v - 0.5f) / 0.5f).coerceIn(0f, 1f)
+                        (20.0 * Math.pow(8000.0 / 20.0, norm.toDouble())).toFloat()
                     } else 20f
                     outLpPoints.add(CurvePoint(p.t, lpHz))
                     outHpPoints.add(CurvePoint(p.t, hpHz))
                 }
             }
             val outLpCurve = if (outLpPoints.any { it.value < 19500f }) {
-                AutomationCurve(AutomationCurve.PARAM_LOWPASS_OUT, outLpPoints, minValue = 200f, maxValue = 20000f)
+                AutomationCurve(AutomationCurve.PARAM_LOWPASS_OUT, outLpPoints, minValue = 60f, maxValue = 20000f)
             } else null
             val outHpCurve = if (outHpPoints.any { it.value > 25f }) {
-                AutomationCurve(AutomationCurve.PARAM_HIGHPASS_OUT, outHpPoints, minValue = 20f, maxValue = 4000f)
+                AutomationCurve(AutomationCurve.PARAM_HIGHPASS_OUT, outHpPoints, minValue = 20f, maxValue = 8000f)
             } else null
 
             val inLpPoints = mutableListOf<CurvePoint>()
@@ -258,21 +263,36 @@ data class TransitionProfile(
                 for (p in plan.filter.`in`) {
                     val v = p.v.coerceIn(0f, 1f)
                     val lpHz = if (v < 0.5f) {
-                        (200.0 * Math.pow(100.0, (v * 2.0).toDouble())).toFloat()
+                        val norm = (v / 0.5f).coerceIn(0f, 1f)
+                        (60.0 * Math.pow(20000.0 / 60.0, norm.toDouble())).toFloat()
                     } else 20000f
                     val hpHz = if (v > 0.5f) {
-                        (20.0 * Math.pow(200.0, ((v - 0.5f) * 2.0).toDouble())).toFloat()
+                        val norm = ((v - 0.5f) / 0.5f).coerceIn(0f, 1f)
+                        (20.0 * Math.pow(8000.0 / 20.0, norm.toDouble())).toFloat()
                     } else 20f
                     inLpPoints.add(CurvePoint(p.t, lpHz))
                     inHpPoints.add(CurvePoint(p.t, hpHz))
                 }
             }
             val inLpCurve = if (inLpPoints.any { it.value < 19500f }) {
-                AutomationCurve(AutomationCurve.PARAM_LOWPASS_IN, inLpPoints, minValue = 200f, maxValue = 20000f)
+                AutomationCurve(AutomationCurve.PARAM_LOWPASS_IN, inLpPoints, minValue = 60f, maxValue = 20000f)
             } else null
             val inHpCurve = if (inHpPoints.any { it.value > 25f }) {
-                AutomationCurve(AutomationCurve.PARAM_HIGHPASS_IN, inHpPoints, minValue = 20f, maxValue = 4000f)
+                AutomationCurve(AutomationCurve.PARAM_HIGHPASS_IN, inHpPoints, minValue = 20f, maxValue = 8000f)
             } else null
+
+            val fxCurve = if (plan.effects.curve.isNotEmpty()) {
+                AutomationCurve(
+                    parameterId = "effects_wet",
+                    points = plan.effects.curve.map { CurvePoint(it.t, it.v.coerceIn(0f, 1f)) },
+                    minValue = 0f,
+                    maxValue = 1f,
+                )
+            } else null
+
+            val fxOption = com.fortune.vibramusic.playback.mix.MixOptions.findEffectsOption(plan.effects.option)
+            val fxType = plan.effects.type ?: fxOption.type
+            val fxEchoBeats = plan.effects.echoBeats ?: fxOption.echoBeats
 
             return TransitionProfile(
                 id = plan.pairId.ifBlank { PRESET_CUSTOM },
@@ -285,6 +305,9 @@ data class TransitionProfile(
                 incomingHighPass = inHpCurve,
                 outgoingEqBands = outEqBands,
                 incomingEqBands = inEqBands,
+                effectsCurve = fxCurve,
+                effectsType = fxType,
+                echoBeats = fxEchoBeats,
             )
         }
     }

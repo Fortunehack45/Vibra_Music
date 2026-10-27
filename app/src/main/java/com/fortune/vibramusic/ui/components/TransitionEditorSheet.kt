@@ -210,9 +210,9 @@ fun TransitionEditorSheet(
         audioFocusRequest = null
     }
 
-    fun startPreview() {
+    fun startPreview(previewPlan: TransitionPlan = plan) {
         if (controller != null) {
-            controller.previewTransition(fromSong, toSong, plan)
+            controller.previewTransition(fromSong, toSong, previewPlan)
             return
         }
 
@@ -238,7 +238,7 @@ fun TransitionEditorSheet(
 
         // Animate playhead and evaluate blend progression
         scope.launch {
-            val totalDurationMs = (plan.durationSeconds * 1000.0).toLong().coerceAtLeast(2000L)
+            val totalDurationMs = (previewPlan.durationSeconds * 1000.0).toLong().coerceAtLeast(2000L)
             val startTime = System.currentTimeMillis()
             while (isPreviewPlaying) {
                 val elapsed = System.currentTimeMillis() - startTime
@@ -250,6 +250,13 @@ fun TransitionEditorSheet(
                 }
                 delay(30L)
             }
+        }
+    }
+
+    fun updatePlan(newPlan: TransitionPlan) {
+        plan = newPlan
+        if (effectiveIsPlaying) {
+            controller?.previewTransition(fromSong, toSong, newPlan)
         }
     }
 
@@ -351,7 +358,7 @@ fun TransitionEditorSheet(
                                         fromSong.videoId,
                                         toSong.videoId,
                                     )
-                                    plan = reset
+                                    updatePlan(reset)
                                 },
                             ) {
                                 Icon(
@@ -443,6 +450,9 @@ fun TransitionEditorSheet(
                                     mode = TransitionMode.CUSTOM,
                                 )
                             },
+                            onValueChangeFinished = {
+                                updatePlan(plan)
+                            },
                             valueRange = minCutA.toFloat()..durationA.toFloat().coerceAtLeast(minCutA.toFloat() + 1f),
                             colors = SliderDefaults.colors(
                                 thumbColor = VibraPurple,
@@ -480,7 +490,7 @@ fun TransitionEditorSheet(
                             isDraggingPoint = active
                         },
                         onPointsChanged = { updatedOut, updatedIn ->
-                            plan = when (focusedLane) {
+                            val updated = when (focusedLane) {
                                 LaneId.VOLUME -> plan.copy(
                                     mode = TransitionMode.CUSTOM,
                                     presetId = null,
@@ -507,6 +517,7 @@ fun TransitionEditorSheet(
                                 )
                                 else -> plan
                             }
+                            updatePlan(updated)
                         },
                         modifier = Modifier
                             .fillMaxWidth()
@@ -551,7 +562,7 @@ fun TransitionEditorSheet(
                                     text = { Text("$bars bars") },
                                     onClick = {
                                         showLengthMenu = false
-                                        plan = plan.copy(lengthBars = bars)
+                                        updatePlan(plan.copy(lengthBars = bars))
                                     },
                                 )
                             }
@@ -603,6 +614,9 @@ fun TransitionEditorSheet(
                                     mode = TransitionMode.CUSTOM,
                                 )
                             },
+                            onValueChangeFinished = {
+                                updatePlan(plan)
+                            },
                             valueRange = 0f..maxCueB.toFloat(),
                             colors = SliderDefaults.colors(
                                 thumbColor = VibraPurple,
@@ -646,10 +660,7 @@ fun TransitionEditorSheet(
                                 onClick = {
                                     haptics.play(Haptic.Select)
                                     val auto = MixAutoPlanner.autoPlan(fromAnalysis, toAnalysis, fromSong.videoId, toSong.videoId)
-                                    plan = auto
-                                    if (effectiveIsPlaying) {
-                                        controller?.previewTransition(fromSong, toSong, auto)
-                                    }
+                                    updatePlan(auto)
                                 },
                             )
 
@@ -659,7 +670,7 @@ fun TransitionEditorSheet(
                                 isSelected = isCustom,
                                 onClick = {
                                     haptics.play(Haptic.Select)
-                                    plan = plan.copy(mode = TransitionMode.CUSTOM, presetId = null)
+                                    updatePlan(plan.copy(mode = TransitionMode.CUSTOM, presetId = null))
                                 },
                             )
 
@@ -671,10 +682,7 @@ fun TransitionEditorSheet(
                                     onClick = {
                                         haptics.play(Haptic.Select)
                                         val updated = TransitionPlan.applyPreset(plan, preset)
-                                        plan = updated
-                                        if (effectiveIsPlaying) {
-                                            controller?.previewTransition(fromSong, toSong, updated)
-                                        }
+                                        updatePlan(updated)
                                     },
                                 )
                             }
@@ -751,7 +759,7 @@ fun TransitionEditorSheet(
                             val toggleBeatmatching = {
                                 val next = !plan.beatmatching
                                 haptics.play(if (next) Haptic.ToggleOn else Haptic.ToggleOff)
-                                plan = plan.copy(beatmatching = next)
+                                updatePlan(plan.copy(beatmatching = next))
                             }
                             Row(
                                 modifier = Modifier
@@ -820,8 +828,10 @@ fun TransitionEditorSheet(
                                     onOptionSelected = { optId ->
                                         val opt = MixOptions.findVolumeOption(optId)
                                         val curves = opt.build(plan.lengthBars)
-                                        plan = plan.copy(
-                                            volume = plan.volume.copy(option = optId, out = curves.out, `in` = curves.`in`),
+                                        updatePlan(
+                                            plan.copy(
+                                                volume = plan.volume.copy(option = optId, out = curves.out, `in` = curves.`in`),
+                                            )
                                         )
                                     },
                                 )
@@ -833,8 +843,10 @@ fun TransitionEditorSheet(
                                     onOptionSelected = { optId ->
                                         val opt = MixOptions.findEqOption(optId)
                                         val bands = opt.build(plan.lengthBars)
-                                        plan = plan.copy(
-                                            eq = plan.eq.copy(option = optId, out = bands.out, `in` = bands.`in`),
+                                        updatePlan(
+                                            plan.copy(
+                                                eq = plan.eq.copy(option = optId, out = bands.out, `in` = bands.`in`),
+                                            )
                                         )
                                     },
                                 )
@@ -846,8 +858,10 @@ fun TransitionEditorSheet(
                                     onOptionSelected = { optId ->
                                         val opt = MixOptions.findFilterOption(optId)
                                         val curves = opt.build(plan.lengthBars)
-                                        plan = plan.copy(
-                                            filter = plan.filter.copy(option = optId, out = curves.out, `in` = curves.`in`),
+                                        updatePlan(
+                                            plan.copy(
+                                                filter = plan.filter.copy(option = optId, out = curves.out, `in` = curves.`in`),
+                                            )
                                         )
                                     },
                                 )
@@ -858,14 +872,16 @@ fun TransitionEditorSheet(
                                     onCustomizeToggle = {},
                                     onOptionSelected = { optId ->
                                         val opt = MixOptions.findEffectsOption(optId)
-                                        plan = plan.copy(
-                                            effects = plan.effects.copy(
-                                                option = optId,
-                                                type = opt.type,
-                                                echoBeats = opt.echoBeats,
-                                                tail = opt.tail,
-                                                curve = opt.curve,
-                                            ),
+                                        updatePlan(
+                                            plan.copy(
+                                                effects = plan.effects.copy(
+                                                    option = optId,
+                                                    type = opt.type,
+                                                    echoBeats = opt.echoBeats,
+                                                    tail = opt.tail,
+                                                    curve = opt.curve,
+                                                ),
+                                            )
                                         )
                                     },
                                 )
@@ -918,8 +934,10 @@ fun TransitionEditorSheet(
                                     .clickable {
                                         haptics.play(Haptic.Select)
                                         val optId = if (beats == 0) "none" else "${beats}_beats"
-                                        plan = plan.copy(
-                                            looping = plan.looping.copy(option = optId, beats = beats),
+                                        updatePlan(
+                                            plan.copy(
+                                                looping = plan.looping.copy(option = optId, beats = beats),
+                                            )
                                         )
                                         showLoopingSheet = false
                                     }

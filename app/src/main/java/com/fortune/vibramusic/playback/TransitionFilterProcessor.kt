@@ -8,6 +8,7 @@ import androidx.media3.common.util.UnstableApi
 import com.fortune.vibramusic.playback.audio.AudioBlock
 import com.fortune.vibramusic.playback.audio.FloatAudioProcessor
 import com.fortune.vibramusic.playback.audio.PcmBoundary
+import com.fortune.vibramusic.playback.mix.EffectType
 import java.nio.ByteOrder
 import kotlin.math.exp
 import kotlin.math.ln
@@ -60,8 +61,26 @@ class TransitionFilterProcessor : BaseAudioProcessor() {
     @Volatile
     private var trebleGain: Float = 1.0f
 
-    private var eqLowState = FloatArray(0)
-    private var eqHighState = FloatArray(0)
+    // 2-Pole Cascaded Low-Pass for 12 dB/octave DJ EQ Isolator
+    private var eqLowState1 = FloatArray(0)
+    private var eqLowState2 = FloatArray(0)
+    private var eqHighState1 = FloatArray(0)
+
+    // Spatial Effects DSP (Echo & Reverb)
+    @Volatile
+    private var effectType: EffectType? = null
+
+    @Volatile
+    private var effectWet: Float = 0f
+
+    @Volatile
+    private var echoDelayFrames: Int = 0
+
+    @Volatile
+    private var echoFeedback: Float = 0.52f
+
+    private var delayBuffer = FloatArray(0)
+    private var delayWriteIndex = 0
 
     /**
      * Aims the filter. [lowPassHz] at or above [OPEN_HZ] and [highPassHz] at or
@@ -82,18 +101,39 @@ class TransitionFilterProcessor : BaseAudioProcessor() {
         trebleGain = Math.pow(10.0, (trebleDb.coerceIn(-36f, 6f) / 20f).toDouble()).toFloat()
     }
 
+    /**
+     * Sets real-time spatial effect parameters for transition automation.
+     */
+    fun setEffect(type: EffectType?, wet: Float, echoBeats: Float? = null, bpm: Float = 120f) {
+        effectType = type
+        val clampedWet = wet.coerceIn(0f, 1f)
+        effectWet = clampedWet
+        if (type == EffectType.ECHO && sampleRate > 0) {
+            val beats = echoBeats ?: 0.5f
+            val safeBpm = if (bpm in 40f..240f) bpm else 120f
+            val delaySec = (60.0f / safeBpm) * beats
+            val frames = (delaySec * sampleRate).toInt()
+            val maxFrames = delayBuffer.size / channelCount.coerceAtLeast(1)
+            echoDelayFrames = frames.coerceIn(64, (maxFrames - 1).coerceAtLeast(64))
+            echoFeedback = 0.52f
+        }
+    }
+
     /** Parks both filters and resets EQ gains. Glided, not snapped. */
     fun open() {
         setCutoffs(OPEN_HZ, OFF_HZ)
         bassGain = 1.0f
         midGain = 1.0f
         trebleGain = 1.0f
+        effectType = null
+        effectWet = 0f
     }
 
     val isFiltering: Boolean
         get() = targetLowPassHz < OPEN_HZ || targetHighPassHz > OFF_HZ ||
             currentLowPassHz < OPEN_HZ - SETTLED_HZ || currentHighPassHz > OFF_HZ + SETTLED_HZ ||
-            bassGain != 1.0f || midGain != 1.0f || trebleGain != 1.0f
+            bassGain != 1.0f || midGain != 1.0f || trebleGain != 1.0f ||
+            (effectType != null && effectWet > 0.001f)
 
     /**
      * Configures the Float32 DSP engine for [sampleRate] and [channelCount].
@@ -106,9 +146,16 @@ class TransitionFilterProcessor : BaseAudioProcessor() {
             lowState = FloatArray(requiredSize)
             highState = FloatArray(requiredSize)
         }
-        if (eqLowState.size != channelCount) {
-            eqLowState = FloatArray(channelCount)
-            eqHighState = FloatArray(channelCount)
+        if (eqLowState1.size != channelCount) {
+            eqLowState1 = FloatArray(channelCount)
+            eqLowState2 = FloatArray(channelCount)
+            eqHighState1 = FloatArray(channelCount)
+        }
+        val maxFrames = (sampleRate * 2.0).toInt().coerceAtLeast(1)
+        val requiredDelaySize = maxFrames * channelCount
+        if (delayBuffer.size != requiredDelaySize) {
+            delayBuffer = FloatArray(requiredDelaySize)
+            delayWriteIndex = 0
         }
         currentLowPassHz = targetLowPassHz
         currentHighPassHz = targetHighPassHz
@@ -130,6 +177,7 @@ class TransitionFilterProcessor : BaseAudioProcessor() {
         }
 
         val eqActive = bassGain != 1.0f || midGain != 1.0f || trebleGain != 1.0f
+        val fxActive = effectType != null && effectWet > 0.001f
         var remaining = frameCount
         var frameOffset = 0
         while (remaining > 0) {
@@ -148,8 +196,12 @@ class TransitionFilterProcessor : BaseAudioProcessor() {
                     if (lowOn) sample = lowPass(channel, sample)
                     if (highOn) sample = highPass(channel, sample)
                     if (eqActive) sample = applyEq(channel, sample)
+                    if (fxActive) sample = applyEffects(channel, sample)
                     // Headroom preserved: no clamping to [-1.0f, +1.0f]
                     block.samples[baseIdx + channel] = sample
+                }
+                if (delayBuffer.isNotEmpty() && channelCount > 0) {
+                    delayWriteIndex = (delayWriteIndex + 1) % (delayBuffer.size / channelCount)
                 }
             }
             frameOffset += subBlock
@@ -176,8 +228,11 @@ class TransitionFilterProcessor : BaseAudioProcessor() {
     override fun onFlush() {
         lowState.fill(0f)
         highState.fill(0f)
-        eqLowState.fill(0f)
-        eqHighState.fill(0f)
+        eqLowState1.fill(0f)
+        eqLowState2.fill(0f)
+        eqHighState1.fill(0f)
+        delayBuffer.fill(0f)
+        delayWriteIndex = 0
         currentLowPassHz = targetLowPassHz
         currentHighPassHz = targetHighPassHz
     }
@@ -188,10 +243,15 @@ class TransitionFilterProcessor : BaseAudioProcessor() {
         bassGain = 1.0f
         midGain = 1.0f
         trebleGain = 1.0f
+        effectType = null
+        effectWet = 0f
         lowState = FloatArray(0)
         highState = FloatArray(0)
-        eqLowState = FloatArray(0)
-        eqHighState = FloatArray(0)
+        eqLowState1 = FloatArray(0)
+        eqLowState2 = FloatArray(0)
+        eqHighState1 = FloatArray(0)
+        delayBuffer = FloatArray(0)
+        delayWriteIndex = 0
         channelCount = 0
         sampleRate = 0
     }
@@ -217,6 +277,7 @@ class TransitionFilterProcessor : BaseAudioProcessor() {
 
         val invScale = 1.0f / 32768.0f
         val eqActive = bassGain != 1.0f || midGain != 1.0f || trebleGain != 1.0f
+        val fxActive = effectType != null && effectWet > 0.001f
         var remaining = frameCount
         while (remaining > 0) {
             val subBlock = min(remaining, GLIDE_FRAMES)
@@ -233,7 +294,11 @@ class TransitionFilterProcessor : BaseAudioProcessor() {
                     if (lowOn) sample = lowPass(channel, sample)
                     if (highOn) sample = highPass(channel, sample)
                     if (eqActive) sample = applyEq(channel, sample)
+                    if (fxActive) sample = applyEffects(channel, sample)
                     outputBuffer.putShort(PcmBoundary.clamp16FromFloat(sample))
+                }
+                if (delayBuffer.isNotEmpty() && channelCount > 0) {
+                    delayWriteIndex = (delayWriteIndex + 1) % (delayBuffer.size / channelCount)
                 }
             }
             remaining -= subBlock
@@ -242,20 +307,64 @@ class TransitionFilterProcessor : BaseAudioProcessor() {
     }
 
     private fun applyEq(channel: Int, input: Float): Float {
-        if (channel >= eqLowState.size || channel >= eqHighState.size) return input
+        if (channel >= eqLowState1.size || channel >= eqHighState1.size) return input
         val sr = sampleRate.coerceAtLeast(1)
-        val alphaLow = (2.0 * Math.PI * 250.0 / sr).toFloat().coerceIn(0.001f, 0.5f)
-        val alphaHigh = (2.0 * Math.PI * 3500.0 / sr).toFloat().coerceIn(0.001f, 0.5f)
+        val alphaLow = (2.0 * Math.PI * 300.0 / sr).toFloat().coerceIn(0.001f, 0.45f)
+        val alphaHigh = (2.0 * Math.PI * 3500.0 / sr).toFloat().coerceIn(0.001f, 0.45f)
 
-        val low = eqLowState[channel] + alphaLow * (input - eqLowState[channel])
-        eqLowState[channel] = low
+        // 2-pole cascaded low-pass for 12 dB/octave steep cutoff
+        val low1 = eqLowState1[channel] + alphaLow * (input - eqLowState1[channel])
+        eqLowState1[channel] = low1
+        val low2 = eqLowState2[channel] + alphaLow * (low1 - eqLowState2[channel])
+        eqLowState2[channel] = low2
+        val low = low2
 
-        val highPrev = eqHighState[channel]
+        // High-frequency band
+        val highPrev = eqHighState1[channel]
         val high = (1f - alphaHigh) * (highPrev + input - low)
-        eqHighState[channel] = high
+        eqHighState1[channel] = high
 
         val mid = input - low - high
-        return low * bassGain + mid * midGain + high * trebleGain
+
+        // Full isolator kill when gain drops below -30dB
+        val effectiveBassGain = if (bassGain < 0.04f) 0f else bassGain
+        val effectiveMidGain = if (midGain < 0.04f) 0f else midGain
+        val effectiveTrebleGain = if (trebleGain < 0.04f) 0f else trebleGain
+
+        return low * effectiveBassGain + mid * effectiveMidGain + high * effectiveTrebleGain
+    }
+
+    private fun applyEffects(channel: Int, input: Float): Float {
+        val type = effectType
+        val wet = effectWet
+        if (type == null || wet <= 0.001f || delayBuffer.isEmpty() || channelCount < 1) return input
+
+        val totalFrames = delayBuffer.size / channelCount
+        val writeIdx = delayWriteIndex * channelCount + channel
+
+        return when (type) {
+            EffectType.ECHO -> {
+                val readFrame = (delayWriteIndex - echoDelayFrames + totalFrames) % totalFrames
+                val readIdx = readFrame * channelCount + channel
+                val delayed = delayBuffer[readIdx]
+                delayBuffer[writeIdx] = input + delayed * echoFeedback
+                input * (1f - wet * 0.35f) + delayed * (wet * 0.85f)
+            }
+            EffectType.REVERB -> {
+                // Multi-tap diffused delay network for lush hall wash
+                val t1 = (delayWriteIndex - (sampleRate * 0.029f).toInt() + totalFrames) % totalFrames
+                val t2 = (delayWriteIndex - (sampleRate * 0.043f).toInt() + totalFrames) % totalFrames
+                val t3 = (delayWriteIndex - (sampleRate * 0.067f).toInt() + totalFrames) % totalFrames
+                val t4 = (delayWriteIndex - (sampleRate * 0.091f).toInt() + totalFrames) % totalFrames
+                val d1 = delayBuffer[t1 * channelCount + channel]
+                val d2 = delayBuffer[t2 * channelCount + channel]
+                val d3 = delayBuffer[t3 * channelCount + channel]
+                val d4 = delayBuffer[t4 * channelCount + channel]
+                val reverbSignal = (d1 + d2 * 0.75f + d3 * 0.55f + d4 * 0.35f) * 0.55f
+                delayBuffer[writeIdx] = input + reverbSignal * 0.5f
+                input * (1f - wet * 0.3f) + reverbSignal * (wet * 0.8f)
+            }
+        }
     }
 
     // ---- Filter ------------------------------------------------------------
@@ -336,7 +445,7 @@ class TransitionFilterProcessor : BaseAudioProcessor() {
         const val OFF_HZ = 20f
 
         /** Nothing musical wants the low end lifted above this, and a typo shouldn't be able to. */
-        const val MAX_HIGH_PASS_HZ = 2_000f
+        const val MAX_HIGH_PASS_HZ = 10_000f
 
         private const val MIN_HZ = 10f
         private const val BYTES_PER_SAMPLE = 2
@@ -383,12 +492,20 @@ interface TransitionFilters {
     /** Per-track EQ adjustments for outgoing track during transition. Default no-op. */
     fun outgoingEq(bassDb: Float = 0f, midDb: Float = 0f, trebleDb: Float = 0f) = Unit
 
-    /** Parks both filters and restores flat transition EQ. Called whenever a transition ends. */
+    /** Spatial effect adjustments for outgoing track during transition. Default no-op. */
+    fun outgoingEffect(type: EffectType?, wet: Float, echoBeats: Float? = null, bpm: Float = 120f) = Unit
+
+    /** Spatial effect adjustments for incoming track during transition. Default no-op. */
+    fun incomingEffect(type: EffectType?, wet: Float, echoBeats: Float? = null, bpm: Float = 120f) = Unit
+
+    /** Parks both filters and restores flat transition EQ and neutral effects. Called whenever a transition ends. */
     fun open() {
         incoming(TransitionFilterProcessor.OPEN_HZ, TransitionFilterProcessor.OFF_HZ)
         outgoing(TransitionFilterProcessor.OPEN_HZ, TransitionFilterProcessor.OFF_HZ)
         incomingEq(0f, 0f, 0f)
         outgoingEq(0f, 0f, 0f)
+        outgoingEffect(null, 0f)
+        incomingEffect(null, 0f)
     }
 
     /** For callers with no audio sink to filter — tests, and the default wiring. */
@@ -397,5 +514,7 @@ interface TransitionFilters {
         override fun outgoing(lowPassHz: Float, highPassHz: Float) = Unit
         override fun incomingEq(bassDb: Float, midDb: Float, trebleDb: Float) = Unit
         override fun outgoingEq(bassDb: Float, midDb: Float, trebleDb: Float) = Unit
+        override fun outgoingEffect(type: EffectType?, wet: Float, echoBeats: Float?, bpm: Float) = Unit
+        override fun incomingEffect(type: EffectType?, wet: Float, echoBeats: Float?, bpm: Float) = Unit
     }
 }

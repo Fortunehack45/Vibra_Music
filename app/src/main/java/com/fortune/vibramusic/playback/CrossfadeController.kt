@@ -228,6 +228,8 @@ class CrossfadeController(
      */
     private var handedOff = false
 
+    val isHandedOff: Boolean get() = handedOff
+
     /**
      * How many items the queue held when the standby was loaded with a copy of
      * it. AutoPlay appending mid-transition is explicitly allowed, so the
@@ -717,9 +719,10 @@ class CrossfadeController(
 
         val durSec = duration / 1000.0
         val effectivePlan = if (storedPlan != null) {
-            val startCut = (storedPlan.startCutSeconds ?: (durSec - storedPlan.durationSeconds)).coerceIn(15.0, durSec)
             val transFade = storedPlan.durationSeconds.coerceAtLeast(1.0)
-            val endSec = (startCut + transFade).coerceAtMost(durSec)
+            val maxCut = (durSec - transFade).coerceAtLeast(15.0)
+            val startCut = (storedPlan.startCutSeconds ?: maxCut).coerceIn(15.0, maxCut)
+            val endSec = startCut + transFade
             val cueSec = storedPlan.mixInSeconds.coerceAtLeast(0.0)
             val rate = if (storedPlan.beatmatching && currentAnalysis.bpm > 0 && nextAnalysis.bpm > 0) {
                 (currentAnalysis.bpm / nextAnalysis.bpm).coerceIn(0.92, 1.08)
@@ -1182,13 +1185,21 @@ class CrossfadeController(
         // end of an 8-second fade — finishing the blend on its first tick and
         // landing as an abrupt cut, which is precisely the failure a cued
         // transition is supposed to avoid.
-        val remainingIncoming = player.duration
-            .takeIf { it != C.TIME_UNSET && it > 0L }
-            ?.minus(incomingCueTimeMs)
-            ?.coerceAtLeast(0L)
-        val incomingCap = remainingIncoming?.div(3) ?: Long.MAX_VALUE
-        val span = minOf(fadeMs, incomingCap).coerceAtLeast(1L)
-        val elapsed = (player.currentPosition - incomingCueTimeMs).coerceAtLeast(0L)
+        val span = if (activeProfile != null) {
+            fadeMs.coerceAtLeast(1000L)
+        } else {
+            val remainingIncoming = player.duration
+                .takeIf { it != C.TIME_UNSET && it > 0L }
+                ?.minus(incomingCueTimeMs)
+                ?.coerceAtLeast(0L)
+            val incomingCap = remainingIncoming?.div(3) ?: Long.MAX_VALUE
+            minOf(fadeMs, incomingCap).coerceAtLeast(1L)
+        }
+        val elapsed = if (activeProfile != null) {
+            (SystemClock.elapsedRealtime() - fadeStartedAt).coerceAtLeast(0L)
+        } else {
+            (player.currentPosition - incomingCueTimeMs).coerceAtLeast(0L)
+        }
         val progress = (elapsed.toFloat() / span).coerceIn(0f, 1f)
 
         val handoffThreshold = render.handoffFraction.toFloat().coerceIn(0.1f, 0.9f)
@@ -1452,7 +1463,8 @@ class CrossfadeController(
         val profile = activeProfile
         if (profile != null && (profile.outgoingLowPass != null || profile.outgoingHighPass != null ||
                 profile.incomingLowPass != null || profile.incomingHighPass != null ||
-                profile.outgoingEqBands.isNotEmpty() || profile.incomingEqBands.isNotEmpty())
+                profile.outgoingEqBands.isNotEmpty() || profile.incomingEqBands.isNotEmpty() ||
+                profile.effectsCurve != null)
         ) {
             val outLp = profile.outgoingLowPass?.evaluate(progress) ?: TransitionFilterProcessor.OPEN_HZ
             val outHp = profile.outgoingHighPass?.evaluate(progress) ?: TransitionFilterProcessor.OFF_HZ
@@ -1472,6 +1484,9 @@ class CrossfadeController(
 
             filters.outgoingEq(outBass, outMid, outTreble)
             filters.incomingEq(inBass, inMid, inTreble)
+
+            val fxWet = profile.effectsCurve?.evaluate(progress) ?: 0f
+            filters.outgoingEffect(profile.effectsType, fxWet, profile.echoBeats, 120f)
             return
         }
 

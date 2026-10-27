@@ -1704,23 +1704,33 @@ class PlaybackService : MediaLibraryService() {
                     trackAnalyzer.request(item.mediaId, uri, durationMs / 1000.0)
                 }
             },
-            // "Incoming" and "outgoing" are roles, not players. The controller
-            // only ever filters after the handoff, by which point the incoming
-            // track is on the session player and the outgoing one is on the
-            // spare — so these read the role fields fresh on every call rather
-            // than closing over an instance that will have changed hands.
+            // Dynamically route filters based on crossfade handoff state:
+            // Before handoff (progress < 0.5), player owns activeFilter (outgoing) and spare owns spareFilter (incoming).
+            // After handoff (progress >= 0.5), spare owns spareFilter (outgoing) and player owns activeFilter (incoming).
             filters = object : TransitionFilters {
+                private fun outFilter(): TransitionFilterProcessor =
+                    if (crossfade?.isHandedOff == true) spareFilter else activeFilter
+
+                private fun inFilter(): TransitionFilterProcessor =
+                    if (crossfade?.isHandedOff == true) activeFilter else spareFilter
+
                 override fun incoming(lowPassHz: Float, highPassHz: Float) =
-                    activeFilter.setCutoffs(lowPassHz, highPassHz)
+                    inFilter().setCutoffs(lowPassHz, highPassHz)
 
                 override fun outgoing(lowPassHz: Float, highPassHz: Float) =
-                    spareFilter.setCutoffs(lowPassHz, highPassHz)
+                    outFilter().setCutoffs(lowPassHz, highPassHz)
 
                 override fun incomingEq(bassDb: Float, midDb: Float, trebleDb: Float) =
-                    activeFilter.setEq(bassDb, midDb, trebleDb)
+                    inFilter().setEq(bassDb, midDb, trebleDb)
 
                 override fun outgoingEq(bassDb: Float, midDb: Float, trebleDb: Float) =
-                    spareFilter.setEq(bassDb, midDb, trebleDb)
+                    outFilter().setEq(bassDb, midDb, trebleDb)
+
+                override fun outgoingEffect(type: com.fortune.vibramusic.playback.mix.EffectType?, wet: Float, echoBeats: Float?, bpm: Float) =
+                    outFilter().setEffect(type, wet, echoBeats, bpm)
+
+                override fun incomingEffect(type: com.fortune.vibramusic.playback.mix.EffectType?, wet: Float, echoBeats: Float?, bpm: Float) =
+                    inFilter().setEffect(type, wet, echoBeats, bpm)
             },
             analysisRunningFor = { item -> trackAnalyzer.isAnalysing(item.mediaId) },
             onArmIncoming = { item -> player?.let(::warmLoudnessFigures) },
@@ -2106,6 +2116,14 @@ class PlaybackService : MediaLibraryService() {
     private var previewPlayerA: ExoPlayer? = null
     private var previewPlayerB: ExoPlayer? = null
     private var wasPlayingBeforePreview: Boolean = false
+    private var currentPreviewFromId: String? = null
+    private var currentPreviewToId: String? = null
+    private var currentPreviewBlendSec: Double = 0.0
+    private var currentPreviewMixOutSec: Double = 0.0
+    private var currentPreviewMixInSec: Double = 0.0
+    private var currentPreviewBeatmatching: Boolean = false
+    @Volatile
+    private var activePreviewProfile: com.fortune.vibramusic.playback.audio.TransitionProfile? = null
 
     private fun buildPreviewPlayer(
         filter: TransitionFilterProcessor,
@@ -2140,7 +2158,35 @@ class PlaybackService : MediaLibraryService() {
             )
         }.getOrNull() ?: return
 
+        val blendSec = plan.durationSeconds.coerceAtLeast(1.0)
+        val durA = fromSong.durationMillis().takeIf { it > 0 }?.let { it.toDouble() / 1000.0 } ?: 180.0
+        val mixOutSec = (plan.startCutSeconds ?: (durA - blendSec)).coerceIn(15.0, durA)
+        val mixInSec = plan.mixInSeconds.coerceAtLeast(0.0)
+        val newProfile = com.fortune.vibramusic.playback.audio.TransitionProfile.fromTransitionPlan(plan)
+
+        val sameSongs = previewPlayerA != null && previewPlayerB != null &&
+            currentPreviewFromId == fromSong.videoId && currentPreviewToId == toSong.videoId &&
+            previewJob?.isActive == true
+        val sameTimeline = sameSongs &&
+            kotlin.math.abs(blendSec - currentPreviewBlendSec) < 0.1 &&
+            kotlin.math.abs(mixOutSec - currentPreviewMixOutSec) < 0.1 &&
+            kotlin.math.abs(mixInSec - currentPreviewMixInSec) < 0.1 &&
+            plan.beatmatching == currentPreviewBeatmatching
+
+        if (sameTimeline) {
+            // Real-time parameter hot-reload: adapt curves immediately without stopping audio
+            activePreviewProfile = newProfile
+            return
+        }
+
         stopTransitionPreview(restorePlayback = false)
+        currentPreviewFromId = fromSong.videoId
+        currentPreviewToId = toSong.videoId
+        currentPreviewBlendSec = blendSec
+        currentPreviewMixOutSec = mixOutSec
+        currentPreviewMixInSec = mixInSec
+        currentPreviewBeatmatching = plan.beatmatching
+        activePreviewProfile = newProfile
 
         val active = player
         wasPlayingBeforePreview = active?.isPlaying == true
@@ -2161,12 +2207,7 @@ class PlaybackService : MediaLibraryService() {
         playerA.prepare()
         playerB.prepare()
 
-        val blendSec = plan.durationSeconds.coerceAtLeast(1.0)
-        val durA = fromSong.durationMillis().takeIf { it > 0 }?.let { it.toDouble() / 1000.0 } ?: 180.0
-        val mixOutSec = (plan.startCutSeconds ?: (durA - blendSec)).coerceIn(15.0, durA)
-        val mixInSec = plan.mixInSeconds.coerceAtLeast(0.0)
         val startSecA = (mixOutSec - 3.0).coerceAtLeast(0.0)
-        val profile = com.fortune.vibramusic.playback.audio.TransitionProfile.fromTransitionPlan(plan)
 
         val analysisA = trackAnalyzer.analysisFor(fromSong.videoId)
         val analysisB = trackAnalyzer.analysisFor(toSong.videoId)
@@ -2218,29 +2259,34 @@ class PlaybackService : MediaLibraryService() {
             while (isActive && SystemClock.elapsedRealtime() - blendStart < blendMs) {
                 val elapsed = SystemClock.elapsedRealtime() - blendStart
                 val p = (elapsed.toFloat() / blendMs.toFloat()).coerceIn(0f, 1f)
-                val rise = profile.incomingGain?.evaluate(p) ?: p
-                val fall = profile.outgoingGain?.evaluate(p) ?: (1f - p)
+                val prof = activePreviewProfile ?: newProfile
+                val rise = prof.incomingGain.evaluate(p)
+                val fall = prof.outgoingGain.evaluate(p)
                 val trim = blendHeadroom(rise, fall).let { it * it }
 
                 playerA.volume = (fall * trim).coerceIn(0f, 1f)
                 playerB.volume = (rise * trim).coerceIn(0f, 1f)
 
                 // Ride Filters and EQ for preview in real time
-                val outLp = profile.outgoingLowPass?.evaluate(p) ?: TransitionFilterProcessor.OPEN_HZ
-                val outHp = profile.outgoingHighPass?.evaluate(p) ?: TransitionFilterProcessor.OFF_HZ
-                val inLp = profile.incomingLowPass?.evaluate(p) ?: TransitionFilterProcessor.OPEN_HZ
-                val inHp = profile.incomingHighPass?.evaluate(p) ?: TransitionFilterProcessor.OFF_HZ
+                val outLp = prof.outgoingLowPass?.evaluate(p) ?: TransitionFilterProcessor.OPEN_HZ
+                val outHp = prof.outgoingHighPass?.evaluate(p) ?: TransitionFilterProcessor.OFF_HZ
+                val inLp = prof.incomingLowPass?.evaluate(p) ?: TransitionFilterProcessor.OPEN_HZ
+                val inHp = prof.incomingHighPass?.evaluate(p) ?: TransitionFilterProcessor.OFF_HZ
                 filterA.setCutoffs(outLp, outHp)
                 filterB.setCutoffs(inLp, inHp)
 
-                val outBass = profile.outgoingEqBands[com.fortune.vibramusic.playback.audio.AutomationCurve.PARAM_BASS_OUT]?.evaluate(p) ?: 0f
-                val outMid = profile.outgoingEqBands[com.fortune.vibramusic.playback.audio.AutomationCurve.PARAM_MID_OUT]?.evaluate(p) ?: 0f
-                val outTreble = profile.outgoingEqBands[com.fortune.vibramusic.playback.audio.AutomationCurve.PARAM_TREBLE_OUT]?.evaluate(p) ?: 0f
-                val inBass = profile.incomingEqBands[com.fortune.vibramusic.playback.audio.AutomationCurve.PARAM_BASS_IN]?.evaluate(p) ?: 0f
-                val inMid = profile.incomingEqBands[com.fortune.vibramusic.playback.audio.AutomationCurve.PARAM_MID_IN]?.evaluate(p) ?: 0f
-                val inTreble = profile.incomingEqBands[com.fortune.vibramusic.playback.audio.AutomationCurve.PARAM_TREBLE_IN]?.evaluate(p) ?: 0f
+                val outBass = prof.outgoingEqBands[com.fortune.vibramusic.playback.audio.AutomationCurve.PARAM_BASS_OUT]?.evaluate(p) ?: 0f
+                val outMid = prof.outgoingEqBands[com.fortune.vibramusic.playback.audio.AutomationCurve.PARAM_MID_OUT]?.evaluate(p) ?: 0f
+                val outTreble = prof.outgoingEqBands[com.fortune.vibramusic.playback.audio.AutomationCurve.PARAM_TREBLE_OUT]?.evaluate(p) ?: 0f
+                val inBass = prof.incomingEqBands[com.fortune.vibramusic.playback.audio.AutomationCurve.PARAM_BASS_IN]?.evaluate(p) ?: 0f
+                val inMid = prof.incomingEqBands[com.fortune.vibramusic.playback.audio.AutomationCurve.PARAM_MID_IN]?.evaluate(p) ?: 0f
+                val inTreble = prof.incomingEqBands[com.fortune.vibramusic.playback.audio.AutomationCurve.PARAM_TREBLE_IN]?.evaluate(p) ?: 0f
                 filterA.setEq(outBass, outMid, outTreble)
                 filterB.setEq(inBass, inMid, inTreble)
+
+                // Ride Spatial Effects (Echo & Reverb) in real time
+                val fxWet = prof.effectsCurve?.evaluate(p) ?: 0f
+                filterA.setEffect(prof.effectsType, fxWet, prof.echoBeats, analysisA.bpm.toFloat())
 
                 AppSettings.transitionPreviewProgress.value = p
                 delay(30L)
@@ -2279,6 +2325,9 @@ class PlaybackService : MediaLibraryService() {
 
         AppSettings.transitionPreviewPlaying.value = false
         AppSettings.transitionPreviewProgress.value = 0f
+        currentPreviewFromId = null
+        currentPreviewToId = null
+        activePreviewProfile = null
 
         if (restorePlayback && wasPlayingBeforePreview) {
             wasPlayingBeforePreview = false

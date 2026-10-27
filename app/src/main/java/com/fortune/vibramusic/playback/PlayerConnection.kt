@@ -198,7 +198,7 @@ fun MediaController.previewTransition(
         EXTRA_PREVIEW_PLAN_JSON to planJson,
     )
     sendCustomCommand(
-        SessionCommand(ACTION_PREVIEW_TRANSITION, args),
+        SessionCommand(ACTION_PREVIEW_TRANSITION, Bundle.EMPTY),
         args,
     )
 }

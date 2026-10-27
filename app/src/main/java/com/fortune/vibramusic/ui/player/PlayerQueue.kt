@@ -399,6 +399,7 @@ internal fun InlineQueue(
             val pairId = TransitionPlan.pairIdOf(fromSong.videoId, toSong.videoId)
             val sourceId = fromSong.albumId ?: fromSong.artistId ?: ""
             val initialPlan = LocalPlaylistsStore.getTransition(sourceId, pairId)
+                ?: LocalPlaylistsStore.getUniversalTransition(pairId)
                 ?: MixAutoPlanner.autoPlan(null, null, fromSong.videoId, toSong.videoId)
             TransitionEditorSheet(
                 fromSong = fromSong,

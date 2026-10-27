@@ -2107,7 +2107,10 @@ class PlaybackService : MediaLibraryService() {
     private var previewPlayerB: ExoPlayer? = null
     private var wasPlayingBeforePreview: Boolean = false
 
-    private fun buildPreviewPlayer(filter: TransitionFilterProcessor): ExoPlayer = ExoPlayer.Builder(this)
+    private fun buildPreviewPlayer(
+        filter: TransitionFilterProcessor,
+        ownsSession: Boolean,
+    ): ExoPlayer = ExoPlayer.Builder(this)
         .setRenderersFactory(silenceSkippingRenderers(SpatialAudioProcessor(), EqualizerProcessor(), filter))
         .setMediaSourceFactory(requireNotNull(mediaSourceFactory))
         .setLoadControl(
@@ -2115,12 +2118,13 @@ class PlaybackService : MediaLibraryService() {
                 .setBufferDurationsMs(
                     /* minBufferMs = */ 15_000,
                     /* maxBufferMs = */ 30_000,
-                    /* bufferForPlaybackMs = */ 1_000,
-                    /* bufferForPlaybackAfterRebufferMs = */ 2_000,
+                    /* bufferForPlaybackMs = */ 500,
+                    /* bufferForPlaybackAfterRebufferMs = */ 1_000,
                 )
                 .build()
         )
-        .setAudioAttributes(AUDIO_ATTRIBUTES, /* handleAudioFocus = */ true)
+        .setAudioAttributes(AUDIO_ATTRIBUTES, /* handleAudioFocus = */ ownsSession)
+        .setHandleAudioBecomingNoisy(ownsSession)
         .build()
 
     private fun startTransitionPreview(args: Bundle) {
@@ -2146,8 +2150,9 @@ class PlaybackService : MediaLibraryService() {
 
         val filterA = TransitionFilterProcessor()
         val filterB = TransitionFilterProcessor()
-        val playerA = buildPreviewPlayer(filterA)
-        val playerB = buildPreviewPlayer(filterB)
+        val playerA = buildPreviewPlayer(filterA, ownsSession = true)
+        val playerB = buildPreviewPlayer(filterB, ownsSession = false)
+        playerB.audioSessionId = playerA.audioSessionId
         previewPlayerA = playerA
         previewPlayerB = playerB
 
@@ -2179,15 +2184,17 @@ class PlaybackService : MediaLibraryService() {
             AppSettings.transitionPreviewPlaying.value = true
             AppSettings.transitionPreviewProgress.value = -1.0f
 
-            // Await Deck A buffering to STATE_READY before starting countdown (up to 8s timeout)
+            // Await BOTH Deck A and Deck B buffering to STATE_READY before starting countdown (up to 8s timeout)
             val waitStart = SystemClock.elapsedRealtime()
-            while (isActive && playerA.playbackState != Player.STATE_READY && playerA.playbackState != Player.STATE_ENDED) {
-                val err = playerA.playerError
-                if (err != null) {
-                    TrackLog.e("PlaybackService", "Preview player A error: ${err.message}", err)
+            while (isActive && (playerA.playbackState != Player.STATE_READY || playerB.playbackState != Player.STATE_READY)) {
+                val errA = playerA.playerError
+                val errB = playerB.playerError
+                if (errA != null || errB != null) {
+                    TrackLog.e("PlaybackService", "Preview buffer error A=${errA?.message} B=${errB?.message}")
                     break
                 }
-                if (SystemClock.elapsedRealtime() - waitStart > 4000L) break
+                if (playerA.playbackState == Player.STATE_ENDED || playerB.playbackState == Player.STATE_ENDED) break
+                if (SystemClock.elapsedRealtime() - waitStart > 8000L) break
                 delay(30L)
             }
 
@@ -7128,7 +7135,10 @@ class PlaybackService : MediaLibraryService() {
                 ACTION_TOGGLE_FAVORITE -> session.player.currentMediaItem?.mediaId?.let {
                     toggleFavoriteFromNotification(it)
                 }
-                ACTION_PREVIEW_TRANSITION -> startTransitionPreview(args)
+                ACTION_PREVIEW_TRANSITION -> {
+                    val effectiveArgs = if (!args.isEmpty) args else customCommand.customExtras
+                    startTransitionPreview(effectiveArgs)
+                }
                 ACTION_STOP_PREVIEW_TRANSITION -> stopTransitionPreview()
                 else -> return Futures.immediateFuture(
                     SessionResult(SessionError.ERROR_NOT_SUPPORTED),

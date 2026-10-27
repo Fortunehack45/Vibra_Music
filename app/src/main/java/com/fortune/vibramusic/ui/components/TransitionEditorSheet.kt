@@ -16,6 +16,9 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.runtime.collectAsState
 import com.fortune.vibramusic.data.settings.AppSettings
+import com.fortune.vibramusic.data.settings.ThemeMode
+import com.fortune.vibramusic.ui.theme.VibraMusicTheme
+import androidx.compose.ui.graphics.luminance
 import com.fortune.vibramusic.playback.previewTransition
 import com.fortune.vibramusic.playback.rememberMediaController
 import com.fortune.vibramusic.playback.stopPreviewTransition
@@ -141,7 +144,13 @@ fun TransitionEditorSheet(
     val context = LocalContext.current
     val haptics = rememberHaptics()
     val scope = rememberCoroutineScope()
-    val isDark = isSystemInDarkTheme()
+    val themeMode by AppSettings.themeMode.collectAsState()
+    val systemIsDark = isSystemInDarkTheme()
+    val isDark = when (themeMode) {
+        ThemeMode.LIGHT -> false
+        ThemeMode.DARK -> true
+        ThemeMode.SYSTEM -> systemIsDark
+    }
 
     val sheetBg = if (isDark) Color(0xFF09090B) else Color.White
     val textPrimary = if (isDark) Color.White else Color(0xFF18181B)
@@ -254,12 +263,13 @@ fun TransitionEditorSheet(
             decorFitsSystemWindows = false,
         ),
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(sheetBg)
-                .systemBarsPadding(),
-        ) {
+        VibraMusicTheme(darkTheme = isDark) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(sheetBg)
+                    .systemBarsPadding(),
+            ) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -933,6 +943,7 @@ fun TransitionEditorSheet(
             }
         }
     }
+    }
 }
 
 // Sub-components
@@ -945,7 +956,7 @@ private fun SpotifyLaneRow(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     onClick: () -> Unit,
 ) {
-    val isDark = isSystemInDarkTheme()
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val rowBg = if (isDark) Color.White.copy(alpha = 0.06f) else Color.Black.copy(alpha = 0.04f)
     val titleColor = if (isDark) Color.White else Color(0xFF18181B)
     val subtitleColor = if (isDark) Color.White.copy(alpha = 0.65f) else Color(0xFF71717A)
@@ -1013,7 +1024,7 @@ private fun TrackHeaderRow(
     relativeKey: String?,
     modifier: Modifier = Modifier,
 ) {
-    val isDark = isSystemInDarkTheme()
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val rowPrimary = if (isDark) Color.White else Color(0xFF18181B)
     val rowSecondary = if (isDark) Color.White.copy(alpha = 0.6f) else Color(0xFF71717A)
     val durationColor = if (isDark) Color.White.copy(alpha = 0.6f) else Color(0xFF71717A)
@@ -1090,7 +1101,7 @@ private fun PresetPill(
     onClick: () -> Unit,
     icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
 ) {
-    val isDark = isSystemInDarkTheme()
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val bg = if (isSelected) {
         if (isDark) Color.White else Color(0xFF18181B)
     } else {
@@ -1169,7 +1180,7 @@ private fun DualWaveformEditor(
     val currentOnPointsChanged by rememberUpdatedState(onPointsChanged)
     val currentOnDragPointActive by rememberUpdatedState(onDragPointActive)
     val haptics = rememberHaptics()
-    val isDark = isSystemInDarkTheme()
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
 
     val waveformBg = if (isDark) Color(0xFF18181B) else Color(0xFFF4F4F6)
     val waveformBorder = if (isDark) Color.Transparent else Color(0xFFE4E4E7)
@@ -1199,6 +1210,7 @@ private fun DualWaveformEditor(
                         // Check if down landed on an existing point (80px radius for finger precision)
                         var targetPointId: String? = null
                         var isTargetOut = false
+                        var isPreExistingPoint = false
 
                         for (p in runningOut) {
                             val px = p.t * w
@@ -1206,6 +1218,7 @@ private fun DualWaveformEditor(
                             if (hypot(down.position.x - px, down.position.y - py) < 80f) {
                                 targetPointId = p.id
                                 isTargetOut = true
+                                isPreExistingPoint = true
                                 break
                             }
                         }
@@ -1216,6 +1229,7 @@ private fun DualWaveformEditor(
                                 if (hypot(down.position.x - px, down.position.y - py) < 80f) {
                                     targetPointId = p.id
                                     isTargetOut = false
+                                    isPreExistingPoint = true
                                     break
                                 }
                             }
@@ -1232,6 +1246,7 @@ private fun DualWaveformEditor(
                                     if (newPt != null) {
                                         targetPointId = newPt.id
                                         isTargetOut = true
+                                        isPreExistingPoint = false
                                         runningOut = next
                                         currentOnPointsChanged(runningOut, runningIn)
                                     }
@@ -1245,6 +1260,7 @@ private fun DualWaveformEditor(
                                     if (newPt != null) {
                                         targetPointId = newPt.id
                                         isTargetOut = false
+                                        isPreExistingPoint = false
                                         runningIn = next
                                         currentOnPointsChanged(runningOut, runningIn)
                                     }
@@ -1289,8 +1305,8 @@ private fun DualWaveformEditor(
                             selectedPointId = null
                             currentOnDragPointActive(false)
 
-                            // If touch was a simple click/tap without dragging (moved < 15px), undo/remove this point!
-                            if (totalDragDist < 15f) {
+                            // If touch was a simple click/tap without dragging on an ALREADY PRE-EXISTING point, undo/remove this point!
+                            if (isPreExistingPoint && totalDragDist < 15f) {
                                 val isStart = if (isTargetOut) runningOut.firstOrNull()?.id == targetPointId else runningIn.firstOrNull()?.id == targetPointId
                                 val isEnd = if (isTargetOut) runningOut.lastOrNull()?.id == targetPointId else runningIn.lastOrNull()?.id == targetPointId
                                 if (!isStart && !isEnd) {
@@ -1640,7 +1656,7 @@ private fun LaneContainer(
     color: Color,
     content: @Composable () -> Unit,
 ) {
-    val isDark = isSystemInDarkTheme()
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val containerBg = if (isDark) Color(0xFF1C1C1E) else Color(0xFFF4F4F6)
     val titleColor = if (isDark) Color.White else Color(0xFF18181B)
 
@@ -1689,7 +1705,7 @@ private fun LaneOptionRow(
     isSelected: Boolean,
     onClick: () -> Unit,
 ) {
-    val isDark = isSystemInDarkTheme()
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val optColor = if (isDark) Color.White else Color(0xFF18181B)
 
     Row(

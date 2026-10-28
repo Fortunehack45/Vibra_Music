@@ -41,7 +41,11 @@ import java.util.concurrent.ConcurrentHashMap
  * milliseconds: they are the bulk of the payload and nothing downstream can
  * tell the difference.
  */
-class AnalysisStore(private val context: Context) {
+open class AnalysisStore(
+    private val context: Context? = null,
+    baseDir: File? = null,
+) {
+    constructor(context: Context) : this(context, null)
 
     /**
      * Resolved on first use, not at construction. [TrackAnalyzer] is a field
@@ -50,7 +54,8 @@ class AnalysisStore(private val context: Context) {
      * null and takes the whole process down before it can start.
      */
     private val directory by lazy {
-        File(context.filesDir, DIRECTORY).also { dir ->
+        val root = baseDir ?: context?.filesDir ?: File(System.getProperty("java.io.tmpdir") ?: ".")
+        File(root, DIRECTORY).also { dir ->
             cleanupLegacyFiles(dir)
         }
     }
@@ -81,7 +86,7 @@ class AnalysisStore(private val context: Context) {
     }
 
     /** Reads [trackId]'s stored analysis, or null when there isn't one. */
-    fun load(trackId: String): TrackAnalysis? {
+    open fun load(trackId: String): TrackAnalysis? {
         if (trackId.isBlank()) return null
         if (known[trackId] == false) return null
         val file = File(directory, fileNameFor(trackId))
@@ -113,7 +118,7 @@ class AnalysisStore(private val context: Context) {
      * tempo: a failure is cheap to rediscover and worth rediscovering, since
      * the reason for it is usually missing bytes rather than the track itself.
      */
-    fun save(trackId: String, analysis: TrackAnalysis) {
+    open fun save(trackId: String, analysis: TrackAnalysis) {
         if (trackId.isBlank() || !analysis.isUsable) return
         runCatching {
             directory.mkdirs()

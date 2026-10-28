@@ -606,7 +606,7 @@ fun DetailScreen(
                                 val song = entry.value
                                 val isCurrent = isCurrentRow(song)
                                 val analysis = if (mixEnabled) store.load(song.videoId) else null
-                                val acoustic = if (mixEnabled) com.fortune.vibramusic.playback.smart.AcousticCatalogService.get(song) else null
+                                val acoustic = if (mixEnabled) com.fortune.vibramusic.playback.smart.AcousticCatalogService.get(song, store) else null
                                 if (mixEnabled && acoustic != null && (analysis == null || (!analysis.hasBeatGrid && (analysis.bpm != acoustic.bpm || analysis.key != acoustic.camelotKey)))) {
                                     val healed = (analysis ?: TrackAnalysis(
                                         status = TrackAnalysis.STATUS_READY,
@@ -621,7 +621,7 @@ fun DetailScreen(
                                 }
                                 val nextSong = matches.getOrNull(position + 1)?.value
                                 val nextAnalysis = if (mixEnabled && nextSong != null) store.load(nextSong.videoId) else null
-                                val nextAcoustic = if (mixEnabled && nextSong != null) com.fortune.vibramusic.playback.smart.AcousticCatalogService.get(nextSong) else null
+                                val nextAcoustic = if (mixEnabled && nextSong != null) com.fortune.vibramusic.playback.smart.AcousticCatalogService.get(nextSong, store) else null
 
                                 SongRow(
                                     song = if (numbered) {

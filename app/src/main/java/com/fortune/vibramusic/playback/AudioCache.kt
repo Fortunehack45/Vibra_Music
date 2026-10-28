@@ -934,6 +934,8 @@ object AudioCache {
         )
     }
 
+    var onHeadReady: ((videoId: String, uri: Uri) -> Unit)? = null
+
     fun requestAnalysisHead(uri: Uri) {
         // Each of these gates used to stop a head dead with nothing in the
         // log to show for it: an unwired cache or upstream looked from the
@@ -1005,6 +1007,9 @@ object AudioCache {
                 }
                 if (total > 0) recordContentLength(videoId, total)
                 val held = alignmentPrefixBytes(videoId)
+                if (held >= 256 * 1024) {
+                    onHeadReady?.invoke(videoId, uri)
+                }
                 if (held < MIN_ALIGNMENT_PREFIX_BYTES) {
                     // The one line that says *this* fetch failed, as opposed to
                     // the read-ahead chatter around it: every cause below

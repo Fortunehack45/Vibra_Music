@@ -1298,8 +1298,22 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
         vocals.release()
     }
 
-    private companion object {
+    companion object {
         const val TAG = "VibraMusicTrackAnalyzer"
+
+        @Volatile
+        private var instance: TrackAnalyzer? = null
+
+        fun getInstance(context: Context, cache: AudioCache = AudioCache): TrackAnalyzer {
+            return instance ?: synchronized(this) {
+                instance ?: TrackAnalyzer(context.applicationContext, cache).also { analyzer ->
+                    instance = analyzer
+                    cache.onHeadReady = { videoId, uri ->
+                        analyzer.request(videoId, uri, 0.0)
+                    }
+                }
+            }
+        }
 
         fun normalizeBpm(raw: Double): Double {
             if (raw <= 0.0) return 0.0

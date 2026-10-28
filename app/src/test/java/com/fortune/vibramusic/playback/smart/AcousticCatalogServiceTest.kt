@@ -3,6 +3,8 @@ package com.fortune.vibramusic.playback.smart
 import com.fortune.vibramusic.data.model.Song
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Before
 import org.junit.Test
 
 class AcousticCatalogServiceTest {
@@ -10,76 +12,79 @@ class AcousticCatalogServiceTest {
     private fun song(title: String, artist: String, id: String = title) =
         Song(videoId = id, title = title, artist = artist, thumbnailUrl = null)
 
+    @Before
+    fun setUp() {
+        AcousticCatalogService.clearCache()
+    }
+
     @Test
-    fun resolvesAllPlaylistTracksAccurately() {
-        val fresh = song("FRE\$H", "Victony")
-        val freshData = AcousticCatalogService.get(fresh)
-        assertNotNull(freshData)
-        assertEquals(120.0, freshData!!.bpm, 0.01)
-        assertEquals("1A", freshData.camelotKey)
+    fun unanalyzedTracksReturnNullWithoutHardcoding() {
+        // Zero hardcoding: Any track without prior dynamic analysis returns null
+        // so UI renders genuine loading placeholders instead of static/fake data.
+        val song1 = song("FRE\$H", "Victony", "fresh_id")
+        val song2 = song("TWIN (feat. FOLA)", "Victony, FOLA", "twin_id")
+        val song3 = song("Voodoo", "Chisway, JZyNo", "voodoo_id")
+        val song4 = song("Unknown Track Title 123", "Unknown Artist 456", "unknown_id")
 
-        val twin = song("TWIN (feat. FOLA)", "Victony, FOLA")
-        val twinData = AcousticCatalogService.get(twin)
-        assertNotNull(twinData)
-        assertEquals(116.0, twinData!!.bpm, 0.01)
-        assertEquals("7B", twinData.camelotKey)
+        assertNull(AcousticCatalogService.get(song1))
+        assertNull(AcousticCatalogService.get(song2))
+        assertNull(AcousticCatalogService.get(song3))
+        assertNull(AcousticCatalogService.get(song4))
+    }
 
-        val motionSickness = song("MOTION SICKNESS (feat. Zlatan)", "ODUMODUBLVCK, Zlatan")
-        val msData = AcousticCatalogService.get(motionSickness)
-        assertNotNull(msData)
-        assertEquals(116.0, msData!!.bpm, 0.01)
-        assertEquals("4A", msData.camelotKey)
+    @Test
+    fun dynamicallyAnalyzedTrackResolvesAccuratelyFromStore() {
+        val testSong = song("FRE\$H", "Victony", "fresh_id")
 
-        val lala = song("La La (feat. Ckay)", "Davido, CKay")
-        val lalaData = AcousticCatalogService.get(lala)
-        assertNotNull(lalaData)
-        assertEquals(114.0, lalaData!!.bpm, 0.01)
-        assertEquals("12B", lalaData.camelotKey)
+        // Mock/subclass AnalysisStore returning dynamic analysis
+        val mockStore = object : AnalysisStore() {
+            private val map = mutableMapOf<String, TrackAnalysis>()
 
-        val cfmf = song("CFMF", "Davido")
-        val cfmfData = AcousticCatalogService.get(cfmf)
-        assertNotNull(cfmfData)
-        assertEquals(112.0, cfmfData!!.bpm, 0.01)
-        assertEquals("2B", cfmfData.camelotKey)
+            override fun load(trackId: String): TrackAnalysis? = map[trackId]
+            override fun save(trackId: String, analysis: TrackAnalysis) {
+                map[trackId] = analysis
+            }
+        }
 
-        val allMyMoney = song("All My Money", "Kashcoming")
-        val ammData = AcousticCatalogService.get(allMyMoney)
-        assertNotNull(ammData)
-        assertEquals(112.0, ammData!!.bpm, 0.01)
-        assertEquals("8A", ammData.camelotKey)
+        // Initially unanalyzed
+        assertNull(AcousticCatalogService.get(testSong, mockStore))
 
-        val malacosta = song("Malacosta (feat. Vulela)", "Mluusician, Ricky Lenyora")
-        val malacostaData = AcousticCatalogService.get(malacosta)
-        assertNotNull(malacostaData)
-        assertEquals(113.0, malacostaData!!.bpm, 0.01)
-        assertEquals("1A", malacostaData.camelotKey)
+        // Store receives dynamic analysis from DSP
+        val dynamicAnalysis = TrackAnalysis(
+            status = TrackAnalysis.STATUS_READY,
+            trackId = testSong.videoId,
+            bpm = 120.0,
+            key = "1A",
+            beatInterval = 0.5,
+            duration = 180.0,
+        )
+        mockStore.save(testSong.videoId, dynamicAnalysis)
 
-        val elumelu = song("Elumelu", "Young Jonn")
-        val elumeluData = AcousticCatalogService.get(elumelu)
-        assertNotNull(elumeluData)
-        assertEquals(120.0, elumeluData!!.bpm, 0.01)
-        assertEquals("1A", elumeluData.camelotKey)
+        // Now AcousticCatalogService dynamically returns the DSP result
+        val data = AcousticCatalogService.get(testSong, mockStore)
+        assertNotNull(data)
+        assertEquals(120.0, data!!.bpm, 0.01)
+        assertEquals("1A", data.camelotKey)
+    }
 
-        val cestLaVie = song("C'EST LA VIE", "Fireboy DML")
-        val clvData = AcousticCatalogService.get(cestLaVie)
-        assertNotNull(clvData)
-        assertEquals(122.0, clvData!!.bpm, 0.01)
-        assertEquals("3B", clvData.camelotKey)
+    @Test
+    fun tempoNormalizationMaintainsStandardAutomixWindow() {
+        assertEquals(120.0, AcousticCatalogService.normalizeTempo(120.0), 0.01)
+        // Halves fast tempos (> 165 BPM) into natural beat range
+        assertEquals(85.0, AcousticCatalogService.normalizeTempo(170.0), 0.01)
+        // Doubles slow tempos (< 75 BPM) into natural beat range
+        assertEquals(140.0, AcousticCatalogService.normalizeTempo(70.0), 0.01)
+    }
 
-        val voodoo = song("Voodoo", "Chisway, JZyNo")
-        val voodooData = AcousticCatalogService.get(voodoo)
-        assertNotNull(voodooData)
-        assertEquals(104.0, voodooData!!.bpm, 0.01)
-        assertEquals("5A", voodooData.camelotKey)
-
-        val happiness = song("Happiness (feat. Asake & Gunna)", "Sarz, Asake, Gunna")
-        val happinessData = AcousticCatalogService.get(happiness)
-        assertNotNull(happinessData)
-        assertEquals(105.0, happinessData!!.bpm, 0.01)
-        assertEquals("3A", happinessData.camelotKey)
-
-        val uncataloged = song("Unknown Track Title 123", "Unknown Artist 456")
-        val uncatalogedData = AcousticCatalogService.get(uncataloged)
-        org.junit.Assert.assertNull(uncatalogedData)
+    @Test
+    fun spotifyKeyToCamelotMappingsAreAccurate() {
+        // C Major (key 0, mode 1) -> 8B
+        assertEquals("8B", AcousticCatalogService.spotifyKeyToCamelot(0, 1))
+        // A Minor (key 9, mode 0) -> 8A
+        assertEquals("8A", AcousticCatalogService.spotifyKeyToCamelot(9, 0))
+        // F# / Gb Minor (key 6, mode 0) -> 11A
+        assertEquals("11A", AcousticCatalogService.spotifyKeyToCamelot(6, 0))
+        // B Minor (key 11, mode 0) -> 10A
+        assertEquals("10A", AcousticCatalogService.spotifyKeyToCamelot(11, 0))
     }
 }

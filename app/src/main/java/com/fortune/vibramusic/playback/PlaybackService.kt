@@ -655,7 +655,7 @@ class PlaybackService : MediaLibraryService() {
     private var spareFilter: TransitionFilterProcessor = transitionFilterB
 
     /** Automix's DSP analyzer — see [com.fortune.vibramusic.playback.smart.TrackAnalyzer]. */
-    private val trackAnalyzer = com.fortune.vibramusic.playback.smart.TrackAnalyzer(this, AudioCache)
+    private val trackAnalyzer = com.fortune.vibramusic.playback.smart.TrackAnalyzer.getInstance(this, AudioCache)
 
     /** Shared with the crossfade's tail player, so both read the same disk cache. */
     private var mediaSourceFactory: DefaultMediaSourceFactory? = null

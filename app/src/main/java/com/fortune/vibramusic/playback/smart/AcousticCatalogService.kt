@@ -43,134 +43,10 @@ object AcousticCatalogService {
         val camelotKey: String,
     )
 
-    // Verified catalog ground-truth lookup (normalized candidate keys)
-    private val VERIFIED_CATALOG = mapOf(
-        // Exact user screenshot tracks matching Spotify verified parameters
-        "voodoo" to AcousticData(104.0, "5A"),
-        "chisway_voodoo" to AcousticData(104.0, "5A"),
-        "jzyno_voodoo" to AcousticData(104.0, "5A"),
-        "happiness" to AcousticData(105.0, "3A"),
-        "sarz_happiness" to AcousticData(105.0, "3A"),
-        "asake_happiness" to AcousticData(105.0, "3A"),
-        "gunna_happiness" to AcousticData(105.0, "3A"),
-
-        // User's current playlist & screenshot tracks
-        "fresh" to AcousticData(120.0, "1A"),
-        "victony_fresh" to AcousticData(120.0, "1A"),
-        "twin" to AcousticData(116.0, "7B"),
-        "victony_twin" to AcousticData(116.0, "7B"),
-        "motion sickness" to AcousticData(116.0, "4A"),
-        "odumodublvck_motion sickness" to AcousticData(116.0, "4A"),
-        "la la" to AcousticData(114.0, "12B"),
-        "davido_la la" to AcousticData(114.0, "12B"),
-        "cfmf" to AcousticData(112.0, "2B"),
-        "davido_cfmf" to AcousticData(112.0, "2B"),
-        "all my money" to AcousticData(112.0, "8A"),
-        "kashcoming_all my money" to AcousticData(112.0, "8A"),
-        "malacosta" to AcousticData(113.0, "1A"),
-        "mluusician_malacosta" to AcousticData(113.0, "1A"),
-        "elumelu" to AcousticData(120.0, "1A"),
-        "young jonn_elumelu" to AcousticData(120.0, "1A"),
-        "c est la vie" to AcousticData(122.0, "3B"),
-        "fireboy dml_c est la vie" to AcousticData(122.0, "3B"),
-
-        // Popular Afrobeats, Amapiano & Global catalog entries
-        "soweto" to AcousticData(100.0, "9B"),
-        "victony_soweto" to AcousticData(100.0, "9B"),
-        "everything" to AcousticData(113.0, "4B"),
-        "victony_everything" to AcousticData(113.0, "4B"),
-        "ohema" to AcousticData(105.0, "12B"),
-        "victony_ohema" to AcousticData(105.0, "12B"),
-        "calm down" to AcousticData(107.0, "4B"),
-        "rema_calm down" to AcousticData(107.0, "4B"),
-        "last last" to AcousticData(128.0, "8B"),
-        "burna boy_last last" to AcousticData(128.0, "8B"),
-        "city boys" to AcousticData(100.0, "12A"),
-        "burna boy_city boys" to AcousticData(100.0, "12A"),
-        "unavailable" to AcousticData(114.0, "11A"),
-        "davido_unavailable" to AcousticData(114.0, "11A"),
-        "feel" to AcousticData(113.0, "12B"),
-        "davido_feel" to AcousticData(113.0, "12B"),
-        "lonely at the top" to AcousticData(105.0, "8A"),
-        "asake_lonely at the top" to AcousticData(105.0, "8A"),
-        "amapiano" to AcousticData(114.0, "11A"),
-        "asake_amapiano" to AcousticData(114.0, "11A"),
-        "2 30" to AcousticData(114.0, "8A"),
-        "asake_2 30" to AcousticData(114.0, "8A"),
-        "mms" to AcousticData(103.0, "10B"),
-        "asake_mms" to AcousticData(103.0, "10B"),
-        "active" to AcousticData(115.0, "6A"),
-        "asake_active" to AcousticData(115.0, "6A"),
-        "essence" to AcousticData(104.0, "6B"),
-        "wizkid_essence" to AcousticData(104.0, "6B"),
-        "bad to me" to AcousticData(115.0, "2B"),
-        "wizkid_bad to me" to AcousticData(115.0, "2B"),
-        "rush" to AcousticData(100.0, "8A"),
-        "ayra starr_rush" to AcousticData(100.0, "8A"),
-        "sability" to AcousticData(114.0, "12A"),
-        "ayra starr_sability" to AcousticData(114.0, "12A"),
-        "santa" to AcousticData(103.0, "10A"),
-        "ayra starr_santa" to AcousticData(103.0, "10A"),
-        "declan rice" to AcousticData(115.0, "11A"),
-        "odumodublvck_declan rice" to AcousticData(115.0, "11A"),
-        "dog eat dog" to AcousticData(114.0, "10A"),
-        "odumodublvck_dog eat dog" to AcousticData(114.0, "10A"),
-        "blood on the dance floor" to AcousticData(112.0, "8A"),
-        "odumodublvck_blood on the dance floor" to AcousticData(112.0, "8A"),
-        "cast" to AcousticData(113.0, "11A"),
-        "shallipopi_cast" to AcousticData(113.0, "11A"),
-        "ex convict" to AcousticData(113.0, "1A"),
-        "shallipopi_ex convict" to AcousticData(113.0, "1A"),
-        "elon musk" to AcousticData(112.0, "8A"),
-        "shallipopi_elon musk" to AcousticData(112.0, "8A"),
-        "xtra cool" to AcousticData(113.0, "9A"),
-        "young jonn_xtra cool" to AcousticData(113.0, "9A"),
-        "aquafina" to AcousticData(112.0, "8B"),
-        "young jonn_aquafina" to AcousticData(112.0, "8B"),
-        "dada" to AcousticData(110.0, "11A"),
-        "young jonn_dada" to AcousticData(110.0, "11A"),
-        "sharpally" to AcousticData(114.0, "12B"),
-        "young jonn_sharpally" to AcousticData(114.0, "12B"),
-        "bandana" to AcousticData(114.0, "9A"),
-        "fireboy dml_bandana" to AcousticData(114.0, "9A"),
-        "peru" to AcousticData(108.0, "6A"),
-        "fireboy dml_peru" to AcousticData(108.0, "6A"),
-        "soso" to AcousticData(108.0, "11B"),
-        "omah lay_soso" to AcousticData(108.0, "11B"),
-        "holy ghost" to AcousticData(113.0, "11A"),
-        "omah lay_holy ghost" to AcousticData(113.0, "11A"),
-        "reason" to AcousticData(112.0, "1A"),
-        "omah lay_reason" to AcousticData(112.0, "1A"),
-        "water" to AcousticData(117.0, "12A"),
-        "tyla_water" to AcousticData(117.0, "12A"),
-        "jump" to AcousticData(105.0, "11A"),
-        "tyla_jump" to AcousticData(105.0, "11A"),
-        "mnike" to AcousticData(113.0, "8A"),
-        "tyler icu_mnike" to AcousticData(113.0, "8A"),
-        "tshwala bam" to AcousticData(113.0, "6A"),
-        "titom_tshwala bam" to AcousticData(113.0, "6A"),
-        "kisa" to AcousticData(113.0, "1A"),
-        "kashcoming_kisa" to AcousticData(113.0, "1A"),
-        "how low" to AcousticData(112.0, "8A"),
-        "kashcoming_how low" to AcousticData(112.0, "8A"),
-
-        // User playlist screenshot tracks
-        "chanel" to AcousticData(130.0, "5A"),
-        "blaqbonez_chanel" to AcousticData(130.0, "5A"),
-        "fyp" to AcousticData(157.0, "5A"),
-        "blaqbonez_fyp" to AcousticData(157.0, "5A"),
-        "head movement" to AcousticData(113.0, "10A"),
-        "ez maestro_head movement" to AcousticData(113.0, "10A"),
-        "do better" to AcousticData(120.0, "8A"),
-        "kidd carder_do better" to AcousticData(120.0, "8A"),
-        "mentally" to AcousticData(118.0, "8A"),
-        "asake_mentally" to AcousticData(118.0, "8A"),
-        "imali" to AcousticData(118.0, "6A"),
-        "fireboy dml_imali" to AcousticData(118.0, "6A"),
-        "i know who i be" to AcousticData(120.0, "8A"),
-        "oba" to AcousticData(107.0, "1A"),
-        "asake_oba" to AcousticData(107.0, "1A"),
-    )
+    internal fun clearCache() {
+        memoryCache.clear()
+        requested.clear()
+    }
 
     fun init(context: Context) {
         if (prefs == null) {
@@ -214,20 +90,22 @@ object AcousticCatalogService {
         return list.distinct()
     }
 
-    fun get(song: Song): AcousticData? {
+    fun get(song: Song, store: AnalysisStore? = null): AcousticData? {
         memoryCache[song.videoId]?.let { return it }
 
-        val candidates = candidateKeys(song.artist, song.title)
-        for (key in candidates) {
-            VERIFIED_CATALOG[key]?.let {
-                memoryCache[song.videoId] = it
-                return it
+        // 1. Read from on-device persistent analysis store
+        store?.load(song.videoId)?.let { analysis ->
+            if (analysis.isUsable) {
+                val camelot = CamelotKey.parse(analysis.key)?.code ?: analysis.key
+                val data = AcousticData(analysis.bpm, camelot)
+                memoryCache[song.videoId] = data
+                return data
             }
         }
 
-        // Check persistent store
+        // 2. Check local persistent cache
         prefs?.let { p ->
-            val stored = p.getString(song.videoId, null) ?: candidates.firstNotNullOfOrNull { p.getString(it, null) }
+            val stored = p.getString(song.videoId, null)
             if (stored != null) {
                 val parts = stored.split(":")
                 if (parts.size == 2) {
@@ -246,89 +124,77 @@ object AcousticCatalogService {
     }
 
     /**
-     * Retrieves verified catalog data or persistent cache.
-     * Returns null when no verified data exists so callers render genuine loading placeholders
-     * rather than fake synthetic numbers.
+     * Retrieves dynamically analyzed data or persistent cache.
+     * Returns null when no verified data exists so callers render genuine loading placeholders.
      */
-    fun getOrEstimate(song: Song): AcousticData? {
-        return get(song)
+    fun getOrEstimate(song: Song, store: AnalysisStore? = null): AcousticData? {
+        return get(song, store)
     }
 
     fun resolve(context: Context, song: Song, store: AnalysisStore) {
         init(context)
-        val existing = get(song)
-        if (existing != null) {
-            val currentAnalysis = store.load(song.videoId)
-            if (currentAnalysis == null || (!currentAnalysis.hasBeatGrid && (currentAnalysis.bpm != existing.bpm || currentAnalysis.key != existing.camelotKey))) {
-                val synthesized = (currentAnalysis ?: TrackAnalysis(
-                    status = TrackAnalysis.STATUS_READY,
-                    trackId = song.videoId,
-                    duration = 180.0,
-                )).copy(
-                    bpm = existing.bpm,
-                    key = existing.camelotKey,
-                    beatInterval = 60.0 / existing.bpm,
-                )
-                store.save(song.videoId, synthesized)
-            }
-            return
-        }
+        val existing = get(song, store)
+        if (existing != null) return
 
         if (!requested.add(song.videoId)) return
 
         scope.launch {
             try {
-                // Background pre-warm head audio so TrackAnalyzer computes real DSP features
+                // 1. Trigger dynamic on-device native C++ DSP analysis
                 val opusUri = AutomixAnalysisSource.opusUri(song.videoId)
-                AudioCache.warmRange(Uri.parse(opusUri), 0, 256 * 1024)
+                val uri = Uri.parse(opusUri)
+                val analyzer = TrackAnalyzer.getInstance(context)
+                analyzer.request(song.videoId, uri, 0.0)
 
-                val token = SpotifyToken.accessToken() ?: return@launch
-                val query = "${song.title} ${song.artist}"
-                val searchUrl = "https://api.spotify.com/v1/search?q=${java.net.URLEncoder.encode(query, "UTF-8")}&type=track&limit=1"
-                val searchResp = client.get(searchUrl) {
-                    header("Authorization", "Bearer $token")
-                }.bodyAsText()
+                // 2. Parallel dynamic cloud metadata resolution if Spotify token is active
+                val token = SpotifyToken.accessToken()
+                if (token != null) {
+                    val query = "${song.title} ${song.artist}"
+                    val searchUrl = "https://api.spotify.com/v1/search?q=${java.net.URLEncoder.encode(query, "UTF-8")}&type=track&limit=1"
+                    val searchResp = client.get(searchUrl) {
+                        header("Authorization", "Bearer $token")
+                    }.bodyAsText()
 
-                val root = json.parseToJsonElement(searchResp).jsonObject
-                val trackItem = root["tracks"]?.jsonObject?.get("items")?.jsonArray?.firstOrNull()?.jsonObject ?: return@launch
-                val trackId = trackItem["id"]?.jsonPrimitive?.content ?: return@launch
+                    val root = json.parseToJsonElement(searchResp).jsonObject
+                    val trackItem = root["tracks"]?.jsonObject?.get("items")?.jsonArray?.firstOrNull()?.jsonObject
+                    val trackId = trackItem?.get("id")?.jsonPrimitive?.content
+                    if (trackId != null) {
+                        val featuresUrl = "https://api.spotify.com/v1/audio-features/$trackId"
+                        val featuresResp = client.get(featuresUrl) {
+                            header("Authorization", "Bearer $token")
+                        }.bodyAsText()
 
-                val featuresUrl = "https://api.spotify.com/v1/audio-features/$trackId"
-                val featuresResp = client.get(featuresUrl) {
-                    header("Authorization", "Bearer $token")
-                }.bodyAsText()
+                        val featObj = json.parseToJsonElement(featuresResp).jsonObject
+                        val tempo = featObj["tempo"]?.jsonPrimitive?.content?.toDoubleOrNull()
+                        val keyInt = featObj["key"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
+                        val modeInt = featObj["mode"]?.jsonPrimitive?.content?.toIntOrNull() ?: 1
 
-                val featObj = json.parseToJsonElement(featuresResp).jsonObject
-                val tempo = featObj["tempo"]?.jsonPrimitive?.content?.toDoubleOrNull() ?: return@launch
-                val keyInt = featObj["key"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
-                val modeInt = featObj["mode"]?.jsonPrimitive?.content?.toIntOrNull() ?: 1
+                        if (tempo != null && tempo > 0.0) {
+                            val normBpm = normalizeTempo(tempo)
+                            val camelot = spotifyKeyToCamelot(keyInt, modeInt) ?: "8A"
+                            val data = AcousticData(normBpm, camelot)
+                            memoryCache[song.videoId] = data
+                            prefs?.edit()?.putString(song.videoId, "$normBpm:$camelot")?.apply()
 
-                val normBpm = normalizeTempo(tempo)
-                val camelot = spotifyKeyToCamelot(keyInt, modeInt) ?: "8A"
-                val data = AcousticData(normBpm, camelot)
-
-                memoryCache[song.videoId] = data
-                val candidates = candidateKeys(song.artist, song.title)
-                val editor = prefs?.edit()?.putString(song.videoId, "$normBpm:$camelot")
-                candidates.forEach { editor?.putString(it, "$normBpm:$camelot") }
-                editor?.apply()
-
-                val synthesized = TrackAnalysis(
-                    status = TrackAnalysis.STATUS_READY,
-                    trackId = song.videoId,
-                    bpm = normBpm,
-                    key = camelot,
-                    beatInterval = 60.0 / normBpm,
-                    duration = 180.0,
-                )
-                store.save(song.videoId, synthesized)
+                            val synthesized = TrackAnalysis(
+                                status = TrackAnalysis.STATUS_READY,
+                                trackId = song.videoId,
+                                bpm = normBpm,
+                                key = camelot,
+                                beatInterval = 60.0 / normBpm,
+                                duration = 180.0,
+                            )
+                            store.save(song.videoId, synthesized)
+                        }
+                    }
+                }
             } catch (e: Exception) {
                 Log.d(TAG, "Acoustic resolution failed for ${song.title}: ${e.message}")
             }
         }
     }
 
-    private fun normalizeTempo(raw: Double): Double {
+    internal fun normalizeTempo(raw: Double): Double {
         if (raw <= 0.0) return 120.0
         var b = raw
         while (b < 75.0) {
@@ -340,7 +206,7 @@ object AcousticCatalogService {
         return b
     }
 
-    private fun spotifyKeyToCamelot(key: Int, mode: Int): String? {
+    internal fun spotifyKeyToCamelot(key: Int, mode: Int): String? {
         if (key !in 0..11) return null
         val isMajor = mode == 1
         val pitchName = when (key) {

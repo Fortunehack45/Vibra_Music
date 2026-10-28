@@ -4397,11 +4397,13 @@ private fun VibraMusicApp(
                             scope.launch { Downloads.deleteCollection(context, id) }
                         }
                     },
-                    isMixEnabled = target.browseId?.let { id -> LocalPlaylistsStore.isMixEnabled(id) } ?: false,
+                    isMixEnabled = target.browseId?.let { id -> LocalPlaylistsStore.isMixEnabled(id) && AppSettings.songTransitions.value.enabled } ?: false,
                     onToggleMix = target.browseId?.takeIf { target.type != BrowseType.ARTIST }?.let { id ->
                         {
-                            val next = !LocalPlaylistsStore.isMixEnabled(id)
+                            val current = LocalPlaylistsStore.isMixEnabled(id) && AppSettings.songTransitions.value.enabled
+                            val next = !current
                             LocalPlaylistsStore.setMixEnabled(id, next)
+                            AppSettings.setSongTransitionsEnabled(next)
                             if (next && target.songs.size > 1) {
                                 val analysisStore = com.fortune.vibramusic.playback.smart.AnalysisStore(context)
                                 LocalPlaylistsStore.reconcileTransitions(id, target.songs) { s ->
@@ -5165,8 +5167,11 @@ private fun FrostedSortMenu(
                         }
                     }
 
-                    val otherOptions = remember {
-                        SongSort.entries.filter { it != SongSort.DATE_ADDED_ASC && it != SongSort.DATE_ADDED_DESC }
+                    val otherOptions = remember(AppSettings.songTransitions.value.enabled) {
+                        SongSort.entries.filter {
+                            it != SongSort.DATE_ADDED_ASC && it != SongSort.DATE_ADDED_DESC &&
+                                (it != SongSort.SMART_FLOW || AppSettings.songTransitions.value.enabled)
+                        }
                     }
                     otherOptions.forEachIndexed { optIndex, option ->
                         val rowIndex = optIndex + 1

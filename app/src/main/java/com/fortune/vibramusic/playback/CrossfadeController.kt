@@ -574,6 +574,7 @@ class CrossfadeController(
             // otherwise sit on screen for as long as the party lasts.
             AppSettings.smartTransitionWindow.value = null
             AppSettings.smartMixInProgress.value = false
+            AppSettings.smartMixInProgress.value = false
             return
         }
         // Nothing to transition *into*, so any analysis state left over from the
@@ -581,6 +582,7 @@ class CrossfadeController(
         // claiming both songs are measured.
         if (!player.hasNextMediaItem()) {
             AppSettings.smartTransitionWindow.value = null
+            AppSettings.smartMixInProgress.value = false
             return
         }
 
@@ -607,6 +609,7 @@ class CrossfadeController(
             // planned for this pair before the loop went on, at a point the
             // playhead now runs past on every lap without anything happening.
             AppSettings.smartTransitionWindow.value = null
+            AppSettings.smartMixInProgress.value = false
             return
         }
 
@@ -614,7 +617,7 @@ class CrossfadeController(
         // length: it decides its own duration from each pair of tracks (beats,
         // tempo, structure), so requiring a nonzero [AppSettings.crossfadeSeconds]
         // first would tie an automatic feature to a manual one it doesn't use.
-        if (AppSettings.smartFadeEnabled.value) {
+        if (AppSettings.smartFadeEnabled.value && AppSettings.songTransitions.value.enabled) {
             considerSmartTransition(duration)
             return
         }
@@ -668,6 +671,7 @@ class CrossfadeController(
         if (currentItem.isVideoOrigin || nextItem.isVideoOrigin) {
             AppSettings.smartTransitionWindow.value = null
             AppSettings.smartMixInProgress.value = false
+            AppSettings.smartMixInProgress.value = false
             return
         }
         val nextDuration = nextItemDurationMs(nextIndex, nextItem)
@@ -695,8 +699,11 @@ class CrossfadeController(
             ?: ""
 
         // Check if Mix is explicitly disabled for this playlist/album
-        if (playlistId.isNotBlank() && !LocalPlaylistsStore.isMixEnabled(playlistId)) {
+        if (!AppSettings.songTransitions.value.enabled || !AppSettings.smartFadeEnabled.value ||
+            (playlistId.isNotBlank() && !LocalPlaylistsStore.isMixEnabled(playlistId))
+        ) {
             AppSettings.smartTransitionWindow.value = null
+            AppSettings.smartMixInProgress.value = false
             return
         }
 

@@ -257,6 +257,16 @@ internal fun InlineQueue(
         ?: nowPlaying?.song?.albumName?.takeIf { it.isNotBlank() }
 
     var activeTransitionPair by remember { mutableStateOf<Pair<Song, Song>?>(null) }
+    val songTransitions by AppSettings.songTransitions.collectAsStateWithLifecycle()
+    val mixUpdates by LocalPlaylistsStore.mixUpdates.collectAsStateWithLifecycle()
+    val isMixActive = remember(nowPlaying?.song?.playbackSource, songTransitions.enabled, mixUpdates) {
+        if (!songTransitions.enabled) {
+            false
+        } else {
+            val src = nowPlaying?.song?.playbackSource
+            if (src.isNullOrBlank()) true else LocalPlaylistsStore.isMixEnabled(src)
+        }
+    }
 
     // Back to the top on a track change — snapped the first time, animated
     // after — but never mid-drag, which would pull the list from under the finger.
@@ -284,7 +294,7 @@ internal fun InlineQueue(
                 color = Color.White,
                 modifier = Modifier.weight(1f),
             )
-            if (onSmartReorder != null && (tracks.context.size + tracks.autoplay.size) >= 2) {
+            if (isMixActive && onSmartReorder != null && (tracks.context.size + tracks.autoplay.size) >= 2) {
                 SmartReorderButton(locked = controlsLocked, onClick = onSmartReorder)
                 Spacer(Modifier.width(8.dp))
             }
@@ -329,7 +339,7 @@ internal fun InlineQueue(
                     val nextSong = tracks.user.firstOrNull()?.song
                         ?: tracks.context.firstOrNull()?.song
                         ?: tracks.autoplay.firstOrNull()?.song
-                    if (nextSong != null) {
+                    if (isMixActive && nextSong != null) {
                         item(key = "now-playing-mix-chip") {
                             val plan = remember(nowPlaying.song.videoId, nextSong.videoId) {
                                 val pairId = TransitionPlan.pairIdOf(nowPlaying.song.videoId, nextSong.videoId)

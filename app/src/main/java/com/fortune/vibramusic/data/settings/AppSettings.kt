@@ -881,6 +881,16 @@ object AppSettings {
         downloadQuality.value = readDownloadQuality()
         wifiOnlyDownloads.value = prefs.getBoolean(KEY_WIFI_ONLY_DOWNLOADS, true)
         exportDownloads.value = prefs.getBoolean(KEY_EXPORT_DOWNLOADS, true)
+        if (!prefs.getBoolean(KEY_MIX_FORCE_DEFAULT_OFF_V2, false)) {
+            prefs.edit()
+                .putBoolean(KEY_MIX_FORCE_DEFAULT_OFF_V2, true)
+                .putBoolean(KEY_SONG_TRANSITIONS, false)
+                .putBoolean(KEY_SMART_FADE, false)
+                .putInt(KEY_CROSSFADE, 0)
+                .putBoolean(KEY_MIX_ENABLE_ON_NEW_PLAYLISTS, false)
+                .apply()
+            com.fortune.vibramusic.data.LocalPlaylistsStore.disableAllMix()
+        }
         migrateSongTransitions()
         songTransitions.value = readSongTransitions()
         applySongTransitions()
@@ -1200,6 +1210,9 @@ object AppSettings {
 
     fun setSongTransitionsEnabled(value: Boolean) {
         writeSongTransitions(songTransitions.value.copy(enabled = value))
+        if (!value) {
+            com.fortune.vibramusic.data.LocalPlaylistsStore.disableAllMix()
+        }
     }
 
     fun setSongTransitionStyle(value: SongTransitionStyle) {
@@ -1266,6 +1279,10 @@ object AppSettings {
         val transitions = songTransitions.value
         crossfadeSeconds.value = transitions.playbackCrossfadeSeconds
         smartFadeEnabled.value = transitions.automix
+        if (!transitions.enabled) {
+            smartTransitionWindow.value = null
+            smartMixInProgress.value = false
+        }
     }
 
     fun setAutomixPerformanceMode(value: AutomixPerformanceMode) {
@@ -2165,6 +2182,7 @@ object AppSettings {
     private const val KEY_LOW_QUALITY_MIGRATED = "low_quality_default_migrated_v2"
     private const val KEY_WIFI_ONLY_DOWNLOADS = "wifi_only_downloads"
     private const val KEY_EXPORT_DOWNLOADS = "export_downloads"
+    private const val KEY_MIX_FORCE_DEFAULT_OFF_V2 = "mix_force_default_off_v2"
     private const val KEY_SONG_TRANSITIONS = "song_transitions_enabled"
     private const val KEY_SONG_TRANSITION_STYLE = "song_transition_style"
     private const val KEY_CROSSFADE_DURATION = "crossfade_duration_seconds"

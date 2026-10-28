@@ -278,13 +278,26 @@ object LocalPlaylistsStore {
 
     @Synchronized
     fun isMixEnabled(playlistId: String): Boolean {
+        if (!com.fortune.vibramusic.data.settings.AppSettings.songTransitions.value.enabled) return false
         val cleanId = cleanPlaylistId(playlistId)
         val p = playlists.firstOrNull { it.id == cleanId }
         if (p != null) return p.mixEnabled
         if (::mixPrefs.isInitialized && mixPrefs.contains("mix_enabled_$cleanId")) {
             return mixPrefs.getBoolean("mix_enabled_$cleanId", false)
         }
-        return AppSettings.mixEnableOnNewPlaylists.value
+        return com.fortune.vibramusic.data.settings.AppSettings.mixEnableOnNewPlaylists.value
+    }
+
+    @Synchronized
+    fun disableAllMix() {
+        for (p in playlists) {
+            p.mixEnabled = false
+        }
+        if (::mixPrefs.isInitialized) {
+            mixPrefs.edit().clear().apply()
+        }
+        save()
+        mixUpdates.value = System.currentTimeMillis()
     }
 
     @Synchronized

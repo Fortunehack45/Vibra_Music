@@ -13,31 +13,47 @@ object MixAutoPlanner {
 
     /**
      * Dynamically calculates how many seconds to shorten/cut from the song outro
-     * in Auto mode based on total track length (10% to 30%).
+     * in Auto mode based on total track length, BPM, and structural analysis.
+     * Cuts are scaled by musical bars (4 to 16 bars) to keep the DJ mix punchy and dynamic.
      */
-    fun calculateAutoOutroCutSeconds(durationSec: Double): Double {
+    fun calculateAutoOutroCutSeconds(
+        durationSec: Double,
+        bpm: Double = 120.0,
+        mixOutTime: Double? = null,
+    ): Double {
         if (durationSec <= 0.0) return 0.0
-        val cutFraction = when {
-            durationSec >= 300.0 -> 0.28 // 28% cut for 5+ min tracks (e.g. 6 min song cuts ~1:40)
-            durationSec >= 210.0 -> 0.22 // 22% cut for 3.5 - 5 min tracks (e.g. 4 min song cuts ~53s)
-            durationSec >= 150.0 -> 0.16 // 16% cut for 2.5 - 3.5 min tracks (e.g. 2:40 song cuts ~26s)
-            durationSec >= 90.0  -> 0.12 // 12% cut for 1.5 - 2.5 min tracks (e.g. 2 min song cuts ~14s)
-            else                 -> 0.08 // 8% cut for short tracks
+        if (mixOutTime != null && mixOutTime > 15.0 && mixOutTime < (durationSec - 5.0)) {
+            return (durationSec - mixOutTime).coerceIn(4.0, 45.0)
         }
-        return durationSec * cutFraction
+        val safeBpm = bpm.takeIf { it in 50.0..220.0 } ?: 120.0
+        val barSec = (240.0 / safeBpm)
+        val targetBars = when {
+            durationSec >= 300.0 -> 16
+            durationSec >= 210.0 -> 8
+            durationSec >= 150.0 -> 4
+            else -> 2
+        }
+        val cutSeconds = (targetBars * barSec).coerceIn(4.0, 45.0)
+        return cutSeconds.coerceAtMost(durationSec * 0.20)
     }
 
     /**
      * Dynamically calculates cue-in / intro cut for the incoming track.
+     * Skips pre-roll silence or long ambient build-ups to drop right into the groove.
      */
-    fun calculateAutoIntroCutSeconds(durationSec: Double): Double {
+    fun calculateAutoIntroCutSeconds(
+        durationSec: Double,
+        bpm: Double = 120.0,
+        mixInTime: Double? = null,
+    ): Double {
         if (durationSec <= 0.0) return 0.0
-        val introCut = when {
-            durationSec >= 240.0 -> 8.0
-            durationSec >= 150.0 -> 5.0
-            else -> 2.0
+        if (mixInTime != null && mixInTime >= 0.0 && mixInTime < (durationSec * 0.25)) {
+            return mixInTime
         }
-        return introCut.coerceAtMost(durationSec * 0.15)
+        val safeBpm = bpm.takeIf { it in 50.0..220.0 } ?: 120.0
+        val barSec = (240.0 / safeBpm)
+        val targetBars = if (durationSec >= 200.0) 4 else 2
+        return (targetBars * barSec).coerceIn(0.0, 12.0).coerceAtMost(durationSec * 0.10)
     }
 
     fun canBeatmatch(bpmOut: Double, bpmIn: Double): Boolean {
@@ -66,8 +82,8 @@ object MixAutoPlanner {
 
             val durA = from?.duration?.takeIf { it > 10.0 } ?: 180.0
             val durB = to?.duration?.takeIf { it > 10.0 } ?: 180.0
-            val outroCutA = calculateAutoOutroCutSeconds(durA)
-            val introCutB = calculateAutoIntroCutSeconds(durB)
+            val outroCutA = calculateAutoOutroCutSeconds(durA, from?.bpm ?: 120.0, from?.mixOutTime)
+            val introCutB = calculateAutoIntroCutSeconds(durB, to?.bpm ?: 120.0, to?.mixInTime)
 
             val defaultCut = from?.mixOutTime?.takeIf { it > 15.0 && it < (durA - 5.0) }
                 ?: (durA - outroCutA).coerceIn(15.0, durA - 4.0)
@@ -157,8 +173,8 @@ object MixAutoPlanner {
 
         val durA = from.duration.takeIf { it > 10.0 } ?: 180.0
         val durB = to.duration.takeIf { it > 10.0 } ?: 180.0
-        val outroCutA = calculateAutoOutroCutSeconds(durA)
-        val introCutB = calculateAutoIntroCutSeconds(durB)
+        val outroCutA = calculateAutoOutroCutSeconds(durA, from.bpm, from.mixOutTime)
+        val introCutB = calculateAutoIntroCutSeconds(durB, to.bpm, to.mixInTime)
 
         val defaultCut = from.mixOutTime.takeIf { it > 15.0 && it < (durA - transitionDurationSeconds - 2.0) }
             ?: (durA - outroCutA).coerceIn(15.0, durA - transitionDurationSeconds)

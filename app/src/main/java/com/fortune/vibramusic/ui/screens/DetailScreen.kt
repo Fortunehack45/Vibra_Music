@@ -299,9 +299,10 @@ fun DetailScreen(
     val isArtist = page.type == BrowseType.ARTIST
     val canMix = !isArtist && (page.type == BrowseType.PLAYLIST || page.type == BrowseType.ALBUM || page.browseId.startsWith("local:") || rawSongs.size > 1)
     val mixUpdates by LocalPlaylistsStore.mixUpdates.collectAsStateWithLifecycle()
+    val songTransitions by AppSettings.songTransitions.collectAsStateWithLifecycle()
     val analysisUpdates by com.fortune.vibramusic.playback.smart.AnalysisStore.analysisUpdates.collectAsStateWithLifecycle()
-    val mixEnabled = remember(page.browseId, mixUpdates) {
-        if (canMix) LocalPlaylistsStore.isMixEnabled(page.browseId) else false
+    val mixEnabled = remember(page.browseId, mixUpdates, songTransitions.enabled) {
+        if (canMix && songTransitions.enabled) LocalPlaylistsStore.isMixEnabled(page.browseId) else false
     }
     val transitionsMap = remember(page.browseId, mixUpdates) {
         if (canMix && mixEnabled) LocalPlaylistsStore.getTransitions(page.browseId) else emptyMap()

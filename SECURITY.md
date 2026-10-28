@@ -29,7 +29,7 @@ Vibra Music is designed to run without hardcoded production credentials, tokens,
 
 | Secret Key | Description | Source / Location |
 | --- | --- | --- |
-| `SUPABASE_URL` | Endpoint for Vibra Social and backend services | `local.properties` or environment variable |
+| `SUPABASE_URL` | Optional endpoint for backend synchronization and cloud backups | `local.properties` or environment variable |
 | `SUPABASE_ANON_KEY` | Public anonymous key for Supabase API requests | `local.properties` or environment variable |
 | `SPOTIFY_SPDC` | Optional session cookie for Spotify Canvas fallback | `local.properties` or Desktop Secret Store |
 | `LASTFM_API_KEY` | Optional Last.fm API Key for scrobbling | `local.properties` or environment variable |
@@ -66,8 +66,9 @@ When building releases in CI:
 If any credential was previously committed or exposed publicly in commit history:
 
 ### 1. Supabase Credentials
-- **Rotate the Anon Key**: In the Supabase Dashboard, go to **Project Settings > API** and rotate your API keys.
-- **Enforce Row Level Security (RLS)**: Ensure all tables (`profiles`, `posts`, `post_likes`, `post_replies`, `follows`, `direct_messages`) have strict RLS policies enabled. Anonymous keys should never be able to bypass row ownership checks.
+- **Zero Social Layer**: Vibra Music does not maintain any social feeds, user profiles, followers, or social messaging database.
+- **Rotate the Anon Key**: If cloud synchronization endpoints are configured, rotate keys in the Supabase Dashboard under **Project Settings > API**.
+- **Enforce Row Level Security (RLS)**: Ensure all tables have strict RLS policies enabled so that anonymous keys cannot access unauthorized records.
 
 ### 2. Spotify Session Tokens (`sp_dc`)
 - **Revoke Session**: Log out from all active web sessions on [Spotify Account Overview](https://www.spotify.com/account/overview/) by selecting "Sign out everywhere".

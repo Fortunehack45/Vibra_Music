@@ -36,7 +36,7 @@
 - **Search, browse and play** anything available on YouTube Music.
 - **Hi-Res lossless audio** — FLAC/ALAC from a configured module source, with YouTube Music as fallback.
 - **Gapless playback with true crossfade**, adjustable 0–12s.
-- **Automix [Beta]** — DJ-style transitions with beat-matching and tempo-stretching.
+- **Mix** — DJ-style transitions with beat-matching, harmonic Camelot mixing, and DSP frequency isolation ([Technical Blueprint](docs/MIX_ARCHITECTURE.md)).
 - **Offline downloads** — save tracks with embedded metadata.
 - **Local music library** integration.
 - **Background playback** via a proper foreground media session.
@@ -125,7 +125,7 @@ Vibra Music loads sensitive service configurations at build time and runtime wit
 
 **Vibra Music** is built upon modern open-source Android architecture and best-in-class media playback engines.
 
-We extend our sincere gratitude to the open-source music community for providing the foundations that make Vibra Music possible. Vibra Music builds upon these foundations with custom branding, social features, UI enhancements, and platform-specific improvements.
+We extend our sincere gratitude to the open-source music community for providing the foundations that make Vibra Music possible. Vibra Music builds upon these foundations with custom branding, advanced DSP Mix transitions, UI enhancements, and platform-specific improvements.
 
 Licensed under **GPLv3**, respecting open-source licenses and contributing back to the community.
 
@@ -146,6 +146,7 @@ Vibra Music is an independent, community-driven third-party audio player and cli
 
 * **No Media Hosting:** Vibra Music does not host, upload, or store copyrighted music files. It operates strictly as an interface to scan local device storage or stream media directly from public, public-facing, or user-authenticated APIs.
 * **Fair Use & API Usage:** This software is created solely for personal research, educational, and fair-use purposes. The user is entirely responsible for ensuring their usage aligns with their local copyright laws and YouTube Terms of Service.
+* **Zero Social Layer & Local Privacy:** Vibra Music does not feature a social network, user profiles, public feeds, social messaging, or behavioral tracking. All acoustic analyses, smart transition configurations, playlists, and user playback history are processed and stored exclusively on-device in private local storage.
 * **No Ad-Blocking Guarantee:** While Vibra Music focuses on providing a clean listening environment, it does not guarantee permanent bypasses or modifications to commercial third-party platform conditions.
 * **Copyleft:** Vibra Music is free software under the GPLv3. The license does not let anyone forbid others from selling or redistributing copies, but any distribution must come with the Corresponding Source under the same license.
 

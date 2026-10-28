@@ -1306,10 +1306,13 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
 
         fun getInstance(context: Context, cache: AudioCache = AudioCache): TrackAnalyzer {
             return instance ?: synchronized(this) {
-                instance ?: TrackAnalyzer(context.applicationContext, cache).also { analyzer ->
-                    instance = analyzer
-                    cache.onHeadReady = { videoId, uri ->
-                        analyzer.request(videoId, uri, 0.0)
+                instance ?: run {
+                    val appContext = runCatching { context.applicationContext }.getOrNull() ?: context
+                    TrackAnalyzer(appContext, cache).also { analyzer ->
+                        instance = analyzer
+                        cache.onHeadReady = { videoId, uri ->
+                            analyzer.request(videoId, uri, 0.0)
+                        }
                     }
                 }
             }

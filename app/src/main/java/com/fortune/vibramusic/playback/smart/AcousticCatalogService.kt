@@ -50,7 +50,8 @@ object AcousticCatalogService {
 
     fun init(context: Context) {
         if (prefs == null) {
-            prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val appCtx = runCatching { context.applicationContext }.getOrNull() ?: context
+            prefs = appCtx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         }
     }
 

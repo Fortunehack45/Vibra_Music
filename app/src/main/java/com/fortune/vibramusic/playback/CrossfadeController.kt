@@ -16,6 +16,7 @@ import com.fortune.vibramusic.data.settings.SmartAnalysis
 import com.fortune.vibramusic.data.settings.TrackAnalysisState
 import com.fortune.vibramusic.data.settings.TransitionWindow
 import com.fortune.vibramusic.playback.audio.TransitionProfile
+import com.fortune.vibramusic.playback.mix.MixAutoPlanner
 import com.fortune.vibramusic.playback.mix.TransitionPlan as MixTransitionPlan
 import com.fortune.vibramusic.playback.smart.CrossfadeMode
 import com.fortune.vibramusic.playback.smart.TrackAnalysis
@@ -708,8 +709,17 @@ class CrossfadeController(
         }
 
         val pairId = MixTransitionPlan.pairIdOf(currentItem.mediaId, nextItem.mediaId)
-        val storedPlan = LocalPlaylistsStore.getTransition(playlistId, pairId) ?: LocalPlaylistsStore.getUniversalTransition(pairId)
-        val customProfile = storedPlan?.let { TransitionProfile.fromTransitionPlan(it) }
+        val storedPlan = LocalPlaylistsStore.getTransition(playlistId, pairId)
+            ?: LocalPlaylistsStore.getUniversalTransition(pairId)
+            ?: MixAutoPlanner.autoPlan(
+                from = currentAnalysis,
+                to = nextAnalysis,
+                fromEntryId = currentItem.mediaId,
+                toEntryId = nextItem.mediaId,
+                fromDurationSec = duration / 1000.0,
+                toDurationSec = nextDuration / 1000.0,
+            )
+        val customProfile = TransitionProfile.fromTransitionPlan(storedPlan)
 
         val plan = planTransition(
             analysis = currentAnalysis,
@@ -744,6 +754,9 @@ class CrossfadeController(
                 incomingHandoffTime = cueSec,
                 incomingPlaybackRate = rate,
                 transitionStyle = TransitionStyle.DJ_BLEND,
+                bassSwap = storedPlan.eq.option != "none",
+                blocked = false,
+                markerVisible = true,
                 reason = "mix-plan-${storedPlan.mode.name.lowercase()}",
             )
         } else {

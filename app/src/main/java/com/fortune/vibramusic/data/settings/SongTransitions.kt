@@ -38,7 +38,7 @@ data class SongTransitions(
     val crossfadeSeconds: Int = DEFAULT_CROSSFADE_SECONDS,
 ) {
     /** Whether Automix plans the transitions: what [AppSettings.smartFadeEnabled] hands playback. */
-    val automix: Boolean get() = enabled && (style == SongTransitionStyle.AUTOMIX || style == SongTransitionStyle.RISE)
+    val automix: Boolean get() = enabled && (style == SongTransitionStyle.AUTOMIX || style == SongTransitionStyle.RISE || style == SongTransitionStyle.CUSTOM)
 
     /**
      * What [AppSettings.crossfadeSeconds] hands playback: the crossfade length

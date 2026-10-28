@@ -67,6 +67,8 @@ object MixAutoPlanner {
         to: TrackAnalysis?,
         fromEntryId: String,
         toEntryId: String,
+        fromDurationSec: Double? = null,
+        toDurationSec: Double? = null,
     ): TransitionPlan {
         val base = TransitionPlan.createEmpty(fromEntryId, toEntryId)
 
@@ -80,8 +82,8 @@ object MixAutoPlanner {
             val fx = MixOptions.findEffectsOption("none")
             val loop = MixOptions.findLoopingOption(0)
 
-            val durA = from?.duration?.takeIf { it > 10.0 } ?: 180.0
-            val durB = to?.duration?.takeIf { it > 10.0 } ?: 180.0
+            val durA = fromDurationSec?.takeIf { it > 10.0 } ?: from?.duration?.takeIf { it > 10.0 } ?: 180.0
+            val durB = toDurationSec?.takeIf { it > 10.0 } ?: to?.duration?.takeIf { it > 10.0 } ?: 180.0
             val outroCutA = calculateAutoOutroCutSeconds(durA, from?.bpm ?: 120.0, from?.mixOutTime)
             val introCutB = calculateAutoIntroCutSeconds(durB, to?.bpm ?: 120.0, to?.mixInTime)
 
@@ -171,8 +173,8 @@ object MixAutoPlanner {
         val secondsPerBar = (60.0 / from.bpm.coerceAtLeast(40.0)) * 4.0
         val transitionDurationSeconds = bars * secondsPerBar
 
-        val durA = from.duration.takeIf { it > 10.0 } ?: 180.0
-        val durB = to.duration.takeIf { it > 10.0 } ?: 180.0
+        val durA = fromDurationSec?.takeIf { it > 10.0 } ?: from.duration.takeIf { it > 10.0 } ?: 180.0
+        val durB = toDurationSec?.takeIf { it > 10.0 } ?: to.duration.takeIf { it > 10.0 } ?: 180.0
         val outroCutA = calculateAutoOutroCutSeconds(durA, from.bpm, from.mixOutTime)
         val introCutB = calculateAutoIntroCutSeconds(durB, to.bpm, to.mixInTime)
 

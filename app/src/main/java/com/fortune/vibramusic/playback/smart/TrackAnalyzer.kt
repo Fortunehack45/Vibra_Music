@@ -303,6 +303,7 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
         val supersedable = when {
             recorded == null -> false
             trackId in provisional -> usableComplete
+            recorded.isMetadataOnly -> true
             else -> !recorded.isUsable && untried
         }
         if (recorded != null && !supersedable) {
@@ -357,7 +358,7 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
                 // seven seconds recomputing the identical numbers. A provisional
                 // result is exempt: superseding one is the whole point of it.
                 val landed = results[trackId]
-                if (landed != null && landed.isUsable && trackId !in provisional) return@execute
+                if (landed != null && landed.isUsable && landed.hasBeatGrid && trackId !in provisional) return@execute
                 // The queue this task sat in is single-threaded, so a party
                 // started while the track ahead of it was being measured. Every
                 // task behind that one turns into this return, which drains the

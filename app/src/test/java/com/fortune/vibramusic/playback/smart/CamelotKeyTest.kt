@@ -59,6 +59,16 @@ class CamelotKeyTest {
         val bFlatMajUnicode = CamelotKey.parse("B♭ major")
         assertNotNull(bFlatMajUnicode)
         assertEquals("6B", bFlatMajUnicode?.code)
+
+        // C minor = 5A (e.g. Chisway "Voodoo")
+        val cMin = CamelotKey.parse("C minor")
+        assertNotNull(cMin)
+        assertEquals("5A", cMin?.code)
+
+        // B♭ minor = 3A (e.g. Sarz "Happiness")
+        val bFlatMin = CamelotKey.parse("B♭ minor")
+        assertNotNull(bFlatMin)
+        assertEquals("3A", bFlatMin?.code)
     }
 
     @Test

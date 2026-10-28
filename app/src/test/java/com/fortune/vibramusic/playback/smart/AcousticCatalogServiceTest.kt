@@ -65,5 +65,21 @@ class AcousticCatalogServiceTest {
         assertNotNull(clvData)
         assertEquals(122.0, clvData!!.bpm, 0.01)
         assertEquals("3B", clvData.camelotKey)
+
+        val voodoo = song("Voodoo", "Chisway, JZyNo")
+        val voodooData = AcousticCatalogService.get(voodoo)
+        assertNotNull(voodooData)
+        assertEquals(104.0, voodooData!!.bpm, 0.01)
+        assertEquals("5A", voodooData.camelotKey)
+
+        val happiness = song("Happiness (feat. Asake & Gunna)", "Sarz, Asake, Gunna")
+        val happinessData = AcousticCatalogService.get(happiness)
+        assertNotNull(happinessData)
+        assertEquals(105.0, happinessData!!.bpm, 0.01)
+        assertEquals("3A", happinessData.camelotKey)
+
+        val uncataloged = song("Unknown Track Title 123", "Unknown Artist 456")
+        val uncatalogedData = AcousticCatalogService.get(uncataloged)
+        org.junit.Assert.assertNull(uncatalogedData)
     }
 }

@@ -137,6 +137,10 @@ data class TrackAnalysis(
      */
     val isUsable: Boolean get() = status == STATUS_READY && bpm > 0
 
+    val hasBeatGrid: Boolean get() = beats.isNotEmpty() || downbeats.isNotEmpty()
+
+    val isMetadataOnly: Boolean get() = isUsable && !hasBeatGrid
+
     companion object {
         const val STATUS_READY = "ready"
     }

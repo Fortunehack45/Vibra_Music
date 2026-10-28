@@ -49,7 +49,24 @@ class AnalysisStore(private val context: Context) {
      * base context attached — asking for [Context.getFilesDir] there returns
      * null and takes the whole process down before it can start.
      */
-    private val directory by lazy { File(context.filesDir, DIRECTORY) }
+    private val directory by lazy {
+        File(context.filesDir, DIRECTORY).also { dir ->
+            cleanupLegacyFiles(dir)
+        }
+    }
+
+    private fun cleanupLegacyFiles(dir: File) {
+        runCatching {
+            dir.listFiles()?.forEach { file ->
+                if (file.isFile && file.extension == "json") {
+                    val text = file.readText()
+                    if (!text.contains("\"version\":3") || (text.contains("\"beats\":[]") && text.contains("\"downbeats\":[]"))) {
+                        file.delete()
+                    }
+                }
+            }
+        }.onFailure { Log.w(TAG, "Legacy file cleanup failed", it) }
+    }
 
     /**
      * Track ids known to have no file, so a track analysed in neither this
@@ -297,7 +314,7 @@ class AnalysisStore(private val context: Context) {
          * re-analysis costs seconds, and a beat grid interpreted under the wrong
          * assumptions is silently wrong for the life of the file.
          */
-        const val SCHEMA_VERSION = 2
+        const val SCHEMA_VERSION = 3
 
         /** A few thousand tracks' worth, at tens of kilobytes each. */
         const val MAX_ENTRIES = 2_000

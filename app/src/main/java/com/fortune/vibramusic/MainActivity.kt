@@ -5167,10 +5167,10 @@ private fun FrostedSortMenu(
                         }
                     }
 
-                    val otherOptions = remember(AppSettings.songTransitions.value.enabled) {
+                    val otherOptions = remember(AppSettings.songTransitions.value.enabled, AppSettings.smartFlowEnabled.value) {
                         SongSort.entries.filter {
                             it != SongSort.DATE_ADDED_ASC && it != SongSort.DATE_ADDED_DESC &&
-                                (it != SongSort.SMART_FLOW || AppSettings.songTransitions.value.enabled)
+                                (it != SongSort.SMART_FLOW || (AppSettings.songTransitions.value.enabled && AppSettings.smartFlowEnabled.value))
                         }
                     }
                     otherOptions.forEachIndexed { optIndex, option ->

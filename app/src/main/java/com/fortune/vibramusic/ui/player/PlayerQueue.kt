@@ -258,6 +258,7 @@ internal fun InlineQueue(
 
     var activeTransitionPair by remember { mutableStateOf<Pair<Song, Song>?>(null) }
     val songTransitions by AppSettings.songTransitions.collectAsStateWithLifecycle()
+    val smartFlowEnabled by AppSettings.smartFlowEnabled.collectAsStateWithLifecycle()
     val mixUpdates by LocalPlaylistsStore.mixUpdates.collectAsStateWithLifecycle()
     val isMixActive = remember(nowPlaying?.song?.playbackSource, songTransitions.enabled, mixUpdates) {
         if (!songTransitions.enabled) {
@@ -294,7 +295,7 @@ internal fun InlineQueue(
                 color = Color.White,
                 modifier = Modifier.weight(1f),
             )
-            if (isMixActive && onSmartReorder != null && (tracks.context.size + tracks.autoplay.size) >= 2) {
+            if (isMixActive && smartFlowEnabled && onSmartReorder != null && (tracks.context.size + tracks.autoplay.size) >= 2) {
                 SmartReorderButton(locked = controlsLocked, onClick = onSmartReorder)
                 Spacer(Modifier.width(8.dp))
             }

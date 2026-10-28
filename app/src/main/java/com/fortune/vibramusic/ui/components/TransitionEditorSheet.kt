@@ -116,7 +116,11 @@ import kotlinx.coroutines.launch
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.hypot
+import kotlin.math.roundToInt
 import kotlin.math.sin
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
+import com.fortune.vibramusic.playback.smart.CamelotKey
 
 private val VibraPurple = Color(0xFF8B5CF6)
 private val VolumeBlue = Color(0xFF38BDF8)
@@ -466,6 +470,12 @@ fun TransitionEditorSheet(
                     }
 
                     Spacer(Modifier.height(4.dp))
+
+                    HarmonicCompatibilityBar(
+                        fromAnalysis = fromAnalysis,
+                        toAnalysis = toAnalysis,
+                        modifier = Modifier.padding(horizontal = 18.dp, vertical = 6.dp),
+                    )
 
                     // Dual Waveform Canvas with Spotify-Parity Multi-Lane Curves & Looping Block
                     DualWaveformEditor(
@@ -1120,6 +1130,85 @@ private fun TrackHeaderRow(
 }
 
 @Composable
+private fun HarmonicCompatibilityBar(
+    fromAnalysis: TrackAnalysis?,
+    toAnalysis: TrackAnalysis?,
+    modifier: Modifier = Modifier,
+) {
+    val keyA = CamelotKey.parse(fromAnalysis?.key)
+    val keyB = CamelotKey.parse(toAnalysis?.key)
+    val bpmA = fromAnalysis?.bpm
+    val bpmB = toAnalysis?.bpm
+
+    if (keyA == null && keyB == null && bpmA == null && bpmB == null) return
+
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val cardBg = if (isDark) Color(0xFF18181B) else Color(0xFFF4F4F6)
+    val cardBorder = if (isDark) Color(0xFF27272A) else Color(0xFFE4E4E7)
+
+    val (badgeText, badgeColor) = if (keyA != null && keyB != null) {
+        val dist = keyA.keyDistance(keyB)
+        when {
+            dist == 0 -> "Exact Key Match (Smooth Mix)" to Color(0xFF10B981)
+            dist == 1 && keyA.isMajor == keyB.isMajor -> "Harmonic Shift (+/-1 Fifth)" to Color(0xFF10B981)
+            dist == 1 && keyA.isMajor != keyB.isMajor -> "Relative Mood Modulation" to Color(0xFF06B6D4)
+            dist == 2 -> "Energy Boost (+2 Camelot)" to Color(0xFFF59E0B)
+            else -> "Key Modulation" to Color(0xFFF43F5E)
+        }
+    } else {
+        "Harmonic Alignment" to Color(0xFF8B5CF6)
+    }
+
+    val bpmDiffText = if (bpmA != null && bpmB != null && bpmA > 0.0 && bpmB > 0.0) {
+        val diffPct = (((bpmB - bpmA) / bpmA) * 100).roundToInt()
+        val sign = if (diffPct >= 0) "+$diffPct%" else "$diffPct%"
+        "${bpmA.roundToInt()} -> ${bpmB.roundToInt()} BPM ($sign)"
+    } else null
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(cardBg)
+            .border(1.dp, cardBorder, RoundedCornerShape(10.dp))
+            .padding(horizontal = 12.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(badgeColor),
+            )
+            Text(
+                text = badgeText,
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 11.sp,
+                ),
+                color = if (isDark) Color.White.copy(alpha = 0.9f) else Color(0xFF18181B),
+            )
+        }
+
+        if (bpmDiffText != null) {
+            Text(
+                text = bpmDiffText,
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 11.sp,
+                ),
+                color = if (isDark) Color.White.copy(alpha = 0.6f) else Color(0xFF71717A),
+            )
+        }
+    }
+}
+
+@Composable
 private fun PresetPill(
     label: String,
     isSelected: Boolean,
@@ -1184,6 +1273,9 @@ private fun DualWaveformEditor(
     modifier: Modifier = Modifier,
 ) {
     var selectedPointId by remember { mutableStateOf<String?>(null) }
+    var dragTooltipText by remember { mutableStateOf<String?>(null) }
+    var dragTooltipX by remember { mutableFloatStateOf(0f) }
+    var dragTooltipY by remember { mutableFloatStateOf(0f) }
 
     val activeOutPoints = when (focusedLane) {
         LaneId.VOLUME -> plan.volume.out
@@ -1319,19 +1411,52 @@ private fun DualWaveformEditor(
 
                                 if (isTargetOut) {
                                     val normV = (1f - (currentPos.y / halfH)).coerceIn(0f, 1f)
+                                    val tooltip = when (focusedLane) {
+                                        LaneId.VOLUME -> "${(normV * 100).toInt()}%"
+                                        LaneId.EQ -> {
+                                            val db = ((normV - 0.5f) * 24).toInt()
+                                            if (db > 0) "+$db dB" else "$db dB"
+                                        }
+                                        LaneId.FILTER -> {
+                                            val hz = (20f + normV * normV * 19980f).toInt()
+                                            if (hz >= 1000) "${String.format(Locale.US, "%.1f", hz / 1000f)} kHz" else "$hz Hz"
+                                        }
+                                        LaneId.EFFECTS -> "${(normV * 100).toInt()}%"
+                                        else -> null
+                                    }
+                                    dragTooltipText = tooltip
+                                    dragTooltipX = currentPos.x
+                                    dragTooltipY = currentPos.y
                                     runningOut = Curves.movePoint(runningOut, targetPointId, normT, normV)
                                     currentOnPointsChanged(runningOut, runningIn)
                                 } else {
                                     val normV = (1f - ((currentPos.y - halfH) / halfH)).coerceIn(0f, 1f)
+                                    val tooltip = when (focusedLane) {
+                                        LaneId.VOLUME -> "${(normV * 100).toInt()}%"
+                                        LaneId.EQ -> {
+                                            val db = ((normV - 0.5f) * 24).toInt()
+                                            if (db > 0) "+$db dB" else "$db dB"
+                                        }
+                                        LaneId.FILTER -> {
+                                            val hz = (20f + normV * normV * 19980f).toInt()
+                                            if (hz >= 1000) "${String.format(Locale.US, "%.1f", hz / 1000f)} kHz" else "$hz Hz"
+                                        }
+                                        LaneId.EFFECTS -> "${(normV * 100).toInt()}%"
+                                        else -> null
+                                    }
+                                    dragTooltipText = tooltip
+                                    dragTooltipX = currentPos.x
+                                    dragTooltipY = currentPos.y
                                     runningIn = Curves.movePoint(runningIn, targetPointId, normT, normV)
                                     currentOnPointsChanged(runningOut, runningIn)
                                 }
                             }
                             selectedPointId = null
+                            dragTooltipText = null
                             currentOnDragPointActive(false)
 
                             // If touch was a simple click/tap without dragging on an ALREADY PRE-EXISTING point, undo/remove this point!
-                            if (isPreExistingPoint && totalDragDist < 15f) {
+                            if (isPreExistingPoint && totalDragDist < 25f) {
                                 val isStart = if (isTargetOut) runningOut.firstOrNull()?.id == targetPointId else runningIn.firstOrNull()?.id == targetPointId
                                 val isEnd = if (isTargetOut) runningOut.lastOrNull()?.id == targetPointId else runningIn.lastOrNull()?.id == targetPointId
                                 if (!isStart && !isEnd) {
@@ -1511,6 +1636,9 @@ private fun DualWaveformEditor(
                     for (p in sorted) {
                         val px = p.t * w
                         val py = topOffset + (1f - p.v) * halfH
+                        if (p.id == selectedPointId) {
+                            drawCircle(color = color.copy(alpha = 0.35f), radius = 20f, center = Offset(px, py))
+                        }
                         drawCircle(color = color, radius = 9f, center = Offset(px, py))
                         drawCircle(color = Color.White, radius = 4f, center = Offset(px, py))
                     }
@@ -1590,6 +1718,38 @@ private fun DualWaveformEditor(
                     tint = playBtnTint,
                     modifier = Modifier.size(22.dp),
                 )
+            }
+        }
+
+        if (dragTooltipText != null) {
+            val density = LocalDensity.current
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        translationX = (dragTooltipX - with(density) { 36.dp.toPx() }).coerceIn(
+                            8f,
+                            (size.width - with(density) { 72.dp.toPx() }).coerceAtLeast(8f),
+                        )
+                        translationY = (dragTooltipY - with(density) { 42.dp.toPx() }).coerceAtLeast(8f)
+                    },
+            ) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (isDark) Color(0xFF27272A) else Color(0xFF18181B))
+                        .border(1.dp, if (isDark) Color.White.copy(alpha = 0.2f) else Color.Transparent, RoundedCornerShape(8.dp))
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                ) {
+                    Text(
+                        text = dragTooltipText.orEmpty(),
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp,
+                            color = Color.White,
+                        ),
+                    )
+                }
             }
         }
     }

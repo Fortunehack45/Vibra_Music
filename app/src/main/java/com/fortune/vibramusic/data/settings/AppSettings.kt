@@ -262,6 +262,7 @@ object AppSettings {
     // which now reads [effectiveAudioQuality] and nothing else.
 
     val songTransitions = MutableStateFlow(SongTransitions())
+    val smartFlowEnabled = MutableStateFlow(false)
     val crossfadeSeconds = MutableStateFlow(0)
 
     /**
@@ -881,10 +882,12 @@ object AppSettings {
         downloadQuality.value = readDownloadQuality()
         wifiOnlyDownloads.value = prefs.getBoolean(KEY_WIFI_ONLY_DOWNLOADS, true)
         exportDownloads.value = prefs.getBoolean(KEY_EXPORT_DOWNLOADS, true)
-        if (!prefs.getBoolean(KEY_MIX_FORCE_DEFAULT_OFF_V2, false)) {
+        if (!prefs.getBoolean(KEY_FORCE_MIX_AND_FLOW_OFF_V3, false)) {
             prefs.edit()
+                .putBoolean(KEY_FORCE_MIX_AND_FLOW_OFF_V3, true)
                 .putBoolean(KEY_MIX_FORCE_DEFAULT_OFF_V2, true)
                 .putBoolean(KEY_SONG_TRANSITIONS, false)
+                .putBoolean(KEY_SMART_FLOW, false)
                 .putBoolean(KEY_SMART_FADE, false)
                 .putInt(KEY_CROSSFADE, 0)
                 .putBoolean(KEY_MIX_ENABLE_ON_NEW_PLAYLISTS, false)
@@ -893,6 +896,7 @@ object AppSettings {
         }
         migrateSongTransitions()
         songTransitions.value = readSongTransitions()
+        smartFlowEnabled.value = prefs.getBoolean(KEY_SMART_FLOW, false)
         applySongTransitions()
         automixPerformanceMode.value = runCatching {
             AutomixPerformanceMode.valueOf(
@@ -1212,6 +1216,15 @@ object AppSettings {
         writeSongTransitions(songTransitions.value.copy(enabled = value))
         if (!value) {
             com.fortune.vibramusic.data.LocalPlaylistsStore.disableAllMix()
+            setSmartFlowEnabled(false)
+        }
+    }
+
+    fun setSmartFlowEnabled(value: Boolean) {
+        smartFlowEnabled.value = value
+        prefs.edit().putBoolean(KEY_SMART_FLOW, value).apply()
+        if (value && !songTransitions.value.enabled) {
+            setSongTransitionsEnabled(true)
         }
     }
 
@@ -2183,6 +2196,8 @@ object AppSettings {
     private const val KEY_WIFI_ONLY_DOWNLOADS = "wifi_only_downloads"
     private const val KEY_EXPORT_DOWNLOADS = "export_downloads"
     private const val KEY_MIX_FORCE_DEFAULT_OFF_V2 = "mix_force_default_off_v2"
+    private const val KEY_FORCE_MIX_AND_FLOW_OFF_V3 = "force_mix_and_flow_off_v3"
+    private const val KEY_SMART_FLOW = "smart_flow_enabled"
     private const val KEY_SONG_TRANSITIONS = "song_transitions_enabled"
     private const val KEY_SONG_TRANSITION_STYLE = "song_transition_style"
     private const val KEY_CROSSFADE_DURATION = "crossfade_duration_seconds"

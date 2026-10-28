@@ -683,6 +683,7 @@ fun SettingsScreen(
                 stringResource(R.string.crossfade),
                 stringResource(R.string.automix),
                 stringResource(R.string.automix_performance),
+                "smart flow", "smart", "flow", "harmonic", "reorder",
                 "crossfade", "automix", "mix", "fade", "gapless", "dj", "beat", "cpu", "battery",
             ) {
                 SongTransitionsRows(
@@ -2637,6 +2638,24 @@ private fun SongTransitionsRows(
                 subtitle = "Resonant high-pass riser build-up into incoming drop",
                 selected = transitions.style == SongTransitionStyle.RISE,
                 onSelect = { AppSettings.setSongTransitionStyle(SongTransitionStyle.RISE) },
+            )
+            RowDivider()
+            val smartFlowEnabled by AppSettings.smartFlowEnabled.collectAsStateWithLifecycle()
+            SettingsRow(
+                icon = Icons.Rounded.AutoAwesome,
+                title = "Smart Flow",
+                subtitle = "Order upcoming tracks by BPM, Camelot harmonic key, and energy for seamless transitions",
+                trailing = {
+                    Switch(
+                        checked = smartFlowEnabled,
+                        onCheckedChange = AppSettings::setSmartFlowEnabled,
+                        colors = SwitchDefaults.colors(
+                            checkedTrackColor = MaterialTheme.colorScheme.primary,
+                            checkedBorderColor = MaterialTheme.colorScheme.primary,
+                        ),
+                    )
+                },
+                onClick = { AppSettings.setSmartFlowEnabled(!smartFlowEnabled) },
             )
             RowDivider()
             when (transitions.style) {

@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Ported from Orchard (https://github.com/SFG5453/Orchard), merging its
  * TransitionPlanner.kt and WsolaPlanner.kt into one file.
  *
@@ -300,7 +300,7 @@ private fun harmonicallyCompatible(left: String, right: String): Boolean {
 private fun trustedKey(analysis: TrackAnalysis): String =
     if (analysis.key.isBlank() || analysis.keyConfidence < 0.25) "" else analysis.key
 
-private fun nearestTimedValue(
+internal fun nearestTimedValue(
     values: List<Double>,
     target: Double,
     tolerance: Double = Double.POSITIVE_INFINITY,
@@ -309,7 +309,7 @@ private fun nearestTimedValue(
     .filter { it.isFinite() && it >= minimum && abs(it - target) <= tolerance }
     .minByOrNull { abs(it - target) }
 
-private fun timedValueNearOrBefore(
+internal fun timedValueNearOrBefore(
     values: List<Double>,
     target: Double,
     tolerance: Double = Double.POSITIVE_INFINITY,
@@ -322,7 +322,7 @@ private fun timedValueNearOrBefore(
  * Snaps a transition start onto the outgoing track's grid: a phrase boundary
  * if one is near, a downbeat otherwise, and the raw target when neither is.
  */
-private fun alignedTransitionStart(
+internal fun alignedTransitionStart(
     analysis: TrackAnalysis,
     target: Double,
     end: Double,

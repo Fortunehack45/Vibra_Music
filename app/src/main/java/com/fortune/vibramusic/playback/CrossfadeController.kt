@@ -17,6 +17,7 @@ import com.fortune.vibramusic.data.settings.TrackAnalysisState
 import com.fortune.vibramusic.data.settings.TransitionWindow
 import com.fortune.vibramusic.playback.audio.TransitionProfile
 import com.fortune.vibramusic.playback.mix.MixAutoPlanner
+import com.fortune.vibramusic.playback.mix.TransitionMode
 import com.fortune.vibramusic.playback.mix.TransitionPlan as MixTransitionPlan
 import com.fortune.vibramusic.playback.smart.CrossfadeMode
 import com.fortune.vibramusic.playback.smart.TrackAnalysis
@@ -284,6 +285,8 @@ class CrossfadeController(
      * smarter timing, not a beatmatch.
      */
     private var incomingPlaybackRate: Double = 1.0
+    private var outgoingPlaybackRate: Double = 1.0
+    private var phaseLockActive: Boolean = false
 
     /**
      * The style-specific half of the plan in flight — everything [rideFilters]
@@ -499,9 +502,11 @@ class CrossfadeController(
 
         if (handedOff) {
             active().volume = 1f
+            active().setPlaybackSpeed(AppSettings.playbackSpeed.value)
             standby().let(::retire)
         } else {
             active().volume = 1f
+            active().setPlaybackSpeed(AppSettings.playbackSpeed.value)
             incoming?.let(::retire)
         }
 
@@ -509,6 +514,9 @@ class CrossfadeController(
         incoming = null
         handedOff = false
         queuedItemCount = 0
+        incomingPlaybackRate = 1.0
+        outgoingPlaybackRate = 1.0
+        phaseLockActive = false
         phase = Phase.IDLE
         start()
     }
@@ -736,15 +744,29 @@ class CrossfadeController(
 
         val durSec = duration / 1000.0
         val effectivePlan = if (storedPlan != null) {
-            val transFade = storedPlan.durationSeconds.coerceAtLeast(1.0)
+            val transFade = storedPlan.durationSeconds(currentAnalysis.bpm).coerceAtLeast(1.0)
             val maxCut = (durSec - transFade).coerceAtLeast(15.0)
             val startCut = (storedPlan.startCutSeconds ?: maxCut).coerceIn(15.0, maxCut)
             val endSec = startCut + transFade
             val cueSec = storedPlan.mixInSeconds.coerceAtLeast(0.0)
             val rate = if (storedPlan.beatmatching && currentAnalysis.bpm > 0 && nextAnalysis.bpm > 0) {
-                (currentAnalysis.bpm / nextAnalysis.bpm).coerceIn(0.92, 1.08)
+                val alignedIn = com.fortune.vibramusic.playback.smart.alignTempoOctave(currentAnalysis.bpm, nextAnalysis.bpm)
+                (currentAnalysis.bpm / alignedIn).coerceIn(0.92, 1.08)
             } else {
                 1.0
+            }
+            val resolvedStyle = when {
+                storedPlan.mode == TransitionMode.PRESET -> {
+                    when (AppSettings.songTransitions.value.style) {
+                        com.fortune.vibramusic.data.settings.SongTransitionStyle.RISE -> TransitionStyle.DJ_RISE
+                        com.fortune.vibramusic.data.settings.SongTransitionStyle.CROSSFADE -> TransitionStyle.EQUAL_POWER
+                        else -> if (storedPlan.beatmatching) TransitionStyle.DJ_BLEND else TransitionStyle.DJ_FILTER
+                    }
+                }
+                !storedPlan.beatmatching -> {
+                    if (storedPlan.filter.option != "none") TransitionStyle.DJ_FILTER else plan.transitionStyle
+                }
+                else -> plan.transitionStyle.takeIf { it != TransitionStyle.EQUAL_POWER } ?: TransitionStyle.DJ_BLEND
             }
             plan.copy(
                 transitionStart = startCut,
@@ -753,8 +775,10 @@ class CrossfadeController(
                 incomingCueTime = cueSec,
                 incomingHandoffTime = cueSec,
                 incomingPlaybackRate = rate,
-                transitionStyle = TransitionStyle.DJ_BLEND,
+                outgoingPlaybackRate = plan.outgoingPlaybackRate,
+                transitionStyle = resolvedStyle,
                 bassSwap = storedPlan.eq.option != "none",
+                phaseLock = storedPlan.beatmatching && currentAnalysis.beatConfidence >= 0.55 && nextAnalysis.beatConfidence >= 0.55,
                 blocked = false,
                 markerVisible = true,
                 reason = "mix-plan-${storedPlan.mode.name.lowercase()}",
@@ -824,6 +848,8 @@ class CrossfadeController(
             smart = true,
             cueTimeMs = (effectivePlan.incomingCueTime * 1000).roundToLong(),
             playbackRate = effectivePlan.incomingPlaybackRate,
+            outgoingRate = effectivePlan.outgoingPlaybackRate,
+            phaseLock = effectivePlan.phaseLock,
             renderStyle = Render(
                 style = effectivePlan.transitionStyle,
                 bassSwap = effectivePlan.bassSwap,
@@ -987,6 +1013,8 @@ class CrossfadeController(
         smart: Boolean,
         cueTimeMs: Long = 0L,
         playbackRate: Double = 1.0,
+        outgoingRate: Double = 1.0,
+        phaseLock: Boolean = false,
         renderStyle: Render = Render(),
     ): Boolean {
         val out = active()
@@ -1000,7 +1028,9 @@ class CrossfadeController(
         smartFadeActive = smart
         incomingCueTimeMs = cueTimeMs.coerceAtLeast(0L)
         incomingPlaybackRate = playbackRate
-        preRollMs = if (smart && incomingCueTimeMs >= 1200L) 1200L else 0L
+        outgoingPlaybackRate = outgoingRate
+        phaseLockActive = smart && phaseLock
+        preRollMs = if (smart && incomingCueTimeMs >= 400L) minOf(1200L, incomingCueTimeMs) else 0L
         isPreRolling = false
         render = renderStyle
         activeProfile = renderStyle.profile ?: when (renderStyle.style) {
@@ -1034,6 +1064,9 @@ class CrossfadeController(
         // it, so a beatmatched transition and "play everything at 1.25x" don't
         // fight each other. Undone in [finish].
         into.setPlaybackSpeed((AppSettings.playbackSpeed.value * incomingPlaybackRate).toFloat())
+        if (outgoingPlaybackRate != 1.0) {
+            out.setPlaybackSpeed((AppSettings.playbackSpeed.value * outgoingPlaybackRate).toFloat())
+        }
         into.volume = 0f
         // Before `setMediaItems`, so the standby's per-player audio state is
         // right for the incoming track from its very first decoded frame
@@ -1227,6 +1260,24 @@ class CrossfadeController(
             performHandoff()
         }
 
+        // Active blend phase-servo: continuously eliminate inter-player beat drift
+        if (phaseLockActive && out != null && out.isPlaying && player.isPlaying && progress in 0.05f..0.90f) {
+            val outElapsedMs = out.currentPosition - (fadeEndMs - fadeMs)
+            val expectedIncomingPos = incomingCueTimeMs + (outElapsedMs.toDouble() * incomingPlaybackRate).roundToLong()
+            val driftMs = player.currentPosition - expectedIncomingPos
+            val baseSpeed = (AppSettings.playbackSpeed.value * incomingPlaybackRate).toFloat()
+            if (abs(driftMs) in 2L..150L) {
+                val nudgedSpeed = (baseSpeed * (1.0f - (driftMs.toFloat() / 1500f))).coerceIn(baseSpeed * 0.98f, baseSpeed * 1.02f)
+                if (abs(player.playbackParameters.speed - nudgedSpeed) >= 0.001f) {
+                    player.setPlaybackSpeed(nudgedSpeed)
+                }
+            } else if (abs(driftMs) < 1L) {
+                if (abs(player.playbackParameters.speed - baseSpeed) >= 0.001f) {
+                    player.setPlaybackSpeed(baseSpeed)
+                }
+            }
+        }
+
         val rise = activeProfile?.incomingGain?.evaluate(progress) ?: riseGain(progress)
         val fall = activeProfile?.outgoingGain?.evaluate(progress) ?: fallGain(progress)
         // Two overlapping brickwall-limited masters (especially beat-aligned in Automix)
@@ -1416,7 +1467,10 @@ class CrossfadeController(
         } else {
             // The transition never became audible, so the session player never
             // moved and the standby is the one to throw away.
-            outgoing?.let { it.volume = trackVolumeFor(it) }
+            outgoing?.let {
+                it.volume = trackVolumeFor(it)
+                it.setPlaybackSpeed(AppSettings.playbackSpeed.value)
+            }
             incoming?.let(::retire)
         }
 
@@ -1424,6 +1478,9 @@ class CrossfadeController(
         incoming = null
         handedOff = false
         queuedItemCount = 0
+        incomingPlaybackRate = 1.0
+        outgoingPlaybackRate = 1.0
+        phaseLockActive = false
         incomingCueTimeMs = 0L
         incomingPlaybackRate = 1.0
         preRollMs = 0L

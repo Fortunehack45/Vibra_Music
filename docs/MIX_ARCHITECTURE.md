@@ -216,6 +216,13 @@ For an initial startup jitter \(\epsilon(0) = 40.0\text{ ms}\):
 $$\epsilon(1200\text{ ms}) = 40.0 \cdot e^{-1.2 / 4.0} = 40.0 \cdot e^{-0.30} \approx 2.96\text{ ms}$$
 The initial \(40\text{ ms}\) jitter is deterministically attenuated to under \(3\text{ ms}\), aligning beats below the psychoacoustic threshold for transient smearing (\(< 10\text{ ms}\)).
 
+#### 2.4.4 Continuous Active-Blend Phase Servo
+While the pre-roll window eliminates initial launch jitter, real-world Android decoders, resampling drift, and audio hardware clock differences can introduce slow cumulative timing skew during an extended 8-to-16-bar transition.
+To maintain phase-lock throughout the entire crossfade, `CrossfadeController` executes active-blend phase corrections during every 35 ms tick of `driveFade()`:
+$$v_{\text{active}}(t) = \text{clamp}\left( v_{\text{base}} \cdot \left( 1.0 - \frac{\epsilon_{\text{blend}}(t)}{\kappa_{\text{active}}} \right), \; 0.98 \cdot v_{\text{base}}, \; 1.02 \cdot v_{\text{base}} \right)$$
+where \(\kappa_{\text{active}} = 1500.0\text{ ms}\).
+This restricts nudges to \(\pm 2\%\) (imperceptible pitch and tempo variation), keeping the beat phase error \(\epsilon_{\text{blend}}(t) < 4.0\text{ ms}\) until the transition completes and both players return to standard playback rate.
+
 ---
 
 ### 2.5 Trigonometric Equal-Power Gain Curves
@@ -250,6 +257,59 @@ $$a_0 = 1 + \alpha, \quad a_1 = -2\cos(\omega_0), \quad a_2 = 1 - \alpha$$
 1. **Equal Power Blend**: Gain follows \(\cos / \sin\); filters remain fully open (\(f_{\text{LP}} = 20{,}000\text{ Hz}\), \(f_{\text{HP}} = 20\text{ Hz}\)).
 2. **Bass Swap**: Both tracks play simultaneously; at transition point \(\tau = 0.50\), a low-shelf crossover at \(250\text{ Hz}\) instantly mutes the outgoing track's low-end while un-muting the incoming track's bass.
 3. **Resonant Rise**: Outgoing track sweeps high-pass from \(20\text{ Hz} \to 4000\text{ Hz}\) across \(\tau \in [0.0, 0.70]\) with \(Q = 1.414\) resonance, dropping the incoming track at full blast on \(\tau = 0.70\).
+
+---
+
+### 2.7 Downbeat Snapping & Musical Phrase Alignment
+
+Unquantized crossfading at arbitrary timestamps breaks the listener's sense of groove and causes rhythm flams. Vibra Music enforces downbeat and phrase-boundary quantization for both mix-out and mix-in:
+
+#### 2.7.1 Outro Downbeat Quantization
+Given a target crossfade trigger point \(t_{\text{target}}\) (calculated as \(D_{\text{out}} - T_{\text{transition}}\)), the engine projects candidate transition start times against the detected downbeats \(\mathcal{D} = \{d_1, d_2, \dots, d_K\}\) and phrase boundaries \(\mathcal{P} \subseteq \mathcal{D}\):
+$$t_{\text{cut}} = \begin{cases}
+p^* = \arg\min_{p \in \mathcal{P}} |p - t_{\text{target}}| & \text{if } |p^* - t_{\text{target}}| \le 2000\text{ ms} \\
+d^* = \arg\min_{d \in \mathcal{D}} |d - t_{\text{target}}| & \text{if } |d^* - t_{\text{target}}| \le 1500\text{ ms} \\
+t_{\text{target}} & \text{otherwise (fallback)}
+\end{cases}$$
+
+#### 2.7.2 Intro Downbeat Quantization
+Similarly, incoming tracks are cued at musical phrase starts or the first downbeat (\(d_{\text{in}, 1}\)) rather than at 0.0 seconds of silent pre-gap:
+$$t_{\text{cue\_in}} = \begin{cases}
+p_{\text{in}}^* & \text{if defined and within bounds} \\
+d_{\text{in}, 1} & \text{if downbeats available} \\
+\text{incomingCuePoint} & \text{from analysis}
+\end{cases}$$
+
+#### 2.7.3 Tempo-Scaled Bar Duration
+Transition durations are quantified in integer musical bars (\(B \in \{8, 16\}\)):
+$$T_{\text{transition}} = B \times \frac{240.0}{\text{BPM}_{\text{out}}}$$
+To protect short tracks, \(T_{\text{transition}}\) is constrained by a strict 20% track duration clearance limit:
+$$T_{\text{transition}} \le 0.20 \times \min(D_{\text{out}}, D_{\text{in}})$$
+
+---
+
+### 2.8 Octave Folding & Metrical Compatibility
+
+#### 2.8.1 Octave-Aware Tempo Alignment
+Real-world genres often present half-time or double-time relationships (e.g., Hip-hop / Trap at 70 BPM vs Drum & Bass / House at 140 BPM). Direct ratio matching would classify them as incompatible (\(\Delta \text{BPM} = 100\%\)).
+Vibra Music performs octave folding:
+$$\rho = \frac{\text{BPM}_{\text{in}}}{\text{BPM}_{\text{out}}}$$
+- If \(|\rho - 1.0| \le 0.08\): Natural tempo match (\(r_{\text{in}} = \text{BPM}_{\text{out}} / \text{BPM}_{\text{in}}\)).
+- If \(|\rho - 2.0| \le 0.16\): Double-time octave match (\(\text{BPM}_{\text{in, target}} = \text{BPM}_{\text{out}} \times 2.0\)).
+- If \(|\rho - 0.5| \le 0.08\): Half-time octave match (\(\text{BPM}_{\text{in, target}} = \text{BPM}_{\text{out}} \times 0.5\)).
+
+#### 2.8.2 Meter Mismatch Protection
+Tracks with divergent time signatures (e.g., 4/4 vs 3/4 waltz or 6/8 triplet meter) cannot be rhythmically phase-aligned without destructive polymetric clashing. If \(M_{\text{out}} \ne M_{\text{in}}\), beatmatching and phase-lock are unconditionally bypassed in favor of an equal-power crossfade or drop-in.
+
+---
+
+### 2.9 Neural Vocal Collision Avoidance
+
+To prevent unintelligible vocal clutter during transitions, the neural vocal presence profile \(\beta_{\text{vocal}}(t)\) is cross-evaluated over the overlap window \([0, T_{\text{transition}}]\):
+$$F_{\text{clash}} = \frac{1}{T_{\text{transition}}} \int_{0}^{T_{\text{transition}}} \mathbb{I}\left(\beta_{\text{out}}(t_{\text{cut}} + t) > 0.35 \;\land\; \beta_{\text{in}}(t_{\text{cue}} + t) > 0.35\right) dt$$
+If \(F_{\text{clash}} > 0.05\) (more than 5% concurrent vocal overlap):
+1. The transition duration is shortened to 8 bars to minimize overlap exposure.
+2. The frequency routing switches to `"lpf-in-hpf-out"`, rolling off the outgoing track's vocal frequencies (\(> 1\text{ kHz}\)) while attenuating the incoming track's highs until the outgoing vocal finishes.
 
 ---
 

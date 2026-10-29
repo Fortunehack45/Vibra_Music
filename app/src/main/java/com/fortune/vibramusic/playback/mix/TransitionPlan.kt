@@ -70,6 +70,13 @@ data class TransitionPlan(
 ) {
     val durationSeconds: Double get() = lengthBars * 2.0
 
+    fun durationSeconds(bpm: Double? = null): Double {
+        if (bpm != null && bpm in 40.0..240.0) {
+            return lengthBars * (240.0 / bpm)
+        }
+        return durationSeconds
+    }
+
     companion object {
         fun pairIdOf(fromEntryId: String, toEntryId: String): String =
             "${fromEntryId}__${toEntryId}"

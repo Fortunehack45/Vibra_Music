@@ -48,4 +48,58 @@ class PhaseServoSimulationTest {
             finalDrift < 4.0
         )
     }
+
+    @Test
+    fun phaseServoMaintainsPhaseLockDuringActiveBlend() {
+        val fadeMs = 8000.0 // 8s transition
+        val tickIntervalMs = 30.0
+        val incomingCueTimeMs = 20000.0
+        val playbackRate = 1.0
+        val baseSpeed = 1.0f
+
+        var incomingPosition = incomingCueTimeMs
+        var outgoingPosition = 172000.0 // 8s before 180s track end
+        val transitionStartMs = outgoingPosition
+        var currentSpeed = baseSpeed
+
+        // Clock drift bias (+1.5ms per second of hardware timer mismatch)
+        val clockDriftFactorPerTick = 0.05
+
+        var elapsedMs = 0.0
+        var maxObservedDrift = 0.0
+
+        while (elapsedMs < fadeMs) {
+            val dt = tickIntervalMs
+            outgoingPosition += dt
+            incomingPosition += (dt * currentSpeed) + clockDriftFactorPerTick
+            elapsedMs += dt
+
+            val outElapsedMs = outgoingPosition - transitionStartMs
+            val expectedIncomingPos = incomingCueTimeMs + (outElapsedMs * playbackRate)
+            val driftMs = incomingPosition - expectedIncomingPos
+
+            maxObservedDrift = maxOf(maxObservedDrift, abs(driftMs))
+
+            // Active blend phase-servo law from CrossfadeController
+            if (abs(driftMs) in 2.0..150.0) {
+                val nudgedSpeed = (baseSpeed * (1.0f - (driftMs.toFloat() / 1500f))).coerceIn(baseSpeed * 0.98f, baseSpeed * 1.02f)
+                if (abs(currentSpeed - nudgedSpeed) >= 0.0005f) {
+                    currentSpeed = nudgedSpeed
+                }
+            } else if (abs(driftMs) < 1.0) {
+                if (abs(currentSpeed - baseSpeed) >= 0.0005f) {
+                    currentSpeed = baseSpeed
+                }
+            }
+        }
+
+        val outElapsedMs = outgoingPosition - transitionStartMs
+        val finalExpectedPos = incomingCueTimeMs + (outElapsedMs * playbackRate)
+        val finalDrift = abs(incomingPosition - finalExpectedPos)
+
+        assertTrue(
+            "Active blend phase lock must bound accumulated drift to under 4ms (measured $finalDrift ms, max $maxObservedDrift ms)",
+            finalDrift < 4.0
+        )
+    }
 }

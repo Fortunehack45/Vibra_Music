@@ -115,7 +115,17 @@ object AcousticCatalogService {
             }
         }
 
-        // 2. Check local persistent cache
+        // 2. Read from in-memory analyzer instance if available
+        TrackAnalyzer.peekInstance()?.getAnalysis(song.videoId)?.let { analysis ->
+            if (analysis.isUsable) {
+                val camelot = CamelotKey.parse(analysis.key)?.code ?: analysis.key
+                val data = AcousticData(analysis.bpm, camelot)
+                memoryCache[song.videoId] = data
+                return data
+            }
+        }
+
+        // 3. Check local persistent cache
         prefs?.let { p ->
             val stored = p.getString(song.videoId, null)
             if (stored != null) {
@@ -205,6 +215,7 @@ object AcousticCatalogService {
                 }
             } catch (e: Exception) {
                 Log.d(TAG, "Acoustic resolution failed for ${song.title}: ${e.message}")
+                requested.remove(song.videoId)
             }
         }
     }

@@ -159,4 +159,52 @@ class MixAutoPlannerTest {
             plan.filter.option,
         )
     }
+
+    @Test
+    fun testShortTrackHandlingNeverThrowsAndScalesGracefully() {
+        val shortA = TrackAnalysis(
+            trackId = "short_a",
+            duration = 27.0, // 27s Intro
+            bpm = 115.0,
+            beatConfidence = 0.85,
+            key = "8A",
+            downbeats = listOf(0.0, 2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0, 22.0, 24.0),
+        )
+        val normalB = TrackAnalysis(
+            trackId = "normal_b",
+            duration = 180.0,
+            bpm = 115.0,
+            beatConfidence = 0.90,
+            key = "8A",
+            downbeats = listOf(0.0, 2.0, 4.0, 6.0, 8.0),
+        )
+
+        val plan = MixAutoPlanner.autoPlan(shortA, normalB, "short_a", "normal_b", fromDurationSec = 27.0, toDurationSec = 180.0)
+        assertNotNull(plan)
+        assertTrue("Start cut must not exceed track duration", plan.startCutSeconds!! < 27.0)
+        assertTrue("Start cut must be greater than zero", plan.startCutSeconds!! > 0.0)
+        assertTrue("Mix in must be non-negative", plan.mixInSeconds >= 0.0)
+    }
+
+    @Test
+    fun testAutoPlanningSubMillisecondBenchmark() {
+        val a = TrackAnalysis(trackId = "a", bpm = 120.0, beatConfidence = 0.9, key = "10A", duration = 200.0)
+        val b = TrackAnalysis(trackId = "b", bpm = 124.0, beatConfidence = 0.88, key = "10B", duration = 190.0)
+
+        // Warmup
+        for (i in 0 until 50) {
+            MixAutoPlanner.autoPlan(a, b, "a", "b")
+        }
+
+        val startNs = System.nanoTime()
+        val iterations = 1000
+        for (i in 0 until iterations) {
+            MixAutoPlanner.autoPlan(a, b, "a", "b")
+        }
+        val elapsedMs = (System.nanoTime() - startNs) / 1_000_000.0
+        val avgMicros = (elapsedMs * 1000.0) / iterations
+
+        // Must run in under 1 millisecond per plan (1000 microseconds), far exceeding the 500ms target
+        assertTrue("Pair planning must average < 1000us (was ${avgMicros}us)", avgMicros < 1000.0)
+    }
 }

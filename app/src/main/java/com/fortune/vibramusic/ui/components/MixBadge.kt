@@ -1,5 +1,11 @@
 package com.fortune.vibramusic.ui.components
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -43,6 +50,17 @@ fun MixBadge(
 
     if (bpm == null && parsedKey == null && !showPlaceholder) return
 
+    val pulseTransition = rememberInfiniteTransition(label = "mix_badge_pulse")
+    val pulseAlpha by pulseTransition.animateFloat(
+        initialValue = 0.28f,
+        targetValue = 0.65f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "mix_badge_alpha",
+    )
+
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.End,
@@ -63,7 +81,9 @@ fun MixBadge(
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Medium,
                 ),
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = if (bpm != null) 0.85f else 0.40f),
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                    alpha = if (bpm != null) 0.85f else pulseAlpha,
+                ),
                 maxLines = 1,
             )
             Spacer(Modifier.height(2.dp))
@@ -92,7 +112,7 @@ fun MixBadge(
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(4.dp))
-                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f + pulseAlpha * 0.06f))
                     .padding(horizontal = 6.dp, vertical = 2.dp),
                 contentAlignment = Alignment.Center,
             ) {
@@ -102,7 +122,7 @@ fun MixBadge(
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                     ),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = pulseAlpha),
                     maxLines = 1,
                 )
             }

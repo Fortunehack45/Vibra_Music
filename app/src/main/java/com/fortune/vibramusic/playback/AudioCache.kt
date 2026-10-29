@@ -126,12 +126,12 @@ object AudioCache {
      * spending more would be the listener's data spent on a guess.
      */
     /**
-     * Sized for rapid lightweight analysis head requests (384KB).
-     * Provides ~35s of Opus audio at typical YouTube bitrates (96-128kbps),
+     * Sized for rapid lightweight analysis head requests (512KB).
+     * Provides ~35-40s of Opus audio at typical YouTube bitrates (96-128kbps),
      * enabling sub-second download and instant DSP/ML tempo & key detection.
      */
-    private const val FAST_ANALYSIS_HEAD_BYTES = 384L * 1024L
-    private const val MAX_ANALYSIS_HEAD_BYTES = 384L * 1024L
+    private const val FAST_ANALYSIS_HEAD_BYTES = 512L * 1024L
+    private const val MAX_ANALYSIS_HEAD_BYTES = 512L * 1024L
 
     /**
      * The most [requestAnalysisHead] will pull for one track when its size *is*
@@ -1060,7 +1060,12 @@ object AudioCache {
                             "(cause in the read-ahead lines around this one)",
                         videoId,
                     )
+                    // Unblock retry for transient network misses
+                    analysisHeads.remove(videoId)
                 }
+            } catch (e: Throwable) {
+                TrackLog.w(TAG, "analysis head for $videoId failed: ${e.message}", videoId)
+                analysisHeads.remove(videoId)
             } finally {
                 analysisHeadsInFlight.remove(videoId)
             }

@@ -415,11 +415,14 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
                     // Marked before it is published, so a reader on the playback
                     // thread can never see a provisional result that is not
                     // flagged as one.
-                    analyzeHead(trackId, analysisUri, durationSeconds, headRendition!!)?.let { head ->
+                    val headOutcome = analyzeHead(trackId, analysisUri, durationSeconds, headRendition!!)
+                    if (headOutcome != null) {
                         provisional.add(trackId)
-                        results[trackId] = head
-                        store.save(trackId, head)
-                        AcousticCatalogService.put(trackId, head.bpm, head.key)
+                        results[trackId] = headOutcome
+                        store.save(trackId, headOutcome)
+                        AcousticCatalogService.put(trackId, headOutcome.bpm, headOutcome.key)
+                    } else {
+                        headAttempts.remove(headRendition.key)
                     }
                 }
             } catch (error: Throwable) {
@@ -511,19 +514,12 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
 
         val prefix = candidate.cachedPrefix
         val total = candidate.contentLength
-        val needed = if (durationSeconds.isFinite() && durationSeconds > MIN_HEAD_SECONDS && total > 0) {
+        val effectiveMinSeconds = if (durationSeconds in 5.0..30.0) durationSeconds * 0.75 else MIN_HEAD_SECONDS
+        val needed = if (durationSeconds.isFinite() && durationSeconds > effectiveMinSeconds && total > 0) {
             val bytesPerSecond = total / durationSeconds
-            // Sized to [MIN_HEAD_SECONDS] — the shortest decode [analyzeHead]
-            // will accept — not to the model's full window. Gating on the full
-            // window meant demanding two and a half times the input the analysis
-            // would actually settle for: a lossless rendition needs nine
-            // megabytes on disk for thirty seconds of audio, and a track sitting
-            // at six was refused outright despite holding twice what was needed
-            // to produce a result. Whatever *is* cached still gets decoded — the
-            // read simply runs out — so a larger prefix is used when there is
-            // one, and [HEAD_RETRY_GROWTH] comes back for a better look as the
-            // rest arrives.
-            (MIN_HEAD_SECONDS * bytesPerSecond * HEAD_BYTES_MARGIN).toLong()
+            // Sized to [effectiveMinSeconds] — the shortest decode [analyzeHead]
+            // will accept — not to the model's full window.
+            (effectiveMinSeconds * bytesPerSecond * HEAD_BYTES_MARGIN).toLong()
                 .coerceAtLeast(MIN_HEAD_BYTES)
                 .coerceAtMost(total)
         } else {
@@ -604,11 +600,12 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
         // Same guard the whole-track pass applies, for the same reason: a
         // sibling rendition can be a different cut, and a beat grid borrowed
         // across that would put every anchor seconds out. Skipped for the
-        // player's own copy, which is the track by definition. A header that
-        // will not parse yet is not held against the rendition — more bytes may
-        // well fix it — but a length that genuinely disagrees is.
+        // canonical YouTube copy and the player's own copy, which is the track by definition.
+        val isCanonical = AutomixAnalysisSource.isCanonicalYouTubeRendition(uri.getQueryParameter("v"), rendition.key) ||
+            rendition.key == uri.getQueryParameter("v") ||
+            rendition.key == cache.cacheKeyOf(uri)
         val expected = durationSeconds.takeIf { it.isFinite() && it > 0 }
-        if (expected != null && rendition.key != cache.cacheKeyOf(uri)) {
+        if (expected != null && !isCanonical) {
             val length = openSource()?.use(AudioDecoder::containerDurationSeconds)
             if (length == null || length <= 0) {
                 // Logged rather than returned quietly. This is the likeliest way
@@ -642,12 +639,10 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
                 return null
             }
         // What was decoded, not what was asked for: the source stops where the
-        // cache does. A tempo read off a few seconds is not a weaker measurement
-        // than one read off thirty, it is a different and much more credulous
-        // one, and the planner cannot see the difference — so it is refused here
-        // and the next attempt gets more of the file.
-        if (head.seconds < MIN_HEAD_SECONDS) {
-            Log.d(TAG, "Head pass for $trackId decoded only ${"%.1f".format(Locale.ROOT, head.seconds)}s; too short")
+        // cache does. Adaptive minimum head allows decodes for short tracks down to 75% duration.
+        val minSeconds = if (durationSeconds in 5.0..30.0) durationSeconds * 0.75 else MIN_HEAD_SECONDS
+        if (head.seconds < minSeconds) {
+            Log.d(TAG, "Head pass for $trackId decoded only ${"%.1f".format(Locale.ROOT, head.seconds)}s; too short (needed ${"%.1f".format(Locale.ROOT, minSeconds)}s)")
             return null
         }
         val grid = head.grid
@@ -1322,6 +1317,8 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
 
         @Volatile
         private var instance: TrackAnalyzer? = null
+
+        fun peekInstance(): TrackAnalyzer? = instance
 
         fun getInstance(context: Context, cache: AudioCache = AudioCache): TrackAnalyzer {
             return instance ?: synchronized(this) {

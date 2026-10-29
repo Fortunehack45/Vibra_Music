@@ -98,8 +98,10 @@ object MixAutoPlanner {
             val outroCutA = calculateAutoOutroCutSeconds(durA, from?.bpm ?: 120.0, from?.mixOutTime)
             val introCutB = calculateAutoIntroCutSeconds(durB, to?.bpm ?: 120.0, to?.mixInTime)
 
-            val defaultCut = from?.mixOutTime?.takeIf { it > 15.0 && it < (durA - 5.0) }
-                ?: (durA - outroCutA).coerceIn(15.0, durA - 4.0)
+            val minCutFallback = (durA * 0.40).coerceAtMost(15.0).coerceAtLeast(1.0)
+            val maxCutFallback = (durA - 4.0).coerceAtLeast(minCutFallback)
+            val defaultCut = from?.mixOutTime?.takeIf { it > minCutFallback && it < (durA - 4.0) }
+                ?: (durA - outroCutA).coerceIn(minCutFallback, maxCutFallback)
             val defaultIn = to?.mixInTime?.takeIf { it >= 0.0 && it < (durB * 0.35) }
                 ?: introCutB
 
@@ -210,16 +212,18 @@ object MixAutoPlanner {
         }
 
         val rawOutroCut = calculateAutoOutroCutSeconds(durA, from.bpm, from.mixOutTime)
-        val rawTargetCut = from.mixOutTime.takeIf { it > 15.0 && it < (durA - transitionDurationSeconds - 2.0) }
-            ?: (durA - rawOutroCut).coerceIn(15.0, durA - transitionDurationSeconds)
+        val minCut = (durA * 0.40).coerceAtMost(15.0).coerceAtLeast(1.0)
+        val maxCut = (durA - transitionDurationSeconds).coerceAtLeast(minCut)
+        val rawTargetCut = from.mixOutTime.takeIf { it > minCut && it < (durA - transitionDurationSeconds - 1.0) }
+            ?: (durA - rawOutroCut).coerceIn(minCut, maxCut)
 
         // Snap outgoing transition start to phrase boundary or downbeat
         val snappedCut = alignedTransitionStart(
             analysis = from,
             target = rawTargetCut,
-            end = durA - 2.0,
+            end = durA - 1.0,
             preferEarlier = true,
-            minimum = 15.0,
+            minimum = minCut,
         )
 
         // Snap incoming mix-in point to analyzed candidate or downbeat

@@ -8,7 +8,7 @@ The Vibra Music Mix system is an on-device digital DJ engine engineered to achie
 flowchart TD
     subgraph Ingestion["Audio Stream & Ingestion"]
         A[Audio Source / Remote Stream] --> B[AudioCache]
-        B -->|First 256KB Opus Head| C[AudioCache.onHeadReady]
+        B -->|First 384KB Fast Head| C[AudioCache.onHeadReady]
         B -->|Full Track Buffer| D[ExoPlayer Audio Pipeline]
     end
 
@@ -364,8 +364,8 @@ Vibra Music bundles two lightweight INT8 ONNX models executing client-side via O
 
 | Component | Layer | Primary Responsibility |
 |:---|:---|:---|
-| `AudioCache` | Cache / I/O | Manages segmented audio cache; fires `onHeadReady` when \(\ge 256\text{ KB}\) of Opus stream lands. |
-| `TrackAnalyzer` | Worker / DSP | Coordinates thread pool; dispatches audio frames to C++ DSP and ONNX models. |
+| `AudioCache` | Cache / I/O | Manages segmented audio cache; provisions fallback ResolvingDataSource and pulls 384 KB fast heads (~35s audio) for sub-second downloads. |
+| `TrackAnalyzer` | Worker / DSP | Coordinates adaptive multi-core thread pool (2-4 cores) for parallel album analysis; dispatches audio frames to C++ DSP and ONNX models. |
 | `AnalysisStore` | Storage | Schema V3 disk persistence; saves and retrieves `TrackAnalysis` records keyed by video ID. |
 | `CamelotKey` | Domain Model | Mathematical representation of 12A-12B harmonic wheel; computes circular compatibility distances. |
 | `MixAutoPlanner` | Decision Engine | Analyzes BPM deltas, phrasing, and Camelot distance to formulate `TransitionPlan`. |

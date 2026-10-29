@@ -313,6 +313,10 @@ open class AnalysisStore(
 
         val analysisUpdates = kotlinx.coroutines.flow.MutableStateFlow(0L)
 
+        fun notifyUpdated(trackId: String? = null) {
+            analysisUpdates.value = System.currentTimeMillis()
+        }
+
         /**
          * Bump whenever a stored number starts being computed differently.
          * Entries from an older schema are ignored rather than migrated: a

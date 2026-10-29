@@ -6,6 +6,7 @@ import android.net.Uri
 import android.util.Log
 import com.fortune.vibramusic.data.canvas.SpotifyToken
 import com.fortune.vibramusic.data.model.Song
+import com.fortune.vibramusic.data.model.durationMillis
 import com.fortune.vibramusic.playback.AudioCache
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
@@ -46,6 +47,16 @@ object AcousticCatalogService {
     internal fun clearCache() {
         memoryCache.clear()
         requested.clear()
+    }
+
+    fun put(videoId: String, bpm: Double, key: String) {
+        if (videoId.isBlank() || bpm <= 0.0) return
+        val normBpm = normalizeTempo(bpm)
+        val camelot = CamelotKey.parse(key)?.code ?: key.takeIf { it.isNotBlank() } ?: "8A"
+        val data = AcousticData(normBpm, camelot)
+        memoryCache[videoId] = data
+        prefs?.edit()?.putString(videoId, "$normBpm:$camelot")?.apply()
+        AnalysisStore.notifyUpdated(videoId)
     }
 
     fun init(context: Context) {
@@ -145,7 +156,8 @@ object AcousticCatalogService {
                 val opusUri = AutomixAnalysisSource.opusUri(song.videoId)
                 val uri = Uri.parse(opusUri)
                 val analyzer = TrackAnalyzer.getInstance(context)
-                analyzer.request(song.videoId, uri, 0.0)
+                val durSec = (song.durationMillis() / 1000.0).takeIf { it > 10.0 } ?: 0.0
+                analyzer.request(song.videoId, uri, durSec)
 
                 // 2. Parallel dynamic cloud metadata resolution if Spotify token is active
                 val token = SpotifyToken.accessToken()
@@ -183,9 +195,11 @@ object AcousticCatalogService {
                                 bpm = normBpm,
                                 key = camelot,
                                 beatInterval = 60.0 / normBpm,
-                                duration = 180.0,
+                                duration = durSec.takeIf { it > 0.0 } ?: 180.0,
                             )
                             store.save(song.videoId, synthesized)
+                            analyzer.registerAnalysis(song.videoId, synthesized)
+                            AnalysisStore.notifyUpdated(song.videoId)
                         }
                     }
                 }

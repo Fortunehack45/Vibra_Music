@@ -169,11 +169,27 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
 
     private fun discardsOf(key: String): Int = discarded[key] ?: 0
 
-    private val executor = Executors.newSingleThreadExecutor { runnable ->
+    private val executor = Executors.newFixedThreadPool(
+        Runtime.getRuntime().availableProcessors().coerceIn(2, 4),
+    ) { runnable ->
         Thread(runnable, "siren-smart-analysis").apply {
             isDaemon = true
             priority = Thread.NORM_PRIORITY
         }
+    }
+
+    /**
+     * Retrieves currently available analysis from in-memory cache or disk store.
+     */
+    fun getAnalysis(trackId: String): TrackAnalysis? = results[trackId] ?: store.load(trackId)
+
+    /**
+     * Registers an external or synthesized analysis directly into active memory and persistent store.
+     */
+    fun registerAnalysis(trackId: String, analysis: TrackAnalysis) {
+        if (trackId.isBlank() || !analysis.isUsable) return
+        results[trackId] = analysis
+        store.save(trackId, analysis)
     }
 
     /**
@@ -377,6 +393,7 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
                         // would freeze a deliberately partial answer in place of
                         // the complete one that supersedes it minutes later.
                         store.save(trackId, whole)
+                        AcousticCatalogService.put(trackId, whole.bpm, whole.key)
                         restoreAttempted.add(trackId)
                     } else if (outcome.decodedShort &&
                         shortDecodes.merge(trackId, 1, Int::plus)!! >= MAX_SHORT_DECODE_ATTEMPTS
@@ -401,6 +418,8 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
                     analyzeHead(trackId, analysisUri, durationSeconds, headRendition!!)?.let { head ->
                         provisional.add(trackId)
                         results[trackId] = head
+                        store.save(trackId, head)
+                        AcousticCatalogService.put(trackId, head.bpm, head.key)
                     }
                 }
             } catch (error: Throwable) {

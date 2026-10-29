@@ -11,6 +11,8 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.database.StandaloneDatabaseProvider
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
+import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.datasource.TransferListener
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.CacheKeyFactory
@@ -18,6 +20,8 @@ import androidx.media3.datasource.cache.CacheWriter
 import androidx.media3.datasource.cache.ContentMetadata
 import androidx.media3.datasource.cache.ContentMetadataMutations
 import androidx.media3.datasource.cache.SimpleCache
+import androidx.media3.datasource.okhttp.OkHttpDataSource
+import com.fortune.vibramusic.data.Http
 import java.io.IOException
 import com.fortune.vibramusic.data.innertube.StreamResolver
 import com.fortune.vibramusic.data.settings.AppSettings
@@ -33,7 +37,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.coroutines.coroutineContext
@@ -119,7 +125,13 @@ object AudioCache {
      * just resolved the stream — and a blind request is the one case where
      * spending more would be the listener's data spent on a guess.
      */
-    private const val MAX_ANALYSIS_HEAD_BYTES = 4L * 1024 * 1024
+    /**
+     * Sized for rapid lightweight analysis head requests (384KB).
+     * Provides ~35s of Opus audio at typical YouTube bitrates (96-128kbps),
+     * enabling sub-second download and instant DSP/ML tempo & key detection.
+     */
+    private const val FAST_ANALYSIS_HEAD_BYTES = 384L * 1024L
+    private const val MAX_ANALYSIS_HEAD_BYTES = 384L * 1024L
 
     /**
      * The most [requestAnalysisHead] will pull for one track when its size *is*
@@ -224,6 +236,32 @@ object AudioCache {
                 evictor.maxBytes = maxBytes
                 evictor.applyNow(cache)
             }
+        }
+        if (upstreamFactory == null) {
+            val resolvingFactory = ResolvingDataSource.Factory(
+                OkHttpDataSource.Factory(Http.client),
+            ) { dataSpec ->
+                val videoId = dataSpec.uri.getQueryParameter("v") ?: dataSpec.uri.lastPathSegment
+                if (videoId != null && (dataSpec.uri.scheme == "siren" || dataSpec.uri.scheme == "automix" || AutomixAnalysisSource.requestsYouTubeOpus(dataSpec.uri.getQueryParameter(AutomixAnalysisSource.OPUS_QUERY_PARAMETER)))) {
+                    val streamUrl = runBlocking {
+                        runCatching {
+                            withTimeout(15_000L) { StreamResolver.resolve(videoId) }
+                        }.getOrNull()
+                    }
+                    if (streamUrl != null) {
+                        val headers = StreamResolver.mediaHeadersFor(streamUrl)
+                        dataSpec.buildUpon()
+                            .setUri(Uri.parse(streamUrl))
+                            .setHttpRequestHeaders(headers)
+                            .build()
+                    } else {
+                        dataSpec
+                    }
+                } else {
+                    dataSpec
+                }
+            }
+            upstreamFactory = DefaultDataSource.Factory(context, resolvingFactory)
         }
     }
 
@@ -1048,7 +1086,7 @@ object AudioCache {
      * already, from resolving the stream, so asking first costs nothing.
      */
     private fun analysisHeadSize(total: Long): Long =
-        if (total > 0) minOf(total, MAX_ANALYSIS_TRACK_BYTES) else MAX_ANALYSIS_HEAD_BYTES
+        if (total > 0) minOf(total, FAST_ANALYSIS_HEAD_BYTES) else FAST_ANALYSIS_HEAD_BYTES
 
     /**
      * Makes sure [videoId]'s entry is either empty or already covers [want]

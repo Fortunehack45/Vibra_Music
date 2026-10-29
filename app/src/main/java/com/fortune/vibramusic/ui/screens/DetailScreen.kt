@@ -138,6 +138,7 @@ import com.fortune.vibramusic.data.settings.SongSort
 import com.fortune.vibramusic.playback.smart.SmartReorder
 import com.fortune.vibramusic.data.LocalPlaylistsStore
 import com.fortune.vibramusic.playback.mix.MixAutoPlanner
+import com.fortune.vibramusic.playback.mix.TransitionMode
 import com.fortune.vibramusic.playback.mix.TransitionPlan
 import com.fortune.vibramusic.playback.smart.TrackAnalysis
 import com.fortune.vibramusic.ui.components.MixTransitionChip
@@ -309,14 +310,15 @@ fun DetailScreen(
     }
     var activeTransitionPair by remember { mutableStateOf<Pair<Song, Song>?>(null) }
 
-    LaunchedEffect(page.browseId, mixEnabled, songs.size) {
-        if (canMix && mixEnabled && songs.size > 1 && transitionsMap.isEmpty()) {
+    LaunchedEffect(page.browseId, mixEnabled, songs.size, analysisUpdates) {
+        if (canMix && mixEnabled && songs.size > 1) {
+            val analyzer = com.fortune.vibramusic.playback.smart.TrackAnalyzer.getInstance(context)
             LocalPlaylistsStore.reconcileTransitions(page.browseId, songs) { song ->
-                store.load(song.videoId)
+                analyzer.getAnalysis(song.videoId) ?: store.load(song.videoId)
             }
         }
         if (canMix && mixEnabled && songs.isNotEmpty()) {
-            songs.take(10).forEach { song ->
+            songs.forEach { song ->
                 com.fortune.vibramusic.playback.smart.AcousticCatalogService.resolve(context, song, store)
             }
         }
@@ -605,10 +607,13 @@ fun DetailScreen(
                             ) { position, entry ->
                                 val song = entry.value
                                 val isCurrent = isCurrentRow(song)
-                                val analysis = if (mixEnabled) store.load(song.videoId) else null
+                                val _analysisVer = analysisUpdates
+                                val _mixVer = mixUpdates
+                                val analyzer = com.fortune.vibramusic.playback.smart.TrackAnalyzer.getInstance(context)
+                                val analysis = if (mixEnabled) analyzer.getAnalysis(song.videoId) ?: store.load(song.videoId) else null
                                 val acoustic = if (mixEnabled) com.fortune.vibramusic.playback.smart.AcousticCatalogService.get(song, store) else null
                                 val nextSong = matches.getOrNull(position + 1)?.value
-                                val nextAnalysis = if (mixEnabled && nextSong != null) store.load(nextSong.videoId) else null
+                                val nextAnalysis = if (mixEnabled && nextSong != null) analyzer.getAnalysis(nextSong.videoId) ?: store.load(nextSong.videoId) else null
                                 val nextAcoustic = if (mixEnabled && nextSong != null) com.fortune.vibramusic.playback.smart.AcousticCatalogService.get(nextSong, store) else null
 
                                 SongRow(
@@ -642,13 +647,22 @@ fun DetailScreen(
                                 if (position < matches.lastIndex) {
                                     if (mixEnabled && nextSong != null) {
                                         val pairId = TransitionPlan.pairIdOf(song.videoId, nextSong.videoId)
-                                        val plan = transitionsMap[pairId]
-                                            ?: LocalPlaylistsStore.getUniversalTransition(pairId)
+                                        val durA = (song.durationMillis() / 1000.0).takeIf { it > 10.0 } ?: analysis?.duration
+                                        val durB = (nextSong.durationMillis() / 1000.0).takeIf { it > 10.0 } ?: nextAnalysis?.duration
+                                        val plan = transitionsMap[pairId]?.let { p ->
+                                            if (p.mode == TransitionMode.AUTO && (analysis != null || nextAnalysis != null) && (!p.beatmatching || p.lengthBars <= 2)) {
+                                                MixAutoPlanner.autoPlan(analysis, nextAnalysis, song.videoId, nextSong.videoId, durA, durB)
+                                            } else {
+                                                p
+                                            }
+                                        } ?: LocalPlaylistsStore.getUniversalTransition(pairId)
                                             ?: MixAutoPlanner.autoPlan(
                                                 analysis,
                                                 nextAnalysis,
                                                 song.videoId,
                                                 nextSong.videoId,
+                                                durA,
+                                                durB,
                                             )
                                         MixTransitionChip(
                                             plan = plan,
@@ -746,16 +760,25 @@ fun DetailScreen(
     val activePair = activeTransitionPair
     if (activePair != null) {
         val (trackA, trackB) = activePair
-        val analysisA = store.load(trackA.videoId)
-        val analysisB = store.load(trackB.videoId)
+        val analyzer = com.fortune.vibramusic.playback.smart.TrackAnalyzer.getInstance(context)
+        val analysisA = analyzer.getAnalysis(trackA.videoId) ?: store.load(trackA.videoId)
+        val analysisB = analyzer.getAnalysis(trackB.videoId) ?: store.load(trackB.videoId)
         val pairId = TransitionPlan.pairIdOf(trackA.videoId, trackB.videoId)
-        val currentPlan = transitionsMap[pairId]
-            ?: LocalPlaylistsStore.getUniversalTransition(pairId)
-            ?: MixAutoPlanner.autoPlan(
+        val durA = (trackA.durationMillis() / 1000.0).takeIf { it > 10.0 } ?: analysisA?.duration
+        val durB = (trackB.durationMillis() / 1000.0).takeIf { it > 10.0 } ?: analysisB?.duration
+        val currentPlan = transitionsMap[pairId]?.let { p ->
+            if (p.mode == TransitionMode.AUTO && (analysisA != null || analysisB != null) && (!p.beatmatching || p.lengthBars <= 2)) {
+                MixAutoPlanner.autoPlan(analysisA, analysisB, trackA.videoId, trackB.videoId, durA, durB)
+            } else {
+                p
+            }
+        } ?: LocalPlaylistsStore.getUniversalTransition(pairId) ?: MixAutoPlanner.autoPlan(
             analysisA,
             analysisB,
             trackA.videoId,
             trackB.videoId,
+            durA,
+            durB,
         )
 
         TransitionEditorSheet(

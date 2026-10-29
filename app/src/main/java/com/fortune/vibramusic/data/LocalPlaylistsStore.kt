@@ -4,8 +4,10 @@ import android.content.Context
 import android.content.SharedPreferences
 import com.fortune.vibramusic.data.model.Song
 import com.fortune.vibramusic.data.model.UserPlaylist
+import com.fortune.vibramusic.data.model.durationMillis
 import com.fortune.vibramusic.data.settings.AppSettings
 import com.fortune.vibramusic.playback.mix.MixAutoPlanner
+import com.fortune.vibramusic.playback.mix.TransitionMode
 import com.fortune.vibramusic.playback.mix.TransitionPlan
 import com.fortune.vibramusic.playback.smart.TrackAnalysis
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -390,15 +392,30 @@ object LocalPlaylistsStore {
         // 1. Remove obsolete transitions
         map.keys.retainAll(activePairs)
 
-        // 2. Populate Auto for any new / unconfigured pair
+        // 2. Populate Auto for any new pair, or dynamically upgrade Auto when analysis becomes available
         for (i in 0 until targetSongs.size - 1) {
             val s1 = targetSongs[i]
             val s2 = targetSongs[i + 1]
             val pairId = TransitionPlan.pairIdOf(s1.videoId, s2.videoId)
-            if (!map.containsKey(pairId)) {
-                val a1 = analysisProvider?.invoke(s1)
-                val a2 = analysisProvider?.invoke(s2)
-                val plan = MixAutoPlanner.autoPlan(a1, a2, s1.videoId, s2.videoId)
+            val existingPlan = map[pairId]?.let {
+                runCatching { json.decodeFromString(TransitionPlan.serializer(), it) }.getOrNull()
+            }
+            val a1 = analysisProvider?.invoke(s1)
+            val a2 = analysisProvider?.invoke(s2)
+
+            val shouldReplan = when {
+                existingPlan == null -> true
+                existingPlan.mode == TransitionMode.AUTO -> {
+                    val hasAnalysisNow = (a1 != null && a1.bpm > 0.0) || (a2 != null && a2.bpm > 0.0)
+                    hasAnalysisNow && (!existingPlan.beatmatching || existingPlan.lengthBars <= 2)
+                }
+                else -> false
+            }
+
+            if (shouldReplan) {
+                val durA = (s1.durationMillis() / 1000.0).takeIf { it > 10.0 } ?: a1?.duration
+                val durB = (s2.durationMillis() / 1000.0).takeIf { it > 10.0 } ?: a2?.duration
+                val plan = MixAutoPlanner.autoPlan(a1, a2, s1.videoId, s2.videoId, durA, durB)
                 map[pairId] = json.encodeToString(TransitionPlan.serializer(), plan)
             }
         }

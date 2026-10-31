@@ -212,6 +212,9 @@ import com.fortune.vibramusic.download.MediaTagger
 import com.fortune.vibramusic.download.DownloadTarget
 import com.fortune.vibramusic.download.Downloads
 import com.fortune.vibramusic.ui.components.BrowseActionsSheet
+import com.fortune.vibramusic.ui.components.IosMenuPopover
+import com.fortune.vibramusic.ui.components.MenuAnchor
+import com.fortune.vibramusic.ui.components.menuAnchor
 import com.fortune.vibramusic.ui.screens.sortedForDetail
 import com.fortune.vibramusic.ui.components.BrowseTarget
 import com.fortune.vibramusic.ui.components.ConfirmationAlert
@@ -622,6 +625,7 @@ private fun VibraMusicApp(
     // three tabs, the search rows, the artist page's carousels, the release
     // page's own overflow — because only one of them can be held at a time.
     var browseActions by remember { mutableStateOf<BrowseTarget?>(null) }
+    var browseMenuAnchor by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
     val autoplay by AppSettings.autoplay.collectAsStateWithLifecycle()
     val partyState by ListenTogether.state.collectAsStateWithLifecycle()
     // The same answer the playback service acts on, rather than a second one
@@ -1229,7 +1233,15 @@ private fun VibraMusicApp(
         activeRadioSeed = null
         scope.launch {
             if (refusedByHost()) return@launch
-            val c = controller ?: return@launch
+            var resolvedController = controller
+            if (resolvedController == null) {
+                for (i in 0 until 30) {
+                    kotlinx.coroutines.delay(100)
+                    resolvedController = controller
+                    if (resolvedController != null) break
+                }
+            }
+            val c = resolvedController ?: return@launch
             val currentTimeline = player.queue.takeIf { it.size == c.mediaItemCount }
                 ?: (0 until c.mediaItemCount).map { c.getMediaItemAt(it).toSong() }
             val currentIndex = c.currentMediaItemIndex
@@ -1354,7 +1366,15 @@ private fun VibraMusicApp(
         activeRadioSeed = null
         scope.launch {
             if (refusedByHost()) return@launch
-            val c = controller ?: return@launch
+            var resolvedController = controller
+            if (resolvedController == null) {
+                for (i in 0 until 30) {
+                    kotlinx.coroutines.delay(100)
+                    resolvedController = controller
+                    if (resolvedController != null) break
+                }
+            }
+            val c = resolvedController ?: return@launch
             val currentTimeline = player.queue.takeIf { it.size == c.mediaItemCount }
                 ?: (0 until c.mediaItemCount).map { c.getMediaItemAt(it).toSong() }
             val currentIndex = c.currentMediaItemIndex
@@ -3008,18 +3028,38 @@ private fun VibraMusicApp(
                             signedIn = signedIn,
                             onSignIn = { webSession = WebSessionMode.SIGN_IN },
                             onItemClick = { item, shelfTitle ->
-                                val song = shelfSong(item)
-                                when {
-                                    song != null -> playRadio(
-                                        song,
-                                        QueueSource(shelfTitle, PlaybackSourceType.HOME),
-                                    )
-                                    item.browseId != null -> viewModel.openDetail(
-                                        browseId = item.browseId,
+                                val isPlaylistOrAlbum = item.browseId != null && (
+                                    item.browseId.startsWith("VL") ||
+                                    item.browseId.startsWith("RD") ||
+                                    item.browseId.startsWith("MPRE") ||
+                                    shelfTitle.contains("Mood", ignoreCase = true) ||
+                                    shelfTitle.contains("Picks", ignoreCase = true) ||
+                                    shelfTitle.contains("Top picks", ignoreCase = true) ||
+                                    shelfTitle.contains("Mix", ignoreCase = true) ||
+                                    shelfTitle.contains("Mixed for you", ignoreCase = true)
+                                )
+                                if (isPlaylistOrAlbum) {
+                                    viewModel.openDetail(
+                                        browseId = item.browseId!!,
                                         title = item.title,
                                         subtitle = item.subtitle,
                                         thumbnailUrl = item.thumbnailUrl,
+                                        type = if (item.browseId.startsWith("MPRE")) BrowseType.ALBUM else BrowseType.PLAYLIST,
                                     )
+                                } else {
+                                    val song = shelfSong(item)
+                                    when {
+                                        song != null -> playRadio(
+                                            song,
+                                            QueueSource(shelfTitle, PlaybackSourceType.HOME),
+                                        )
+                                        item.browseId != null -> viewModel.openDetail(
+                                            browseId = item.browseId,
+                                            title = item.title,
+                                            subtitle = item.subtitle,
+                                            thumbnailUrl = item.thumbnailUrl,
+                                        )
+                                    }
                                 }
                             },
                             onItemLongPress = onShelfLongPress,
@@ -3548,7 +3588,9 @@ private fun VibraMusicApp(
                                 }
                                 if (isReleaseDetail && releaseSongs.isNotEmpty()) {
                                     IconButton(
+                                        modifier = Modifier.menuAnchor(),
                                         onClick = {
+                                            browseMenuAnchor = MenuAnchor.consume()
                                             browseActions = BrowseTarget(
                                                 browseId = detail.browseId,
                                                 title = detail.title,
@@ -4285,10 +4327,14 @@ private fun VibraMusicApp(
             val remote = target.browseId?.startsWith("local:") == false
             val pinnedPlaylists by AppSettings.pinnedPlaylists.collectAsStateWithLifecycle()
             val pinnableId = target.browseId?.takeIf { target.type == BrowseType.PLAYLIST }
-            ModalBottomSheet(
-                onDismissRequest = { browseActions = null },
-                containerColor = MaterialTheme.colorScheme.background,
-            ) {
+            IosMenuPopover(
+                item = browseActions,
+                anchor = browseMenuAnchor,
+                onDismiss = {
+                    browseActions = null
+                    browseMenuAnchor = null
+                },
+            ) { target ->
                 BrowseActionsSheet(
                     // The live answer, not the one the target was built with.
                     target = target.copy(playlist = playlist),

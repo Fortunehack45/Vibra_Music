@@ -318,9 +318,7 @@ fun DetailScreen(
             }
         }
         if (canMix && mixEnabled && songs.isNotEmpty()) {
-            songs.forEach { song ->
-                com.fortune.vibramusic.playback.smart.AcousticCatalogService.resolve(context, song, store)
-            }
+            com.fortune.vibramusic.playback.smart.AcousticCatalogService.resolvePlaylistFast(context, songs, store)
         }
     }
 
@@ -611,10 +609,10 @@ fun DetailScreen(
                                 val _mixVer = mixUpdates
                                 val analyzer = com.fortune.vibramusic.playback.smart.TrackAnalyzer.getInstance(context)
                                 val analysis = if (mixEnabled) analyzer.getAnalysis(song.videoId) ?: store.load(song.videoId) else null
-                                val acoustic = if (mixEnabled) com.fortune.vibramusic.playback.smart.AcousticCatalogService.get(song, store) else null
+                                val acoustic = if (mixEnabled) com.fortune.vibramusic.playback.smart.AcousticCatalogService.getOrEstimate(song, store) else null
                                 val nextSong = matches.getOrNull(position + 1)?.value
                                 val nextAnalysis = if (mixEnabled && nextSong != null) analyzer.getAnalysis(nextSong.videoId) ?: store.load(nextSong.videoId) else null
-                                val nextAcoustic = if (mixEnabled && nextSong != null) com.fortune.vibramusic.playback.smart.AcousticCatalogService.get(nextSong, store) else null
+                                val nextAcoustic = if (mixEnabled && nextSong != null) com.fortune.vibramusic.playback.smart.AcousticCatalogService.getOrEstimate(nextSong, store) else null
 
                                 SongRow(
                                     song = if (numbered) {

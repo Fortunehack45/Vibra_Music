@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.ui.player
+package com.fortune.vibramusic.ui.player
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -106,12 +106,17 @@ fun ThinSlider(
             shownLoading = false
         }
     }
-    // The played fill doesn't blink out when a switch starts, nor snap back
-    // when it lands: it retracts to nothing as the sheen takes the bar over,
-    // and slides back in when the wait is over — the loading bar *becoming*
-    // the progress bar, rather than one vanishing and the other appearing on
-    // the same frame. Keyed to the latched state and eased on the same curve
-    // and length as the sheen's own transitions, so the two never drift apart.
+    // The window fades in when it is first known and out when it goes, and
+    // the last one is kept drawn for the fade-out rather than vanishing.
+    var shownWindow by remember { mutableStateOf(transitionWindow) }
+    LaunchedEffect(transitionWindow) {
+        if (transitionWindow != null) shownWindow = transitionWindow
+    }
+    val windowAlpha by animateFloatAsState(
+        targetValue = if (transitionWindow != null) 1f else 0f,
+        animationSpec = tween(durationMillis = WINDOW_FADE_MS, easing = FastOutSlowInEasing),
+        label = "transitionWindowAlpha",
+    )
     val fillFactor by animateFloatAsState(
         targetValue = if (shownLoading) 0f else 1f,
         animationSpec = tween(durationMillis = MORPH_MS, easing = FastOutSlowInEasing),
@@ -162,14 +167,37 @@ fun ThinSlider(
             // once the playhead reaches the window the transition is no longer
             // upcoming, and the ordinary progress colour taking it over is what
             // says so.
-            transitionWindow?.let { window ->
+            //
+            // Feathered at both ends rather than drawn as a capsule of its own:
+            // a blend has no hard edge in time, so the marker shouldn't either.
+            // It is painted across the bar's own capsule, so its ends dissolve
+            // into the track instead of sitting on it as a second pill.
+            shownWindow?.takeIf { windowAlpha > 0f }?.let { window ->
                 val from = size.width * window.start.coerceIn(0f, 1f)
                 val to = size.width * window.endInclusive.coerceIn(0f, 1f)
-                if (to > from) {
+                val span = to - from
+                if (span > 0f) {
+                    val feather = (span * WINDOW_FEATHER_SHARE)
+                        .coerceIn(WINDOW_FEATHER_MIN.toPx(), WINDOW_FEATHER_MAX.toPx())
+                        .coerceAtMost(span / 2f)
+                    val f = feather / span
+                    val full = markerColor.alpha * windowAlpha
+                    // Smoothstep down each feather: no slope break where the
+                    // ramp meets the flat middle, so there is no line for the
+                    // eye to catch at either end.
+                    val ramp = (0..WINDOW_FEATHER_STEPS).map { step ->
+                        val t = step / WINDOW_FEATHER_STEPS.toFloat()
+                        t to markerColor.copy(alpha = full * t * t * (3f - 2f * t))
+                    }
+                    val stops = ramp.map { (t, c) -> f * t to c } +
+                        ramp.reversed().map { (t, c) -> 1f - f * t to c }
                     drawRoundRect(
-                        color = markerColor,
-                        topLeft = Offset(from, 0f),
-                        size = Size(to - from, size.height),
+                        brush = Brush.horizontalGradient(
+                            colorStops = stops.toTypedArray(),
+                            startX = from,
+                            endX = to,
+                        ),
+                        size = size,
                         cornerRadius = radius,
                     )
                 }
@@ -219,6 +247,21 @@ fun ThinSlider(
 }
 
 private const val SHEEN_BAND_FRACTION = 0.34f
+
+/** Share of the Automix window each feathered end takes, before the limits below. */
+private const val WINDOW_FEATHER_SHARE = 0.4f
+
+/** Shortest feather, so a narrow window still dissolves rather than ends. */
+private val WINDOW_FEATHER_MIN = 6.dp
+
+/** Longest feather, so a long blend still reads as a stretch rather than a smudge. */
+private val WINDOW_FEATHER_MAX = 40.dp
+
+/** Gradient stops per feather; enough that the smoothstep has no visible facets. */
+private const val WINDOW_FEATHER_STEPS = 6
+
+/** How long the Automix window takes to fade in or out. */
+private const val WINDOW_FADE_MS = 500
 
 /** Length of one morph step — entry, fill retraction, fill return, exit — all on the same curve. */
 private const val MORPH_MS = 450

@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.data.stats
+package com.fortune.vibramusic.data.stats
 
 import android.content.Context
 import android.net.Uri
@@ -48,7 +48,7 @@ object Backup {
 
     /** A suggested filename, dated so successive exports don't collide. */
     fun suggestedName(): String =
-        "sirenmusic-backup-${DateTimeFormatter.ofPattern("yyyy-MM-dd").format(
+        "vibramusic-backup-${DateTimeFormatter.ofPattern("yyyy-MM-dd").format(
             Instant.now().atZone(ZoneId.systemDefault()),
         )}.json"
 
@@ -93,10 +93,10 @@ object Backup {
                 ?.use { it.readBytes().decodeToString() }
                 ?: error("Couldn't open that file")
             val file = runCatching { json.decodeFromString(BackupFile.serializer(), text) }
-                .getOrElse { error("That doesn't look like a Siren Music backup") }
-            require(file.app == APP_TAG || file.app == "siren") { "That backup is from another app" }
+                .getOrElse { error("That file could not be parsed as a backup") }
+            require(file.app in setOf(APP_TAG, "vibramusic", "bitchord", "sirenmusic", "siren")) { "That backup is from an unsupported app" }
             require(file.version <= SCHEMA_VERSION) {
-                "That backup was written by a newer version of Siren Music"
+                "That backup was written by a newer version of Vibra Music"
             }
 
             ListeningStats.importAll(file.listening)
@@ -121,7 +121,7 @@ object Backup {
         val at: String,
     )
 
-    private const val APP_TAG = "sirenmusic"
+    private const val APP_TAG = "vibramusic"
 
     /**
      * Bump when the shape below stops being readable by an older build. A file

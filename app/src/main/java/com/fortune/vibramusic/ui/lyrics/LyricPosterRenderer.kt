@@ -281,7 +281,7 @@ object LyricPosterRenderer {
         val brandColor = if (isLightBg) Color.parseColor("#101216") else Color.WHITE
         val brandAlpha = if (isLightBg) 220 else 238
 
-        val pad = 72f
+        val pad = 56f
         val innerWidth = posterWidth - (pad * 2f)
 
         // 3. Header (Top)
@@ -333,11 +333,11 @@ object LyricPosterRenderer {
         // 5. Middle Lyrics - Vertically Centered in Square
         val availableSpace = footerY - headerBottom
         val (ladderFontSize, lineSpacingMult) = when (lines.size) {
-            1 -> Pair(96f, 1.28f)
-            2 -> Pair(86f, 1.26f)
-            3 -> Pair(78f, 1.24f)
-            4 -> Pair(72f, 1.22f)
-            else -> Pair(64f, 1.20f)
+            1 -> Pair(110f, 1.28f)
+            2 -> Pair(98f, 1.26f)
+            3 -> Pair(88f, 1.24f)
+            4 -> Pair(80f, 1.22f)
+            else -> Pair(72f, 1.20f)
         }
 
         val fullLyricsText = lines.joinToString("\n")
@@ -778,6 +778,19 @@ object LyricPosterRenderer {
     }
 
     private fun resolveColors(palette: LyricCardPalette, art: Bitmap?): Pair<Int, Int> {
+        if (palette == LyricCardPalette.PLAIN_COLOR) {
+            if (art != null) {
+                val safeArt = ensureSoftwareBitmap(art)
+                val p = runCatching {
+                    Palette.from(safeArt).clearFilters().maximumColorCount(24).generate()
+                }.getOrNull()
+                val dominant = p?.dominantSwatch?.rgb ?: p?.vibrantSwatch?.rgb ?: p?.mutedSwatch?.rgb
+                if (dominant != null) {
+                    return dominant to dominant
+                }
+            }
+            return Color.parseColor("#282828") to Color.parseColor("#282828")
+        }
         if (palette == LyricCardPalette.ARTWORK && art != null) {
             val safeArt = ensureSoftwareBitmap(art)
             val p = runCatching {
@@ -845,6 +858,7 @@ object LyricPosterRenderer {
         }
         return when (palette) {
             LyricCardPalette.ARTWORK -> Color.parseColor("#383C46") to Color.parseColor("#14151A")
+            LyricCardPalette.PLAIN_COLOR -> Color.parseColor("#282828") to Color.parseColor("#282828")
             LyricCardPalette.OBSIDIAN -> Color.parseColor("#26292E") to Color.parseColor("#0B0B0E")
             LyricCardPalette.SUNSET -> Color.parseColor("#D64550") to Color.parseColor("#2B1654")
             LyricCardPalette.OCEAN -> Color.parseColor("#0088C2") to Color.parseColor("#150A3A")

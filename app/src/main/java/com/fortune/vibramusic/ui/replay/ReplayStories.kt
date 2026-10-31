@@ -76,7 +76,7 @@ import com.fortune.vibramusic.data.stats.ReplaySummary
 import com.fortune.vibramusic.ui.player.MeshGradientBackground
 import com.fortune.vibramusic.ui.player.MeshPalette
 import com.fortune.vibramusic.ui.player.rememberArtworkColors
-import com.fortune.vibramusic.ui.theme.AccentRed
+import com.fortune.vibramusic.ui.theme.VibraPurple
 import kotlinx.coroutines.launch
 
 /**
@@ -634,7 +634,7 @@ private fun ColumnScope.Leaderboard(
             Modifier.fillMaxWidth().padding(vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            RankBadge(row.rank, AccentRed)
+            RankBadge(row.rank, VibraPurple)
             Cover(row.artworkUrl, row.title, 36.dp, shape, ROW_ART_PX)
             Spacer(Modifier.width(12.dp))
             Text(
@@ -683,7 +683,7 @@ private fun ColumnScope.Genres(summary: ReplaySummary, headline: List<HeadlineRu
             Modifier.fillMaxWidth().padding(vertical = 5.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            RankBadge(row.rank, AccentRed)
+            RankBadge(row.rank, VibraPurple)
             Text(
                 text = row.title,
                 style = MaterialTheme.typography.titleMedium,

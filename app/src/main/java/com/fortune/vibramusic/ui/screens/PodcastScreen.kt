@@ -11,6 +11,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -64,6 +65,8 @@ import com.fortune.vibramusic.ui.components.PAGE_GUTTER
 import com.fortune.vibramusic.ui.components.PodcastEpisodeCard
 import com.fortune.vibramusic.ui.components.PullToRefresh
 import com.fortune.vibramusic.ui.components.feedSkeleton
+import com.fortune.vibramusic.ui.components.trackColumnWidth
+import com.fortune.vibramusic.ui.theme.VibraPurple
 import com.fortune.vibramusic.ui.icons.VibraMusicIcons
 
 private val TOP_FILTERS = listOf(
@@ -210,11 +213,46 @@ fun PodcastScreen(
                         }
                     }
 
-                    // 3. Latest Episodes Feed (Wide Episode Cards)
+                    // 3. Quick Listens Shelf (horizontal columns of 3, matching Home screen rhythm)
                     if (selectedFilter != "Top Shows") {
                         val episodesToDisplay = when (selectedFilter) {
                             "Live Broadcasts" -> feed.liveBroadcasts
                             else -> feed.latestEpisodes.ifEmpty { feed.liveBroadcasts }
+                        }
+
+                        if (episodesToDisplay.size >= 3 && selectedFilter == "All") {
+                            item {
+                                Text(
+                                    text = "Quick listens",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    color = MaterialTheme.colorScheme.onBackground,
+                                    modifier = Modifier.padding(horizontal = PAGE_GUTTER, vertical = 12.dp),
+                                )
+                            }
+                            item {
+                                BoxWithConstraints {
+                                    val columnWidth = trackColumnWidth(maxWidth)
+                                    LazyRow(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        contentPadding = PaddingValues(horizontal = PAGE_GUTTER),
+                                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                                    ) {
+                                        items(episodesToDisplay.take(9).chunked(3)) { column ->
+                                            Column(Modifier.width(columnWidth)) {
+                                                column.forEach { episode ->
+                                                    val isCurrent = episode.videoId == currentVideoId
+                                                    PodcastQuickEpisodeRow(
+                                                        episode = episode,
+                                                        isCurrent = isCurrent,
+                                                        isPlaying = isCurrent && isPlaying,
+                                                        onClick = { onEpisodeClick(episode) },
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
 
                         if (episodesToDisplay.isNotEmpty()) {
@@ -459,5 +497,71 @@ private fun PodcastShowCard(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
+    }
+}
+
+@Composable
+private fun PodcastQuickEpisodeRow(
+    episode: PodcastEpisode,
+    isCurrent: Boolean,
+    isPlaying: Boolean,
+    onClick: () -> Unit,
+) {
+    val titleColor by animateColorAsState(
+        targetValue = if (isCurrent) VibraPurple else MaterialTheme.colorScheme.onBackground,
+        label = "podcast episode title",
+    )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
+            .padding(vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (!episode.thumbnailUrl.isNullOrBlank()) {
+                AsyncImage(
+                    model = episode.thumbnailUrl,
+                    contentDescription = episode.title,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                )
+            }
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = episode.title,
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = titleColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            val sub = listOfNotNull(episode.author.takeIf { it.isNotBlank() }, episode.durationText?.takeIf { it.isNotBlank() }).joinToString(" · ")
+            if (sub.isNotBlank()) {
+                Text(
+                    text = sub,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        if (isCurrent && isPlaying) {
+            Icon(
+                imageVector = Icons.Rounded.PlayArrow,
+                contentDescription = null,
+                tint = VibraPurple,
+                modifier = Modifier.size(18.dp),
+            )
+        }
     }
 }

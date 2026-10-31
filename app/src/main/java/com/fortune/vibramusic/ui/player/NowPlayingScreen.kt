@@ -670,6 +670,8 @@ fun NowPlayingScreen(
     // keeps only play/pause, which from here moves this device alone.
     val controlsLocked = rememberControlsLocked()
     var showListenTogetherMembers by remember { mutableStateOf(false) }
+    var showVideoQuality by remember { mutableStateOf(false) }
+    var videoQuality by remember { mutableStateOf(VideoQualityUi()) }
     // Who's actually in the party is worth a look before the settings page —
     // see [ListenTogetherMembersSheet]. Only meaningful once there is a party
     // to show, so the pill and the caption fall back to [onListenTogether]
@@ -925,6 +927,8 @@ fun NowPlayingScreen(
     PlayerBackHandler(enabled = showEditLyrics) { showEditLyrics = false }
 
     PlayerBackHandler(enabled = showListenTogetherMembers) { showListenTogetherMembers = false }
+
+    PlayerBackHandler(enabled = showVideoQuality) { showVideoQuality = false }
 
     PlayerBackHandler(enabled = showAudioPipeline) { showAudioPipeline = false }
 
@@ -1516,6 +1520,15 @@ fun NowPlayingScreen(
                     showListenTogetherMembers = false
                     onListenTogether()
                 },
+            )
+        }
+        if (showVideoQuality) {
+            VideoQualitySheet(
+                quality = videoQuality,
+                onSelectQuality = { height ->
+                    videoQuality = videoQuality.copy(held = height)
+                },
+                onDismiss = { showVideoQuality = false },
             )
         }
         if (lyricsOffsetOpen) {
@@ -2667,7 +2680,29 @@ fun NowPlayingScreen(
                                 .drawWithContent { if (art.loaded || !canvasRendered) drawContent() },
                         )
 
-                        if (!heroMode) {
+                        if (song.isVideo) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clip(RoundedCornerShape(10.dp)),
+                            ) {
+                                PodcastVideoView(
+                                    videoId = song.videoId,
+                                    isPlaying = isPlaying,
+                                    positionMs = position.positionMs,
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                                VideoCornerControls(
+                                    quality = videoQuality,
+                                    fullscreen = false,
+                                    onToggleFullscreen = { },
+                                    onOpenQuality = { showVideoQuality = true },
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .padding(8.dp),
+                                )
+                            }
+                        } else if (!heroMode) {
                             canvas?.takeIf { !collapsePastHalf }?.let { clip ->
                                 CanvasArtworkPlayer(
                                     canvas = clip,

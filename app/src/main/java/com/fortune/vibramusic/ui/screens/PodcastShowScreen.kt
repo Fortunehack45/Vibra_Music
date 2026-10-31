@@ -158,11 +158,11 @@ fun PodcastShowScreen(
                                 .padding(top = 16.dp, bottom = 20.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
-                            // Cover Artwork (160dp x 160dp rounded)
+                            // Album-style Cover Artwork (220dp x 220dp with 12dp rounded corners and shadow)
                             Box(
                                 modifier = Modifier
-                                    .size(164.dp)
-                                    .clip(RoundedCornerShape(20.dp))
+                                    .size(220.dp)
+                                    .clip(RoundedCornerShape(12.dp))
                                     .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
                             ) {
                                 if (!show.thumbnailUrl.isNullOrBlank()) {
@@ -175,7 +175,7 @@ fun PodcastShowScreen(
                                 }
                             }
 
-                            Spacer(modifier = Modifier.height(16.dp))
+                            Spacer(modifier = Modifier.height(20.dp))
 
                             // Show Title
                             Text(
@@ -190,12 +190,15 @@ fun PodcastShowScreen(
                                 overflow = TextOverflow.Ellipsis,
                             )
 
-                            Spacer(modifier = Modifier.height(6.dp))
+                            Spacer(modifier = Modifier.height(4.dp))
 
                             // Host / Publisher
                             Text(
                                 text = show.author,
-                                style = MaterialTheme.typography.titleMedium,
+                                style = MaterialTheme.typography.titleLarge.copy(
+                                    fontWeight = FontWeight.Normal,
+                                    fontSize = 19.sp,
+                                ),
                                 color = MaterialTheme.colorScheme.primary,
                                 textAlign = TextAlign.Center,
                                 modifier = Modifier
@@ -209,79 +212,97 @@ fun PodcastShowScreen(
                                 overflow = TextOverflow.Ellipsis,
                             )
 
-                            // Episode Count
-                            show.episodeCountText?.let { countText ->
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = countText,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
+                            // Metadata line
+                            val metaText = show.episodeCountText ?: "Podcast · ${displayedEpisodes.size} episodes"
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = metaText,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center,
+                            )
 
                             Spacer(modifier = Modifier.height(18.dp))
 
-                            // Action Pills Row: Play Latest + Follow
+                            // Action Row: Shuffle + Play Pill + Follow Button (matching Album / ReleaseHeader)
                             Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = PAGE_GUTTER),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center,
-                                modifier = Modifier.fillMaxWidth(),
                             ) {
-                                // Play Latest Button
-                                if (displayedEpisodes.isNotEmpty()) {
-                                    val latestEp = displayedEpisodes.first()
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(50))
-                                            .background(MaterialTheme.colorScheme.primary)
-                                            .clickable { onEpisodeClick(latestEp) }
-                                            .padding(horizontal = 22.dp, vertical = 10.dp),
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Rounded.PlayArrow,
-                                            contentDescription = "Play Latest",
-                                            tint = MaterialTheme.colorScheme.onPrimary,
-                                            modifier = Modifier.size(18.dp),
-                                        )
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text(
-                                            text = stringResource(R.string.latest_episodes),
-                                            style = MaterialTheme.typography.labelLarge.copy(
-                                                fontWeight = FontWeight.Bold,
-                                            ),
-                                            color = MaterialTheme.colorScheme.onPrimary,
-                                        )
-                                    }
-
-                                    Spacer(modifier = Modifier.width(12.dp))
+                                // Shuffle Button
+                                Box(
+                                    modifier = Modifier
+                                        .size(50.dp)
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                        .clickable {
+                                            if (displayedEpisodes.isNotEmpty()) {
+                                                val shuffled = displayedEpisodes.shuffled()
+                                                onEpisodeClick(shuffled.first())
+                                            }
+                                        },
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.PlayArrow,
+                                        contentDescription = "Shuffle",
+                                        tint = MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.size(22.dp),
+                                    )
                                 }
 
-                                // Follow Toggle Button
+                                // Play Action Pill (Filled)
                                 Row(
-                                    verticalAlignment = Alignment.CenterVertically,
                                     modifier = Modifier
-                                        .clip(RoundedCornerShape(50))
+                                        .weight(1f)
+                                        .height(50.dp)
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.primary)
+                                        .clickable {
+                                            if (displayedEpisodes.isNotEmpty()) {
+                                                onEpisodeClick(displayedEpisodes.first())
+                                            }
+                                        }
+                                        .padding(horizontal = 24.dp),
+                                    horizontalArrangement = Arrangement.Center,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.PlayArrow,
+                                        contentDescription = "Play",
+                                        tint = MaterialTheme.colorScheme.onPrimary,
+                                        modifier = Modifier.size(20.dp),
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = stringResource(R.string.play),
+                                        style = MaterialTheme.typography.titleMedium.copy(
+                                            fontWeight = FontWeight.Bold,
+                                        ),
+                                        color = MaterialTheme.colorScheme.onPrimary,
+                                    )
+                                }
+
+                                // Follow / Notifications Circle Button
+                                Box(
+                                    modifier = Modifier
+                                        .size(50.dp)
+                                        .clip(CircleShape)
                                         .background(
-                                            if (isFollowing) MaterialTheme.colorScheme.surfaceVariant
-                                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                            if (isFollowing) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                                         )
-                                        .clickable { isFollowing = !isFollowing }
-                                        .padding(horizontal = 18.dp, vertical = 10.dp),
+                                        .clickable { isFollowing = !isFollowing },
+                                    contentAlignment = Alignment.Center,
                                 ) {
                                     Icon(
                                         imageVector = if (isFollowing) Icons.Rounded.Check else Icons.Rounded.NotificationsNone,
                                         contentDescription = if (isFollowing) "Following" else "Follow",
                                         tint = if (isFollowing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                                        modifier = Modifier.size(16.dp),
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = if (isFollowing) stringResource(R.string.following_show) else stringResource(R.string.follow_show),
-                                        style = MaterialTheme.typography.labelLarge.copy(
-                                            fontWeight = FontWeight.SemiBold,
-                                        ),
-                                        color = if (isFollowing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.size(22.dp),
                                     )
                                 }
                             }

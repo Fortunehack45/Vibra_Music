@@ -76,7 +76,7 @@ data class BottomTab(
  * Shared with [GlassNavBar], which is meant to measure the same as this bar
  * rather than merely near it.
  */
-internal val PILL_INSET = 6.dp
+internal val PILL_INSET = 4.dp
 
 /**
  * How far the floating bars stand off the bottom edge: the system navigation
@@ -98,10 +98,10 @@ private val GESTURE_BAR_FLOOR = 15.dp
  * numbers are a pair: change one and the bar's height moves unless the other
  * moves against it.
  */
-internal val TAB_VERTICAL_PADDING = 9.dp
+internal val TAB_VERTICAL_PADDING = 6.5.dp
 
 /** The gap between a tab's glyph and its label, in both bars. */
-internal val TAB_ICON_LABEL_GAP = 2.dp
+internal val TAB_ICON_LABEL_GAP = 1.dp
 
 /**
  * The spring the selection indicator and the tab glyphs both travel on.

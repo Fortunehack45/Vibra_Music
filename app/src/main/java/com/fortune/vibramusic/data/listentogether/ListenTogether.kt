@@ -362,6 +362,9 @@ object ListenTogether {
     private val _customServer = MutableStateFlow("")
     val customServerUrl: StateFlow<String> = _customServer.asStateFlow()
 
+    /** Backup failover party server */
+    const val BACKUP_SERVER: String = "https://bitchord-listen-together.onrender.com"
+
     /**
      * The default party server this build ships pointed at, from `LISTEN_TOGETHER_SERVER`
      * in `local.properties` or build environment.
@@ -372,7 +375,7 @@ object ListenTogether {
             is ServerUrlValidationResult.Valid -> res.normalizedUrl
             is ServerUrlValidationResult.Invalid -> "https://party.vibramusic.store"
         }
-        if (parsed.contains("onrender.com", ignoreCase = true) || parsed.contains("musicplayer.in", ignoreCase = true)) {
+        if (parsed.contains("musicplayer.in", ignoreCase = true)) {
             "https://party.vibramusic.store"
         } else {
             parsed
@@ -386,7 +389,7 @@ object ListenTogether {
     private val _effectiveIdleServer = MutableStateFlow(defaultServer)
     fun effectiveIdleServerBase(): String {
         val current = _effectiveIdleServer.value
-        return if (current.contains("onrender.com", ignoreCase = true) || current.contains("musicplayer.in", ignoreCase = true) || current.isBlank()) {
+        return if (current.contains("musicplayer.in", ignoreCase = true) || current.isBlank()) {
             defaultServer
         } else {
             current
@@ -493,6 +496,7 @@ object ListenTogether {
         defaultServer: String,
         probeCustom: suspend () -> ProbeResult,
         probeDefault: suspend () -> ProbeResult,
+        probeBackup: (suspend () -> ProbeResult)? = null,
     ): Pair<String, ServerConnectionState> {
         val normCustom = when (val res = parseAndNormalizeServerUrl(customServer)) {
             is ServerUrlValidationResult.Valid -> res.normalizedUrl
@@ -510,7 +514,12 @@ object ListenTogether {
                     // Invariant: CustomFallback latency is strictly the default server's latency
                     defaultServer to ServerConnectionState.CustomFallback(defaultProbe.latencyMs)
                 } else {
-                    defaultServer to ServerConnectionState.Offline
+                    val backupProbe = probeBackup?.invoke()
+                    if (backupProbe?.isOnline == true) {
+                        BACKUP_SERVER to ServerConnectionState.CustomFallback(backupProbe.latencyMs)
+                    } else {
+                        defaultServer to ServerConnectionState.Offline
+                    }
                 }
             }
         } else {
@@ -518,7 +527,12 @@ object ListenTogether {
             if (defaultProbe.isOnline) {
                 defaultServer to ServerConnectionState.DefaultOnline(defaultProbe.latencyMs)
             } else {
-                defaultServer to ServerConnectionState.Offline
+                val backupProbe = probeBackup?.invoke()
+                if (backupProbe?.isOnline == true) {
+                    BACKUP_SERVER to ServerConnectionState.DefaultOnline(backupProbe.latencyMs)
+                } else {
+                    defaultServer to ServerConnectionState.Offline
+                }
             }
         }
     }
@@ -542,6 +556,7 @@ object ListenTogether {
             defaultServer = defaultServer,
             probeCustom = { probeHealthWithLatency(custom, CUSTOM_SERVER_TIMEOUT_MS) },
             probeDefault = { probeHealthWithLatency(defaultServer, DEFAULT_SERVER_TIMEOUT_MS) },
+            probeBackup = { probeHealthWithLatency(BACKUP_SERVER, DEFAULT_SERVER_TIMEOUT_MS) },
         )
 
         resolutionMutex.withLock {
@@ -605,6 +620,7 @@ object ListenTogether {
         customServer: String,
         probeCustom: suspend () -> Boolean,
         probeDefault: suspend () -> Boolean,
+        probeBackup: (suspend () -> Boolean)? = null,
     ): HealthResolution {
         val custom = normalizeServerBase(customServer)
         val hasCustom = custom.isNotBlank() && custom != defaultServer
@@ -613,12 +629,16 @@ object ListenTogether {
                 HealthResolution(resolvedServer = custom, health = Health.ONLINE, isFallback = false)
             } else if (probeDefault()) {
                 HealthResolution(resolvedServer = defaultServer, health = Health.ONLINE, isFallback = true)
+            } else if (probeBackup?.invoke() == true) {
+                HealthResolution(resolvedServer = BACKUP_SERVER, health = Health.ONLINE, isFallback = true)
             } else {
                 HealthResolution(resolvedServer = defaultServer, health = Health.OFFLINE, isFallback = false)
             }
         } else {
             if (probeDefault()) {
                 HealthResolution(resolvedServer = defaultServer, health = Health.ONLINE, isFallback = false)
+            } else if (probeBackup?.invoke() == true) {
+                HealthResolution(resolvedServer = BACKUP_SERVER, health = Health.ONLINE, isFallback = true)
             } else {
                 HealthResolution(resolvedServer = defaultServer, health = Health.OFFLINE, isFallback = false)
             }
@@ -784,7 +804,7 @@ object ListenTogether {
             return@withLock Result.success(attempt.getOrThrow())
         }
 
-        val failure = attempt.exceptionOrNull() ?: return@withLock Result.failure(IllegalStateException("Unknown create failure"))
+        var failure = attempt.exceptionOrNull() ?: return@withLock Result.failure(IllegalStateException("Unknown create failure"))
 
         if (normalizeServerBase(primary) != defaultServer && isEligibleForFallback(failure)) {
             Log.w(TAG, "createParty failed on custom server, falling back to default: ${redact(failure.message)}")
@@ -795,9 +815,20 @@ object ListenTogether {
             if (fallbackAttempt.isSuccess) {
                 return@withLock Result.success(fallbackAttempt.getOrThrow())
             }
-            val fallbackFailure = fallbackAttempt.exceptionOrNull() ?: failure
-            _state.update { it.copy(error = fallbackFailure.displayMessage()) }
-            return@withLock Result.failure(fallbackFailure)
+            failure = fallbackAttempt.exceptionOrNull() ?: failure
+        }
+
+        // Automatic multi-server failover to BACKUP_SERVER
+        if (isEligibleForFallback(failure)) {
+            Log.w(TAG, "createParty failed on primary/default, attempting backup server: ${redact(failure.message)}")
+            val backupNormalized = resolveHttpBase(BACKUP_SERVER)
+            val backupAttempt = runCatching {
+                doCreateOnServer(backupNormalized, nickname, maxMembers)
+            }
+            if (backupAttempt.isSuccess) {
+                return@withLock Result.success(backupAttempt.getOrThrow())
+            }
+            failure = backupAttempt.exceptionOrNull() ?: failure
         }
 
         _state.update { it.copy(error = failure.displayMessage()) }
@@ -853,12 +884,28 @@ object ListenTogether {
      */
     suspend fun joinParty(code: String, nickname: String = nickname()): Result<String> = switchMutex.withLock {
         val targetServer = resolveHttpBase(effectiveIdleServerBase())
-        runCatching {
+        val attempt = runCatching {
             doJoinOnServer(targetServer, code, nickname)
-        }.onFailure { failure ->
-            Log.w(TAG, "could not enter a party: ${redact(failure.message)}")
-            _state.update { it.copy(error = failure.displayMessage()) }
         }
+        if (attempt.isSuccess) {
+            return@withLock Result.success(attempt.getOrThrow())
+        }
+        var failure = attempt.exceptionOrNull() ?: return@withLock Result.failure(IllegalStateException("Unknown join failure"))
+
+        if (isEligibleForFallback(failure) && normalizeServerBase(targetServer) != BACKUP_SERVER) {
+            Log.w(TAG, "joinParty failed on primary, attempting backup server: ${redact(failure.message)}")
+            val backupAttempt = runCatching {
+                doJoinOnServer(resolveHttpBase(BACKUP_SERVER), code, nickname)
+            }
+            if (backupAttempt.isSuccess) {
+                return@withLock Result.success(backupAttempt.getOrThrow())
+            }
+            failure = backupAttempt.exceptionOrNull() ?: failure
+        }
+
+        Log.w(TAG, "could not enter a party: ${redact(failure.message)}")
+        _state.update { it.copy(error = failure.displayMessage()) }
+        Result.failure(failure)
     }
 
     private suspend fun doJoinOnServer(serverBase: String, code: String, nickname: String): String {

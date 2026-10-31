@@ -187,8 +187,10 @@ fun BrowseActionsSheet(
     }
 
     Column(modifier.fillMaxWidth()) {
-        BrowseSheetHeader(target)
-        HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outline)
+        if (target.fromCard) {
+            BrowseSheetHeader(target)
+            HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+        }
 
         onPlay?.let { ActionRow(Icons.Rounded.PlayArrow, stringResource(R.string.play), onClick = it) }
         onShuffle?.let { ActionRow(VibraMusicIcons.Shuffle, stringResource(R.string.shuffle), onClick = it) }
@@ -205,48 +207,17 @@ fun BrowseActionsSheet(
         if (onToggleMix != null) {
             var localMixEnabled by remember(isMixEnabled) { mutableStateOf(isMixEnabled) }
             val haptics = com.fortune.vibramusic.ui.haptics.rememberHaptics()
-            val toggleAction = {
-                val next = !localMixEnabled
-                localMixEnabled = next
-                haptics.play(com.fortune.vibramusic.ui.haptics.Haptic.Select)
-                onToggleMix()
-            }
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(onClick = toggleAction)
-                    .padding(horizontal = 20.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.GraphicEq,
-                    contentDescription = null,
-                    tint = if (localMixEnabled) VibraPurple else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(24.dp),
-                )
-                Spacer(Modifier.width(16.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        text = stringResource(R.string.mix_title),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                    Text(
-                        text = stringResource(R.string.mix_subtitle),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Switch(
-                    checked = localMixEnabled,
-                    onCheckedChange = null,
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = Color.White,
-                        checkedTrackColor = VibraPurple,
-                        checkedBorderColor = VibraPurple,
-                    ),
-                )
-            }
+            ActionRow(
+                icon = Icons.Rounded.GraphicEq,
+                label = if (localMixEnabled) stringResource(R.string.mixing) else stringResource(R.string.mix_title),
+                tint = if (localMixEnabled) VibraPurple else null,
+                onClick = {
+                    val next = !localMixEnabled
+                    localMixEnabled = next
+                    haptics.play(com.fortune.vibramusic.ui.haptics.Haptic.Select)
+                    onToggleMix()
+                },
+            )
         }
         onDownloadAll?.let { download ->
             // Saying which of the three it is, rather than offering the same row
@@ -335,7 +306,7 @@ fun BrowseActionsSheet(
                 }
             }
         }
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(if (target.fromCard) 24.dp else 6.dp))
     }
 }
 

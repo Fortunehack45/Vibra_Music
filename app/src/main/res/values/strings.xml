@@ -1375,6 +1375,7 @@
 
     <!-- Mix Feature Strings (ZERO EMOJIS) -->
     <string name="mix_title" translatable="false">Mix</string>
+    <string name="mixing" translatable="false">Mixing</string>
     <string name="mix_subtitle" translatable="false">Enable intelligent DJ transitions and harmonic mixing</string>
     <string name="mix_action_button" translatable="false">Mix</string>
     <string name="mix_auto" translatable="false">Auto</string>
@@ -1407,5 +1408,7 @@
     <string name="mix_default_length_subtitle" translatable="false">Default duration in musical bars for auto transitions</string>
     <string name="mix_beatmatch_default" translatable="false">Beatmatch by default</string>
     <string name="mix_beatmatch_default_subtitle" translatable="false">Sync tempo and align beat grids between tracks</string>
+    <string name="video_quality" translatable="false">Video quality</string>
+    <string name="video_quality_auto" translatable="false">Auto</string>
 </resources>
 

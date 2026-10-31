@@ -60,7 +60,7 @@ import com.fortune.vibramusic.ui.components.PAGE_GUTTER
 import com.fortune.vibramusic.ui.icons.VibraMusicIcons
 import com.fortune.vibramusic.ui.player.MeshGradientBackground
 import com.fortune.vibramusic.ui.player.rememberArtworkColors
-import com.fortune.vibramusic.ui.theme.AccentRed
+import com.fortune.vibramusic.ui.theme.VibraPurple
 
 /** Whether the Replay page is being shown in dark mode (vs light). */
 @Composable
@@ -460,7 +460,7 @@ private fun ReplayChartRow(row: ReplayRow, circular: Boolean, dark: Boolean, onC
             .padding(horizontal = PAGE_GUTTER + 10.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        RankBadge(row.rank, AccentRed)
+        RankBadge(row.rank, VibraPurple)
         if (row.artworkUrl != null) {
             AsyncImage(
                 model = row.artworkUrl.artworkAt(ROW_ART_PX),

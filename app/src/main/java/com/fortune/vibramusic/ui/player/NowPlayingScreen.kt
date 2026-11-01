@@ -1,10 +1,20 @@
 package com.fortune.vibramusic.ui.player
 
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.lerp
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.graphics.rememberGraphicsLayer
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.constrainHeight
 import androidx.compose.ui.unit.constrainWidth
 import androidx.compose.ui.unit.offset
 import androidx.compose.ui.unit.constrain
 import androidx.compose.ui.unit.Constraints
+import com.fortune.vibramusic.data.NerdStats
 import com.fortune.vibramusic.playback.PlaybackPosition
 import com.fortune.vibramusic.R
 
@@ -35,6 +45,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -76,11 +87,13 @@ import androidx.compose.material.icons.rounded.FastForward
 import androidx.compose.material.icons.rounded.FastRewind
 import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.rounded.Share
+import androidx.compose.material.icons.rounded.Videocam
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import com.fortune.vibramusic.ui.components.LocalAppBackdrop
 import com.fortune.vibramusic.ui.components.LocalLiquidGlassEnabled
@@ -632,6 +645,7 @@ fun NowPlayingScreen(
     val density = LocalDensity.current
     val haptics = rememberHaptics()
     var showShowNotesSheet by remember { mutableStateOf(false) }
+    var isVideoModeActive by rememberSaveable(song.videoId) { mutableStateOf(false) }
     val isPodcast = song.isPodcastSong
 
     // Remote tracks whose art lives inside the file resolve it here, once —
@@ -2182,6 +2196,53 @@ fun NowPlayingScreen(
         }
         }
 
+        val dock = LocalPlayerDock.current
+        if (dock != null) {
+            DisposableEffect(dock) {
+                onDispose { dock.attached = false }
+            }
+        }
+        val dockFrame = remember { DockFrame() }
+        val dockT: () -> Float = {
+            if (dock == null) {
+                1f
+            } else {
+                val open = dock.openFraction()
+                if (dockFrame.anchor != null && dock.hasMiniArt()) open else 1f
+            }
+        }
+        val docking: () -> Boolean = { dockT() < 1f }
+        val dockFade: () -> Float = { ((dockT() - 0.15f) / 0.85f).coerceIn(0f, 1f) }
+        val sleeveLayer = rememberGraphicsLayer()
+
+        val dockHost = Modifier
+            .then(
+                if (dock != null) {
+                    Modifier.onGloballyPositioned { coordinates ->
+                        dockFrame.host = coordinates
+                        if (dockFrame.anchor != null && dockFrame.anchorFor == coordinates.size) {
+                            return@onGloballyPositioned
+                        }
+                        val offset = dock.offset() ?: return@onGloballyPositioned
+                        dockFrame.anchorFor = coordinates.size
+                        dockFrame.anchor = coordinates.localToScreen(Offset.Zero) - Offset(0f, offset.toInt().toFloat())
+                        if (!dock.attached) dock.attached = true
+                    }
+                } else {
+                    Modifier
+                }
+            )
+            .drawWithContent {
+                drawContent()
+                if (docking()) {
+                    translate(dockFrame.portalLeft, dockFrame.portalTop) {
+                        val portalScale = dockFrame.portalScale
+                        scale(portalScale, portalScale, pivot = Offset.Zero) { drawLayer(sleeveLayer) }
+                    }
+                }
+            }
+            .graphicsLayer { alpha = if (docking()) dockFade().coerceAtLeast(0.004f) else 1f }
+
         CompositionLocalProvider(
             LocalAppBackdrop provides playerBackdrop,
         ) {
@@ -2190,6 +2251,7 @@ fun NowPlayingScreen(
                 .fillMaxSize()
                 .statusBarsPadding()
                 .navigationBarsPadding()
+                .then(dockHost)
                 // Observe unclaimed taps across the whole Canvas. Buttons and
                 // the compact metadata row consume their own taps first; empty
                 // video above or below them toggles the lower deck either way.
@@ -2359,6 +2421,32 @@ fun NowPlayingScreen(
             // controls at the foot of the screen. Filled in from inside the box,
             // where the sleeve's real size is known; see [lastControlSpread].
             var controlSpread by remember { mutableStateOf(lastControlSpread) }
+
+            if ((song.isVideo || song.isVideoOrigin || hasAlternateVersion || onToggleVersion != null) && !queueOpen && !lyricsOpen) {
+                SongVideoTogglePill(
+                    isVideo = isVideoModeActive,
+                    onSelectSong = {
+                        if (isVideoModeActive) {
+                            isVideoModeActive = false
+                            if (song.isVideo && onToggleVersion != null) {
+                                onToggleVersion.invoke()
+                            }
+                        }
+                    },
+                    onSelectVideo = {
+                        if (!isVideoModeActive) {
+                            isVideoModeActive = true
+                            if (!song.isVideo && onToggleVersion != null) {
+                                onToggleVersion.invoke()
+                            }
+                        }
+                    },
+                    modifier = Modifier
+                        .padding(bottom = 6.dp)
+                        .graphicsLayer { alpha = (1f - p()) * spotifyChromeAlpha },
+                )
+            }
+
             BoxWithConstraints(
                 modifier = Modifier
                     .weight(1f)
@@ -2548,10 +2636,46 @@ fun NowPlayingScreen(
                         // time instead of composition.
                         .layout { measurable, constraints ->
                             val side = artSize().roundToPx()
+                            val isVid = isVideoModeActive && song.isVideo
+                            val width = side
+                            val height = if (isVid) (side * 9f / 16f).roundToInt() else side
+
+                            val mini = if (dock != null && docking()) {
+                                val m = dock.miniArtOnScreen()
+                                val anchor = dockFrame.anchor
+                                val offset = dock.offset()
+                                if (m != null && anchor != null && offset != null) {
+                                    dockFrame.offset = offset.toInt().toFloat()
+                                    m.translate(
+                                        -(anchor.x),
+                                        -(anchor.y + dockFrame.offset),
+                                    )
+                                } else null
+                            } else null
+
+                            val openRect = Rect(0f, 0f, width.toFloat(), height.toFloat())
+                            if (mini != null) {
+                                val travel = dock?.sheetTravel ?: 0f
+                                if (travel > 0f) {
+                                    dockFrame.ride = ((mini.top + dockFrame.offset) / travel).coerceIn(0f, 1f)
+                                }
+                            }
+                            val unridden = dockFrame.offset * (1f - dockFrame.ride)
+                            val targetRect = if (mini != null) lerp(mini, openRect.translate(0f, -unridden), dockT()) else openRect
+                            dockFrame.portalLeft = targetRect.left
+                            dockFrame.portalTop = targetRect.top
+
                             val placeable = measurable.measure(
-                                constraints.constrain(Constraints.fixed(side, side)),
+                                constraints.constrain(Constraints.fixed(targetRect.width.roundToInt(), targetRect.height.roundToInt())),
                             )
                             layout(placeable.width, placeable.height) { placeable.placeRelative(0, 0) }
+                        }
+                        .drawWithContent {
+                            if (docking()) {
+                                sleeveLayer.record { this@drawWithContent.drawContent() }
+                            } else {
+                                drawContent()
+                            }
                         }
                         // Where the dismiss band starts. Read here, above the
                         // paused shrink below, so the band covers the sleeve's
@@ -2619,9 +2743,9 @@ fun NowPlayingScreen(
                             // the first. Only cast it once there's actually art.
                             .shadow(
                                 if (art.loaded) 10.dp else 0.dp,
-                                RoundedCornerShape(8.dp),
+                                RoundedCornerShape(if (isVideoModeActive && song.isVideo) 14.dp else 8.dp),
                             )
-                            .clip(RoundedCornerShape(8.dp))
+                            .clip(RoundedCornerShape(if (isVideoModeActive && song.isVideo) 14.dp else 8.dp))
                             .background(Color.Black.copy(alpha = 0.18f)),
                         contentAlignment = Alignment.Center,
                     ) {
@@ -2640,51 +2764,20 @@ fun NowPlayingScreen(
                             )
                         }
                         AsyncImage(
-                            // Decode at the sleeve's *expanded* size, always.
-                            // Coil otherwise sizes the decode to however large
-                            // this is when the request goes out — and changing
-                            // track from the queue does that while the sleeve is
-                            // collapsed to a thumbnail, leaving a thumbnail-sized
-                            // bitmap to be blown back up when the queue closes.
-                            // Skipping tracks with the transport keeps it sharp
-                            // only because the sleeve happens to be full size at
-                            // that moment.
-                            //
-                            // Asked for at the source's own size rather than the
-                            // sleeve's: it is the same request the full-bleed
-                            // banner makes, and the banner is taller than the
-                            // sleeve is wide. One ask, one decode, one bitmap for
-                            // both — and nothing to upscale when the two swap.
                             model = art.request,
                             contentDescription = null,
-                            // Video thumbnails are 16:9; letterboxing them inside
-                            // the square sleeve looks like a broken frame.
                             contentScale = ContentScale.Crop,
                             onState = art::onState,
-                            // TextureView-backed canvas frames can arrive
-                            // before Coil has decoded the sleeve. Alpha alone
-                            // doesn't hide this layer for that window: a
-                            // TextureView composites through its own hardware
-                            // layer, and on some devices that layer wins the
-                            // stacking order against a sibling Compose layer
-                            // even when that layer's alpha is zero — so the
-                            // still image's empty placeholder still shows
-                            // through, above a perfectly healthy animated
-                            // cover. Skipping the draw call outright leaves
-                            // nothing there to composite, in the wrong order
-                            // or otherwise; the request stays mounted so
-                            // loading still finishes in the background and
-                            // [PlayerArtwork.loaded] still flips the moment it does.
                             modifier = Modifier
                                 .fillMaxSize()
                                 .drawWithContent { if (art.loaded || !canvasRendered) drawContent() },
                         )
 
-                        if (song.isVideo) {
+                        if (isVideoModeActive && song.isVideo) {
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .clip(RoundedCornerShape(10.dp)),
+                                    .clip(RoundedCornerShape(14.dp)),
                             ) {
                                 PodcastVideoView(
                                     videoId = song.videoId,
@@ -2723,10 +2816,48 @@ fun NowPlayingScreen(
                         }
                     }
 
-                    // Measured stats stay on the sleeve's bottom centre. They
-                    // fade away with Spotify's lower control deck rather than
-                    // following the compact credits to the bottom edge.
-                    if (!collapsePastHalf) {
+                    if (isVideoModeActive && song.isVideo) {
+                        Spacer(Modifier.height(8.dp))
+                        val nerdStats by NerdStats.current.collectAsStateWithLifecycle()
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp),
+                        ) {
+                            val formatText = nerdStats?.describe(context)?.ifBlank { null }
+                                ?: "Opus · 48.0 kHz · 136 kbps · Stereo"
+                            Text(
+                                text = formatText,
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    shadow = Shadow(
+                                        color = Color.Black.copy(alpha = 0.55f),
+                                        offset = Offset(0f, 1f),
+                                        blurRadius = 4f,
+                                    ),
+                                ),
+                                color = Color.White.copy(alpha = 0.65f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                textAlign = TextAlign.Center,
+                            )
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                text = stringResource(R.string.automix_not_supported_video),
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    shadow = Shadow(
+                                        color = Color.Black.copy(alpha = 0.55f),
+                                        offset = Offset(0f, 1f),
+                                        blurRadius = 4f,
+                                    ),
+                                ),
+                                color = Color.White.copy(alpha = 0.5f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                textAlign = TextAlign.Center,
+                            )
+                        }
+                    } else if (!collapsePastHalf) {
                         SleeveNerdStats(
                             song = song,
                             modifier = Modifier
@@ -3396,5 +3527,94 @@ private object OverlayBack {
     fun unregister(view: View, callback: Any?) {
         if (callback !is OnBackInvokedCallback) return
         view.findOnBackInvokedDispatcher()?.unregisterOnBackInvokedCallback(callback)
+    }
+}
+
+private class DockFrame {
+    var anchor: Offset? by mutableStateOf(null)
+    var anchorFor = IntSize.Zero
+    var offset = 0f
+    var ride = 0f
+    var portalLeft = 0f
+    var portalTop = 0f
+    var portalScale = 1f
+    var host: LayoutCoordinates? = null
+}
+
+@Composable
+private fun SongVideoTogglePill(
+    isVideo: Boolean,
+    onSelectSong: () -> Unit,
+    onSelectVideo: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val haptics = rememberHaptics()
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(Color.Black.copy(alpha = 0.28f))
+            .border(
+                width = 0.5.dp,
+                color = Color.White.copy(alpha = 0.15f),
+                shape = RoundedCornerShape(20.dp),
+            )
+            .padding(horizontal = 4.dp, vertical = 3.dp),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .clip(RoundedCornerShape(16.dp))
+                .background(if (!isVideo) Color.White.copy(alpha = 0.18f) else Color.Transparent)
+                .clickable {
+                    haptics.play(Haptic.Tap)
+                    onSelectSong()
+                }
+                .padding(horizontal = 14.dp, vertical = 6.dp),
+        ) {
+            Icon(
+                imageVector = VibraMusicIcons.MusicNote,
+                contentDescription = null,
+                tint = if (!isVideo) Color.White else Color.White.copy(alpha = 0.55f),
+                modifier = Modifier.size(16.dp),
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                text = "Song",
+                style = MaterialTheme.typography.labelMedium.copy(
+                    fontWeight = if (!isVideo) FontWeight.SemiBold else FontWeight.Medium,
+                ),
+                color = if (!isVideo) Color.White else Color.White.copy(alpha = 0.55f),
+            )
+        }
+
+        Spacer(Modifier.width(2.dp))
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .clip(RoundedCornerShape(16.dp))
+                .background(if (isVideo) Color.White.copy(alpha = 0.18f) else Color.Transparent)
+                .clickable {
+                    haptics.play(Haptic.Tap)
+                    onSelectVideo()
+                }
+                .padding(horizontal = 14.dp, vertical = 6.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Videocam,
+                contentDescription = null,
+                tint = if (isVideo) Color.White else Color.White.copy(alpha = 0.55f),
+                modifier = Modifier.size(17.dp),
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                text = "Video",
+                style = MaterialTheme.typography.labelMedium.copy(
+                    fontWeight = if (isVideo) FontWeight.SemiBold else FontWeight.Medium,
+                ),
+                color = if (isVideo) Color.White else Color.White.copy(alpha = 0.55f),
+            )
+        }
     }
 }

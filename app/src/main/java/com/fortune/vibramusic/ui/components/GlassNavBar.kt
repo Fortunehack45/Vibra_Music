@@ -48,6 +48,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import com.fortune.vibramusic.ui.player.PlayerDock
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -98,6 +99,7 @@ fun GlassNavBar(
     /** @see com.fortune.vibramusic.data.listentogether.ListenTogether.State.controlsLocked */
     controlsLocked: Boolean = false,
     onBlockedControl: () -> Unit = {},
+    dock: PlayerDock? = null,
     modifier: Modifier = Modifier,
 ) {
     // Held for the same reason [tabs] is. The glass factory below closes over
@@ -149,6 +151,7 @@ fun GlassNavBar(
                     onExpand = onExpand,
                     controlsLocked = controlsLocked,
                     onBlockedControl = onBlockedControl,
+                    dock = dock,
                     modifier = accessoryModifier.then(glassSurface()),
                 )
             }
@@ -167,6 +170,7 @@ fun GlassNavBar(
                     onExpand = onExpand,
                     controlsLocked = controlsLocked,
                     onBlockedControl = onBlockedControl,
+                    dock = dock,
                     modifier = accessoryModifier.fillMaxWidth().then(glassSurface()),
                 )
             }
@@ -283,6 +287,7 @@ private fun GlassNowPlaying(
     onExpand: () -> Unit,
     controlsLocked: Boolean,
     onBlockedControl: () -> Unit,
+    dock: PlayerDock? = null,
     modifier: Modifier = Modifier,
 ) {
     val haptics = rememberHaptics()
@@ -348,32 +353,28 @@ private fun GlassNowPlaying(
                 contentDescription = null,
                 modifier = Modifier
                     .size(artSize)
+                    .playerDockArt(dock, if (isInline) 6.dp else 8.dp)
                     .clip(RoundedCornerShape(if (isInline) 6.dp else 8.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant),
             )
             Spacer(Modifier.width(if (isInline) 8.dp else 10.dp))
             if (isInline) {
-                Text(
-                    text = song.title,
-                    // The same size the expanded row sets it in. Collapsing the
-                    // bar drops the artist line and the skip button, not the
-                    // title's weight in the row — a title that shrank as well
-                    // would read as a different component rather than the same
-                    // one folded up, and the shared element carrying it between
-                    // the two states has one less thing to interpolate.
-                    //
-                    // It costs nothing in height: the row is stretched to the
-                    // tab pill's 45dp either way, and titleMedium's line box
-                    // still clears the 32dp artwork beside it.
-                    style = MaterialTheme.typography.titleMedium,
-                    color = contentColor,
-                    // The inline row shares its width with the tab pill and the
-                    // Search circle, so most titles will not fit at this size.
-                    // Cut with an ellipsis rather than wrapped or scaled.
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = song.title,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = contentColor,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = song.artist,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = contentColor.copy(alpha = 0.7f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             } else {
                 Column(Modifier.weight(1f)) {
                     ExplicitSongTitle(

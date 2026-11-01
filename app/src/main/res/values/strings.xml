@@ -1318,6 +1318,16 @@
     <string name="app_icon_pixel_glass_dark" translatable="false">Pixel Glass Dark</string>
     <string name="app_icon_pixel_glass_clear" translatable="false">Pixel Glass Clear</string>
     <string name="app_icon_pixel_glass_clear_dark" translatable="false">Pixel Glass Clear Dark</string>
+    <string name="app_icon_neon_cyan" translatable="false">Neon Cyan</string>
+    <string name="app_icon_neon_silver" translatable="false">Neon Silver</string>
+    <string name="app_icon_neon_violet" translatable="false">Neon Violet</string>
+    <string name="app_icon_samsung_neon_cyan" translatable="false">Samsung Neon Cyan</string>
+    <string name="app_icon_samsung_neon_silver" translatable="false">Samsung Neon Silver</string>
+    <string name="app_icon_samsung_neon_violet" translatable="false">Samsung Neon Violet</string>
+    <string name="app_icon_pixel_neon_cyan" translatable="false">Pixel Neon Cyan</string>
+    <string name="app_icon_pixel_neon_silver" translatable="false">Pixel Neon Silver</string>
+    <string name="app_icon_pixel_neon_violet" translatable="false">Pixel Neon Violet</string>
+    <string name="app_icon_monochrome" translatable="false">Monochrome</string>
     <string name="song_info" translatable="false">Song Info</string>
     <string name="song_info_album" translatable="false">Album</string>
     <string name="song_info_release_date" translatable="false">Release date</string>

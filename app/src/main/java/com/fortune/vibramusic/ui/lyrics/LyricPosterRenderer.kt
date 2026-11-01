@@ -239,32 +239,34 @@ object LyricPosterRenderer {
         // 1. Draw Card Surface
         if (config.useCoverBackground && coverArt != null) {
             drawDarkenedCoverSurface(canvas, coverArt, cardRect, cornerRadius)
-        } else if (topColor == bottomColor) {
-            // Solid Plain Color from cover artwork
-            val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = topColor
-            }
-            canvas.drawRoundRect(cardRect, cornerRadius, cornerRadius, bgPaint)
         } else {
+            // Ambient specular and vignette gradient to avoid dead flat plain color
+            val effectiveTop = if (topColor == bottomColor) {
+                ColorUtils.blendARGB(topColor, Color.WHITE, 0.08f)
+            } else topColor
+            val effectiveBottom = if (topColor == bottomColor) {
+                ColorUtils.blendARGB(bottomColor, Color.BLACK, 0.14f)
+            } else bottomColor
+
             val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 shader = LinearGradient(
                     0f, 0f, 0f, posterHeight.toFloat(),
                     intArrayOf(
-                        topColor,
-                        ColorUtils.blendARGB(topColor, bottomColor, 0.55f),
-                        bottomColor,
+                        effectiveTop,
+                        ColorUtils.blendARGB(effectiveTop, effectiveBottom, 0.50f),
+                        effectiveBottom,
                     ),
-                    floatArrayOf(0f, 0.58f, 1f),
+                    floatArrayOf(0f, 0.48f, 1f),
                     Shader.TileMode.CLAMP,
                 )
             }
             canvas.drawRoundRect(cardRect, cornerRadius, cornerRadius, bgPaint)
 
-            // Subtle specular glow on top
+            // Subtle specular ambient glow on top
             val glowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 shader = LinearGradient(
-                    0f, 0f, 0f, 380f,
-                    Color.argb(22, 255, 255, 255),
+                    0f, 0f, 0f, 400f,
+                    Color.argb(32, 255, 255, 255),
                     Color.TRANSPARENT,
                     Shader.TileMode.CLAMP,
                 )
@@ -287,15 +289,15 @@ object LyricPosterRenderer {
         val brandColor = if (isLightBg) Color.parseColor("#101216") else Color.WHITE
         val brandAlpha = if (isLightBg) 220 else 238
 
-        val pad = 56f
+        val pad = 48f
         val innerWidth = posterWidth - (pad * 2f)
 
         // 3. Header (Top)
         val headerY = pad
-        val thumbSize = 114f
+        val thumbSize = 104f
         val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             this.typeface = typeface
-            textSize = 44f
+            textSize = 42f
             color = textColor
             if (!isLightBg && config.useCoverBackground) {
                 setShadowLayer(10f, 0f, 3f, Color.argb(120, 0, 0, 0))
@@ -303,7 +305,7 @@ object LyricPosterRenderer {
         }
         val artistPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             this.typeface = typeface
-            textSize = 30f
+            textSize = 28f
             color = subtitleColor
             if (!isLightBg && config.useCoverBackground) {
                 setShadowLayer(10f, 0f, 3f, Color.argb(120, 0, 0, 0))
@@ -313,37 +315,37 @@ object LyricPosterRenderer {
         val headerBottom: Float
         if (config.showArtwork) {
             if (coverArt != null) {
-                drawSquircleArtwork(canvas, coverArt, pad, headerY, thumbSize, cornerRadius = 24f)
+                drawSquircleArtwork(canvas, coverArt, pad, headerY, thumbSize, cornerRadius = 22f)
             } else {
-                drawFallbackArtwork(canvas, config.song.title, pad, headerY, thumbSize, cornerRadius = 24f)
+                drawFallbackArtwork(canvas, config.song.title, pad, headerY, thumbSize, cornerRadius = 22f)
             }
-            val textLeft = pad + thumbSize + 26f
-            val maxTextWidth = innerWidth - thumbSize - 26f
+            val textLeft = pad + thumbSize + 22f
+            val maxTextWidth = innerWidth - thumbSize - 22f
 
-            canvas.drawText(ellipsised(config.song.title, titlePaint, maxTextWidth), textLeft, headerY + 48f, titlePaint)
-            canvas.drawText(ellipsised(config.song.artist, artistPaint, maxTextWidth), textLeft, headerY + 92f, artistPaint)
+            canvas.drawText(ellipsised(config.song.title, titlePaint, maxTextWidth), textLeft, headerY + 44f, titlePaint)
+            canvas.drawText(ellipsised(config.song.artist, artistPaint, maxTextWidth), textLeft, headerY + 84f, artistPaint)
             headerBottom = headerY + thumbSize
         } else {
             val textLeft = pad
             val maxTextWidth = innerWidth
 
-            canvas.drawText(ellipsised(config.song.title, titlePaint, maxTextWidth), textLeft, headerY + 42f, titlePaint)
-            canvas.drawText(ellipsised(config.song.artist, artistPaint, maxTextWidth), textLeft, headerY + 84f, artistPaint)
-            headerBottom = headerY + 90f
+            canvas.drawText(ellipsised(config.song.title, titlePaint, maxTextWidth), textLeft, headerY + 40f, titlePaint)
+            canvas.drawText(ellipsised(config.song.artist, artistPaint, maxTextWidth), textLeft, headerY + 78f, artistPaint)
+            headerBottom = headerY + 84f
         }
 
         // 4. Footer (Bottom)
-        val footerIconSize = 42f
+        val footerIconSize = 38f
         val footerY = posterHeight - pad - footerIconSize
 
         // 5. Middle Lyrics - Vertically Centered in Square
         val availableSpace = footerY - headerBottom
         val (ladderFontSize, lineSpacingMult) = when (lines.size) {
-            1 -> Pair(128f, 1.25f)
-            2 -> Pair(114f, 1.22f)
-            3 -> Pair(100f, 1.20f)
-            4 -> Pair(88f, 1.18f)
-            else -> Pair(78f, 1.16f)
+            1 -> Pair(156f, 1.30f)
+            2 -> Pair(138f, 1.25f)
+            3 -> Pair(120f, 1.22f)
+            4 -> Pair(104f, 1.20f)
+            else -> Pair(90f, 1.18f)
         }
 
         val fullLyricsText = lines.joinToString("\n")
@@ -364,8 +366,8 @@ object LyricPosterRenderer {
         }
 
         var fontSize = ladderFontSize
-        val maxAllowedLyricsHeight = availableSpace - 40f
-        val minTargetLyricsHeight = availableSpace * 0.58f
+        val maxAllowedLyricsHeight = availableSpace - 24f
+        val minTargetLyricsHeight = availableSpace * 0.72f
 
         var textLayout = StaticLayout.Builder.obtain(
             fullLyricsText, 0, fullLyricsText.length, textPaint, innerWidth.toInt()
@@ -376,9 +378,9 @@ object LyricPosterRenderer {
             .build()
 
         // Proactively scale up if short lines occupy too little vertical space
-        if (textLayout.height < minTargetLyricsHeight && fontSize < 136f) {
+        if (textLayout.height < minTargetLyricsHeight && fontSize < 164f) {
             var probeSize = fontSize
-            while (probeSize < 136f) {
+            while (probeSize < 164f) {
                 textPaint.textSize = probeSize + 2f
                 val probeLayout = StaticLayout.Builder.obtain(
                     fullLyricsText, 0, fullLyricsText.length, textPaint, innerWidth.toInt()
@@ -476,15 +478,31 @@ object LyricPosterRenderer {
         if (config.useCoverBackground && coverArt != null) {
             drawDarkenedCoverSurface(canvas, coverArt, cardRect, cornerRadius)
         } else {
+            val effectiveTop = if (topColor == bottomColor) {
+                ColorUtils.blendARGB(topColor, Color.WHITE, 0.08f)
+            } else topColor
+            val effectiveBottom = if (topColor == bottomColor) {
+                ColorUtils.blendARGB(bottomColor, Color.BLACK, 0.14f)
+            } else bottomColor
             val cardBgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 shader = LinearGradient(
                     0f, cardRect.top, 0f, cardRect.bottom,
-                    topColor,
-                    bottomColor,
+                    effectiveTop,
+                    effectiveBottom,
                     Shader.TileMode.CLAMP,
                 )
             }
             canvas.drawRoundRect(cardRect, cornerRadius, cornerRadius, cardBgPaint)
+
+            val glowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                shader = LinearGradient(
+                    0f, cardRect.top, 0f, cardRect.top + 320f,
+                    Color.argb(32, 255, 255, 255),
+                    Color.TRANSPARENT,
+                    Shader.TileMode.CLAMP,
+                )
+            }
+            canvas.drawRoundRect(cardRect, cornerRadius, cornerRadius, glowPaint)
         }
 
         val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -551,11 +569,11 @@ object LyricPosterRenderer {
 
         val availableSpace = footerY - headerBottom
         val (ladderFontSize, lineSpacingMult) = when (lines.size) {
-            1 -> Pair(84f, 1.28f)
-            2 -> Pair(76f, 1.26f)
-            3 -> Pair(68f, 1.24f)
-            4 -> Pair(62f, 1.22f)
-            else -> Pair(54f, 1.20f)
+            1 -> Pair(114f, 1.30f)
+            2 -> Pair(98f, 1.26f)
+            3 -> Pair(86f, 1.24f)
+            4 -> Pair(76f, 1.22f)
+            else -> Pair(66f, 1.20f)
         }
 
         val fullLyricsText = lines.joinToString("\n")
@@ -576,8 +594,8 @@ object LyricPosterRenderer {
         }
 
         var fontSize = ladderFontSize
-        val maxAllowedLyricsHeight = availableSpace - 60f
-        val minTargetLyricsHeight = availableSpace * 0.50f
+        val maxAllowedLyricsHeight = availableSpace - 40f
+        val minTargetLyricsHeight = availableSpace * 0.70f
 
         var textLayout = StaticLayout.Builder.obtain(
             fullLyricsText, 0, fullLyricsText.length, textPaint, innerWidth.toInt()
@@ -588,9 +606,9 @@ object LyricPosterRenderer {
             .build()
 
         // Proactively scale up if short lines occupy too little space
-        if (textLayout.height < minTargetLyricsHeight && fontSize < 92f) {
+        if (textLayout.height < minTargetLyricsHeight && fontSize < 124f) {
             var probeSize = fontSize
-            while (probeSize < 92f) {
+            while (probeSize < 124f) {
                 textPaint.textSize = probeSize + 2f
                 val probeLayout = StaticLayout.Builder.obtain(
                     fullLyricsText, 0, fullLyricsText.length, textPaint, innerWidth.toInt()

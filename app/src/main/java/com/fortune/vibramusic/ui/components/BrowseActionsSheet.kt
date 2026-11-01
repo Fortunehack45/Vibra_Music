@@ -51,7 +51,6 @@ import com.fortune.vibramusic.data.model.artworkAt
 import com.fortune.vibramusic.download.DownloadState
 import com.fortune.vibramusic.download.Downloads
 import com.fortune.vibramusic.ui.icons.VibraMusicIcons
-import com.fortune.vibramusic.ui.theme.VibraPurple
 import java.util.Locale
 
 /**

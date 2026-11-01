@@ -77,6 +77,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -600,6 +601,7 @@ private fun SongRowContent(
                 AsyncImage(
                     model = rememberRemoteArtworkUrl(song)?.artworkAt(ROW_ART_PX),
                     contentDescription = null,
+                    contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize(),
                 )
                 if (isCurrent) {
@@ -668,13 +670,13 @@ private fun SongRowContent(
                 color = subtitleColor,
             )
         } else {
-            if (mixActive || mixBpm != null || mixKey != null) {
+            if (mixBpm != null || mixKey != null) {
                 Spacer(Modifier.width(8.dp))
                 MixBadge(
                     bpm = mixBpm,
                     camelotKey = mixKey,
                     relativeToKey = mixRelativeToKey,
-                    showPlaceholder = mixActive,
+                    showPlaceholder = false,
                 )
             }
             song.durationText?.let {

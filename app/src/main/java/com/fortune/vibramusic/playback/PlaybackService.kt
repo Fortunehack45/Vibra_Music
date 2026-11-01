@@ -7638,7 +7638,7 @@ class PlaybackService : MediaLibraryService() {
                             cached
                         } else {
                             val resolution = try {
-                                withTimeoutOrNull(4000L) {
+                                withTimeoutOrNull(7000L) {
                                     VoiceCommandResolver.resolve(
                                         context = this@PlaybackService,
                                         query = query,

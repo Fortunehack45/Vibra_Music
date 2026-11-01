@@ -2930,13 +2930,32 @@ private fun VibraMusicApp(
                                 )
                             },
                             onSectionItemClick = { item ->
-                                item.browseId?.let { id ->
+                                if (item.browseId != null) {
+                                    val targetType = if (item.browseId.startsWith("VL") || item.browseId.startsWith("PL")) {
+                                        BrowseType.PLAYLIST
+                                    } else {
+                                        BrowseType.ALBUM
+                                    }
                                     viewModel.openDetail(
-                                        browseId = id,
+                                        browseId = item.browseId,
                                         title = item.title,
                                         subtitle = item.subtitle,
                                         thumbnailUrl = item.thumbnailUrl,
-                                        type = BrowseType.ALBUM,
+                                        type = targetType,
+                                    )
+                                } else if (item.videoId != null) {
+                                    val song = Song(
+                                        videoId = item.videoId,
+                                        title = item.title,
+                                        artist = item.subtitle.substringBefore(" · ").substringBefore("•").trim().ifBlank { page.title },
+                                        albumName = page.title,
+                                        thumbnailUrl = item.thumbnailUrl,
+                                        isVideo = item.isVideo,
+                                    )
+                                    playFrom(
+                                        listOf(song),
+                                        0,
+                                        QueueSource(page.title, PlaybackSourceType.BROWSE, page.browseId),
                                     )
                                 }
                             },
@@ -3740,6 +3759,7 @@ private fun VibraMusicApp(
                             onExpand = { showNowPlaying = true },
                             controlsLocked = controlsLocked,
                             onBlockedControl = showHostOnlyNotice,
+                            dock = playerDock,
                             modifier = Modifier.fillMaxWidth(),
                         )
                     }
@@ -3763,13 +3783,13 @@ private fun VibraMusicApp(
                                 isPlaying = player.isPlaying,
                                 isLoading = playPauseBusy,
                                 hazeState = hazeState,
+                                dock = playerDock,
                                 onPlayPause = {
                                     togglePlayPause()
                                 },
                                 onNext = { controller?.seekToNextMediaItem() },
                                 onPrevious = { controller?.seekToPrevious() },
                                 onExpand = { playerSheetMotion.open() },
-                                dock = playerDock,
                                 pull = playerSheetMotion,
                                 controlsLocked = controlsLocked,
                                 onBlockedControl = showHostOnlyNotice,

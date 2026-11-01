@@ -1592,7 +1592,7 @@ private fun ShimmerText(
  * A stream that arrived worse than its source promised gets that stated
  * outright rather than left to be spotted — see [NerdStats.Snapshot.downgraded].
  */
-private fun NerdStats.Snapshot.describe(context: android.content.Context): String? {
+internal fun NerdStats.Snapshot.describe(context: android.content.Context): String? {
     val parts = buildList {
         codecLabel(mimeType)?.let(::add)
         bitDepth?.let { add(context.getString(R.string.bit_depth, it)) }

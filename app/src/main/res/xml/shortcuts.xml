@@ -46,6 +46,27 @@
 
     <capability android:name="actions.intent.PLAY_MUSIC">
         <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.fortune.vibramusic"
+            android:targetClass="com.fortune.vibramusic.MainActivity">
+            <url-template android:value="vibramusic://play{?query,artist,album,playlist,genre}" />
+            <parameter
+                android:name="music.title"
+                android:key="query" />
+            <parameter
+                android:name="music.byArtist.name"
+                android:key="artist" />
+            <parameter
+                android:name="music.inAlbum.name"
+                android:key="album" />
+            <parameter
+                android:name="music.inPlaylist.name"
+                android:key="playlist" />
+            <parameter
+                android:name="music.genre"
+                android:key="genre" />
+        </intent>
+        <intent
             android:action="android.media.action.MEDIA_PLAY_FROM_SEARCH"
             android:targetPackage="com.fortune.vibramusic"
             android:targetClass="com.fortune.vibramusic.MainActivity">
@@ -62,6 +83,41 @@
                 android:name="music.inPlaylist.name"
                 android:key="android.intent.extra.playlist" />
         </intent>
+    </capability>
+
+    <capability android:name="actions.intent.RESUME_MUSIC">
+        <intent
+            android:action="android.media.action.MEDIA_PLAY_FROM_SEARCH"
+            android:targetPackage="com.fortune.vibramusic"
+            android:targetClass="com.fortune.vibramusic.MainActivity" />
+    </capability>
+
+    <capability android:name="actions.intent.PAUSE_MUSIC">
+        <intent
+            android:action="android.intent.action.MEDIA_BUTTON"
+            android:targetPackage="com.fortune.vibramusic"
+            android:targetClass="com.fortune.vibramusic.playback.PlaybackService" />
+    </capability>
+
+    <capability android:name="actions.intent.STOP_MUSIC">
+        <intent
+            android:action="android.intent.action.MEDIA_BUTTON"
+            android:targetPackage="com.fortune.vibramusic"
+            android:targetClass="com.fortune.vibramusic.playback.PlaybackService" />
+    </capability>
+
+    <capability android:name="actions.intent.NEXT_MUSIC">
+        <intent
+            android:action="android.intent.action.MEDIA_BUTTON"
+            android:targetPackage="com.fortune.vibramusic"
+            android:targetClass="com.fortune.vibramusic.playback.PlaybackService" />
+    </capability>
+
+    <capability android:name="actions.intent.PREVIOUS_MUSIC">
+        <intent
+            android:action="android.intent.action.MEDIA_BUTTON"
+            android:targetPackage="com.fortune.vibramusic"
+            android:targetClass="com.fortune.vibramusic.playback.PlaybackService" />
     </capability>
 
     <capability android:name="actions.intent.RESUME">

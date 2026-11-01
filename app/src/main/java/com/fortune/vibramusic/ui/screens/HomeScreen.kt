@@ -276,8 +276,8 @@ private fun RecentShelf(
                         Column(Modifier.width(columnWidth)) {
                             column.forEach { item ->
                                 val isCurrent = currentSong != null && (
-                                    (item.videoId != null && item.videoId == currentSong.videoId) ||
-                                    (item.title.equals(currentSong.title, ignoreCase = true))
+                                    (item.videoId != null && (item.videoId == currentSong.videoId || item.videoId == currentSong.setVideoId)) ||
+                                    (item.videoId == null && item.title.equals(currentSong.title, ignoreCase = true) && item.subtitle.equals(currentSong.artist, ignoreCase = true))
                                 )
                                 RecentTrackRow(
                                     item = item,

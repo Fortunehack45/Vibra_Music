@@ -649,7 +649,7 @@ fun DetailScreen(
                                     mixBpm = trueBpm,
                                     mixKey = trueKey,
                                     mixRelativeToKey = nextTrueKey,
-                                    mixActive = true,
+                                    mixActive = mixEnabled,
                                 )
                                 if (position < matches.lastIndex) {
                                     if (mixEnabled && nextSong != null) {
@@ -721,7 +721,10 @@ fun DetailScreen(
                     }
 
                     items(page.sections) { shelf ->
-                        val canShowAll = shelf.items.size > ARTIST_ROW_MAX_ITEMS
+                        val isVideoShelf = shelf.title.contains("video", ignoreCase = true) ||
+                            shelf.title.contains("live performances", ignoreCase = true) ||
+                            shelf.items.any { it.isVideo }
+                        val canShowAll = shelf.items.size > ARTIST_ROW_MAX_ITEMS || shelf.moreBrowseId != null || (isVideoShelf && shelf.items.size >= 2)
                         val displayItems = remember(shelf.items) {
                             if (canShowAll) shelf.items.take(ARTIST_ROW_MAX_ITEMS) else shelf.items
                         }
@@ -745,6 +748,7 @@ fun DetailScreen(
                                         palette = palette,
                                         onClick = { onSectionItemClick(item) },
                                         onLongPress = onSectionItemLongPress?.let { { it(item) } },
+                                        isWidescreen = isVideoShelf || item.isVideo,
                                     )
                                 }
                             }
@@ -1891,20 +1895,28 @@ private fun SectionCard(
     palette: ArtworkPalette,
     onClick: () -> Unit,
     modifier: Modifier = Modifier.width(SHELF_CARD_WIDTH),
+    isWidescreen: Boolean = false,
     onLongPress: (() -> Unit)? = null,
 ) {
+    val widescreen = isWidescreen || item.isVideo
+    val cardModifier = if (widescreen && modifier == Modifier.width(SHELF_CARD_WIDTH)) {
+        Modifier.width(240.dp)
+    } else {
+        modifier
+    }
     Column(
-        modifier = modifier
+        modifier = cardModifier
             .longPressMenuClickable(onClick = onClick, onLongClick = onLongPress),
     ) {
         AsyncImage(
             model = item.thumbnailUrl.artworkAt(CARD_ART_PX),
             contentDescription = null,
+            contentScale = ContentScale.Crop,
             modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(1f)
-                .clip(RoundedCornerShape(10.dp))
-                .thumbnailBorder(RoundedCornerShape(10.dp))
+                .aspectRatio(if (widescreen) 16f / 9f else 1f)
+                .clip(RoundedCornerShape(12.dp))
+                .thumbnailBorder(RoundedCornerShape(12.dp))
                 .background(palette.elevated),
         )
         Spacer(Modifier.height(8.dp))
@@ -1935,10 +1947,19 @@ private fun ArtistShelfGridPage(
     modifier: Modifier = Modifier,
 ) {
     val gridState = rememberLazyGridState()
+    val isVideoGrid = shelf.title.contains("video", ignoreCase = true) ||
+        shelf.title.contains("live performances", ignoreCase = true) ||
+        shelf.items.any { it.isVideo }
+
     BoxWithConstraints(modifier.fillMaxSize().background(palette.background)) {
         val grid = libraryGrid(maxWidth - PAGE_GUTTER * 2)
+        val columns = if (isVideoGrid) {
+            if (maxWidth > 600.dp) 2 else 1
+        } else {
+            grid.columns
+        }
         LazyVerticalGrid(
-            columns = GridCells.Fixed(grid.columns),
+            columns = GridCells.Fixed(columns),
             state = gridState,
             contentPadding = PaddingValues(
                 top = topBarContentPadding(),
@@ -1956,6 +1977,7 @@ private fun ArtistShelfGridPage(
                     palette = palette,
                     onClick = { onItemClick(item) },
                     onLongPress = onItemLongPress?.let { { it(item) } },
+                    isWidescreen = isVideoGrid || item.isVideo,
                     modifier = Modifier.fillMaxWidth(),
                 )
             }

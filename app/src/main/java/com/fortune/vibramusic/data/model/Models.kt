@@ -226,7 +226,18 @@ fun String?.durationMillis(): Long {
 }
 
 /** As [Song.artworkAt], for artwork that isn't a track's. */
-fun String?.artworkAt(px: Int): String? = this?.replace(SIZE_HINT, "w$px-h$px")
+fun String?.artworkAt(px: Int): String? {
+    if (this == null) return null
+    var url = this.replace(SIZE_HINT, "w$px-h$px")
+    if (url.contains("ytimg.com") && url.contains("/hqdefault.jpg")) {
+        url = if (px >= 480) {
+            url.replace("/hqdefault.jpg", "/maxresdefault.jpg")
+        } else {
+            url.replace("/hqdefault.jpg", "/mqdefault.jpg")
+        }
+    }
+    return url
+}
 
 private val SIZE_HINT = Regex("""w\d+-h\d+""")
 

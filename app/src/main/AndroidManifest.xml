@@ -542,6 +542,156 @@
                 <category android:name="android.intent.category.APP_MUSIC" />
             </intent-filter>
         </activity-alias>
+        <activity-alias
+            android:name=".LauncherNeonCyan"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_neon_cyan"
+            android:roundIcon="@mipmap/ic_neon_cyan"
+            android:label="@string/app_name"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.APP_MUSIC" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".LauncherNeonSilver"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_neon_silver"
+            android:roundIcon="@mipmap/ic_neon_silver"
+            android:label="@string/app_name"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.APP_MUSIC" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".LauncherNeonViolet"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_neon_violet"
+            android:roundIcon="@mipmap/ic_neon_violet"
+            android:label="@string/app_name"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.APP_MUSIC" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".LauncherSamsungNeonCyan"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_samsung_neon_cyan"
+            android:roundIcon="@mipmap/ic_samsung_neon_cyan"
+            android:label="@string/app_name"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.APP_MUSIC" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".LauncherSamsungNeonSilver"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_samsung_neon_silver"
+            android:roundIcon="@mipmap/ic_samsung_neon_silver"
+            android:label="@string/app_name"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.APP_MUSIC" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".LauncherSamsungNeonViolet"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_samsung_neon_violet"
+            android:roundIcon="@mipmap/ic_samsung_neon_violet"
+            android:label="@string/app_name"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.APP_MUSIC" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".LauncherPixelNeonCyan"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_pixel_neon_cyan"
+            android:roundIcon="@mipmap/ic_pixel_neon_cyan"
+            android:label="@string/app_name"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.APP_MUSIC" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".LauncherPixelNeonSilver"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_pixel_neon_silver"
+            android:roundIcon="@mipmap/ic_pixel_neon_silver"
+            android:label="@string/app_name"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.APP_MUSIC" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".LauncherPixelNeonViolet"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_pixel_neon_violet"
+            android:roundIcon="@mipmap/ic_pixel_neon_violet"
+            android:label="@string/app_name"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.APP_MUSIC" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".LauncherMonochrome"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_monochrome"
+            android:roundIcon="@mipmap/ic_monochrome"
+            android:label="@string/app_name"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.APP_MUSIC" />
+            </intent-filter>
+        </activity-alias>
+
 
         <service
             android:name=".playback.PlaybackService"

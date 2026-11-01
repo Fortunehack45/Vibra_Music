@@ -50,13 +50,14 @@ class AcousticCatalogServiceTest {
         assertNull(AcousticCatalogService.get(testSong, mockStore))
 
         // Store receives dynamic analysis from DSP
-        val dynamicAnalysis = TrackAnalysis(
+                val dynamicAnalysis = TrackAnalysis(
             status = TrackAnalysis.STATUS_READY,
             trackId = testSong.videoId,
             bpm = 120.0,
             key = "1A",
             beatInterval = 0.5,
             duration = 180.0,
+            beats = listOf(0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5),
         )
         mockStore.save(testSong.videoId, dynamicAnalysis)
 

@@ -7,6 +7,10 @@ import android.content.pm.PackageManager
 /**
  * The home-screen icon choices. Each is an `<activity-alias>` in the manifest
  * carrying the launcher intent filter; exactly one is enabled at a time.
+ *
+ * Every glass icon draws the same Vibra logo as [Default]: its adaptive icon layers a
+ * glass tile (`ic_*_tile`) under `ic_glass_logo_*`, which has the outline of
+ * `ic_launcher_foreground`. [previewRes] images are only used as static previews.
  */
 enum class AppIcon(val alias: String, val iconRes: Int, val labelRes: Int, val previewRes: Int? = null) {
     Default("LauncherDefault", R.mipmap.ic_launcher, R.string.app_icon_default),

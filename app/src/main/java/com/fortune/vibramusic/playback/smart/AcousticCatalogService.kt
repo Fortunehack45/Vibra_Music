@@ -32,7 +32,8 @@ object AcousticCatalogService {
 
     private const val TAG = "AcousticCatalogService"
     private const val PREFS_NAME = "acoustic_catalog_cache_v3"
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val dispatcher = Dispatchers.IO.limitedParallelism(2)
+    private val scope = CoroutineScope(SupervisorJob() + dispatcher)
     private val memoryCache = ConcurrentHashMap<String, AcousticData>()
     private val requested = ConcurrentHashMap.newKeySet<String>()
     private var prefs: SharedPreferences? = null

@@ -146,7 +146,39 @@ object MixAutoPlanner {
         val beatmatching = !meterMismatch && canBeatmatch(from.bpm, to.bpm) &&
             from.beatConfidence >= 0.55 && to.beatConfidence >= 0.55
 
-        val score = bpmScore * 0.6f + keyScore * 0.4f
+        val durA = fromDurationSec?.takeIf { it > 10.0 } ?: from.duration.takeIf { it > 10.0 } ?: 180.0
+        val durB = toDurationSec?.takeIf { it > 10.0 } ?: to.duration.takeIf { it > 10.0 } ?: 180.0
+
+        val safeBpm = from.bpm.takeIf { it in 40.0..240.0 } ?: 120.0
+        val secondsPerBar = (240.0 / safeBpm)
+
+        // Preliminary cue estimates for vocal clash assessment
+        val rawOutroCut = calculateAutoOutroCutSeconds(durA, from.bpm, from.mixOutTime)
+        val minCut = (durA * 0.40).coerceAtMost(15.0).coerceAtLeast(1.0)
+        val maxCut = (durA - (8 * secondsPerBar)).coerceAtLeast(minCut)
+        val rawTargetCut = from.mixOutTime.takeIf { it > minCut && it < (durA - (8 * secondsPerBar) - 1.0) }
+            ?: (durA - rawOutroCut).coerceIn(minCut, maxCut)
+
+        val snappedCutPreliminary = alignedTransitionStart(
+            analysis = from,
+            target = rawTargetCut,
+            end = durA - 1.0,
+            preferEarlier = true,
+            minimum = minCut,
+        )
+        val snappedInPreliminary = incomingCuePoint(to, latest = durB * 0.35).coerceIn(0.0, durB * 0.35)
+
+        val preliminaryRate = if (beatmatching && from.bpm > 0.0 && to.bpm > 0.0) from.bpm / alignedInBpm else 1.0
+        val vocalClash = simultaneousVocalFraction(
+            outgoing = from,
+            incoming = to,
+            outStart = snappedCutPreliminary,
+            outEnd = snappedCutPreliminary + (8 * secondsPerBar),
+            inStart = snappedInPreliminary,
+            rate = preliminaryRate,
+        ) ?: 0.0
+
+        val effectiveBeatmatching = beatmatching && bpmGap <= MAX_STRETCH && vocalClash <= 0.40
 
         var bars: Int
         var volOptionId: String
@@ -155,37 +187,35 @@ object MixAutoPlanner {
         var fxOptionId: String
 
         when {
-            beatmatching && score >= 0.85f -> {
+            effectiveBeatmatching && bpmGap <= 0.03f && keyDist <= 1 && vocalClash <= VOCAL_CLASH_TOLERANCE -> {
                 bars = 16
                 volOptionId = "overlap"
                 eqOptionId = "center-bass-swap"
                 filterOptionId = "none"
                 fxOptionId = "none"
             }
-            beatmatching && score >= 0.65f -> {
+            effectiveBeatmatching && bpmGap <= 0.06f && keyDist <= 2 -> {
                 bars = 8
                 volOptionId = "overlap"
                 eqOptionId = "end-bass-swap"
-                filterOptionId = "none"
+                filterOptionId = "lpf-in-hpf-out"
                 fxOptionId = "none"
             }
-            beatmatching && score >= 0.40f -> {
-                bars = 4
-                volOptionId = "fade-in-fade-out"
-                eqOptionId = "end-bass-swap"
-                filterOptionId = "none"
-                fxOptionId = "none"
-            }
-            !beatmatching && (bpmScore > 0.0f || keyScore >= 0.5f) -> {
-                // Harmonic match with disparate tempo: clean filter sweep handoff
+            effectiveBeatmatching && bpmGap <= 0.08f -> {
                 bars = 4
                 volOptionId = "fade-in-fade-out"
                 eqOptionId = "end-bass-swap"
                 filterOptionId = "lpf-in-hpf-out"
                 fxOptionId = "none"
             }
+            bpmGap <= 0.10f || keyDist <= 2 -> {
+                bars = 4
+                volOptionId = "fade-in-fade-out"
+                eqOptionId = "quick-bass-cut"
+                filterOptionId = "lpf-in-hpf-out"
+                fxOptionId = "none"
+            }
             else -> {
-                // Wide clash: short fade with bass cut and optional echo tail
                 bars = 2
                 volOptionId = "fade-in-fast-out"
                 eqOptionId = "quick-bass-cut"
@@ -194,12 +224,7 @@ object MixAutoPlanner {
             }
         }
 
-        val safeBpm = from.bpm.takeIf { it in 40.0..240.0 } ?: 120.0
-        val secondsPerBar = (240.0 / safeBpm)
         var transitionDurationSeconds = bars * secondsPerBar
-
-        val durA = fromDurationSec?.takeIf { it > 10.0 } ?: from.duration.takeIf { it > 10.0 } ?: 180.0
-        val durB = toDurationSec?.takeIf { it > 10.0 } ?: to.duration.takeIf { it > 10.0 } ?: 180.0
 
         // Short-track protection: ensure transition never consumes more than 20% of track
         if (transitionDurationSeconds > durA * 0.20 || transitionDurationSeconds > durB * 0.20) {
@@ -211,16 +236,14 @@ object MixAutoPlanner {
             transitionDurationSeconds = bars * secondsPerBar
         }
 
-        val rawOutroCut = calculateAutoOutroCutSeconds(durA, from.bpm, from.mixOutTime)
-        val minCut = (durA * 0.40).coerceAtMost(15.0).coerceAtLeast(1.0)
-        val maxCut = (durA - transitionDurationSeconds).coerceAtLeast(minCut)
-        val rawTargetCut = from.mixOutTime.takeIf { it > minCut && it < (durA - transitionDurationSeconds - 1.0) }
-            ?: (durA - rawOutroCut).coerceIn(minCut, maxCut)
+        val dynamicMaxCut = (durA - transitionDurationSeconds).coerceAtLeast(minCut)
+        val dynamicTargetCut = from.mixOutTime.takeIf { it > minCut && it < (durA - transitionDurationSeconds - 1.0) }
+            ?: (durA - rawOutroCut).coerceIn(minCut, dynamicMaxCut)
 
         // Snap outgoing transition start to phrase boundary or downbeat
         val snappedCut = alignedTransitionStart(
             analysis = from,
-            target = rawTargetCut,
+            target = dynamicTargetCut,
             end = durA - 1.0,
             preferEarlier = true,
             minimum = minCut,
@@ -229,27 +252,6 @@ object MixAutoPlanner {
         // Snap incoming mix-in point to analyzed candidate or downbeat
         val rawTargetIn = incomingCuePoint(to, latest = durB * 0.35)
         val snappedIn = rawTargetIn.coerceIn(0.0, durB * 0.35)
-
-        // Vocal collision check: avoid simultaneous lead vocals during overlap
-        val rate = if (beatmatching && from.bpm > 0.0 && to.bpm > 0.0) from.bpm / alignedInBpm else 1.0
-        val vocalClash = simultaneousVocalFraction(
-            outgoing = from,
-            incoming = to,
-            outStart = snappedCut,
-            outEnd = snappedCut + transitionDurationSeconds,
-            inStart = snappedIn,
-            rate = rate,
-        ) ?: 0.0
-
-        if (vocalClash > VOCAL_CLASH_TOLERANCE) {
-            if (filterOptionId == "none") {
-                filterOptionId = "lpf-in-hpf-out"
-            }
-            if (bars > 8) {
-                bars = 8
-                transitionDurationSeconds = bars * secondsPerBar
-            }
-        }
 
         val vol = MixOptions.findVolumeOption(volOptionId).build(bars)
         val eq = MixOptions.findEqOption(eqOptionId).build(bars)

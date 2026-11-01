@@ -161,7 +161,13 @@ fun PodcastVideoView(
 
     DisposableEffect(videoId) {
         onDispose {
-            runCatching { webViewRef?.destroy() }
+            runCatching {
+                webViewRef?.stopLoading()
+                webViewRef?.loadUrl("about:blank")
+                webViewRef?.clearHistory()
+                webViewRef?.removeAllViews()
+                webViewRef?.destroy()
+            }
             webViewRef = null
         }
     }

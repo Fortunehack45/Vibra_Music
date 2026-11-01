@@ -803,7 +803,7 @@ internal fun Shelf(
 ) {
     Column(Modifier.padding(bottom = 26.dp)) {
         SectionHeader(shelf.title, shelf.subtitle)
-        val isVideoShelf = shelf.title.contains("video", ignoreCase = true) || shelf.items.any { it.isVideo }
+        val isVideoShelf = shelf.title.contains("video", ignoreCase = true)
         LazyRow(
             contentPadding = PaddingValues(horizontal = PAGE_GUTTER),
             horizontalArrangement = Arrangement.spacedBy(14.dp),

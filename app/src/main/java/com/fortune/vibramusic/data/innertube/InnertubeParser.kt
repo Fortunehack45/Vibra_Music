@@ -763,8 +763,13 @@ object InnertubeParser {
             setVideoId = renderer.o("playlistItemData").s("playlistSetVideoId"),
             // The row type word is the clean signal when present ("All" tab);
             // otherwise a music-video upload gives itself away with widescreen
-            // art where a catalogue track has square album cover art.
-            isVideo = rowType == "video" || thumbnails.isNotSquare(),
+            // art where a catalogue track has square album cover art. An explicit
+            // song row is never treated as a video.
+            isVideo = if (rowType == "song" || subtitle.contains("Song", ignoreCase = true)) {
+                false
+            } else {
+                rowType == "video" || thumbnails.isNotSquare()
+            },
             isExplicit = renderer.hasExplicitBadge(),
         )
     }
@@ -866,7 +871,11 @@ object InnertubeParser {
             artistId = credits.artistId,
             albumId = credits.albumId,
             albumName = credits.albumName,
-            isVideo = rowType == "video" || thumbnails.isNotSquare(),
+            isVideo = if (rowType == "song" || credits.albumId != null) {
+                false
+            } else {
+                rowType == "video" || thumbnails.isNotSquare()
+            },
             isExplicit = renderer["subtitleBadges"].hasExplicitBadge(),
         )
     }
@@ -1513,10 +1522,15 @@ object InnertubeParser {
         val thumbnails = renderer.o("thumbnailRenderer").o("musicThumbnailRenderer")
             .o("thumbnail").a("thumbnails")
         val subtitle = renderer.o("subtitle").runs()
-        val isVideo = (resolvedBrowseId == null && videoId != null && thumbnails.isNotSquare()) ||
-            subtitle.contains("views", ignoreCase = true) ||
-            VIDEO_WORD.containsMatchIn(title) ||
-            VIDEO_WORD.containsMatchIn(subtitle)
+        val isExplicitSong = subtitle.contains("Song", ignoreCase = true) || subtitle.startsWith("Song", ignoreCase = true)
+        val isVideo = if (isExplicitSong) {
+            false
+        } else {
+            (resolvedBrowseId == null && videoId != null && thumbnails.isNotSquare()) ||
+                subtitle.contains("views", ignoreCase = true) ||
+                VIDEO_WORD.containsMatchIn(title) ||
+                VIDEO_WORD.containsMatchIn(subtitle)
+        }
 
         if (resolvedBrowseId != null &&
             !resolvedBrowseId.startsWith("VL") &&

@@ -827,7 +827,7 @@ fun SettingsScreen(
                                 androidx.compose.ui.viewinterop.AndroidView(
                                     factory = { ctx ->
                                         android.widget.ImageView(ctx).apply {
-                                            setImageResource(option.iconRes)
+                                            setImageResource(option.previewRes ?: option.iconRes)
                                             scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
                                         }
                                     },

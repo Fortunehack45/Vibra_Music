@@ -1246,6 +1246,11 @@ private fun VibraMusicApp(
                 ?: (0 until c.mediaItemCount).map { c.getMediaItemAt(it).toSong() }
             val currentIndex = c.currentMediaItemIndex
 
+            val selectedSong = songs.getOrNull(index)
+            if (selectedSong?.isVideo == true) {
+                keepVideoId = selectedSong.videoId
+            }
+
             if (ListenTogether.state.value.inParty) {
                 val selectedSong = songs.getOrNull(index) ?: return@launch
                 val party = ListenTogether.state.value
@@ -1756,6 +1761,25 @@ private fun VibraMusicApp(
                     }
                     VoiceResolution.Resume -> {
                         session.play()
+                    }
+                    VoiceResolution.NextTransition -> {
+                        controller?.seekToNextMediaItem()
+                    }
+                    is VoiceResolution.MixInto -> {
+                        val announcement = resolution.announcement
+                        Toast.makeText(context, announcement, Toast.LENGTH_SHORT).show()
+                        (context as? Activity)?.window?.decorView?.announceForAccessibility(announcement)
+                        AppSettings.setSongTransitionsEnabled(true)
+                        scope.launch {
+                            val results = runCatching { YtMusicRepository.search(resolution.query, SearchFilter.SONGS).getOrNull() }.getOrNull()
+                            val topTrack = results?.filterIsInstance<SearchResult.Track>()?.firstOrNull()?.song
+                            if (topTrack != null) {
+                                playRadio(topTrack, QueueSource(resolution.query, PlaybackSourceType.SEARCH))
+                            } else {
+                                selectedTab = TAB_SEARCH
+                                viewModel.searchFor(resolution.query)
+                            }
+                        }
                     }
                     is VoiceResolution.NotFound -> {
                         val announcement = resolution.announcement

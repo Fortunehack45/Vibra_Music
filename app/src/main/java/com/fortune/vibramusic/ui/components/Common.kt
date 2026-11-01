@@ -670,13 +670,13 @@ private fun SongRowContent(
                 color = subtitleColor,
             )
         } else {
-            if (mixActive || mixBpm != null || mixKey != null) {
+            if (mixActive && (mixBpm != null || mixKey != null)) {
                 Spacer(Modifier.width(8.dp))
                 MixBadge(
                     bpm = mixBpm,
                     camelotKey = mixKey,
                     relativeToKey = mixRelativeToKey,
-                    showPlaceholder = mixActive && (mixBpm == null && mixKey == null),
+                    showPlaceholder = false,
                 )
             }
             song.durationText?.let {

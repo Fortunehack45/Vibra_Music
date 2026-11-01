@@ -151,4 +151,19 @@ class VoiceCommandResolverTest {
         assertEquals(VoiceResolution.Resume, VoiceCommandResolver.resolve(query = "Play music"))
         assertEquals(VoiceResolution.Resume, VoiceCommandResolver.resolve(query = "music"))
     }
+
+    @Test
+    fun testProDjVoiceCommands() = runBlocking {
+        assertEquals(VoiceResolution.NextTransition, VoiceCommandResolver.resolve(query = "blend to next track"))
+        assertEquals(VoiceResolution.NextTransition, VoiceCommandResolver.resolve(query = "mix to next track"))
+        assertEquals(VoiceResolution.NextTransition, VoiceCommandResolver.resolve(query = "mix next"))
+
+        val mixRes = VoiceCommandResolver.resolve(query = "mix into upbeat afrobeats")
+        assertTrue(mixRes is VoiceResolution.MixInto)
+        assertEquals("upbeat afrobeats", (mixRes as VoiceResolution.MixInto).query)
+
+        val djMixRes = VoiceCommandResolver.resolve(query = "dj mix Amapiano")
+        assertTrue(djMixRes is VoiceResolution.MixInto)
+        assertEquals("Amapiano", (djMixRes as VoiceResolution.MixInto).query)
+    }
 }

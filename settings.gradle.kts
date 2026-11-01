@@ -21,7 +21,5 @@ val iosOnly = providers.gradleProperty("iosOnly").orNull == "true" ||
 include(":shared")
 include(":sharedUi")
 if (!iosOnly) {
-    include(":desktopApp")
     include(":app")
 }
- 

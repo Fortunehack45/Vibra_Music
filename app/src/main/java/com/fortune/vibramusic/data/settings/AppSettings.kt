@@ -434,7 +434,7 @@ object AppSettings {
      * video. The video itself is still handed to the player first so its
      * metadata appears immediately while the catalogue match is resolved.
      */
-    val preferMusicOnly = MutableStateFlow(true)
+    val preferMusicOnly = MutableStateFlow(false)
 
     /** Analyzes audio waveform/envelope to align matching playback moment between versions. */
     val smartVersionAlignment = MutableStateFlow(true)
@@ -947,7 +947,7 @@ object AppSettings {
         pauseOnVolumeMute.value = prefs.getBoolean(KEY_PAUSE_ON_VOLUME_MUTE, true)
         minimizeOnPanelBack.value = prefs.getBoolean(KEY_MINIMIZE_ON_PANEL_BACK, true)
         dontRepeatSuggestions.value = prefs.getBoolean(KEY_DONT_REPEAT_SUGGESTIONS, false)
-        preferMusicOnly.value = prefs.getBoolean(KEY_PREFER_MUSIC_ONLY, true)
+        preferMusicOnly.value = prefs.getBoolean(KEY_PREFER_MUSIC_ONLY, false)
         smartVersionAlignment.value = prefs.getBoolean(KEY_SMART_VERSION_ALIGNMENT, true)
         reduceDynamicBlur.value = prefs.getBoolean(KEY_REDUCE_BLUR, false)
         val migratedLiquidGlassV175 = prefs.getBoolean(KEY_LIQUID_GLASS_DEFAULT_V1_7_5, false)

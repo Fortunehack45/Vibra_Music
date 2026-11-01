@@ -24,6 +24,12 @@ sealed interface VoiceResolution {
     /** Resumes current playback. */
     data object Resume : VoiceResolution
 
+    /** Seamlessly transitions to the next track in queue. */
+    data object NextTransition : VoiceResolution
+
+    /** Activates mix mode and blends into the requested artist, genre, or mood. */
+    data class MixInto(val query: String, val announcement: String) : VoiceResolution
+
     /** No matching playable content could be found. */
     data class NotFound(val query: String, val announcement: String) : VoiceResolution
 }
@@ -85,6 +91,21 @@ object VoiceCommandResolver {
             explicitArtist == null && explicitAlbum == null && explicitPlaylist == null
         ) {
             return VoiceResolution.Resume
+        }
+
+        // 1b. Pro DJ commands: blend/mix to next, or mix into a specified genre/artist
+        val lowerRaw = rawQuery.lowercase()
+        if (lowerRaw in listOf("blend to next track", "mix to next track", "transition to next track", "mix next", "blend next", "next track", "skip to next mix")) {
+            return VoiceResolution.NextTransition
+        }
+        val mixPrefixes = listOf("mix into ", "blend into ", "dj mix ")
+        for (mp in mixPrefixes) {
+            if (lowerRaw.startsWith(mp)) {
+                val target = rawQuery.substring(mp.length).trim()
+                if (target.isNotBlank()) {
+                    return VoiceResolution.MixInto(target, "Mixing into $target")
+                }
+            }
         }
 
         // 2. Playlist Focus: check local playlists first, then online playlists

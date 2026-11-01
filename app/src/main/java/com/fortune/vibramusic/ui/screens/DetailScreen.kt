@@ -618,15 +618,28 @@ fun DetailScreen(
                                 val meta = com.fortune.vibramusic.playback.smart.TrackMetaRepository.peek(song.videoId)
                                 val analyzer = com.fortune.vibramusic.playback.smart.TrackAnalyzer.getInstance(context)
                                 val analysis = analyzer.getAnalysis(song.videoId) ?: store.load(song.videoId)
-                                val acoustic = com.fortune.vibramusic.playback.smart.AcousticCatalogService.get(song, store)
+                                val acoustic = if (mixEnabled) {
+                                    com.fortune.vibramusic.playback.smart.AcousticCatalogService.getOrEstimate(song, store)
+                                } else {
+                                    com.fortune.vibramusic.playback.smart.AcousticCatalogService.get(song, store)
+                                }
                                 val nextSong = matches.getOrNull(position + 1)?.value
                                 val nextMeta = nextSong?.let { com.fortune.vibramusic.playback.smart.TrackMetaRepository.peek(it.videoId) }
                                 val nextAnalysis = nextSong?.let { analyzer.getAnalysis(it.videoId) ?: store.load(it.videoId) }
-                                val nextAcoustic = nextSong?.let { com.fortune.vibramusic.playback.smart.AcousticCatalogService.get(it, store) }
+                                val nextAcoustic = nextSong?.let {
+                                    if (mixEnabled) com.fortune.vibramusic.playback.smart.AcousticCatalogService.getOrEstimate(it, store)
+                                    else com.fortune.vibramusic.playback.smart.AcousticCatalogService.get(it, store)
+                                }
 
                                 val trueBpm = meta?.bpm?.value ?: acoustic?.bpm ?: analysis?.bpm
                                 val trueKey = meta?.key?.value?.code ?: acoustic?.camelotKey ?: com.fortune.vibramusic.playback.smart.CamelotKey.parse(analysis?.key)?.code ?: analysis?.key?.takeIf { it.isNotBlank() }
                                 val nextTrueKey = nextMeta?.key?.value?.code ?: nextAcoustic?.camelotKey ?: com.fortune.vibramusic.playback.smart.CamelotKey.parse(nextAnalysis?.key)?.code ?: nextAnalysis?.key?.takeIf { it.isNotBlank() }
+
+                                if (mixEnabled && (trueBpm == null || trueKey == null)) {
+                                    LaunchedEffect(song.videoId) {
+                                        com.fortune.vibramusic.playback.smart.AcousticCatalogService.resolve(context, song, store)
+                                    }
+                                }
 
                                 SongRow(
                                     song = if (numbered) {

@@ -645,7 +645,6 @@ fun NowPlayingScreen(
     val density = LocalDensity.current
     val haptics = rememberHaptics()
     var showShowNotesSheet by remember { mutableStateOf(false) }
-    var isVideoModeActive by rememberSaveable(song.videoId) { mutableStateOf(false) }
     val isPodcast = song.isPodcastSong
 
     // Remote tracks whose art lives inside the file resolve it here, once —
@@ -2241,17 +2240,21 @@ fun NowPlayingScreen(
                     }
                 }
             }
-            .graphicsLayer { alpha = if (docking()) dockFade().coerceAtLeast(0.004f) else 1f }
 
         CompositionLocalProvider(
             LocalAppBackdrop provides playerBackdrop,
+        ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .then(dockHost),
         ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
                 .navigationBarsPadding()
-                .then(dockHost)
+                .graphicsLayer { alpha = if (docking()) dockFade().coerceAtLeast(0.004f) else 1f }
                 // Observe unclaimed taps across the whole Canvas. Buttons and
                 // the compact metadata row consume their own taps first; empty
                 // video above or below them toggles the lower deck either way.
@@ -2421,31 +2424,6 @@ fun NowPlayingScreen(
             // controls at the foot of the screen. Filled in from inside the box,
             // where the sleeve's real size is known; see [lastControlSpread].
             var controlSpread by remember { mutableStateOf(lastControlSpread) }
-
-            if ((song.isVideo || song.isVideoOrigin || hasAlternateVersion || onToggleVersion != null) && !queueOpen && !lyricsOpen) {
-                SongVideoTogglePill(
-                    isVideo = isVideoModeActive,
-                    onSelectSong = {
-                        if (isVideoModeActive) {
-                            isVideoModeActive = false
-                            if (song.isVideo && onToggleVersion != null) {
-                                onToggleVersion.invoke()
-                            }
-                        }
-                    },
-                    onSelectVideo = {
-                        if (!isVideoModeActive) {
-                            isVideoModeActive = true
-                            if (!song.isVideo && onToggleVersion != null) {
-                                onToggleVersion.invoke()
-                            }
-                        }
-                    },
-                    modifier = Modifier
-                        .padding(bottom = 6.dp)
-                        .graphicsLayer { alpha = (1f - p()) * spotifyChromeAlpha },
-                )
-            }
 
             BoxWithConstraints(
                 modifier = Modifier
@@ -2636,7 +2614,7 @@ fun NowPlayingScreen(
                         // time instead of composition.
                         .layout { measurable, constraints ->
                             val side = artSize().roundToPx()
-                            val isVid = isVideoModeActive && song.isVideo
+                            val isVid = song.isVideo
                             val width = side
                             val height = if (isVid) (side * 9f / 16f).roundToInt() else side
 
@@ -2664,6 +2642,12 @@ fun NowPlayingScreen(
                             val targetRect = if (mini != null) lerp(mini, openRect.translate(0f, -unridden), dockT()) else openRect
                             dockFrame.portalLeft = targetRect.left
                             dockFrame.portalTop = targetRect.top
+                            dockFrame.portalScale = if (mini != null && openRect.width > 0f) {
+                                val startScale = mini.width / openRect.width
+                                startScale + (1f - startScale) * dockT()
+                            } else {
+                                1f
+                            }
 
                             val placeable = measurable.measure(
                                 constraints.constrain(Constraints.fixed(targetRect.width.roundToInt(), targetRect.height.roundToInt())),
@@ -2671,9 +2655,8 @@ fun NowPlayingScreen(
                             layout(placeable.width, placeable.height) { placeable.placeRelative(0, 0) }
                         }
                         .drawWithContent {
-                            if (docking()) {
-                                sleeveLayer.record { this@drawWithContent.drawContent() }
-                            } else {
+                            sleeveLayer.record { this@drawWithContent.drawContent() }
+                            if (!docking()) {
                                 drawContent()
                             }
                         }
@@ -2743,9 +2726,9 @@ fun NowPlayingScreen(
                             // the first. Only cast it once there's actually art.
                             .shadow(
                                 if (art.loaded) 10.dp else 0.dp,
-                                RoundedCornerShape(if (isVideoModeActive && song.isVideo) 14.dp else 8.dp),
+                                RoundedCornerShape(if (song.isVideo) 14.dp else 8.dp),
                             )
-                            .clip(RoundedCornerShape(if (isVideoModeActive && song.isVideo) 14.dp else 8.dp))
+                            .clip(RoundedCornerShape(if (song.isVideo) 14.dp else 8.dp))
                             .background(Color.Black.copy(alpha = 0.18f)),
                         contentAlignment = Alignment.Center,
                     ) {
@@ -2773,7 +2756,7 @@ fun NowPlayingScreen(
                                 .drawWithContent { if (art.loaded || !canvasRendered) drawContent() },
                         )
 
-                        if (isVideoModeActive && song.isVideo) {
+                        if (song.isVideo) {
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
@@ -2816,7 +2799,7 @@ fun NowPlayingScreen(
                         }
                     }
 
-                    if (isVideoModeActive && song.isVideo) {
+                    if (song.isVideo) {
                         Spacer(Modifier.height(8.dp))
                         val nerdStats by NerdStats.current.collectAsStateWithLifecycle()
                         Column(
@@ -3399,6 +3382,7 @@ fun NowPlayingScreen(
             )
         }
         }
+        }
     }
 }
 
@@ -3539,82 +3523,4 @@ private class DockFrame {
     var portalTop = 0f
     var portalScale = 1f
     var host: LayoutCoordinates? = null
-}
-
-@Composable
-private fun SongVideoTogglePill(
-    isVideo: Boolean,
-    onSelectSong: () -> Unit,
-    onSelectVideo: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val haptics = rememberHaptics()
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = modifier
-            .clip(RoundedCornerShape(20.dp))
-            .background(Color.Black.copy(alpha = 0.28f))
-            .border(
-                width = 0.5.dp,
-                color = Color.White.copy(alpha = 0.15f),
-                shape = RoundedCornerShape(20.dp),
-            )
-            .padding(horizontal = 4.dp, vertical = 3.dp),
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .clip(RoundedCornerShape(16.dp))
-                .background(if (!isVideo) Color.White.copy(alpha = 0.18f) else Color.Transparent)
-                .clickable {
-                    haptics.play(Haptic.Tap)
-                    onSelectSong()
-                }
-                .padding(horizontal = 14.dp, vertical = 6.dp),
-        ) {
-            Icon(
-                imageVector = VibraMusicIcons.MusicNote,
-                contentDescription = null,
-                tint = if (!isVideo) Color.White else Color.White.copy(alpha = 0.55f),
-                modifier = Modifier.size(16.dp),
-            )
-            Spacer(Modifier.width(6.dp))
-            Text(
-                text = "Song",
-                style = MaterialTheme.typography.labelMedium.copy(
-                    fontWeight = if (!isVideo) FontWeight.SemiBold else FontWeight.Medium,
-                ),
-                color = if (!isVideo) Color.White else Color.White.copy(alpha = 0.55f),
-            )
-        }
-
-        Spacer(Modifier.width(2.dp))
-
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .clip(RoundedCornerShape(16.dp))
-                .background(if (isVideo) Color.White.copy(alpha = 0.18f) else Color.Transparent)
-                .clickable {
-                    haptics.play(Haptic.Tap)
-                    onSelectVideo()
-                }
-                .padding(horizontal = 14.dp, vertical = 6.dp),
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.Videocam,
-                contentDescription = null,
-                tint = if (isVideo) Color.White else Color.White.copy(alpha = 0.55f),
-                modifier = Modifier.size(17.dp),
-            )
-            Spacer(Modifier.width(6.dp))
-            Text(
-                text = "Video",
-                style = MaterialTheme.typography.labelMedium.copy(
-                    fontWeight = if (isVideo) FontWeight.SemiBold else FontWeight.Medium,
-                ),
-                color = if (isVideo) Color.White else Color.White.copy(alpha = 0.55f),
-            )
-        }
-    }
 }

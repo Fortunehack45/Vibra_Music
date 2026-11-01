@@ -29,7 +29,7 @@ class MetaScheduler(
     private val tags: LocalTagReader,
     private val shared: SharedMetaClient,
     private val dao: TrackMetaDao,
-    private val maxParallel: Int = 2,
+    private val maxParallel: Int = 1,
 ) {
     private val queue = PriorityBlockingQueue<Job>()
     private val inFlight = ConcurrentHashMap.newKeySet<String>()
@@ -48,13 +48,17 @@ class MetaScheduler(
             val missing = songs.filter { TrackMetaRepository.peek(it.videoId)?.complete != true }
             if (missing.isEmpty()) return@launch
 
-            // Stage 1b: ONE batched request for the entire missing set
+            // Stage 1b: ONE fast batched cloud request for the missing set (<5KB)
             val sharedResults = shared.lookup(missing.map { it.videoId })
             sharedResults.forEach { TrackMetaRepository.ingest(it, dao) }
 
-            // Stage 1a and Stage 2: Enqueue whatever is still missing
-            missing.filter { TrackMetaRepository.peek(it.videoId)?.complete != true }
-                .forEach { enqueue(it, priority) }
+            // Only enqueue heavy on-device audio decoding (Stage 2) for immediate playing/next tracks.
+            // Playlist and library browsing must NEVER trigger heavy audio stream decoding on dozens of songs.
+            if (priority == MetaPriority.UP_NEXT || priority == MetaPriority.VISIBLE) {
+                missing.filter { TrackMetaRepository.peek(it.videoId)?.complete != true }
+                    .take(2)
+                    .forEach { enqueue(it, priority) }
+            }
         }
     }
 
@@ -66,7 +70,7 @@ class MetaScheduler(
 
     /** Move songs to the front of the line when the user scrolls to them. */
     fun prioritize(ids: Collection<String>, songsById: Map<String, Song>) {
-        ids.mapNotNull { songsById[it] }.forEach { song ->
+        ids.take(2).mapNotNull { songsById[it] }.forEach { song ->
             if (queue.removeIf { it.song.videoId == song.videoId }) {
                 queue.add(Job(song, MetaPriority.VISIBLE, seq.incrementAndGet()))
             } else {
@@ -76,6 +80,7 @@ class MetaScheduler(
     }
 
     private suspend fun worker() {
+        android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND)
         while (true) {
             val job = withContext(Dispatchers.IO) { queue.take() }
             try {
@@ -83,6 +88,7 @@ class MetaScheduler(
             } catch (_: Exception) {
             } finally {
                 inFlight.remove(job.song.videoId)
+                kotlinx.coroutines.delay(100)
             }
         }
     }
@@ -92,7 +98,7 @@ class MetaScheduler(
         tags.read(song)?.let { TrackMetaRepository.ingest(it, dao) }
         if (TrackMetaRepository.peek(song.videoId)?.complete == true) return
 
-        // Stage 2: on-device audio analysis
+        // Stage 2: on-device audio analysis (strictly background and single-threaded)
         val durSec = (song.durationMillis() / 1000.0).takeIf { it > 10.0 } ?: 0.0
         val uri = if (LocalAudioSource.isLocal(runCatching { Uri.parse(song.videoId) }.getOrNull() ?: Uri.EMPTY)) {
             Uri.parse(song.videoId)

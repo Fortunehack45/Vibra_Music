@@ -3066,7 +3066,13 @@ private fun VibraMusicApp(
                                     isMoodOrPicks
                                 )) || (isMoodOrPicks && item.videoId != null)
 
-                                if (isPlaylistOrAlbum) {
+                                if (item.browseId != null && item.browseId.startsWith("FEmusic_moods_and_genres_category")) {
+                                    val parts = item.browseId.split(":")
+                                    val catBrowseId = parts[0]
+                                    val catParams = parts.getOrNull(1)
+                                    viewModel.openMoodGenre(com.fortune.vibramusic.data.model.MoodGenre(item.title, catBrowseId, catParams))
+                                    selectedTab = TAB_EXPLORE
+                                } else if (isPlaylistOrAlbum) {
                                     val targetBrowseId = item.browseId ?: "RDAMVM${item.videoId}"
                                     viewModel.openDetail(
                                         browseId = targetBrowseId,

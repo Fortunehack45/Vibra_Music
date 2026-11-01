@@ -185,15 +185,29 @@ object MusicLink {
                 val query = (uri.getQueryParameter("query")
                     ?: uri.getQueryParameter("q")
                     ?: uri.getQueryParameter("title")
-                    ?: uri.getQueryParameter("media.name")).orEmpty().trim()
+                    ?: uri.getQueryParameter("name")
+                    ?: uri.getQueryParameter("music.title")
+                    ?: uri.getQueryParameter("media.name")
+                    ?: uri.getQueryParameter("media_name")).orEmpty().trim()
                 val artist = (uri.getQueryParameter("artist")
-                    ?: uri.getQueryParameter("media.artist.name")).orEmpty().trim().takeIf { it.isNotEmpty() }
+                    ?: uri.getQueryParameter("byArtist")
+                    ?: uri.getQueryParameter("music.byArtist.name")
+                    ?: uri.getQueryParameter("media.artist.name")
+                    ?: uri.getQueryParameter("artist_name")).orEmpty().trim().takeIf { it.isNotEmpty() }
                 val album = (uri.getQueryParameter("album")
-                    ?: uri.getQueryParameter("media.album.name")).orEmpty().trim().takeIf { it.isNotEmpty() }
+                    ?: uri.getQueryParameter("inAlbum")
+                    ?: uri.getQueryParameter("music.inAlbum.name")
+                    ?: uri.getQueryParameter("media.album.name")
+                    ?: uri.getQueryParameter("album_name")).orEmpty().trim().takeIf { it.isNotEmpty() }
                 val playlist = (uri.getQueryParameter("playlist")
-                    ?: uri.getQueryParameter("media.playlist.name")).orEmpty().trim().takeIf { it.isNotEmpty() }
+                    ?: uri.getQueryParameter("inPlaylist")
+                    ?: uri.getQueryParameter("music.inPlaylist.name")
+                    ?: uri.getQueryParameter("media.playlist.name")
+                    ?: uri.getQueryParameter("playlist_name")).orEmpty().trim().takeIf { it.isNotEmpty() }
                 val genre = (uri.getQueryParameter("genre")
-                    ?: uri.getQueryParameter("media.genre.name")).orEmpty().trim().takeIf { it.isNotEmpty() }
+                    ?: uri.getQueryParameter("music.genre.name")
+                    ?: uri.getQueryParameter("media.genre.name")
+                    ?: uri.getQueryParameter("genre_name")).orEmpty().trim().takeIf { it.isNotEmpty() }
 
                 return if (query.isEmpty() && artist == null && album == null && playlist == null && genre == null) {
                     LinkRequest.Resume

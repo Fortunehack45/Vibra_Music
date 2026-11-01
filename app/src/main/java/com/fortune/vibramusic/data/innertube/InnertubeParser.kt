@@ -294,13 +294,40 @@ object InnertubeParser {
                 // artist alone, no track — falls through parseResponsiveListItem
                 // (it demands a videoId) and used to drop the whole shelf.
                 ?: parseArtistRow(item.o("musicResponsiveListItemRenderer"))
+                ?: parseNavigationButton(item.o("musicNavigationButtonRenderer"))
+        }
+        val isMoodShelf = title.contains("mood", ignoreCase = true) || items.any { it.browseId?.startsWith("FEmusic_moods") == true }
+        val finalTitle = when {
+            title.isBlank() -> "For you"
+            isMoodShelf -> "Find your mood"
+            title.equals("Quick picks", ignoreCase = true) -> "Top picks for you"
+            title.equals("Trending", ignoreCase = true) -> "Trending songs for you"
+            else -> title
         }
         return if (items.isEmpty()) null else HomeShelf(
-            title = title.ifBlank { "For you" },
+            title = finalTitle,
             items = items,
             subtitle = strapline,
             moreBrowseId = moreBrowseId,
             moreParams = moreParams,
+        )
+    }
+
+    private fun parseNavigationButton(renderer: JsonObject?): ShelfItem? {
+        if (renderer == null) return null
+        val endpoint = renderer.o("clickCommand").o("browseEndpoint")
+            ?: renderer.o("navigationEndpoint").o("browseEndpoint")
+            ?: return null
+        val browseId = endpoint.s("browseId") ?: return null
+        val label = renderer.o("buttonText").runs().takeIf { it.isNotBlank() } ?: return null
+        val params = endpoint.s("params")
+        val fullBrowseId = if (params != null) "$browseId:$params" else browseId
+        return ShelfItem(
+            title = label,
+            subtitle = "Mood",
+            thumbnailUrl = null,
+            videoId = null,
+            browseId = fullBrowseId,
         )
     }
 
@@ -333,20 +360,63 @@ object InnertubeParser {
 
         sections.forEach { section ->
             section.o("musicShelfRenderer")?.let { shelf ->
-                shelf.a("contents").orEmpty().forEach { row ->
-                    parseResponsiveListItem(row.o("musicResponsiveListItemRenderer"), credit)
-                        ?.let(songs::add)
-                }
-                if (moreSongs == null) {
-                    moreSongs = shelf.o("title").a("runs")?.firstOrNull()
-                        .o("navigationEndpoint").o("browseEndpoint").s("browseId")
+                val shelfTitle = shelf.o("title").runs()
+                val isTopSongs = songs.isEmpty() || shelfTitle.isBlank() || shelfTitle.contains("song", ignoreCase = true)
+                if (isTopSongs) {
+                    shelf.a("contents").orEmpty().forEach { row ->
+                        parseResponsiveListItem(row.o("musicResponsiveListItemRenderer"), credit)
+                            ?.let(songs::add)
+                    }
+                    if (moreSongs == null) {
+                        moreSongs = shelf.o("title").a("runs")?.firstOrNull()
+                            .o("navigationEndpoint").o("browseEndpoint").s("browseId")
+                    }
+                } else {
+                    val isVideoShelf = shelfTitle.contains("video", ignoreCase = true) ||
+                        shelfTitle.contains("live performance", ignoreCase = true)
+                    val shelfItems = shelf.a("contents").orEmpty().mapNotNull { row ->
+                        parseResponsiveListItem(row.o("musicResponsiveListItemRenderer"), credit)?.let { song ->
+                            ShelfItem(
+                                title = song.title,
+                                subtitle = song.artist,
+                                thumbnailUrl = song.thumbnailUrl,
+                                videoId = song.videoId,
+                                browseId = null,
+                                isVideo = isVideoShelf || song.isVideo,
+                            )
+                        }
+                    }
+                    if (shelfItems.isNotEmpty()) {
+                        val moreEndpoint = shelf.o("title").a("runs")?.firstNotNullOfOrNull {
+                            it.o("navigationEndpoint").o("browseEndpoint")
+                        } ?: shelf.o("bottomEndpoint").o("browseEndpoint")
+                        shelves += HomeShelf(
+                            title = shelfTitle,
+                            items = shelfItems,
+                            moreBrowseId = moreEndpoint.s("browseId"),
+                            moreParams = moreEndpoint.s("params"),
+                        )
+                    }
                 }
             }
             section.o("musicCarouselShelfRenderer")?.let { carousel ->
                 val header = carousel.o("header").o("musicCarouselShelfBasicHeaderRenderer")
                 val title = header.o("title").runs()
-                val items = carousel.a("contents").orEmpty().mapNotNull {
-                    parseTwoRowItem(it.o("musicTwoRowItemRenderer"))
+                val isVideoShelf = title.contains("video", ignoreCase = true) ||
+                    title.contains("live performance", ignoreCase = true)
+                val items = carousel.a("contents").orEmpty().mapNotNull { item ->
+                    parseTwoRowItem(item.o("musicTwoRowItemRenderer"))?.let { parsed ->
+                        if (isVideoShelf) parsed.copy(isVideo = true) else parsed
+                    } ?: parseResponsiveListItem(item.o("musicResponsiveListItemRenderer"), credit)?.let { song ->
+                        ShelfItem(
+                            title = song.title,
+                            subtitle = song.artist,
+                            thumbnailUrl = song.thumbnailUrl,
+                            videoId = song.videoId,
+                            browseId = null,
+                            isVideo = isVideoShelf || song.isVideo,
+                        )
+                    }
                 }.filter { it.browseId != null || it.videoId != null }
                 val moreEndpoint = header.o("title").a("runs")?.firstNotNullOfOrNull {
                     it.o("navigationEndpoint").o("browseEndpoint")

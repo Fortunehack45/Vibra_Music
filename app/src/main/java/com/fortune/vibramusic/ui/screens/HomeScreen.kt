@@ -266,6 +266,19 @@ private fun RecentShelf(
             onViewTypeToggle = onViewTypeToggle,
         )
         if (viewType == LibraryViewType.LIST) {
+            val playingItem = remember(shelf.items, currentSong) {
+                if (currentSong == null) null
+                else {
+                    shelf.items.firstOrNull { item ->
+                        item.videoId != null && item.videoId == currentSong.videoId
+                    } ?: shelf.items.firstOrNull { item ->
+                        item.title.trim().equals(currentSong.title.trim(), ignoreCase = true) &&
+                            (currentSong.artist.isBlank() ||
+                                item.subtitle.contains(currentSong.artist, ignoreCase = true) ||
+                                currentSong.artist.contains(item.subtitle, ignoreCase = true))
+                    }
+                }
+            }
             BoxWithConstraints {
                 val columnWidth = trackColumnWidth(maxWidth)
                 LazyRow(
@@ -275,10 +288,7 @@ private fun RecentShelf(
                     items(shelf.items.chunked(RECENT_TRACKS_PER_COLUMN)) { column ->
                         Column(Modifier.width(columnWidth)) {
                             column.forEach { item ->
-                                val isCurrent = currentSong != null && (
-                                    (item.videoId != null && (item.videoId == currentSong.videoId || item.videoId == currentSong.setVideoId)) ||
-                                    (item.videoId == null && item.title.equals(currentSong.title, ignoreCase = true) && item.subtitle.equals(currentSong.artist, ignoreCase = true))
-                                )
+                                val isCurrent = playingItem != null && item === playingItem
                                 RecentTrackRow(
                                     item = item,
                                     onClick = { onItemClick(item) },
@@ -509,6 +519,20 @@ internal fun SectionHeader(title: String, subtitle: String = "", onShowAll: (() 
 internal fun localizeShelfTitle(title: String): String {
     val trimmed = title.trim()
     return when {
+        trimmed.equals("Find your mood", ignoreCase = true) ||
+            trimmed.equals("Moods & genres", ignoreCase = true) ||
+            trimmed.equals("Moods & moments", ignoreCase = true) ->
+            "Find your mood"
+        trimmed.equals("Top picks for you", ignoreCase = true) ||
+            trimmed.equals("Top picks", ignoreCase = true) ->
+            "Top picks for you"
+        trimmed.equals("New music videos", ignoreCase = true) ||
+            trimmed.equals("Recommended music videos", ignoreCase = true) ||
+            trimmed.equals("Music videos", ignoreCase = true) ->
+            "New music videos"
+        trimmed.equals("Trending songs for you", ignoreCase = true) ||
+            trimmed.equals("Trending", ignoreCase = true) ->
+            "Trending songs for you"
         trimmed.equals("Recents", ignoreCase = true) ||
             trimmed.equals("Recently played", ignoreCase = true) ||
             trimmed.equals("G?n dây", ignoreCase = true) ||
@@ -954,8 +978,8 @@ internal fun ShelfCard(
     Column(
         modifier = modifier.combinedClickable(onClick = onClick, onLongClick = onLongPress),
     ) {
-        when (item.browseId) {
-            "local:downloads" -> {
+        when {
+            item.browseId == "local:downloads" -> {
                 val palette = remember { MeshPalette(listOf(Color(0xFF1E3C72), Color(0xFF2A5298))) }
                 Box(
                     modifier = Modifier
@@ -978,21 +1002,46 @@ internal fun ShelfCard(
                     )
                 }
             }
-            "local:all" -> ServiceCard(
+            item.browseId == "local:all" -> ServiceCard(
                 colors = listOf(Color(0xFF134E5E), Color(0xFF71B280)),
                 trackKey = "local:all",
                 icon = Icons.Rounded.LibraryMusic,
             )
-            "local:webdav" -> ServiceCard(
+            item.browseId == "local:webdav" -> ServiceCard(
                 colors = listOf(Color(0xFF3A1C71), Color(0xFFD76D77)),
                 trackKey = "local:webdav",
                 icon = Icons.Rounded.Folder,
             )
-            "local:smb" -> ServiceCard(
+            item.browseId == "local:smb" -> ServiceCard(
                 colors = listOf(Color(0xFF0F2027), Color(0xFF2C5364)),
                 trackKey = "local:smb",
                 icon = Icons.Rounded.Storage,
             )
+            item.browseId?.startsWith("FEmusic_moods") == true || item.subtitle.equals("Mood", ignoreCase = true) -> {
+                val moodColor = moodColor(item.title)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(1f)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(
+                            Brush.linearGradient(
+                                listOf(moodColor, moodColor.copy(red = moodColor.red * .68f, green = moodColor.green * .68f, blue = moodColor.blue * .68f)),
+                            ),
+                        )
+                        .padding(12.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = item.title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                        color = Color.White,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
             else -> {
                 AsyncImage(
                     model = item.thumbnailUrl.artworkAt(CARD_ART_PX),
@@ -1039,4 +1088,15 @@ internal fun ShelfCard(
             overflow = TextOverflow.Ellipsis,
         )
     }
+}
+
+private fun moodColor(title: String): Color = when ((title.hashCode() and Int.MAX_VALUE) % 8) {
+    0 -> Color(0xFFE64A19)
+    1 -> Color(0xFFEC0B65)
+    2 -> Color(0xFF8664AC)
+    3 -> Color(0xFF6B4EFF)
+    4 -> Color(0xFFBE6100)
+    5 -> Color(0xFF233C78)
+    6 -> Color(0xFF4D97E5)
+    else -> Color(0xFFAA267E)
 }

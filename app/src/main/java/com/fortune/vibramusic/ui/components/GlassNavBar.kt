@@ -299,9 +299,9 @@ private fun GlassNowPlaying(
         label = "accessoryPressScale",
     )
 
-    val artSize = if (isInline) 32.dp else 40.dp
-    val glyphSlot = if (isInline) 32.dp else 40.dp
-    val glyphSize = if (isInline) 24.dp else 32.dp
+    val artSize = if (isInline) 38.dp else 42.dp
+    val glyphSlot = if (isInline) 36.dp else 40.dp
+    val glyphSize = if (isInline) 22.dp else 30.dp
     val swipeOffset = remember { Animatable(0f) }
 
     Box(

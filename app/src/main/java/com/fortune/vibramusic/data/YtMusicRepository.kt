@@ -108,7 +108,10 @@ object YtMusicRepository {
             emptyList()
         }
 
-        val allSongs = ytSongs.distinctBy { it.videoId }.take(RECENT_LIMIT)
+        val allSongs = ytSongs
+            .distinctBy { it.videoId }
+            .distinctBy { it.title.trim().lowercase(java.util.Locale.ROOT) to it.artist.trim().lowercase(java.util.Locale.ROOT) }
+            .take(RECENT_LIMIT)
         if (allSongs.isEmpty()) return null
         return HomeShelf(
             title = RECENT_TITLE,

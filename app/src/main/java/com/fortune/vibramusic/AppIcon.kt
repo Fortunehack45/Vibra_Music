@@ -10,7 +10,6 @@ import android.content.pm.PackageManager
  */
 enum class AppIcon(val alias: String, val iconRes: Int, val labelRes: Int, val previewRes: Int? = null) {
     Default("LauncherDefault", R.mipmap.ic_launcher, R.string.app_icon_default),
-    Monochrome("LauncherMonochrome", R.mipmap.ic_launcher, R.string.app_icon_default),
     LiquidGlass("LauncherGlassLight", R.mipmap.ic_liquid_glass, R.string.app_icon_liquid_glass, R.mipmap.ic_liquid_glass_foreground),
     LiquidGlassDark("LauncherGlassDark", R.mipmap.ic_liquid_glass_dark, R.string.app_icon_liquid_glass_dark, R.mipmap.ic_liquid_glass_dark_foreground),
     LiquidGlassClear("LauncherGlassClear", R.mipmap.ic_liquid_glass_clear, R.string.app_icon_liquid_glass_clear, R.mipmap.ic_liquid_glass_clear_foreground),
@@ -36,20 +35,27 @@ enum class AppIcon(val alias: String, val iconRes: Int, val labelRes: Int, val p
             } ?: Default
         }
 
-        /** Enables [icon] before disabling the rest so there is never a moment with no launcher entry. */
+        /**
+         * Enables [icon] before disabling the rest so there is never a moment with no launcher entry.
+         * Each call is guarded: one missing/unsupported alias must never crash the app.
+         */
         fun apply(context: Context, icon: AppIcon) {
             val pm = context.packageManager
-            pm.setComponentEnabledSetting(
-                icon.component(context),
-                PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
-                PackageManager.DONT_KILL_APP,
-            )
-            entries.filter { it != icon }.forEach {
+            runCatching {
                 pm.setComponentEnabledSetting(
-                    it.component(context),
-                    PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                    icon.component(context),
+                    PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
                     PackageManager.DONT_KILL_APP,
                 )
+            }.onFailure { return }
+            entries.filter { it != icon }.forEach {
+                runCatching {
+                    pm.setComponentEnabledSetting(
+                        it.component(context),
+                        PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                        PackageManager.DONT_KILL_APP,
+                    )
+                }
             }
         }
     }

@@ -3,20 +3,26 @@ package com.fortune.vibramusic
 import android.content.ComponentName
 import android.content.Context
 import android.content.pm.PackageManager
-import androidx.annotation.DrawableRes
 
 /**
- * Launcher icon choices for Vibra Music.
- * Each corresponds to an <activity-alias> in AndroidManifest.xml.
+ * The home-screen icon choices. Each is an `<activity-alias>` in the manifest
+ * carrying the launcher intent filter; exactly one is enabled at a time.
  */
-enum class AppIcon(
-    val alias: String,
-    @DrawableRes val iconRes: Int,
-    val title: String,
-) {
-    Default("LauncherDefault", R.mipmap.ic_launcher, "Vibra Purple (Default)"),
-    LiquidGlassDark("LauncherGlassDark", R.mipmap.ic_launcher_dark, "Dark Liquid Glass"),
-    LiquidGlassLight("LauncherGlassLight", R.mipmap.ic_launcher_light, "Light Liquid Glass");
+enum class AppIcon(val alias: String, val iconRes: Int, val labelRes: Int, val previewRes: Int? = null) {
+    Default("LauncherDefault", R.mipmap.ic_launcher, R.string.app_icon_default),
+    Monochrome("LauncherMonochrome", R.mipmap.ic_launcher, R.string.app_icon_default),
+    LiquidGlass("LauncherGlassLight", R.mipmap.ic_liquid_glass, R.string.app_icon_liquid_glass, R.mipmap.ic_liquid_glass_foreground),
+    LiquidGlassDark("LauncherGlassDark", R.mipmap.ic_liquid_glass_dark, R.string.app_icon_liquid_glass_dark, R.mipmap.ic_liquid_glass_dark_foreground),
+    LiquidGlassClear("LauncherGlassClear", R.mipmap.ic_liquid_glass_clear, R.string.app_icon_liquid_glass_clear, R.mipmap.ic_liquid_glass_clear_foreground),
+    LiquidGlassClearDark("LauncherGlassClearDark", R.mipmap.ic_liquid_glass_clear_dark, R.string.app_icon_liquid_glass_clear_dark, R.mipmap.ic_liquid_glass_clear_dark_foreground),
+    SamsungGlass("LauncherSamsungGlass", R.mipmap.ic_samsung_glass, R.string.app_icon_samsung_glass, R.mipmap.ic_samsung_glass_foreground),
+    SamsungGlassDark("LauncherSamsungGlassDark", R.mipmap.ic_samsung_glass_dark, R.string.app_icon_samsung_glass_dark, R.mipmap.ic_samsung_glass_dark_foreground),
+    SamsungGlassClear("LauncherSamsungGlassClear", R.mipmap.ic_samsung_glass_clear, R.string.app_icon_samsung_glass_clear, R.mipmap.ic_samsung_glass_clear_foreground),
+    SamsungGlassClearDark("LauncherSamsungGlassClearDark", R.mipmap.ic_samsung_glass_clear_dark, R.string.app_icon_samsung_glass_clear_dark, R.mipmap.ic_samsung_glass_clear_dark_foreground),
+    PixelGlass("LauncherPixelGlass", R.mipmap.ic_pixel_glass, R.string.app_icon_pixel_glass, R.mipmap.ic_pixel_glass_foreground),
+    PixelGlassDark("LauncherPixelGlassDark", R.mipmap.ic_pixel_glass_dark, R.string.app_icon_pixel_glass_dark, R.mipmap.ic_pixel_glass_dark_foreground),
+    PixelGlassClear("LauncherPixelGlassClear", R.mipmap.ic_pixel_glass_clear, R.string.app_icon_pixel_glass_clear, R.mipmap.ic_pixel_glass_clear_foreground),
+    PixelGlassClearDark("LauncherPixelGlassClearDark", R.mipmap.ic_pixel_glass_clear_dark, R.string.app_icon_pixel_glass_clear_dark, R.mipmap.ic_pixel_glass_clear_dark_foreground);
 
     private fun component(context: Context) =
         ComponentName(context.packageName, "com.fortune.vibramusic.$alias")
@@ -30,10 +36,7 @@ enum class AppIcon(
             } ?: Default
         }
 
-        /**
-         * Enables the chosen alias first and disables the rest with DONT_KILL_APP
-         * so the launcher entry is reliably transitioned without losing the icon.
-         */
+        /** Enables [icon] before disabling the rest so there is never a moment with no launcher entry. */
         fun apply(context: Context, icon: AppIcon) {
             val pm = context.packageManager
             pm.setComponentEnabledSetting(

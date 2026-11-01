@@ -263,6 +263,7 @@ object MixAutoPlanner {
             beatmatching = beatmatching,
             startCutSeconds = snappedCut,
             mixInSeconds = snappedIn,
+            tempoBpm = safeBpm,
             volume = VolumePlan(volOptionId, vol.out, vol.`in`),
             eq = EqPlan(eqOptionId, eq.out, eq.`in`),
             filter = FilterPlan(filterOptionId, filter.out, filter.`in`),

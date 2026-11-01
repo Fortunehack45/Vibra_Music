@@ -671,7 +671,7 @@ object AppSettings {
         val icon = when (theme) {
             AppIconTheme.PURPLE -> AppIcon.Default
             AppIconTheme.DARK -> AppIcon.LiquidGlassDark
-            AppIconTheme.LIGHT -> AppIcon.LiquidGlassLight
+            AppIconTheme.LIGHT -> AppIcon.LiquidGlass
         }
         AppIcon.apply(context, icon)
     }

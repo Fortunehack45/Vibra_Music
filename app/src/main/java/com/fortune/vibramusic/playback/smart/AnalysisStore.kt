@@ -149,6 +149,23 @@ open class AnalysisStore(
             .forEach { it.delete() }
     }
 
+    /** Returns all track IDs currently persisted in the store. */
+    open fun allTrackIds(): List<String> {
+        return runCatching {
+            directory.listFiles()?.mapNotNull { f ->
+                if (f.isFile && f.extension == "json") f.nameWithoutExtension else null
+            }.orEmpty()
+        }.getOrDefault(emptyList())
+    }
+
+    /** Deletes the stored analysis for [trackId]. */
+    open fun delete(trackId: String): Boolean {
+        if (trackId.isBlank()) return false
+        known.remove(trackId)
+        val file = File(directory, fileNameFor(trackId))
+        return if (file.exists()) file.delete() else false
+    }
+
     /** Hashed rather than used raw: a track id is not guaranteed to be a legal filename. */
     private fun fileNameFor(trackId: String): String = "${trackId.hashCode().toUInt()}_${trackId.length}.json"
 

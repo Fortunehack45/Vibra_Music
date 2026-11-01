@@ -394,6 +394,7 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
                         // the complete one that supersedes it minutes later.
                         store.save(trackId, whole)
                         AcousticCatalogService.put(trackId, whole.bpm, whole.key)
+                        ingestAnalysisMeta(whole, full = true)
                         restoreAttempted.add(trackId)
                     } else if (outcome.decodedShort &&
                         shortDecodes.merge(trackId, 1, Int::plus)!! >= MAX_SHORT_DECODE_ATTEMPTS
@@ -421,6 +422,7 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
                         results[trackId] = headOutcome
                         store.save(trackId, headOutcome)
                         AcousticCatalogService.put(trackId, headOutcome.bpm, headOutcome.key)
+                        ingestAnalysisMeta(headOutcome, full = false)
                     } else {
                         headAttempts.remove(headRendition.key)
                     }
@@ -457,6 +459,28 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
                     tracker.release()
                     vocals.release()
                 }
+            }
+        }
+    }
+
+    private fun ingestAnalysisMeta(a: TrackAnalysis, full: Boolean) {
+        if (!a.isUsable || a.beats.size < 8) return
+        val src = if (full) MetaSource.ANALYZED_FULL else MetaSource.ANALYZED_FAST
+        val resolvedBpm = resolveTempo(a) ?: a.bpm.takeIf { it > 0.0 }
+        val key = CamelotKey.parse(a.key)
+        if (resolvedBpm != null || key != null) {
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                val dao = MetaSchedulerHolder.getDao(context)
+                TrackMetaRepository.ingest(
+                    TrackMeta(
+                        trackId = a.trackId,
+                        bpm = resolvedBpm?.let { Field(it, a.beatConfidence.toFloat().coerceIn(0.5f, 1f), src) },
+                        key = key?.let { Field(it, a.keyConfidence.toFloat().coerceIn(0.5f, 1f), src) },
+                        analyzerVersion = a.analysisVersion,
+                        updatedAt = System.currentTimeMillis(),
+                    ),
+                    dao,
+                )
             }
         }
     }

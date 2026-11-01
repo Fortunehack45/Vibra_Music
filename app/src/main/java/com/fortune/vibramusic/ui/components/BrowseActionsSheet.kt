@@ -210,7 +210,7 @@ fun BrowseActionsSheet(
             ActionRow(
                 icon = Icons.Rounded.GraphicEq,
                 label = if (localMixEnabled) stringResource(R.string.mixing) else stringResource(R.string.mix_title),
-                tint = if (localMixEnabled) VibraPurple else null,
+                tint = MaterialTheme.colorScheme.onBackground,
                 onClick = {
                     val next = !localMixEnabled
                     localMixEnabled = next

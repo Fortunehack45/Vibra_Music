@@ -399,31 +399,56 @@ void AnalyzeKeyAndTimbre(
   const double chroma_sum = std::accumulate(result.chroma.begin(), result.chroma.end(), 0.0);
   if (chroma_sum > 0) for (double& value : result.chroma) value /= chroma_sum;
 
-  constexpr std::array<double, 12> major = {6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88};
-  constexpr std::array<double, 12> minor = {6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17};
+  constexpr std::array<double, 12> major_kk = {6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88};
+  constexpr std::array<double, 12> minor_kk = {6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17};
+  constexpr std::array<double, 12> major_temp = {5.0, 2.0, 3.5, 2.0, 4.5, 4.0, 2.0, 4.5, 2.0, 3.5, 1.5, 4.0};
+  constexpr std::array<double, 12> minor_temp = {5.0, 2.0, 3.5, 4.5, 2.0, 4.0, 2.0, 4.5, 3.5, 2.0, 1.5, 4.0};
+
   constexpr std::array<const char*, 12> names = {
     "C", "C\xE2\x99\xAF", "D", "E\xE2\x99\xAD", "E", "F",
     "F\xE2\x99\xAF", "G", "A\xE2\x99\xAD", "A", "B\xE2\x99\xAD", "B"
   };
+
+  auto PearsonCorr = [](const double* x, const double* y, size_t n = 12) -> double {
+    double mx = 0, my = 0;
+    for (size_t i = 0; i < n; ++i) { mx += x[i]; my += y[i]; }
+    mx /= n; my /= n;
+    double sxy = 0, sxx = 0, syy = 0;
+    for (size_t i = 0; i < n; ++i) {
+      double dx = x[i] - mx;
+      double dy = y[i] - my;
+      sxy += dx * dy;
+      sxx += dx * dx;
+      syy += dy * dy;
+    }
+    return (sxx > 0 && syy > 0) ? (sxy / std::sqrt(sxx * syy)) : 0.0;
+  };
+
   std::vector<std::pair<double, std::string>> candidates;
   for (size_t root = 0; root < 12; ++root) {
-    double major_score = 0;
-    double minor_score = 0;
-    for (size_t pitch = 0; pitch < 12; ++pitch) {
-      major_score += result.chroma[pitch] * major[(pitch + 12 - root) % 12];
-      minor_score += result.chroma[pitch] * minor[(pitch + 12 - root) % 12];
+    double rot_major_kk[12], rot_minor_kk[12];
+    double rot_major_temp[12], rot_minor_temp[12];
+    for (size_t i = 0; i < 12; ++i) {
+      size_t idx = (i + 12 - root) % 12;
+      rot_major_kk[i] = major_kk[idx];
+      rot_minor_kk[i] = minor_kk[idx];
+      rot_major_temp[i] = major_temp[idx];
+      rot_minor_temp[i] = minor_temp[idx];
     }
-    candidates.emplace_back(major_score, std::string(names[root]) + " major");
-    candidates.emplace_back(minor_score, std::string(names[root]) + " minor");
+
+    double maj_score = 0.5 * PearsonCorr(result.chroma.data(), rot_major_kk) +
+                       0.5 * PearsonCorr(result.chroma.data(), rot_major_temp);
+    double min_score = 0.5 * PearsonCorr(result.chroma.data(), rot_minor_kk) +
+                       0.5 * PearsonCorr(result.chroma.data(), rot_minor_temp);
+
+    candidates.emplace_back(maj_score, std::string(names[root]) + " major");
+    candidates.emplace_back(min_score, std::string(names[root]) + " minor");
   }
   std::sort(candidates.begin(), candidates.end(), std::greater<>());
   if (chroma_weight > 0 && !candidates.empty()) {
     result.key = candidates[0].second;
-    result.key_confidence = Clamp(
-      (candidates[0].first - candidates[1].first) / std::max(0.01, candidates[0].first) * 4.0,
-      0,
-      1
-    );
+    double second_score = candidates.size() > 1 ? candidates[1].first : -1.0;
+    result.key_confidence = Clamp((candidates[0].first - second_score) / 0.10, 0.0, 1.0);
   }
 
   // The track-wide summary keeps its existing meaning -- the same logistic over

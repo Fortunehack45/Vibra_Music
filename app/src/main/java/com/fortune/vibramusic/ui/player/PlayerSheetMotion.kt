@@ -1,6 +1,7 @@
 package com.fortune.vibramusic.ui.player
 
 import android.view.Window
+import android.view.WindowManager
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.spring
@@ -12,11 +13,11 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
-import androidx.compose.ui.platform.WindowInfo
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.platform.WindowInfo
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import com.fortune.vibramusic.ui.components.MiniPlayerPull
@@ -28,29 +29,27 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.abs
 
+/** M3's own scrim strength, which the player's dim stands in for. */
+const val PLAYER_SCRIM_ALPHA = 0.32f
+
+/**
+ * The player sheet's shape: square, reaching a whole sheet's height above the sheet's top edge.
+ */
+object PlayerSheetShape : Shape {
+    override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline =
+        Outline.Rectangle(Rect(0f, -size.height, size.width, size.height))
+}
+
 /**
  * The spring every open and close runs on: critically damped, so it never
  * bounces, with about 0.45s of response.
  */
 private const val SLIDE_STIFFNESS = 195f
-
-/** Close enough to stop, in pixels — rather than a spring's whole long tail. */
 private const val SLIDE_SETTLED_PX = 0.5f
-
-/** How old the sheet's last movement can be and still count as its speed. */
 private const val SHEET_VELOCITY_FRESH_MS = 80f
-
-/** How long a sheet waits to be laid out before an open starts regardless. */
 private const val LAYOUT_WAIT_MS = 300L
-
-/**
- * How long after the sheet appears its window gets its exit animation back.
- */
 private const val WINDOW_ENTER_MS = 600L
 
-/**
- * Where the player sheet stands while the app moves it, rather than M3.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Stable
 class PlayerSheetMotion(
@@ -63,13 +62,11 @@ class PlayerSheetMotion(
     var held by mutableFloatStateOf(Float.NaN)
         private set
 
-    /** Whether the app, not the sheet, is placing the player. */
     val holding: Boolean get() = !held.isNaN()
 
     /** The sheet, while it is up. Set by the host. */
     var sheet: SheetState? = null
 
-    /** The sheet's window, while it is up — see [attachWindow]. */
     private var window: Window? = null
     private var windowAnimations = 0
     private var windowRestore: Job? = null
@@ -84,16 +81,10 @@ class PlayerSheetMotion(
     /** Set by the host once the sheet has been laid out at all. */
     var laidOut by mutableStateOf(false)
 
-    /**
-     * The window, for its height before the sheet has ever been measured.
-     */
     var windowInfo: WindowInfo? = null
-
-    /** How fast a release has to be, in pixels a second, to be a flick. */
     var flingVelocity = 0f
 
     private var settle: Job? = null
-
     private var closing = false
 
     private fun travel(): Float =
@@ -105,13 +96,8 @@ class PlayerSheetMotion(
         Float.NaN
     }
 
-    /** How far below fully open the player is: what [PlayerDock] is told. */
     fun position(): Float = if (holding) held else sheetOffset()
 
-    /**
-     * What the sheet's content adds to the sheet's own offset to stand at
-     * [held].
-     */
     fun contentOffsetPx(): Int {
         val target = held
         val sheetAt = sheetOffset().takeUnless { it.isNaN() } ?: 0f
@@ -138,9 +124,19 @@ class PlayerSheetMotion(
     private fun recentSheetVelocity(): Float =
         if ((System.nanoTime() - sheetSampleNanos) / 1e6f < SHEET_VELOCITY_FRESH_MS) sheetVelocity else 0f
 
-    /** A tap on the mini player. */
     fun open() {
-        if (shown()) return
+        if (shown()) {
+            if (closing && holding) {
+                settle?.cancel()
+                reopening()
+                val from = held
+                settle = scope.launch {
+                    slide(from = from, to = 0f)
+                    held = Float.NaN
+                }
+            }
+            return
+        }
         settle?.cancel()
         closing = false
         val travel = travel()
@@ -153,9 +149,6 @@ class PlayerSheetMotion(
         }
     }
 
-    /**
-     * The sheet's window, from the host as it appears.
-     */
     fun attachWindow(window: Window?) {
         this.window = window ?: return
         windowAnimations = window.attributes.windowAnimations
@@ -172,11 +165,26 @@ class PlayerSheetMotion(
         window?.setWindowAnimations(0)
     }
 
-    /** From the sheet: whatever asked for it to hide, this is how it goes. */
+    private fun passTouchesThrough(pass: Boolean) {
+        val window = window ?: return
+        if (pass) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE)
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE)
+        }
+    }
+
+    private fun reopening() {
+        closing = false
+        passTouchesThrough(false)
+        window?.setWindowAnimations(windowAnimations)
+    }
+
     fun close() {
         if (!shown() || closing) return
         closing = true
         quietWindow()
+        passTouchesThrough(true)
         settle?.cancel()
         val from = position().takeUnless { it.isNaN() } ?: run {
             dismissQuietly()
@@ -215,6 +223,9 @@ class PlayerSheetMotion(
         if (!open) {
             closing = true
             quietWindow()
+            passTouchesThrough(true)
+        } else if (closing) {
+            reopening()
         }
         val from = held
         settle = scope.launch {
@@ -255,11 +266,4 @@ class PlayerSheetMotion(
         quietWindow()
         setShown(false)
     }
-}
-
-const val PLAYER_SCRIM_ALPHA = 0.32f
-
-object PlayerSheetShape : Shape {
-    override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline =
-        Outline.Rectangle(Rect(0f, -size.height, size.width, size.height))
 }

@@ -3028,26 +3028,37 @@ private fun VibraMusicApp(
                             signedIn = signedIn,
                             onSignIn = { webSession = WebSessionMode.SIGN_IN },
                             onItemClick = { item, shelfTitle ->
-                                val isPlaylistOrAlbum = item.browseId != null && (
-                                    item.browseId.startsWith("VL") ||
-                                    item.browseId.startsWith("RD") ||
-                                    item.browseId.startsWith("MPRE") ||
-                                    shelfTitle.contains("Mood", ignoreCase = true) ||
+                                val isVideoSection = item.isVideo ||
+                                    shelfTitle.contains("video", ignoreCase = true) ||
+                                    shelfTitle.contains("music videos", ignoreCase = true)
+
+                                val isMoodOrPicks = shelfTitle.contains("Mood", ignoreCase = true) ||
+                                    shelfTitle.contains("Find your mood", ignoreCase = true) ||
                                     shelfTitle.contains("Picks", ignoreCase = true) ||
                                     shelfTitle.contains("Top picks", ignoreCase = true) ||
                                     shelfTitle.contains("Mix", ignoreCase = true) ||
                                     shelfTitle.contains("Mixed for you", ignoreCase = true)
-                                )
+
+                                val isPlaylistOrAlbum = (item.browseId != null && (
+                                    item.browseId.startsWith("VL") ||
+                                    item.browseId.startsWith("RD") ||
+                                    item.browseId.startsWith("MPRE") ||
+                                    item.browseId.startsWith("FEmusic_") ||
+                                    isMoodOrPicks
+                                )) || (isMoodOrPicks && item.videoId != null)
+
                                 if (isPlaylistOrAlbum) {
+                                    val targetBrowseId = item.browseId ?: "RDAMVM${item.videoId}"
                                     viewModel.openDetail(
-                                        browseId = item.browseId!!,
+                                        browseId = targetBrowseId,
                                         title = item.title,
                                         subtitle = item.subtitle,
                                         thumbnailUrl = item.thumbnailUrl,
-                                        type = if (item.browseId.startsWith("MPRE")) BrowseType.ALBUM else BrowseType.PLAYLIST,
+                                        type = if (targetBrowseId.startsWith("MPRE")) BrowseType.ALBUM else BrowseType.PLAYLIST,
                                     )
                                 } else {
-                                    val song = shelfSong(item)
+                                    val baseSong = shelfSong(item)
+                                    val song = baseSong?.copy(isVideo = isVideoSection)
                                     when {
                                         song != null -> playRadio(
                                             song,
@@ -3481,25 +3492,6 @@ private fun VibraMusicApp(
                             }
                         }
                         if (!showSettings && !showAccountScrobbling) {
-                            // Left of the account photo, and only on Library itself:
-                            // a history is a record of what was played, which reads
-                            // as that tab's business rather than every tab's.
-                            if (!showHistory && !showSpotifyLibrary && !showReplay && !showDiscord && libraryShowAll == null &&
-                                detail == null && selectedTab == TAB_LIBRARY
-                            ) {
-                                IconButton(
-                                    onClick = {
-                                        showHistory = true
-                                        viewModel.loadHistory()
-                                    },
-                                ) {
-                                    Icon(
-                                        Icons.Rounded.History,
-                                        contentDescription = stringResource(R.string.listening_history),
-                                        tint = MaterialTheme.colorScheme.onSurface,
-                                    )
-                                }
-                            }
                             // Left of the account photo, and only on a Library
                             // "Show all" grid — the same control the Downloads
                             // folder offers (see `LocalSearchField`), adapted to
@@ -3630,7 +3622,45 @@ private fun VibraMusicApp(
                                 ?.avatar
                                 ?: googleAccounts.firstOrNull()?.profiles?.firstOrNull { !it.avatar.isNullOrBlank() }?.avatar
 
-                            if (!isReleaseDetail) {
+                            val inLibraryTab = !showHistory && !showSpotifyLibrary && !showReplay && !showDiscord && libraryShowAll == null &&
+                                detail == null && selectedTab == TAB_LIBRARY
+
+                            if (inLibraryTab) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
+                                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), CircleShape)
+                                        .padding(start = 2.dp, end = 2.dp),
+                                ) {
+                                    IconButton(
+                                        modifier = Modifier.size(36.dp),
+                                        onClick = {
+                                            showHistory = true
+                                            viewModel.loadHistory()
+                                        },
+                                    ) {
+                                        Icon(
+                                            Icons.Rounded.History,
+                                            contentDescription = stringResource(R.string.listening_history),
+                                            tint = MaterialTheme.colorScheme.onSurface,
+                                            modifier = Modifier.size(20.dp),
+                                        )
+                                    }
+                                    TopBarAccountButton(
+                                        account = account,
+                                        avatarUrl = activeAvatar,
+                                        onClick = {
+                                            if (signedIn) {
+                                                viewModel.loadChannels()
+                                                showAccountSelector = true
+                                            } else showSettings = true
+                                        },
+                                        onSwipeProfile = { forward -> viewModel.stepProfile(forward) },
+                                    )
+                                }
+                            } else if (!isReleaseDetail) {
                                 TopBarAccountButton(
                                     account = account,
                                     avatarUrl = activeAvatar,

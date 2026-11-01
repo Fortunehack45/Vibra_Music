@@ -142,6 +142,9 @@ class VibraMusicApplication : Application(), SingletonImageLoader.Factory {
             com.fortune.vibramusic.data.lyrics.CustomLyricsStore.init(this)
             com.fortune.vibramusic.data.LocalLikesStore.init(this)
             com.fortune.vibramusic.data.LocalPlaylistsStore.init(this)
+            com.fortune.vibramusic.playback.smart.MetaSchedulerHolder.init(this)
+            val smartStore = com.fortune.vibramusic.playback.smart.AnalysisStore(this)
+            com.fortune.vibramusic.playback.smart.AcousticCatalogService.purgeFabricatedMeta(this, smartStore)
         }
 
         // Migration-safe: an old single cookie becomes the first encrypted

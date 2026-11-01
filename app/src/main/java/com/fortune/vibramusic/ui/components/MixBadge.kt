@@ -23,6 +23,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -31,11 +33,8 @@ import com.fortune.vibramusic.playback.smart.CamelotKey
 import kotlin.math.roundToInt
 
 /**
- * Renders the BPM and harmonic Camelot key badge pill on a song row.
- * Follows the dynamic harmonic compatibility color coding:
- * - Distance 0 or 1: Blue or Emerald
- * - Distance 2: Amber
- * - Distance 3+: Coral
+ * Renders the accurate BPM and harmonic Camelot key badge pill on a song row.
+ * Displays a fixed-size shimmer placeholder during background computation.
  */
 @Composable
 fun MixBadge(
@@ -46,19 +45,18 @@ fun MixBadge(
     modifier: Modifier = Modifier,
 ) {
     val parsedKey = CamelotKey.parse(camelotKey)
-    val parsedRelKey = CamelotKey.parse(relativeToKey)
 
     if (bpm == null && parsedKey == null && !showPlaceholder) return
 
-    val pulseTransition = rememberInfiniteTransition(label = "mix_badge_pulse")
-    val pulseAlpha by pulseTransition.animateFloat(
-        initialValue = 0.28f,
-        targetValue = 0.65f,
+    val transition = rememberInfiniteTransition(label = "mix_badge_shimmer")
+    val translateAnim by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 180f,
         animationSpec = infiniteRepeatable(
             animation = tween(1200, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse,
+            repeatMode = RepeatMode.Restart,
         ),
-        label = "mix_badge_alpha",
+        label = "mix_shimmer_translate",
     )
 
     Column(
@@ -66,27 +64,35 @@ fun MixBadge(
         horizontalAlignment = Alignment.End,
         verticalArrangement = Arrangement.Center,
     ) {
-        val bpmText = if (bpm != null && bpm > 0.0) {
-            "${bpm.roundToInt()} bpm"
-        } else if (showPlaceholder) {
-            "-- bpm"
-        } else {
-            null
-        }
-
-        if (bpmText != null) {
+        if (bpm != null && bpm > 0.0) {
             Text(
-                text = bpmText,
+                text = "${bpm.roundToInt()} bpm",
                 style = MaterialTheme.typography.labelSmall.copy(
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Medium,
                 ),
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
-                    alpha = if (bpm != null) 0.85f else pulseAlpha,
-                ),
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
                 maxLines = 1,
             )
             Spacer(Modifier.height(2.dp))
+        } else if (showPlaceholder) {
+            val shimmerBrush = Brush.linearGradient(
+                colors = listOf(
+                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f),
+                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.18f),
+                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f),
+                ),
+                start = Offset(translateAnim - 80f, 0f),
+                end = Offset(translateAnim, 0f),
+            )
+            Box(
+                modifier = Modifier
+                    .width(42.dp)
+                    .height(11.dp)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(shimmerBrush),
+            )
+            Spacer(Modifier.height(3.dp))
         }
 
         if (parsedKey != null) {
@@ -109,23 +115,22 @@ fun MixBadge(
                 )
             }
         } else if (showPlaceholder) {
+            val shimmerBrush = Brush.linearGradient(
+                colors = listOf(
+                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f),
+                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.18f),
+                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f),
+                ),
+                start = Offset(translateAnim - 80f, 0f),
+                end = Offset(translateAnim, 0f),
+            )
             Box(
                 modifier = Modifier
+                    .width(22.dp)
+                    .height(14.dp)
                     .clip(RoundedCornerShape(4.dp))
-                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f + pulseAlpha * 0.06f))
-                    .padding(horizontal = 6.dp, vertical = 2.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = "--",
-                    style = MaterialTheme.typography.labelSmall.copy(
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                    ),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = pulseAlpha),
-                    maxLines = 1,
-                )
-            }
+                    .background(shimmerBrush),
+            )
         }
     }
 }

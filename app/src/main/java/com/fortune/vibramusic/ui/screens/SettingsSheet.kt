@@ -836,7 +836,7 @@ fun SettingsScreen(
                             }
                             Spacer(Modifier.height(6.dp))
                             Text(
-                                text = option.title,
+                                text = stringResource(option.labelRes),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = if (selected) VibraPurple else MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,

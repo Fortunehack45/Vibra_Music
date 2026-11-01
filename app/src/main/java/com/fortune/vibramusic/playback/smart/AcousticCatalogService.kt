@@ -51,11 +51,10 @@ object AcousticCatalogService {
 
     fun put(videoId: String, bpm: Double, key: String) {
         if (videoId.isBlank() || bpm <= 0.0) return
-        val normBpm = normalizeTempo(bpm)
-        val camelot = CamelotKey.parse(key)?.code ?: key.takeIf { it.isNotBlank() } ?: "8A"
-        val data = AcousticData(normBpm, camelot)
+        val camelot = CamelotKey.parse(key)?.code ?: key.takeIf { it.isNotBlank() } ?: ""
+        val data = AcousticData(bpm, camelot)
         memoryCache[videoId] = data
-        prefs?.edit()?.putString(videoId, "$normBpm:$camelot")?.apply()
+        prefs?.edit()?.putString(videoId, "$bpm:$camelot")?.apply()
         AnalysisStore.notifyUpdated(videoId)
     }
 
@@ -105,9 +104,20 @@ object AcousticCatalogService {
     fun get(song: Song, store: AnalysisStore? = null): AcousticData? {
         memoryCache[song.videoId]?.let { return it }
 
+        // 0. Read from in-memory TrackMetaRepository (0ms sync, safe in Compose)
+        TrackMetaRepository.peek(song.videoId)?.let { meta ->
+            val bpm = meta.bpm?.value
+            val key = meta.key?.value?.code
+            if (bpm != null && bpm > 0.0) {
+                val data = AcousticData(bpm, key ?: "")
+                memoryCache[song.videoId] = data
+                return data
+            }
+        }
+
         // 1. Read from on-device persistent analysis store
         store?.load(song.videoId)?.let { analysis ->
-            if (analysis.isUsable) {
+            if (analysis.isUsable && analysis.beats.isNotEmpty()) {
                 val camelot = CamelotKey.parse(analysis.key)?.code ?: analysis.key
                 val data = AcousticData(analysis.bpm, camelot)
                 memoryCache[song.videoId] = data
@@ -117,7 +127,7 @@ object AcousticCatalogService {
 
         // 2. Read from in-memory analyzer instance if available
         TrackAnalyzer.peekInstance()?.getAnalysis(song.videoId)?.let { analysis ->
-            if (analysis.isUsable) {
+            if (analysis.isUsable && analysis.beats.isNotEmpty()) {
                 val camelot = CamelotKey.parse(analysis.key)?.code ?: analysis.key
                 val data = AcousticData(analysis.bpm, camelot)
                 memoryCache[song.videoId] = data
@@ -146,91 +156,39 @@ object AcousticCatalogService {
     }
 
     /**
-     * Retrieves dynamically analyzed data or persistent cache.
-     * Returns verified data if present, or an intelligent deterministic acoustic estimate so
-     * UI views never remain stuck displaying empty placeholders.
+     * Retrieves genuine metadata or null. Never invents fake numbers.
      */
-    fun getOrEstimate(song: Song, store: AnalysisStore? = null): AcousticData {
-        get(song, store)?.let { return it }
-        val estimated = estimateAcoustic(song)
-        memoryCache[song.videoId] = estimated
-        prefs?.edit()?.putString(song.videoId, "${estimated.bpm}:${estimated.camelotKey}")?.apply()
-        return estimated
+    fun getOrEstimate(song: Song, store: AnalysisStore? = null): AcousticData? {
+        return get(song, store)
     }
 
     /**
-     * Fast deterministic acoustic heuristic inference based on artist, title, duration,
-     * and musical genre conventions.
-     */
-    fun estimateAcoustic(song: Song): AcousticData {
-        val titleLower = song.title.lowercase()
-        val artistLower = song.artist.lowercase()
-        val combined = "$artistLower $titleLower"
-        val hash = (combined.hashCode().toLong() and 0xFFFFFFFFL).toInt()
-
-        val keyNum = (Math.abs(hash) % 12) + 1
-        val isMinor = (Math.abs(hash shr 4) % 2) == 0
-        val keyLetter = if (isMinor) "A" else "B"
-        val camelot = "$keyNum$keyLetter"
-
-        val rawBpm: Double = when {
-            combined.contains("afrobeat") || combined.contains("amapiano") || combined.contains("asake") || combined.contains("burna") || combined.contains("rema") || combined.contains("wizkid") -> {
-                106.0 + (Math.abs(hash shr 2) % 14)
-            }
-            combined.contains("drill") || combined.contains("trap") || combined.contains("hip hop") || combined.contains("rap") -> {
-                132.0 + (Math.abs(hash shr 2) % 18)
-            }
-            combined.contains("house") || combined.contains("club") || combined.contains("dance") || combined.contains("edm") || combined.contains("dj") -> {
-                124.0 + (Math.abs(hash shr 2) % 6)
-            }
-            combined.contains("acoustic") || combined.contains("piano") || combined.contains("slow") || combined.contains("ballad") -> {
-                80.0 + (Math.abs(hash shr 2) % 16)
-            }
-            combined.contains("rock") || combined.contains("metal") || combined.contains("punk") -> {
-                126.0 + (Math.abs(hash shr 2) % 20)
-            }
-            combined.contains("gospel") || combined.contains("worship") || combined.contains("josiah queen") -> {
-                94.0 + (Math.abs(hash shr 2) % 24)
-            }
-            else -> {
-                100.0 + (Math.abs(hash shr 3) % 38)
-            }
-        }
-        val normBpm = normalizeTempo(rawBpm)
-        return AcousticData(normBpm, camelot)
-    }
-
-    /**
-     * Resolves an entire playlist rapidly in parallel so all tracks receive
-     * verified or estimated BPM and Camelot keys within sub-2 seconds.
+     * Resolves an entire playlist rapidly in the background using the prioritized
+     * scheduler (shared public cache lookup + fast on-device analysis).
      */
     fun resolvePlaylistFast(context: Context, songs: List<Song>, store: AnalysisStore) {
         init(context)
-        val analyzer = TrackAnalyzer.getInstance(context)
-        songs.forEach { song ->
-            val existing = get(song, store)
-            if (existing == null) {
-                val estimate = estimateAcoustic(song)
-                memoryCache[song.videoId] = estimate
-                prefs?.edit()?.putString(song.videoId, "${estimate.bpm}:${estimate.camelotKey}")?.apply()
+        MetaSchedulerHolder.get(context).prefetch(songs, MetaPriority.PLAYLIST)
+    }
 
-                val durSec = (song.durationMillis() / 1000.0).takeIf { it > 10.0 } ?: 180.0
-                val synthesized = TrackAnalysis(
-                    status = TrackAnalysis.STATUS_READY,
-                    trackId = song.videoId,
-                    bpm = estimate.bpm,
-                    key = estimate.camelotKey,
-                    beatInterval = 60.0 / estimate.bpm,
-                    duration = durSec,
-                )
-                store.save(song.videoId, synthesized)
-                analyzer.registerAnalysis(song.videoId, synthesized)
-                AnalysisStore.notifyUpdated(song.videoId)
+    /**
+     * Purges old fabricated estimates and synthesized analyses that have no measured beat grid.
+     */
+    fun purgeFabricatedMeta(context: Context, store: AnalysisStore) {
+        init(context)
+        val p = prefs ?: return
+        val alreadyPurged = p.getBoolean("fabricated_meta_purged_v1", false)
+        if (alreadyPurged) return
+
+        p.edit().clear().putBoolean("fabricated_meta_purged_v1", true).apply()
+        memoryCache.clear()
+
+        store.allTrackIds().forEach { id ->
+            val a = store.load(id) ?: return@forEach
+            val synthesized = a.beats.isEmpty() && a.downbeats.isEmpty() && a.energyCurve.isEmpty()
+            if (synthesized) {
+                store.delete(id)
             }
-        }
-
-        songs.forEach { song ->
-            resolve(context, song, store)
         }
     }
 
@@ -274,22 +232,21 @@ object AcousticCatalogService {
                         val modeInt = featObj["mode"]?.jsonPrimitive?.content?.toIntOrNull() ?: 1
 
                         if (tempo != null && tempo > 0.0) {
-                            val normBpm = normalizeTempo(tempo)
-                            val camelot = spotifyKeyToCamelot(keyInt, modeInt) ?: "8A"
-                            val data = AcousticData(normBpm, camelot)
+                            val camelot = spotifyKeyToCamelot(keyInt, modeInt) ?: ""
+                            val data = AcousticData(tempo, camelot)
                             memoryCache[song.videoId] = data
-                            prefs?.edit()?.putString(song.videoId, "$normBpm:$camelot")?.apply()
+                            prefs?.edit()?.putString(song.videoId, "$tempo:$camelot")?.apply()
 
-                            val synthesized = TrackAnalysis(
-                                status = TrackAnalysis.STATUS_READY,
-                                trackId = song.videoId,
-                                bpm = normBpm,
-                                key = camelot,
-                                beatInterval = 60.0 / normBpm,
-                                duration = durSec.takeIf { it > 0.0 } ?: 180.0,
+                            val camelotObj = CamelotKey.parse(camelot)
+                            TrackMetaRepository.ingest(
+                                TrackMeta(
+                                    trackId = song.videoId,
+                                    bpm = Field(tempo, 0.85f, MetaSource.SHARED),
+                                    key = camelotObj?.let { Field(it, 0.85f, MetaSource.SHARED) },
+                                    updatedAt = System.currentTimeMillis(),
+                                ),
+                                MetaSchedulerHolder.getDao(context),
                             )
-                            store.save(song.videoId, synthesized)
-                            analyzer.registerAnalysis(song.videoId, synthesized)
                             AnalysisStore.notifyUpdated(song.videoId)
                         }
                     }

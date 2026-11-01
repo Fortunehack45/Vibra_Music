@@ -85,6 +85,9 @@ internal val PILL_INSET = 4.dp
 internal val floatingBarInsets: WindowInsets
     @Composable get() = WindowInsets.navigationBars.union(WindowInsets(bottom = GESTURE_BAR_FLOOR))
 
+internal val NAV_BAR_GUTTER = 19.dp
+internal val NAV_BAR_LIFT = 6.dp
+
 /** A gesture bar's inset - 45px at a 3x density. */
 private val GESTURE_BAR_FLOOR = 15.dp
 
@@ -156,7 +159,7 @@ fun FloatingBottomBar(
 
     var rowSize by remember { mutableStateOf(IntSize.Zero) }
     val gapPx = with(density) { 6.dp.toPx() }
-    val hasStandaloneSearch = tabs.size > 4
+    val hasStandaloneSearch = tabs.lastOrNull()?.let { it.label.equals("Search", ignoreCase = true) } == true || tabs.size > 3
     val primaryTabs = if (hasStandaloneSearch) tabs.dropLast(1) else tabs
     val searchTab = if (hasStandaloneSearch) tabs.last() else null
     val searchIndex = tabs.lastIndex
@@ -201,8 +204,8 @@ fun FloatingBottomBar(
     Row(
         modifier = modifier
             .windowInsetsPadding(floatingBarInsets)
-            .padding(horizontal = PAGE_GUTTER)
-            .padding(bottom = 2.dp)
+            .padding(horizontal = NAV_BAR_GUTTER)
+            .padding(bottom = NAV_BAR_LIFT)
             .fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,

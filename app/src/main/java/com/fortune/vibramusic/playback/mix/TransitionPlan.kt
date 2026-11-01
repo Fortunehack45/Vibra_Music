@@ -65,10 +65,12 @@ data class TransitionPlan(
     val filter: FilterPlan,
     val effects: EffectsPlan,
     val looping: LoopingPlan,
+    val tempoBpm: Double = 120.0,
     val updatedAt: Long = 0L,
     val updatedBy: String = "",
 ) {
-    val durationSeconds: Double get() = lengthBars * 2.0
+    val durationSeconds: Double
+        get() = if (tempoBpm in 40.0..240.0) lengthBars * (240.0 / tempoBpm) else lengthBars * 2.0
 
     fun durationSeconds(bpm: Double? = null): Double {
         if (bpm != null && bpm in 40.0..240.0) {

@@ -197,7 +197,8 @@ fun ThinSlider(
                             startX = from,
                             endX = to,
                         ),
-                        size = size,
+                        topLeft = Offset(from, 0f),
+                        size = Size(span, size.height),
                         cornerRadius = radius,
                     )
                 }

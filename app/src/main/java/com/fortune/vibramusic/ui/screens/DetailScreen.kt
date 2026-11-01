@@ -302,6 +302,7 @@ fun DetailScreen(
     val mixUpdates by LocalPlaylistsStore.mixUpdates.collectAsStateWithLifecycle()
     val songTransitions by AppSettings.songTransitions.collectAsStateWithLifecycle()
     val analysisUpdates by com.fortune.vibramusic.playback.smart.AnalysisStore.analysisUpdates.collectAsStateWithLifecycle()
+    val metaUpdates by com.fortune.vibramusic.playback.smart.TrackMetaRepository.updates.collectAsStateWithLifecycle(null)
     val mixEnabled = remember(page.browseId, mixUpdates, songTransitions.enabled) {
         if (canMix && songTransitions.enabled) LocalPlaylistsStore.isMixEnabled(page.browseId) else false
     }
@@ -310,15 +311,21 @@ fun DetailScreen(
     }
     var activeTransitionPair by remember { mutableStateOf<Pair<Song, Song>?>(null) }
 
+    LaunchedEffect(page.browseId, songs.size) {
+        if (songs.isNotEmpty()) {
+            com.fortune.vibramusic.playback.smart.MetaSchedulerHolder.get(context).prefetch(
+                songs,
+                com.fortune.vibramusic.playback.smart.MetaPriority.PLAYLIST,
+            )
+        }
+    }
+
     LaunchedEffect(page.browseId, mixEnabled, songs.size, analysisUpdates) {
         if (canMix && mixEnabled && songs.size > 1) {
             val analyzer = com.fortune.vibramusic.playback.smart.TrackAnalyzer.getInstance(context)
             LocalPlaylistsStore.reconcileTransitions(page.browseId, songs) { song ->
                 analyzer.getAnalysis(song.videoId) ?: store.load(song.videoId)
             }
-        }
-        if (canMix && mixEnabled && songs.isNotEmpty()) {
-            com.fortune.vibramusic.playback.smart.AcousticCatalogService.resolvePlaylistFast(context, songs, store)
         }
     }
 
@@ -607,12 +614,19 @@ fun DetailScreen(
                                 val isCurrent = isCurrentRow(song)
                                 val _analysisVer = analysisUpdates
                                 val _mixVer = mixUpdates
+                                val _metaVer = metaUpdates
+                                val meta = com.fortune.vibramusic.playback.smart.TrackMetaRepository.peek(song.videoId)
                                 val analyzer = com.fortune.vibramusic.playback.smart.TrackAnalyzer.getInstance(context)
-                                val analysis = if (mixEnabled) analyzer.getAnalysis(song.videoId) ?: store.load(song.videoId) else null
-                                val acoustic = if (mixEnabled) com.fortune.vibramusic.playback.smart.AcousticCatalogService.getOrEstimate(song, store) else null
+                                val analysis = analyzer.getAnalysis(song.videoId) ?: store.load(song.videoId)
+                                val acoustic = com.fortune.vibramusic.playback.smart.AcousticCatalogService.get(song, store)
                                 val nextSong = matches.getOrNull(position + 1)?.value
-                                val nextAnalysis = if (mixEnabled && nextSong != null) analyzer.getAnalysis(nextSong.videoId) ?: store.load(nextSong.videoId) else null
-                                val nextAcoustic = if (mixEnabled && nextSong != null) com.fortune.vibramusic.playback.smart.AcousticCatalogService.getOrEstimate(nextSong, store) else null
+                                val nextMeta = nextSong?.let { com.fortune.vibramusic.playback.smart.TrackMetaRepository.peek(it.videoId) }
+                                val nextAnalysis = nextSong?.let { analyzer.getAnalysis(it.videoId) ?: store.load(it.videoId) }
+                                val nextAcoustic = nextSong?.let { com.fortune.vibramusic.playback.smart.AcousticCatalogService.get(it, store) }
+
+                                val trueBpm = meta?.bpm?.value ?: acoustic?.bpm ?: analysis?.bpm
+                                val trueKey = meta?.key?.value?.code ?: acoustic?.camelotKey ?: com.fortune.vibramusic.playback.smart.CamelotKey.parse(analysis?.key)?.code ?: analysis?.key?.takeIf { it.isNotBlank() }
+                                val nextTrueKey = nextMeta?.key?.value?.code ?: nextAcoustic?.camelotKey ?: com.fortune.vibramusic.playback.smart.CamelotKey.parse(nextAnalysis?.key)?.code ?: nextAnalysis?.key?.takeIf { it.isNotBlank() }
 
                                 SongRow(
                                     song = if (numbered) {
@@ -632,15 +646,10 @@ fun DetailScreen(
                                     isCurrent = isCurrent,
                                     isPlaying = isCurrent && isPlaying,
                                     activeTint = palette.accent,
-                                    mixBpm = (acoustic?.bpm ?: analysis?.bpm)?.let { b ->
-                                        var nb = b
-                                        while (nb > 0.0 && nb < 75.0) nb *= 2.0
-                                        while (nb > 165.0) nb /= 2.0
-                                        nb
-                                    }?.takeIf { mixEnabled },
-                                    mixKey = (acoustic?.camelotKey ?: com.fortune.vibramusic.playback.smart.CamelotKey.parse(analysis?.key)?.code ?: analysis?.key?.takeIf { it.isNotBlank() })?.takeIf { mixEnabled },
-                                    mixRelativeToKey = (nextAcoustic?.camelotKey ?: com.fortune.vibramusic.playback.smart.CamelotKey.parse(nextAnalysis?.key)?.code ?: nextAnalysis?.key?.takeIf { it.isNotBlank() })?.takeIf { mixEnabled },
-                                    mixActive = mixEnabled,
+                                    mixBpm = trueBpm,
+                                    mixKey = trueKey,
+                                    mixRelativeToKey = nextTrueKey,
+                                    mixActive = true,
                                 )
                                 if (position < matches.lastIndex) {
                                     if (mixEnabled && nextSong != null) {

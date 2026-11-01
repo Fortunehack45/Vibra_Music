@@ -239,6 +239,12 @@ object LyricPosterRenderer {
         // 1. Draw Card Surface
         if (config.useCoverBackground && coverArt != null) {
             drawDarkenedCoverSurface(canvas, coverArt, cardRect, cornerRadius)
+        } else if (topColor == bottomColor) {
+            // Solid Plain Color from cover artwork
+            val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = topColor
+            }
+            canvas.drawRoundRect(cardRect, cornerRadius, cornerRadius, bgPaint)
         } else {
             val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 shader = LinearGradient(
@@ -333,11 +339,11 @@ object LyricPosterRenderer {
         // 5. Middle Lyrics - Vertically Centered in Square
         val availableSpace = footerY - headerBottom
         val (ladderFontSize, lineSpacingMult) = when (lines.size) {
-            1 -> Pair(110f, 1.28f)
-            2 -> Pair(98f, 1.26f)
-            3 -> Pair(88f, 1.24f)
-            4 -> Pair(80f, 1.22f)
-            else -> Pair(72f, 1.20f)
+            1 -> Pair(128f, 1.25f)
+            2 -> Pair(114f, 1.22f)
+            3 -> Pair(100f, 1.20f)
+            4 -> Pair(88f, 1.18f)
+            else -> Pair(78f, 1.16f)
         }
 
         val fullLyricsText = lines.joinToString("\n")
@@ -358,8 +364,8 @@ object LyricPosterRenderer {
         }
 
         var fontSize = ladderFontSize
-        val maxAllowedLyricsHeight = availableSpace - 80f
-        val minTargetLyricsHeight = availableSpace * 0.52f
+        val maxAllowedLyricsHeight = availableSpace - 40f
+        val minTargetLyricsHeight = availableSpace * 0.58f
 
         var textLayout = StaticLayout.Builder.obtain(
             fullLyricsText, 0, fullLyricsText.length, textPaint, innerWidth.toInt()
@@ -370,9 +376,9 @@ object LyricPosterRenderer {
             .build()
 
         // Proactively scale up if short lines occupy too little vertical space
-        if (textLayout.height < minTargetLyricsHeight && fontSize < 104f) {
+        if (textLayout.height < minTargetLyricsHeight && fontSize < 136f) {
             var probeSize = fontSize
-            while (probeSize < 104f) {
+            while (probeSize < 136f) {
                 textPaint.textSize = probeSize + 2f
                 val probeLayout = StaticLayout.Builder.obtain(
                     fullLyricsText, 0, fullLyricsText.length, textPaint, innerWidth.toInt()
@@ -395,7 +401,7 @@ object LyricPosterRenderer {
         }
 
         // Scale down if layout overflows available space
-        while (textLayout.height > maxAllowedLyricsHeight && fontSize > 32f) {
+        while (textLayout.height > maxAllowedLyricsHeight && fontSize > 36f) {
             fontSize -= 2f
             textPaint.textSize = fontSize
             textLayout = StaticLayout.Builder.obtain(
@@ -784,7 +790,7 @@ object LyricPosterRenderer {
                 val p = runCatching {
                     Palette.from(safeArt).clearFilters().maximumColorCount(24).generate()
                 }.getOrNull()
-                val dominant = p?.dominantSwatch?.rgb ?: p?.vibrantSwatch?.rgb ?: p?.mutedSwatch?.rgb
+                val dominant = p?.vibrantSwatch?.rgb ?: p?.dominantSwatch?.rgb ?: p?.mutedSwatch?.rgb
                 if (dominant != null) {
                     return dominant to dominant
                 }

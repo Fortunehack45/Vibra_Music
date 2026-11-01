@@ -216,7 +216,7 @@ fun SettingsScreen(
     val skipSilence by AppSettings.skipSilence.collectAsStateWithLifecycle()
     val dolbyAtmos by AppSettings.dolbyAtmos.collectAsStateWithLifecycle()
     // A property of the hardware, so it is read once rather than remembered
-    // against a key that can never change — see [DeviceCodecs.playsDolbyAtmos],
+    // against a key that can never change 鈥� see [DeviceCodecs.playsDolbyAtmos],
     // which caches the codec-list walk for the life of the process.
     val dolbyAtmosSupported = DeviceCodecs.playsDolbyAtmos
     val spatialAudio by AppSettings.spatialAudio.collectAsStateWithLifecycle()
@@ -289,11 +289,11 @@ fun SettingsScreen(
 
     val replayGenres by AppSettings.replayGenres.collectAsStateWithLifecycle()
 
-    // Read here so the row can say "In a party · ABC123" rather than making
+    // Read here so the row can say "In a party 路 ABC123" rather than making
     // somebody open the screen to find out whether they are still in one.
     val party by ListenTogether.state.collectAsStateWithLifecycle()
 
-    // Filters the rows below — see [SettingsSearch]. Blank shows everything,
+    // Filters the rows below 鈥� see [SettingsSearch]. Blank shows everything,
     // exactly as if the field weren't there.
     var searchQuery by remember { mutableStateOf("") }
     var picking by remember { mutableStateOf<QualityTarget?>(null) }
@@ -333,7 +333,7 @@ fun SettingsScreen(
     /**
      * Both halves go through the system document picker rather than a path of
      * this app's own choosing. That is what puts the file somewhere the user can
-     * actually find it — Drive, Files, a folder they already back up — and it
+     * actually find it 鈥� Drive, Files, a folder they already back up 鈥� and it
      * means neither direction needs a storage permission, since the grant
      * arrives with the document they picked.
      */
@@ -452,10 +452,10 @@ fun SettingsScreen(
         }
 
         // The row that used to sit at the top of this group was called
-        // "Lossless / HQ Audio" and toggled `SourceRegistry.setModuleEnabled` —
+        // "Lossless / HQ Audio" and toggled `SourceRegistry.setModuleEnabled` 鈥�
         // it switched the *module source* on and off, not lossless. Sources
         // above lists that as the module's own row now. Lossless itself is no
-        // longer a setting at all — see
+        // longer a setting at all 鈥� see
         // [SourceResolver.requestForNow][com.fortune.vibramusic.data.sources.SourceResolver.requestForNow].
         SearchableSettingsGroup(search, header = stringResource(R.string.audio_quality)) {
             val sourceTitle = stringResource(R.string.source)
@@ -497,7 +497,7 @@ fun SettingsScreen(
             // one with a reason under it is the difference between "Vibra Music
             // has no Atmos" and "this phone has no Dolby decoder", and only the
             // second is true. The stored preference is left untouched either
-            // way — see [AppSettings.dolbyAtmos].
+            // way 鈥� see [AppSettings.dolbyAtmos].
             val dolbyAtmosTitle = stringResource(R.string.dolby_atmos)
             row(dolbyAtmosTitle, "surround", "e-ac-3") {
                 SettingsRow(
@@ -530,7 +530,7 @@ fun SettingsScreen(
         // Its own group rather than rows bolted onto the two above, because a
         // download is not a third kind of connection. The ceilings answer "what
         // does this minute cost"; these answer "what am I keeping, and when may
-        // it be fetched" — and those two questions only make sense read
+        // it be fetched" 鈥� and those two questions only make sense read
         // together, which is what puts them side by side here.
         SearchableSettingsGroup(search, header = stringResource(R.string.downloads)) {
             val downloadQualityTitle = stringResource(R.string.download_quality)
@@ -544,7 +544,7 @@ fun SettingsScreen(
                 )
             }
             // Reads as part of Download quality above it, not as a setting
-            // of its own — same treatment as Play animated cover over
+            // of its own 鈥� same treatment as Play animated cover over
             // cellular gets under Animated cover art.
             val downloadWifiOnlyTitle = stringResource(R.string.download_wifi_only)
             row(downloadWifiOnlyTitle, "wi-fi", "cellular", divided = false) {
@@ -593,11 +593,11 @@ fun SettingsScreen(
                     title = outputPrecisionTitle,
                     subtitle = buildString {
                         append(outputStatus.sink)
-                        append(" · ")
+                        append(" 路 ")
                         append(outputStatus.deviceName)
                         (outputStatus.actualSampleRateHz ?: outputStatus.sampleRatesHz.firstOrNull())
-                            ?.let { append(" · ${it / 1000.0} kHz") }
-                        append(" · ")
+                            ?.let { append(" 路 ${it / 1000.0} kHz") }
+                        append(" 路 ")
                         append(AudioOutputStatus.encodingLabel(outputStatus))
                     },
                 )
@@ -700,7 +700,7 @@ fun SettingsScreen(
                     title = skipSilenceTitle,
                     // Silence skipping is Media3's own processor, and
                     // `DefaultAudioSink.configure` appends that processor list
-                    // only on its 16-bit branch — the float branch gets the
+                    // only on its 16-bit branch 鈥� the float branch gets the
                     // format converter and nothing else. So on a float track
                     // this switch really does nothing, and the row says so
                     // rather than letting someone toggle it and wonder. The
@@ -730,7 +730,7 @@ fun SettingsScreen(
                     title = spatialAudioTitle,
                     // Widening a JOC stream would fight the object-based mix
                     // Dolby has already spatialized, so the service holds this
-                    // off for the duration of an Atmos track — see
+                    // off for the duration of an Atmos track 鈥� see
                     // `PlaybackService.applySpatialAudioEnabled`. Said on the
                     // row because the switch stays where the listener left it,
                     // and a switch reading "on" over an effect that is not
@@ -756,7 +756,7 @@ fun SettingsScreen(
             }
             // The system panel is not listed here as well. A device with a
             // Dolby or Dirac panel has something Siren Music cannot reproduce and
-            // keeps its row — but one level in, at the foot of the equaliser
+            // keeps its row 鈥� but one level in, at the foot of the equaliser
             // screen, rather than as a second equaliser entry alongside ours.
             val equalizerTitle = stringResource(R.string.equalizer)
             row(equalizerTitle, "eq", "bass", "treble") {
@@ -930,7 +930,7 @@ fun SettingsScreen(
             // Left out where the player won't honour it: a window too wide for
             // the player to fill and too narrow to stand a page beside it keeps
             // the sleeve either way. A docked pane is a phone's width, so it does
-            // honour it — see [fullBleedArtworkAvailable].
+            // honour it 鈥� see [fullBleedArtworkAvailable].
             if (fullBleedArtworkAvailable(windowWidth)) {
                 val fullScreenCoverArtTitle = stringResource(R.string.full_screen_cover_art)
                 row(fullScreenCoverArtTitle, "artwork", "player") {
@@ -997,7 +997,7 @@ fun SettingsScreen(
             // as a separate setting. Nothing to narrow while the clip itself
             // is off. Defaults to off: a clip loops for as long as its track
             // plays, so on cellular this is not a one-time video cost but
-            // that cost repeated on every loop — see AppSettings.canvasOverCellular.
+            // that cost repeated on every loop 鈥� see AppSettings.canvasOverCellular.
             if (animatedCanvas) {
                 val coverCellularTitle = stringResource(R.string.animated_cover_cellular)
                 row(coverCellularTitle, "canvas", "cellular", divided = false) {
@@ -1051,7 +1051,7 @@ fun SettingsScreen(
             }
             // Nothing to choose between while the feature is off, and the
             // sources are third-party services being reached on the user's
-            // connection — which is the part worth being able to narrow.
+            // connection 鈥� which is the part worth being able to narrow.
             if (syncedLyrics) {
                 val lyricsBlurTitle = stringResource(R.string.blur_unfocused_lyrics)
                 row(lyricsBlurTitle, "lyrics", "blur") {
@@ -1492,7 +1492,7 @@ fun SettingsScreen(
                 SettingsRow(
                     icon = Icons.Rounded.Upgrade,
                     title = checkForUpdatesTitle,
-                    subtitle = "Vibra Music $version · Tap to check",
+                    subtitle = "Vibra Music $version 路 Tap to check",
                     onClick = onCheckForUpdates,
                 )
             }
@@ -1577,7 +1577,7 @@ fun SettingsScreen(
                 // Writes the one ceiling that was being edited and nothing
                 // else. There used to be a `SourceRegistry.applyQualityPreset`
                 // call here that flipped the module and JioSaavn switches to
-                // match — which meant budgeting *mobile data* switched those
+                // match 鈥� which meant budgeting *mobile data* switched those
                 // sources off while sitting on Wi-Fi, and coming back to Wi-Fi
                 // never switched them on again. Which sources a rung consults
                 // is now read per stream off the connection in force; see
@@ -1859,7 +1859,7 @@ fun SettingsScreen(
 
 }
 
-/** "3 months of listening" — the unit a backup is actually measured in. */
+/** "3 months of listening" 鈥� the unit a backup is actually measured in. */
 private fun Context.countOfMonths(months: Int): String = if (months == 0) {
     getString(R.string.no_listening_history)
 } else {
@@ -1934,7 +1934,7 @@ internal fun openEqualizer(context: Context, sessionId: Int) {
 /** Above this, the cache limit slider's subtitle warns rather than reassures. */
 private const val CACHE_WARNING_MB = 2048
 
-/** "512 MB", "2 GB", "2.5 GB" — whichever reads more naturally at that size. */
+/** "512 MB", "2 GB", "2.5 GB" 鈥� whichever reads more naturally at that size. */
 private fun formatCacheSize(mb: Int): String {
     if (mb < 1024) return "$mb MB"
     val gb = mb / 1024f
@@ -2001,4 +2001,995 @@ internal fun AccountCard(
             Text(
                 text = account?.email?.takeIf { it.isNotBlank() }
                     ?: stringResource(
-                        if (signedIn) R.str
+                        if (signedIn) R.string.youtube_music_account else R.string.tap_to_sign_in_google,
+                    ),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (!signedIn) {
+            Spacer(Modifier.width(8.dp))
+            Chevron()
+        }
+    }
+}
+
+/** The quality options for one connection, with what each costs in data. */
+@Composable
+private fun QualitySheet(
+    target: QualityTarget,
+    selected: AudioQuality,
+    onSelect: (AudioQuality) -> Unit,
+) {
+    val haptics = LocalHapticFeedback.current
+    Column(Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
+        Row(
+            modifier = Modifier.padding(start = 22.dp, end = 22.dp, bottom = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = target.icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier.size(22.dp),
+            )
+            Spacer(Modifier.width(14.dp))
+            Column {
+                Text(
+                    text = stringResource(R.string.audio_quality),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onBackground,
+                )
+                Text(
+                    text = stringResource(
+                        R.string.audio_quality_connection,
+                        target.localizedTitle().lowercase(Locale.getDefault()),
+                    ),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outline)
+
+        // Best first 鈥� the option most people want shouldn't be last.
+        AudioQuality.entries.reversed().forEach { quality ->
+            val chosen = quality == selected
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onSelect(quality)
+                    }
+                    .padding(horizontal = 22.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = quality.localizedLabel(),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onBackground,
+                    )
+                    Text(
+                        text = stringResource(R.string.quality_hourly, quality.detail, quality.hourly),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (chosen) {
+                    Spacer(Modifier.width(12.dp))
+                    Icon(
+                        Icons.Rounded.Check,
+                        contentDescription = stringResource(R.string.selected),
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** CPU budget picker for the background models that prepare Automix. */
+@Composable
+private fun AutomixPerformanceSheet(
+    selected: AutomixPerformanceMode,
+    onSelect: (AutomixPerformanceMode) -> Unit,
+) {
+    val haptics = LocalHapticFeedback.current
+    Column(Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
+        Row(
+            modifier = Modifier.padding(start = 22.dp, end = 22.dp, bottom = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Tune,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier.size(22.dp),
+            )
+            Spacer(Modifier.width(14.dp))
+            Column {
+                Text(
+                    text = stringResource(R.string.automix_performance),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onBackground,
+                )
+                Text(
+                    text = stringResource(R.string.automix_performance_warning),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outline)
+        AutomixPerformanceMode.entries.forEach { mode ->
+            val chosen = mode == selected
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onSelect(mode)
+                    }
+                    .padding(horizontal = 22.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = mode.localizedLabel(),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onBackground,
+                    )
+                    Text(
+                        text = stringResource(
+                            when (mode) {
+                                AutomixPerformanceMode.EFFICIENT -> R.string.automix_mode_efficient_subtitle
+                                AutomixPerformanceMode.BALANCED -> R.string.automix_mode_balanced_subtitle
+                                AutomixPerformanceMode.PERFORMANCE -> R.string.automix_mode_performance_subtitle
+                            },
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (chosen) {
+                    Spacer(Modifier.width(12.dp))
+                    Icon(
+                        Icons.Rounded.Check,
+                        contentDescription = stringResource(R.string.selected),
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * What to keep when a track is saved, with what each rung costs on disk.
+ *
+ * Priced per track rather than per hour, the way [QualitySheet] is. That sheet
+ * is answering "what will listening cost me this hour", because a stream is
+ * spent again on every replay; this one is answering "what will keeping this
+ * cost me", and the answer is charged once. Same widget, different question, so
+ * the numbers beside the options are in different units on purpose.
+ */
+@Composable
+private fun DownloadQualitySheet(
+    selected: DownloadQuality,
+    onSelect: (DownloadQuality) -> Unit,
+) {
+    val haptics = LocalHapticFeedback.current
+    Column(Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
+        Row(
+            modifier = Modifier.padding(start = 22.dp, end = 22.dp, bottom = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Download,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier.size(22.dp),
+            )
+            Spacer(Modifier.width(14.dp))
+            Column {
+                Text(
+                    text = stringResource(R.string.download_quality),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onBackground,
+                )
+                Text(
+                    text = stringResource(R.string.download_quality_dialog_subtitle),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outline)
+
+        // Best first, matching [QualitySheet] 鈥� and here the best rung is also
+        // the default, so the checkmark starts where the eye does.
+        DownloadQuality.entries.reversed().forEach { quality ->
+            val chosen = quality == selected
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onSelect(quality)
+                    }
+                    .padding(horizontal = 22.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = quality.localizedLabel(),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onBackground,
+                    )
+                    Text(
+                        text = stringResource(R.string.quality_per_track, quality.detail, quality.perTrack),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (chosen) {
+                    Spacer(Modifier.width(12.dp))
+                    Icon(
+                        Icons.Rounded.Check,
+                        contentDescription = stringResource(R.string.selected),
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ---- Building blocks --------------------------------------------------------
+
+internal val GroupShape = RoundedCornerShape(14.dp)
+internal val GROUP_INSET = 16.dp
+internal val ROW_INSET = 16.dp
+internal val ICON_SIZE = 22.dp
+internal val ICON_GAP = 14.dp
+
+/** Where a row's text starts 鈥� dividers are inset to match, as on iOS. */
+internal val TEXT_INSET = ROW_INSET + ICON_SIZE + ICON_GAP
+
+/**
+ * What is typed into the field under the Settings title, and whether anything
+ * on the screen has answered to it.
+ *
+ * A blank query matches everything, so the screen with the field untouched is
+ * the screen as it was before there was a field. Rows ask [matches] as they
+ * are composed; the empty state at the foot of the list reads [anyMatch] after
+ * every group has had its turn, which is why this is made fresh on each pass
+ * rather than remembered.
+ */
+private class SettingsSearch(query: String) {
+    // Trimmed, because a trailing space is a typo rather than a search for
+    // something ending in one 鈥� and on a phone keyboard it is one keystroke
+    // away from every word typed.
+    private val needle = query.trim()
+
+    var anyMatch = false
+        private set
+
+    fun matches(vararg keywords: String?): Boolean {
+        val hit = needle.isEmpty() ||
+            keywords.any { it?.contains(needle, ignoreCase = true) == true }
+        if (hit) anyMatch = true
+        return hit
+    }
+}
+
+/** Collects the rows of one group that survived the search. */
+private class SettingsGroupScope(
+    private val search: SettingsSearch,
+    private val header: String?,
+) {
+    class Entry(val divided: Boolean, val content: @Composable () -> Unit)
+
+    val entries = mutableListOf<Entry>()
+
+    /**
+     * One searchable setting. [keywords] is everything somebody might type
+     * looking for it: its title at least, plus whatever its subtitle or the
+     * controls under it say that the title doesn't 鈥� "Spotify", say, for the
+     * canvas link that lives under Animated cover art.
+     *
+     * [divided] is false for the rows drawn as part of the row above them
+     * rather than as settings in their own right, so they keep hugging their
+     * parent when both survive the filter.
+     */
+    fun row(
+        vararg keywords: String?,
+        divided: Boolean = true,
+        content: @Composable () -> Unit,
+    ) {
+        // The header counts for every row beneath it: searching "playback"
+        // should turn up the playback group entire, not nothing at all.
+        if (search.matches(header, *keywords)) entries += Entry(divided, content)
+    }
+}
+
+/**
+ * A [SettingsGroup] whose rows are filtered by the search field, and which
+ * takes itself off the screen when none of them are left. Dividers fall
+ * between the rows that survived rather than around the gaps left by the ones
+ * that didn't, so a filtered card is indistinguishable from a hand-written one.
+ */
+@Composable
+private fun SearchableSettingsGroup(
+    search: SettingsSearch,
+    header: String? = null,
+    footer: String? = null,
+    topSpacing: Dp = 26.dp,
+    content: @Composable SettingsGroupScope.() -> Unit,
+) {
+    val scope = SettingsGroupScope(search, header)
+    scope.content()
+    if (scope.entries.isEmpty()) return
+    SettingsGroup(header = header, footer = footer, topSpacing = topSpacing) {
+        scope.entries.forEachIndexed { index, entry ->
+            when {
+                index > 0 && entry.divided -> RowDivider()
+                // An undivided row is drawn tight to the top because something
+                // it belongs to is usually above it. Filtered down to itself it
+                // has nothing to sit under, so it is given that room back.
+                index == 0 && !entry.divided -> Spacer(Modifier.height(10.dp))
+            }
+            entry.content()
+        }
+    }
+}
+
+/**
+ * One inset card of rows, with an uppercase header above and an optional
+ * plain-language [footer] below. Rows are separated by [RowDivider].
+ */
+@Composable
+internal fun SettingsGroup(
+    header: String? = null,
+    footer: String? = null,
+    /** Room above the card, where there is no [header] to provide it. */
+    topSpacing: Dp = 26.dp,
+    content: @Composable () -> Unit,
+) {
+    if (header != null) {
+        Text(
+            text = header.uppercase(Locale.ROOT),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(
+                start = GROUP_INSET + 4.dp,
+                end = GROUP_INSET,
+                top = 26.dp,
+                bottom = 8.dp,
+            ),
+        )
+    } else {
+        Spacer(Modifier.height(topSpacing))
+    }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = GROUP_INSET)
+            .clip(GroupShape)
+            .background(MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        content()
+    }
+    if (footer != null) {
+        Text(
+            text = footer,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(
+                start = GROUP_INSET + 4.dp,
+                end = GROUP_INSET + 4.dp,
+                top = 8.dp,
+            ),
+        )
+    }
+}
+
+@Composable
+internal fun RowDivider() {
+    HorizontalDivider(
+        modifier = Modifier.padding(start = TEXT_INSET),
+        thickness = 0.5.dp,
+        color = MaterialTheme.colorScheme.outline,
+    )
+}
+
+/**
+ * The standard row: glyph, title, optional subtitle, and on the right either
+ * [trailing] (a switch, say) or the current [value] followed by a chevron.
+ *
+ * [iconPainter] is for the handful of rows whose glyph is a drawable rather
+ * than a Material icon 鈥� the Dolby double-D, which is a mark and not something
+ * to approximate with the nearest speaker outline. Exactly one of it and [icon]
+ * is expected; the painter wins where both are given.
+ */
+@Composable
+internal fun SettingsRow(
+    icon: ImageVector? = null,
+    title: String,
+    subtitle: String? = null,
+    subtitleContent: (@Composable () -> Unit)? = null,
+    value: String? = null,
+    badge: String? = null,
+    enabled: Boolean = true,
+    iconPainter: Painter? = null,
+    onClick: (() -> Unit)? = null,
+    trailing: (@Composable () -> Unit)? = null,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (onClick != null && enabled) Modifier.clickable(onClick = onClick) else Modifier)
+            .alpha(if (enabled) 1f else 0.45f)
+            .heightIn(min = 52.dp)
+            .padding(horizontal = ROW_INSET, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (iconPainter != null) {
+            Icon(
+                painter = iconPainter,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier.size(ICON_SIZE),
+            )
+        } else if (icon != null) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier.size(ICON_SIZE),
+            )
+        }
+        Spacer(Modifier.width(ICON_GAP))
+        Column(Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (badge != null) {
+                    Spacer(Modifier.width(8.dp))
+                    Badge(badge)
+                }
+            }
+            if (subtitleContent != null) {
+                subtitleContent()
+            } else if (subtitle != null) {
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 5,
+                )
+            }
+        }
+        Spacer(Modifier.width(12.dp))
+        if (trailing != null) {
+            trailing()
+        } else if (value != null || onClick != null) {
+            if (value != null) {
+                Text(
+                    text = value,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                )
+                Spacer(Modifier.width(4.dp))
+            }
+            Chevron()
+        }
+    }
+}
+
+/**
+ * A toggle that reads as part of the option above it rather than a setting
+ * of its own: no icon, no divider, and pulled up close against its parent
+ * instead of getting the same breathing room a full [SettingsRow] gets.
+ */
+@Composable
+internal fun SettingsSubRow(
+    title: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    badge: String? = null,
+    subtitle: String? = null,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onCheckedChange(!checked) }
+            .padding(start = ROW_INSET, end = ROW_INSET, top = 0.dp, bottom = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (badge != null) {
+                    Spacer(Modifier.width(8.dp))
+                    Badge(badge)
+                }
+            }
+            if (subtitle != null) {
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 5,
+                )
+            }
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            colors = SwitchDefaults.colors(
+                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                checkedBorderColor = MaterialTheme.colorScheme.primary,
+            ),
+        )
+    }
+}
+
+/** Marks the connection whose ceiling is actually in force right now. */
+@Composable
+internal fun Badge(text: String) {
+    Text(
+        text = text.uppercase(Locale.ROOT),
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier
+            .clip(RoundedCornerShape(5.dp))
+            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.16f))
+            .padding(horizontal = 6.dp, vertical = 2.dp),
+    )
+}
+
+@Composable
+internal fun Chevron() {
+    Icon(
+        Icons.Rounded.ChevronRight,
+        contentDescription = null,
+        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+        modifier = Modifier.size(20.dp),
+    )
+}
+
+/**
+ * Song transitions as Apple Music lays it out: the switch, then, while it is
+ * on, the two styles with a check on the one in use, then what that style
+ * needs: the Crossfade length, or the CPU budget Automix's analysis runs on.
+ *
+ * The rows under the switch expand and collapse with it rather than popping
+ * in, since they push the rest of the card around; with Reduce animation on
+ * they simply appear, like every other row that depends on a switch.
+ */
+@Composable
+private fun SongTransitionsRows(
+    transitions: SongTransitions,
+    automixPerformance: AutomixPerformanceMode,
+    onAutomixPerformance: () -> Unit,
+    reduceAnimation: Boolean,
+) {
+    SettingsRow(
+        // The wave the crossfade slider always wore; the crossfade glyph itself
+        // marks the Crossfade style below, as each style carries its own.
+        icon = Icons.Rounded.Waves,
+        title = stringResource(R.string.song_transitions),
+        subtitle = stringResource(R.string.crossfade_subtitle),
+        trailing = {
+            Switch(
+                checked = transitions.enabled,
+                onCheckedChange = AppSettings::setSongTransitionsEnabled,
+                colors = SwitchDefaults.colors(
+                    checkedTrackColor = MaterialTheme.colorScheme.primary,
+                    checkedBorderColor = MaterialTheme.colorScheme.primary,
+                ),
+            )
+        },
+        onClick = { AppSettings.setSongTransitionsEnabled(!transitions.enabled) },
+    )
+    AnimatedVisibility(
+        visible = transitions.enabled,
+        enter = if (reduceAnimation) EnterTransition.None else fadeIn(tween(160)) + expandVertically(tween(220)),
+        exit = if (reduceAnimation) ExitTransition.None else fadeOut(tween(120)) + shrinkVertically(tween(180)),
+    ) {
+        Column(if (reduceAnimation) Modifier else Modifier.animateContentSize(tween(180))) {
+            TransitionStyleRow(
+                icon = Icons.Rounded.AutoAwesome,
+                title = stringResource(R.string.automix),
+                subtitle = stringResource(R.string.automix_enabled_subtitle),
+                selected = transitions.style == SongTransitionStyle.AUTOMIX,
+                onSelect = { AppSettings.setSongTransitionStyle(SongTransitionStyle.AUTOMIX) },
+            )
+            RowDivider()
+            TransitionStyleRow(
+                icon = VibraMusicIcons.Crossfade,
+                title = stringResource(R.string.crossfade),
+                subtitle = stringResource(R.string.crossfade_style_subtitle),
+                selected = transitions.style == SongTransitionStyle.CROSSFADE,
+                onSelect = { AppSettings.setSongTransitionStyle(SongTransitionStyle.CROSSFADE) },
+            )
+            RowDivider()
+            TransitionStyleRow(
+                icon = Icons.Rounded.GraphicEq,
+                title = "Rise",
+                subtitle = "Resonant high-pass riser build-up into incoming drop",
+                selected = transitions.style == SongTransitionStyle.RISE,
+                onSelect = { AppSettings.setSongTransitionStyle(SongTransitionStyle.RISE) },
+            )
+            RowDivider()
+            val smartFlowEnabled by AppSettings.smartFlowEnabled.collectAsStateWithLifecycle()
+            SettingsRow(
+                icon = Icons.Rounded.AutoAwesome,
+                title = "Smart Flow",
+                subtitle = "Order upcoming tracks by BPM, Camelot harmonic key, and energy for seamless transitions",
+                trailing = {
+                    Switch(
+                        checked = smartFlowEnabled,
+                        onCheckedChange = AppSettings::setSmartFlowEnabled,
+                        colors = SwitchDefaults.colors(
+                            checkedTrackColor = MaterialTheme.colorScheme.primary,
+                            checkedBorderColor = MaterialTheme.colorScheme.primary,
+                        ),
+                    )
+                },
+                onClick = { AppSettings.setSmartFlowEnabled(!smartFlowEnabled) },
+            )
+            RowDivider()
+            when (transitions.style) {
+                SongTransitionStyle.AUTOMIX -> {
+                    val mixOnNewPlaylists by AppSettings.mixEnableOnNewPlaylists.collectAsStateWithLifecycle()
+                    val defaultBars by AppSettings.mixDefaultLengthBars.collectAsStateWithLifecycle()
+                    val beatmatching by AppSettings.mixDefaultBeatmatching.collectAsStateWithLifecycle()
+
+                    SettingsRow(
+                        icon = Icons.Rounded.PlaylistAddCheck,
+                        title = stringResource(R.string.mix_enable_on_new),
+                        subtitle = stringResource(R.string.mix_enable_on_new_subtitle),
+                        trailing = {
+                            Switch(
+                                checked = mixOnNewPlaylists,
+                                onCheckedChange = AppSettings::setMixEnableOnNewPlaylists,
+                                colors = SwitchDefaults.colors(
+                                    checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                    checkedBorderColor = MaterialTheme.colorScheme.primary,
+                                ),
+                            )
+                        },
+                        onClick = { AppSettings.setMixEnableOnNewPlaylists(!mixOnNewPlaylists) },
+                    )
+                    RowDivider()
+                    SettingsRow(
+                        icon = Icons.Rounded.Straighten,
+                        title = stringResource(R.string.mix_default_length),
+                        subtitle = stringResource(R.string.mix_default_length_subtitle),
+                        value = stringResource(R.string.mix_bars_count, defaultBars),
+                        onClick = {
+                            val nextBars = when (defaultBars) {
+                                2 -> 4
+                                4 -> 8
+                                8 -> 16
+                                else -> 2
+                            }
+                            AppSettings.setMixDefaultLengthBars(nextBars)
+                        },
+                    )
+                    RowDivider()
+                    SettingsRow(
+                        icon = Icons.Rounded.Speed,
+                        title = stringResource(R.string.mix_beatmatch_default),
+                        subtitle = stringResource(R.string.mix_beatmatch_default_subtitle),
+                        trailing = {
+                            Switch(
+                                checked = beatmatching,
+                                onCheckedChange = AppSettings::setMixDefaultBeatmatching,
+                                colors = SwitchDefaults.colors(
+                                    checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                    checkedBorderColor = MaterialTheme.colorScheme.primary,
+                                ),
+                            )
+                        },
+                        onClick = { AppSettings.setMixDefaultBeatmatching(!beatmatching) },
+                    )
+                    RowDivider()
+                    SettingsRow(
+                        icon = Icons.Rounded.Tune,
+                        title = stringResource(R.string.automix_performance),
+                        subtitle = stringResource(R.string.automix_performance_subtitle),
+                        value = automixPerformance.localizedLabel(),
+                        onClick = onAutomixPerformance,
+                    )
+                }
+                else -> SliderRow(
+                    icon = null,
+                    title = stringResource(R.string.crossfade_duration),
+                    value = stringResource(R.string.seconds_short, transitions.crossfadeSeconds),
+                    sliderValue = transitions.crossfadeSeconds.toFloat(),
+                    onSliderValue = { AppSettings.setCrossfadeDuration(it.roundToInt()) },
+                    valueRange = SongTransitions.MIN_CROSSFADE_SECONDS.toFloat()..
+                        SongTransitions.MAX_CROSSFADE_SECONDS.toFloat(),
+                    // One stop per whole second between the two ends.
+                    steps = SongTransitions.MAX_CROSSFADE_SECONDS - SongTransitions.MIN_CROSSFADE_SECONDS - 1,
+                    startLabel = stringResource(R.string.seconds_short, SongTransitions.MIN_CROSSFADE_SECONDS),
+                    endLabel = stringResource(R.string.seconds_short, SongTransitions.MAX_CROSSFADE_SECONDS),
+                )
+            }
+        }
+    }
+}
+
+/**
+ * One of the two styles under Song transitions: its glyph, what it is called,
+ * what it does, and a check on the one in use, the same mark the quality
+ * sheets put on theirs. Laid out like [SettingsRow], glyph slot and all, so
+ * its text lines up with every other row in the card; only the trailing check
+ * and the radio-button semantics set it apart.
+ */
+@Composable
+private fun TransitionStyleRow(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    selected: Boolean,
+    onSelect: () -> Unit,
+) {
+    val haptics = LocalHapticFeedback.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .selectable(
+                selected = selected,
+                role = Role.RadioButton,
+                onClick = {
+                    if (!selected) {
+                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onSelect()
+                    }
+                },
+            )
+            .heightIn(min = 52.dp)
+            .padding(horizontal = ROW_INSET, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onBackground,
+            modifier = Modifier.size(ICON_SIZE),
+        )
+        Spacer(Modifier.width(ICON_GAP))
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (selected) {
+            Spacer(Modifier.width(12.dp))
+            Icon(
+                imageVector = Icons.Rounded.Check,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(20.dp),
+            )
+        }
+    }
+}
+
+/** A continuous setting: label and current value on one line, track beneath. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun SliderRow(
+    icon: ImageVector?,
+    title: String,
+    value: String,
+    sliderValue: Float,
+    onSliderValue: (Float) -> Unit,
+    valueRange: ClosedFloatingPointRange<Float>,
+    steps: Int,
+    subtitle: String? = null,
+    startLabel: String? = null,
+    endLabel: String? = null,
+) {
+    val colors = SliderDefaults.colors(
+        thumbColor = MaterialTheme.colorScheme.primary,
+        activeTrackColor = MaterialTheme.colorScheme.primary,
+        inactiveTrackColor = MaterialTheme.colorScheme.outline,
+    )
+    Column(Modifier.padding(start = ROW_INSET, end = ROW_INSET, top = 12.dp, bottom = 4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onBackground,
+                    modifier = Modifier.size(ICON_SIZE),
+                )
+            } else {
+                Spacer(Modifier.size(ICON_SIZE))
+            }
+            Spacer(Modifier.width(ICON_GAP))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onBackground,
+                )
+                if (subtitle != null) {
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            Spacer(Modifier.width(12.dp))
+            Text(
+                text = value,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = ICON_SIZE + ICON_GAP),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (startLabel != null) {
+                SliderEndLabel(startLabel)
+                Spacer(Modifier.width(10.dp))
+            }
+            Slider(
+                value = sliderValue,
+                onValueChange = onSliderValue,
+                valueRange = valueRange,
+                steps = steps,
+                colors = colors,
+                // Bare track: the step ticks and the end-stop dot are noise when the
+                // value is already spelled out on the line above.
+                track = { state ->
+                    SliderDefaults.Track(
+                        sliderState = state,
+                        colors = colors,
+                        drawStopIndicator = null,
+                        drawTick = { _, _ -> },
+                    )
+                },
+                modifier = Modifier.weight(1f),
+            )
+            if (endLabel != null) {
+                Spacer(Modifier.width(10.dp))
+                SliderEndLabel(endLabel)
+            }
+        }
+    }
+}
+
+@Composable
+private fun SliderEndLabel(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+/** Sign out: centered, accent-coloured, no glyph 鈥� the shape of a real one. */
+@Composable
+internal fun DestructiveRow(
+    label: String,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(vertical = 15.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.primary,
+        )
+    }
+}
+
+/** Sliding pill selector, for the handful of settings with two or three states. */
+@Composable
+internal fun SegmentedControl(
+    options: List<String>,
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+) {
+    val haptics = LocalHapticFeedback.current
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(MaterialTheme.colorScheme.outline)
+            // Enough of a margin for the track to read as a track. At 2dp the
+            // selected pill sat all but flush against the container's own edge,
+            // so the two rounded rectangles merged into one shape and the
+            // control stopped looking like something with a position in it.
+            .padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        options.forEachIndexed { index, label ->
+            val chosen = index == selectedIndex
+            val pill by animateColorAsState(
+                targetValue = if (chosen) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    Color.Transparent
+                },
+                animationSpec = tween(160),
+                label = "segmentPill",
+            )
+            val labelColor by animateColorAsState(
+                targetValue = if (chosen) {
+                    MaterialTheme.colorScheme.onPrimary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                animationSpec = tween(160),
+                label = "segmentLabel",
+            )
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(pill)
+                    .clickable(enabled = enabled) {
+                        if (!chosen) {
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onSelect(index)
+                        }
+                    }
+                    .padding(vertical = 9.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = labelColor,
+                    maxLines = 1,
+                )
+            }
+        }
+    }
+}

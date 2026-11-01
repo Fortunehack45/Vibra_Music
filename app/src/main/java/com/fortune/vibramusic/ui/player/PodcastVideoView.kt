@@ -132,11 +132,13 @@ fun PodcastVideoView(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                     )
                     setBackgroundColor(AndroidColor.BLACK)
+                    setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
                     settings.apply {
                         javaScriptEnabled = true
                         mediaPlaybackRequiresUserGesture = false
                         domStorageEnabled = true
                         cacheMode = WebSettings.LOAD_DEFAULT
+                        mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
                     }
                     webChromeClient = WebChromeClient()
                     webViewClient = object : WebViewClient() {

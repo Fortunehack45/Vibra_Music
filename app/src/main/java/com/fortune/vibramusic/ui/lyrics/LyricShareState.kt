@@ -25,12 +25,14 @@ enum class LyricCardPalette(
     val textColor: Color = Color.White,
 ) {
     ARTWORK("Artwork", Color(0xFF4A4E5A), Color(0xFF1E1E24)),
-    PLAIN_COLOR("Plain Color", Color(0xFF383838), Color(0xFF383838)),
     OBSIDIAN("Obsidian", Color(0xFF232526), Color(0xFF0F0C20)),
+    VIBRA_PURPLE("Vibra", Color(0xFF8B5CF6), Color(0xFF2E1065)),
+    NEON("Neon", Color(0xFF06B6D4), Color(0xFF0F172A)),
     SUNSET("Sunset", Color(0xFFFF5E62), Color(0xFFFF9966)),
     OCEAN("Ocean", Color(0xFF00C0FF), Color(0xFF4218B8)),
     ROSE("Rosé", Color(0xFFFF0844), Color(0xFFFFB199)),
     GLASS("Glass", Color(0xFF3A3D40), Color(0xFF181719)),
+    PLAIN_COLOR("Plain Color", Color(0xFF383838), Color(0xFF383838)),
 }
 
 enum class LyricCardAlignment(val label: String) {

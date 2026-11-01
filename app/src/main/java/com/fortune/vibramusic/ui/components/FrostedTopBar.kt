@@ -298,6 +298,7 @@ fun FrostedTopBar(
                             Icons.AutoMirrored.Rounded.ArrowBack,
                             contentDescription = stringResource(R.string.back),
                             tint = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(22.dp),
                         )
                     }
                 }
@@ -437,6 +438,9 @@ private fun ArtworkPageBackButton(
             Icons.AutoMirrored.Rounded.ArrowBack,
             contentDescription = stringResource(R.string.back),
             tint = contentColor,
+            modifier = Modifier
+                .size(22.dp)
+                .align(Alignment.Center),
         )
     }
 }

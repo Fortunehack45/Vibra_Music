@@ -228,6 +228,8 @@ private fun androidx.compose.foundation.lazy.LazyListScope.itemsIndexedShelves(
     shelves.forEachIndexed { index, shelf ->
         item(key = shelf.title + index) {
             val openItem: (ShelfItem) -> Unit = { item -> onItemClick(item, shelf.title) }
+            val isMood = shelf.title.equals("Find your mood", ignoreCase = true) ||
+                shelf.title.contains("mood", ignoreCase = true)
             if (index == 0 && shelf.title.equals(RECENTS_TITLE, ignoreCase = true)) {
                 RecentShelf(
                     shelf = shelf,
@@ -238,7 +240,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.itemsIndexedShelves(
                     isPlaying = isPlaying,
                     onViewTypeToggle = onRecentsViewTypeToggle,
                 )
-            } else if (index == 0 && firstIsHero) {
+            } else if (index == 0 && firstIsHero && !isMood) {
                 HeroShelf(shelf = shelf, onItemClick = openItem, onItemLongPress = onItemLongPress)
             } else {
                 Shelf(shelf = shelf, onItemClick = openItem, onItemLongPress = onItemLongPress)
@@ -524,7 +526,10 @@ internal fun localizeShelfTitle(title: String): String {
             trimmed.equals("Moods & moments", ignoreCase = true) ->
             "Find your mood"
         trimmed.equals("Top picks for you", ignoreCase = true) ||
-            trimmed.equals("Top picks", ignoreCase = true) ->
+            trimmed.equals("Top picks", ignoreCase = true) ||
+            trimmed.equals("Quick picks", ignoreCase = true) ||
+            trimmed.equals("L?a ch?n nhanh", ignoreCase = true) ||
+            trimmed.equals("Ch?n nhanh dài phát", ignoreCase = true) ->
             "Top picks for you"
         trimmed.equals("New music videos", ignoreCase = true) ||
             trimmed.equals("Recommended music videos", ignoreCase = true) ||

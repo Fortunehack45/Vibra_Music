@@ -883,7 +883,9 @@ object LyricPosterRenderer {
         return when (palette) {
             LyricCardPalette.ARTWORK -> Color.parseColor("#383C46") to Color.parseColor("#14151A")
             LyricCardPalette.PLAIN_COLOR -> Color.parseColor("#282828") to Color.parseColor("#282828")
-            LyricCardPalette.OBSIDIAN -> Color.parseColor("#26292E") to Color.parseColor("#0B0B0E")
+            LyricCardPalette.OBSIDIAN -> Color.parseColor("#1C1D22") to Color.parseColor("#090A0D")
+            LyricCardPalette.VIBRA_PURPLE -> Color.parseColor("#8B5CF6") to Color.parseColor("#2E1065")
+            LyricCardPalette.NEON -> Color.parseColor("#06B6D4") to Color.parseColor("#0F172A")
             LyricCardPalette.SUNSET -> Color.parseColor("#D64550") to Color.parseColor("#2B1654")
             LyricCardPalette.OCEAN -> Color.parseColor("#0088C2") to Color.parseColor("#150A3A")
             LyricCardPalette.ROSE -> Color.parseColor("#C81D4E") to Color.parseColor("#280E18")

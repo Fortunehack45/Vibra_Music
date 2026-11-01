@@ -73,6 +73,7 @@ object YtMusicRepository {
     val HOME_SUPPLEMENT_BROWSE_IDS = listOf(
         "FEmusic_new_releases",
         "FEmusic_explore",
+        "FEmusic_moods_and_genres",
     )
 
     /**

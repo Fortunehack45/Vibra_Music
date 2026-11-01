@@ -780,74 +780,6 @@ fun SettingsScreen(
                     modifier = Modifier.padding(start = ROW_INSET, end = ROW_INSET, bottom = 14.dp),
                 )
             }
-            val appIconTitle = "App Icon"
-            row(appIconTitle, "icon", "launcher", "liquid glass", "logo", "theme") {
-                var currentIcon by remember { mutableStateOf(AppIcon.current(context)) }
-                SettingsRow(
-                    icon = Icons.Rounded.Extension,
-                    title = appIconTitle,
-                    subtitle = "Select liquid glass launcher icon",
-                )
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState())
-                        .padding(start = ROW_INSET, end = ROW_INSET, bottom = 14.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    AppIcon.entries.forEach { option ->
-                        val selected = option == currentIcon
-                        Column(
-                            modifier = Modifier
-                                .width(96.dp)
-                                .clip(RoundedCornerShape(16.dp))
-                                .clickable {
-                                    val match = AppSettings.AppIconTheme.entries.firstOrNull { it.alias == option.alias }
-                                    if (match != null) {
-                                        AppSettings.setAppIconTheme(context, match)
-                                    }
-                                    AppIcon.apply(context, option)
-                                    currentIcon = option
-                                }
-                                .padding(vertical = 6.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(64.dp)
-                                    .clip(RoundedCornerShape(16.dp))
-                                    .border(
-                                        width = if (selected) 2.dp else 1.dp,
-                                        color = if (selected) VibraPurple else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-                                        shape = RoundedCornerShape(16.dp),
-                                    )
-                                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                androidx.compose.ui.viewinterop.AndroidView(
-                                    factory = { ctx ->
-                                        android.widget.ImageView(ctx).apply {
-                                            setImageResource(option.previewRes ?: option.iconRes)
-                                            scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
-                                        }
-                                    },
-                                    modifier = Modifier
-                                        .size(52.dp)
-                                        .clip(RoundedCornerShape(12.dp)),
-                                )
-                            }
-                            Spacer(Modifier.height(6.dp))
-                            Text(
-                                text = stringResource(option.labelRes),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = if (selected) VibraPurple else MaterialTheme.colorScheme.onSurfaceVariant,
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                maxLines = 2,
-                            )
-                        }
-                    }
-                }
-            }
             val wearOsTitle = stringResource(R.string.wear_os_section)
             row(wearOsTitle, "wear", "watch", "smartwatch", "galaxy watch", "pixel watch") {
                 WearOsSettingsRow(onClick = onWearOs)
@@ -1492,7 +1424,7 @@ fun SettingsScreen(
                 SettingsRow(
                     icon = Icons.Rounded.Upgrade,
                     title = checkForUpdatesTitle,
-                    subtitle = "Vibra Music $version 路 Tap to check",
+                    subtitle = "Vibra Music $version - Google Play Store",
                     onClick = onCheckForUpdates,
                 )
             }

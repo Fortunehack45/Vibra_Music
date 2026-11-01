@@ -1733,7 +1733,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         .onSuccess { feed ->
                             if (!isCurrentHomeLoad(identity, generation)) return@onSuccess
                             homeContinuation = feed.continuation
-                            publishHomeShelves(feed.shelves)
+                            publishHomeShelves(feed.shelves, prepend = true)
                         }
                         .onFailure { failure ->
                             if (isCurrentHomeLoad(identity, generation) && _home.value !is UiState.Success) {
@@ -1786,14 +1786,24 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun publishHomeShelves(shelves: List<HomeShelf>, prepend: Boolean = false) {
         val existing = (_home.value as? UiState.Success)?.data.orEmpty()
+        val replacing = shelves.map { it.title.lowercase(Locale.ROOT) }.toSet()
+        homeSeenTitles.addAll(replacing)
+        val remaining = existing.filterNot { it.title.lowercase(Locale.ROOT) in replacing }
         if (prepend) {
-            // YouTube's core home can also contain a stale "Recently played"
-            // shelf. The dedicated history endpoint wins and replaces it.
-            val replacing = shelves.map { it.title.lowercase(Locale.ROOT) }.toSet()
-            homeSeenTitles.addAll(replacing)
-            _home.value = UiState.Success(shelves + existing.filterNot {
-                it.title.lowercase(Locale.ROOT) in replacing
-            })
+            val recents = remaining.filter {
+                it.title.equals("Recents", ignoreCase = true) || it.title.equals("Recently played", ignoreCase = true)
+            }
+            val nonRecents = remaining.filterNot {
+                it.title.equals("Recents", ignoreCase = true) || it.title.equals("Recently played", ignoreCase = true)
+            }
+            val isIncomingRecents = shelves.any {
+                it.title.equals("Recents", ignoreCase = true) || it.title.equals("Recently played", ignoreCase = true)
+            }
+            if (isIncomingRecents) {
+                _home.value = UiState.Success(shelves + nonRecents)
+            } else {
+                _home.value = UiState.Success(recents + shelves + nonRecents)
+            }
             return
         }
         val added = shelves.filter { homeSeenTitles.add(it.title.lowercase(Locale.ROOT)) }
@@ -1803,6 +1813,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** Refreshes the core feed without blanking the current Play page first. */
     private suspend fun refreshHome(identity: String?) = coroutineScope {
         val recent = if (_signedIn.value) async { YtMusicRepository.homeRecentlyPlayed() } else null
+        val supplements = YtMusicRepository.HOME_SUPPLEMENT_BROWSE_IDS.map { browseId ->
+            async { YtMusicRepository.homeSupplement(browseId).getOrNull().orEmpty() }
+        }
         YtMusicRepository.home().onSuccess { feed ->
             if (identity != listenerKey()) return@onSuccess
             homeContinuation = feed.continuation
@@ -1812,6 +1825,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
         recent?.await()?.onSuccess { shelf ->
             if (identity == listenerKey()) shelf?.let { publishHomeShelves(listOf(it), prepend = true) }
+        }
+        supplements.forEach { deferred ->
+            val extraShelves = deferred.await()
+            if (identity == listenerKey() && extraShelves.isNotEmpty()) {
+                publishHomeShelves(extraShelves)
+            }
         }
     }
 

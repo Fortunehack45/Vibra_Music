@@ -2799,48 +2799,7 @@ fun NowPlayingScreen(
                         }
                     }
 
-                    if (song.isVideo) {
-                        Spacer(Modifier.height(8.dp))
-                        val nerdStats by NerdStats.current.collectAsStateWithLifecycle()
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp),
-                        ) {
-                            val formatText = nerdStats?.describe(context)?.ifBlank { null }
-                                ?: "Opus · 48.0 kHz · 136 kbps · Stereo"
-                            Text(
-                                text = formatText,
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    shadow = Shadow(
-                                        color = Color.Black.copy(alpha = 0.55f),
-                                        offset = Offset(0f, 1f),
-                                        blurRadius = 4f,
-                                    ),
-                                ),
-                                color = Color.White.copy(alpha = 0.65f),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                textAlign = TextAlign.Center,
-                            )
-                            Spacer(Modifier.height(2.dp))
-                            Text(
-                                text = stringResource(R.string.automix_not_supported_video),
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    shadow = Shadow(
-                                        color = Color.Black.copy(alpha = 0.55f),
-                                        offset = Offset(0f, 1f),
-                                        blurRadius = 4f,
-                                    ),
-                                ),
-                                color = Color.White.copy(alpha = 0.5f),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                textAlign = TextAlign.Center,
-                            )
-                        }
-                    } else if (!collapsePastHalf) {
+                    if (!collapsePastHalf) {
                         SleeveNerdStats(
                             song = song,
                             modifier = Modifier

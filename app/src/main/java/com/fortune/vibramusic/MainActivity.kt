@@ -1319,7 +1319,7 @@ private fun VibraMusicApp(
     // A failed/identical match simply resumes this untouched video.
     LaunchedEffect(player.song?.videoId, preferMusicOnly) {
         val song = player.song ?: return@LaunchedEffect
-        if (preferMusicOnly && song.isVideo && song.videoId != keepVideoId) {
+        if (preferMusicOnly && song.isVideo && song.videoId != keepVideoId && !song.isVideoOrigin) {
             switchToMusicOnly(song, pauseWhileResolving = true)
         }
     }
@@ -2421,11 +2421,11 @@ private fun VibraMusicApp(
             lyricsUnavailable = lyricsChecked && lyrics.isNullOrEmpty(),
             lyricsOffsetOpen = showLyricsOffset,
             onDismissLyricsOffset = { showLyricsOffset = false },
-            onMinimize = { dismissNowPlaying?.invoke() ?: run { showNowPlaying = false } },
+            onMinimize = { dismissNowPlaying?.invoke() ?: run { playerSheetMotion.close() } },
             onListenTogether = {
                 // The player is a sheet over the page, so it has to come down
                 // for the page to be read at all.
-                dismissNowPlaying?.invoke() ?: run { showNowPlaying = false }
+                dismissNowPlaying?.invoke() ?: run { playerSheetMotion.close() }
                 showSettings = true
                 showListenTogether = true
             },
@@ -2811,14 +2811,22 @@ private fun VibraMusicApp(
                             onSpotifyCanvasAuth = { showSpotifyCanvasAuth = true },
                             onAppLanguage = { showAppLanguage = true },
                             onCheckForUpdates = {
-                                scope.launch {
-                                    android.widget.Toast.makeText(context, "Checking for updates...", android.widget.Toast.LENGTH_SHORT).show()
-                                    val update = AppUpdateChecker.check()
-                                    if (update != null) {
-                                        showUpdateDialog = true
-                                    } else {
-                                        android.widget.Toast.makeText(context, "Vibra Music is up to date", android.widget.Toast.LENGTH_SHORT).show()
+                                try {
+                                    val playStoreIntent = Intent(
+                                        Intent.ACTION_VIEW,
+                                        Uri.parse("market://details?id=${context.packageName}"),
+                                    ).apply {
+                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED or Intent.FLAG_ACTIVITY_CLEAR_TOP)
                                     }
+                                    context.startActivity(playStoreIntent)
+                                } catch (e: Exception) {
+                                    val webIntent = Intent(
+                                        Intent.ACTION_VIEW,
+                                        Uri.parse("https://play.google.com/store/apps/details?id=${context.packageName}"),
+                                    ).apply {
+                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    }
+                                    context.startActivity(webIntent)
                                 }
                             },
                             contentPadding = listPadding,
@@ -3075,51 +3083,31 @@ private fun VibraMusicApp(
                                     shelfTitle.contains("video", ignoreCase = true) ||
                                     shelfTitle.contains("music videos", ignoreCase = true)
 
-                                val isMoodOrPicks = shelfTitle.contains("Mood", ignoreCase = true) ||
-                                    shelfTitle.contains("Find your mood", ignoreCase = true) ||
-                                    shelfTitle.contains("Picks", ignoreCase = true) ||
-                                    shelfTitle.contains("Top picks", ignoreCase = true) ||
-                                    shelfTitle.contains("Mix", ignoreCase = true) ||
-                                    shelfTitle.contains("Mixed for you", ignoreCase = true)
-
-                                val isPlaylistOrAlbum = (item.browseId != null && (
-                                    item.browseId.startsWith("VL") ||
-                                    item.browseId.startsWith("RD") ||
-                                    item.browseId.startsWith("MPRE") ||
-                                    item.browseId.startsWith("FEmusic_") ||
-                                    isMoodOrPicks
-                                )) || (isMoodOrPicks && item.videoId != null)
-
                                 if (item.browseId != null && item.browseId.startsWith("FEmusic_moods_and_genres_category")) {
                                     val parts = item.browseId.split(":")
                                     val catBrowseId = parts[0]
                                     val catParams = parts.getOrNull(1)
                                     viewModel.openMoodGenre(com.fortune.vibramusic.data.model.MoodGenre(item.title, catBrowseId, catParams))
                                     selectedTab = TAB_EXPLORE
-                                } else if (isPlaylistOrAlbum) {
-                                    val targetBrowseId = item.browseId ?: "RDAMVM${item.videoId}"
-                                    viewModel.openDetail(
-                                        browseId = targetBrowseId,
-                                        title = item.title,
-                                        subtitle = item.subtitle,
-                                        thumbnailUrl = item.thumbnailUrl,
-                                        type = if (targetBrowseId.startsWith("MPRE")) BrowseType.ALBUM else BrowseType.PLAYLIST,
-                                    )
-                                } else {
+                                } else if (item.videoId != null) {
                                     val baseSong = shelfSong(item)
-                                    val song = baseSong?.copy(isVideo = isVideoSection)
-                                    when {
-                                        song != null -> playRadio(
+                                    val song = baseSong?.copy(isVideo = isVideoSection, isVideoOrigin = isVideoSection)
+                                    if (song != null) {
+                                        if (isVideoSection) keepVideoId = song.videoId
+                                        playRadio(
                                             song,
                                             QueueSource(shelfTitle, PlaybackSourceType.HOME),
                                         )
-                                        item.browseId != null -> viewModel.openDetail(
-                                            browseId = item.browseId,
-                                            title = item.title,
-                                            subtitle = item.subtitle,
-                                            thumbnailUrl = item.thumbnailUrl,
-                                        )
                                     }
+                                } else if (item.browseId != null && !item.browseId.startsWith("RDAMVM")) {
+                                    val isAlbum = item.browseId.startsWith("MPRE")
+                                    viewModel.openDetail(
+                                        browseId = item.browseId,
+                                        title = item.title,
+                                        subtitle = item.subtitle,
+                                        thumbnailUrl = item.thumbnailUrl,
+                                        type = if (isAlbum) BrowseType.ALBUM else BrowseType.PLAYLIST,
+                                    )
                                 }
                             },
                             onItemLongPress = onShelfLongPress,
@@ -3369,7 +3357,7 @@ private fun VibraMusicApp(
                     (detail.type == BrowseType.ALBUM ||
                         detail.type == BrowseType.PLAYLIST ||
                         detail.type == BrowseType.ARTIST) &&
-                    !isLocalDetail) || podcastShow != null) &&
+                    !isLocalDetail) || podcastShowState != null) &&
                     !showSpotifyLibrary && !showDiscord && !showHistory && !showSettings &&
                     !showAccountScrobbling && !showSources && !showListenTogether && !showEqualizer && !showReplay
                 val isReplayVisible = showReplay && !showSpotifyLibrary && !showDiscord && !showHistory &&
@@ -3786,7 +3774,7 @@ private fun VibraMusicApp(
                             },
                             onNext = { controller?.seekToNextMediaItem() },
                             onPrevious = { controller?.seekToPrevious() },
-                            onExpand = { showNowPlaying = true },
+                            onExpand = { playerSheetMotion.open() },
                             controlsLocked = controlsLocked,
                             onBlockedControl = showHostOnlyNotice,
                             dock = playerDock,

@@ -631,9 +631,21 @@ fun DetailScreen(
                                     else com.fortune.vibramusic.playback.smart.AcousticCatalogService.get(it, store)
                                 }
 
-                                val trueBpm = meta?.bpm?.value ?: acoustic?.bpm ?: analysis?.bpm
-                                val trueKey = meta?.key?.value?.code ?: acoustic?.camelotKey ?: com.fortune.vibramusic.playback.smart.CamelotKey.parse(analysis?.key)?.code ?: analysis?.key?.takeIf { it.isNotBlank() }
-                                val nextTrueKey = nextMeta?.key?.value?.code ?: nextAcoustic?.camelotKey ?: com.fortune.vibramusic.playback.smart.CamelotKey.parse(nextAnalysis?.key)?.code ?: nextAnalysis?.key?.takeIf { it.isNotBlank() }
+                                val trueBpm = if (mixEnabled) {
+                                    meta?.bpm?.value ?: acoustic?.bpm ?: analysis?.bpm
+                                } else {
+                                    null
+                                }
+                                val trueKey = if (mixEnabled) {
+                                    meta?.key?.value?.code ?: acoustic?.camelotKey ?: com.fortune.vibramusic.playback.smart.CamelotKey.parse(analysis?.key)?.code ?: analysis?.key?.takeIf { it.isNotBlank() }
+                                } else {
+                                    null
+                                }
+                                val nextTrueKey = if (mixEnabled) {
+                                    nextMeta?.key?.value?.code ?: nextAcoustic?.camelotKey ?: com.fortune.vibramusic.playback.smart.CamelotKey.parse(nextAnalysis?.key)?.code ?: nextAnalysis?.key?.takeIf { it.isNotBlank() }
+                                } else {
+                                    null
+                                }
 
                                 if (mixEnabled && (trueBpm == null || trueKey == null)) {
                                     LaunchedEffect(song.videoId) {

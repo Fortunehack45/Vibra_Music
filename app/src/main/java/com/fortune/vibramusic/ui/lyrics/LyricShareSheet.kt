@@ -1,5 +1,7 @@
 package com.fortune.vibramusic.ui.lyrics
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
@@ -37,18 +39,15 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.IosShare
-import kotlinx.coroutines.delay
-import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -70,7 +69,6 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -80,6 +78,7 @@ import com.fortune.vibramusic.data.model.Song
 import com.fortune.vibramusic.ui.components.ArtworkBackdrop
 import com.fortune.vibramusic.ui.theme.rememberArtworkPalette
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -100,37 +99,22 @@ fun LyricShareSheet(
     val artworkPalette = rememberArtworkPalette(song.thumbnailUrl)
     var cardStyle by remember { mutableStateOf(LyricCardStyle.LYRICS_CARD) }
     var palette by remember { mutableStateOf(LyricCardPalette.ARTWORK) }
-    var font by remember { mutableStateOf(LyricCardFont.SF_PRO) }
-    var alignment by remember { mutableStateOf(LyricCardAlignment.LEFT) }
     var ratio by remember { mutableStateOf(LyricCardRatio.SQUARE_1_1) }
-    var showArtwork by remember { mutableStateOf(true) }
-    var useCoverBackground by remember { mutableStateOf(false) }
 
     var poster by remember { mutableStateOf<Bitmap?>(null) }
     var isRendering by remember { mutableStateOf(true) }
     var isSaved by remember { mutableStateOf(false) }
+    var isCopied by remember { mutableStateOf(false) }
 
-    val config = remember(
-        song,
-        selectedLines,
-        cardStyle,
-        palette,
-        font,
-        alignment,
-        ratio,
-        showArtwork,
-        useCoverBackground,
-    ) {
+    val config = remember(song, selectedLines, cardStyle, palette, ratio) {
         LyricShareConfig(
             song = song,
             selectedLines = selectedLines,
             cardStyle = cardStyle,
             palette = palette,
-            font = font,
-            alignment = alignment,
             ratio = ratio,
-            showArtwork = showArtwork,
-            useCoverBackground = useCoverBackground,
+            showArtwork = true,
+            useCoverBackground = false,
         )
     }
 
@@ -161,7 +145,7 @@ fun LyricShareSheet(
                 palette = artworkPalette,
                 imageUrl = song.thumbnailUrl,
                 modifier = Modifier.matchParentSize(),
-                washFraction = 0.85f,
+                washFraction = 0.88f,
             )
             Box(
                 modifier = Modifier
@@ -169,8 +153,8 @@ fun LyricShareSheet(
                     .background(
                         Brush.verticalGradient(
                             listOf(
-                                Color.Black.copy(alpha = 0.40f),
-                                Color.Black.copy(alpha = 0.85f),
+                                Color.Black.copy(alpha = 0.50f),
+                                Color.Black.copy(alpha = 0.88f),
                             ),
                         ),
                     )
@@ -203,7 +187,7 @@ fun LyricShareSheet(
                     )
                 }
 
-                // Header
+                // Minimalist Header
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -246,8 +230,8 @@ fun LyricShareSheet(
                     it.width.toFloat() / it.height.toFloat().coerceAtLeast(1f)
                 } ?: ratio.ratio
                 val previewWidthFraction = when (ratio) {
-                    LyricCardRatio.SQUARE_1_1 -> 0.78f
-                    LyricCardRatio.STORY_9_16 -> 0.52f
+                    LyricCardRatio.SQUARE_1_1 -> 0.76f
+                    LyricCardRatio.STORY_9_16 -> 0.50f
                 }
                 Box(
                     modifier = Modifier
@@ -257,10 +241,10 @@ fun LyricShareSheet(
                         .clip(RoundedCornerShape(20.dp))
                         .border(
                             1.dp,
-                            Color.White.copy(alpha = 0.25f),
+                            Color.White.copy(alpha = 0.22f),
                             RoundedCornerShape(20.dp),
                         )
-                        .background(Color.Black.copy(alpha = 0.35f)),
+                        .background(Color.Black.copy(alpha = 0.40f)),
                     contentAlignment = Alignment.Center,
                 ) {
                     val image = poster
@@ -283,154 +267,80 @@ fun LyricShareSheet(
 
                 Spacer(Modifier.height(18.dp))
 
-                // Style Switcher (Lyrics Card vs Song Card)
-                SegmentedStyleSelector(
-                    selectedStyle = cardStyle,
-                    onStyleSelected = { cardStyle = it },
-                )
-
-                Spacer(Modifier.height(16.dp))
-
-                // Ratio / Format Selector
-                Text(
-                    text = "Card Format",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color.White.copy(alpha = 0.75f),
-                    modifier = Modifier.padding(bottom = 8.dp),
-                )
-                RatioSelector(
-                    current = ratio,
-                    onSelect = { ratio = it },
-                )
-
-                if (cardStyle == LyricCardStyle.LYRICS_CARD) {
-                    Spacer(Modifier.height(16.dp))
-
-                    // Alignment Selector
-                    Text(
-                        text = "Text Alignment",
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color.White.copy(alpha = 0.75f),
-                        modifier = Modifier.padding(bottom = 8.dp),
-                    )
-                    AlignmentSelector(
-                        current = alignment,
-                        onSelect = { alignment = it },
-                    )
-
-                    Spacer(Modifier.height(14.dp))
-
-                    // Toggle Show Artwork
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(14.dp))
-                            .clickable { showArtwork = !showArtwork }
-                            .padding(vertical = 4.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = "Show cover artwork",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium,
-                            color = Color.White,
-                        )
-                        Switch(
-                            checked = showArtwork,
-                            onCheckedChange = { showArtwork = it },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = Color.Black,
-                                checkedTrackColor = Color.White,
-                                uncheckedThumbColor = Color.White.copy(alpha = 0.7f),
-                                uncheckedTrackColor = Color.White.copy(alpha = 0.2f),
-                            ),
+                // Format & Style Controls in a clean dual row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    // Ratio selector (Square vs Story)
+                    Box(modifier = Modifier.weight(1f)) {
+                        CompactPillToggle(
+                            options = listOf(LyricCardRatio.SQUARE_1_1 to "1:1", LyricCardRatio.STORY_9_16 to "9:16"),
+                            selected = ratio,
+                            onSelect = { ratio = it },
                         )
                     }
 
-                    // Toggle Darkened Cover Background
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(14.dp))
-                            .clickable { useCoverBackground = !useCoverBackground }
-                            .padding(vertical = 4.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = stringResource(R.string.cover_background),
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium,
-                            color = Color.White,
-                        )
-                        Switch(
-                            checked = useCoverBackground,
-                            onCheckedChange = { useCoverBackground = it },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = Color.Black,
-                                checkedTrackColor = Color.White,
-                                uncheckedThumbColor = Color.White.copy(alpha = 0.7f),
-                                uncheckedTrackColor = Color.White.copy(alpha = 0.2f),
-                            ),
+                    // Style selector (Lyrics vs Song)
+                    Box(modifier = Modifier.weight(1f)) {
+                        CompactPillToggle(
+                            options = listOf(LyricCardStyle.LYRICS_CARD to stringResource(R.string.lyrics_card), LyricCardStyle.SONG_CARD to stringResource(R.string.song_card)),
+                            selected = cardStyle,
+                            onSelect = { cardStyle = it },
                         )
                     }
                 }
 
-                Spacer(Modifier.height(18.dp))
+                Spacer(Modifier.height(14.dp))
 
-                // Color Palette Selector
+                // Theme Palette Swatches
                 Text(
-                    text = "Card Theme",
-                    style = MaterialTheme.typography.labelLarge,
+                    text = "Theme",
+                    style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color.White.copy(alpha = 0.75f),
-                    modifier = Modifier.padding(bottom = 8.dp),
+                    color = Color.White.copy(alpha = 0.70f),
+                    modifier = Modifier.padding(bottom = 6.dp),
                 )
-                PaletteSelector(
+                MinimalThemeSwatches(
                     current = palette,
-                    onSelect = {
-                        palette = it
-                        if (useCoverBackground && cardStyle == LyricCardStyle.LYRICS_CARD) {
-                            useCoverBackground = false
-                        }
-                    },
+                    onSelect = { palette = it },
                 )
 
-                Spacer(Modifier.height(18.dp))
+                Spacer(Modifier.height(20.dp))
 
-                // Font Selector
-                Text(
-                    text = "Typography",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color.White.copy(alpha = 0.75f),
-                    modifier = Modifier.padding(bottom = 8.dp),
-                )
-                FontSelector(
-                    current = font,
-                    onSelect = { font = it },
-                )
-
-                Spacer(Modifier.height(22.dp))
-
-                // Action Buttons: Save & Share
+                // Action Buttons: Save, Copy, Share
                 val ready = poster != null && !isRendering
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
+                    // Copy text
+                    MinimalActionButton(
+                        label = if (isCopied) "Copied" else "Copy text",
+                        icon = if (isCopied) Icons.Rounded.Check else Icons.Rounded.ContentCopy,
+                        accent = false,
+                        enabled = true,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        val text = selectedLines.joinToString("\n")
+                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                        clipboard?.setPrimaryClip(ClipData.newPlainText("Lyrics", text))
+                        isCopied = true
+                        scope.launch {
+                            delay(2000L)
+                            isCopied = false
+                        }
+                    }
+
                     // Save to Photos
-                    ActionButton(
+                    MinimalActionButton(
                         label = if (isSaved) stringResource(R.string.saved_short) else stringResource(R.string.save_image),
                         icon = if (isSaved) Icons.Rounded.Check else Icons.Rounded.Download,
                         accent = false,
                         enabled = ready,
                         modifier = Modifier.weight(1f),
                     ) {
-                        val bitmap = poster ?: return@ActionButton
+                        val bitmap = poster ?: return@MinimalActionButton
                         scope.launch {
                             val saved = savePosterToGallery(context, bitmap, song.title)
                             isSaved = saved
@@ -442,15 +352,15 @@ fun LyricShareSheet(
                         }
                     }
 
-                    // Share Poster (Solid white pill, bold black text)
-                    ActionButton(
+                    // Share Poster (Vibra Purple accent pill)
+                    MinimalActionButton(
                         label = stringResource(R.string.share),
                         icon = Icons.Rounded.IosShare,
                         accent = true,
                         enabled = ready,
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.weight(1.2f),
                     ) {
-                        val bitmap = poster ?: return@ActionButton
+                        val bitmap = poster ?: return@MinimalActionButton
                         scope.launch {
                             val uri = cachePosterForSharing(context, bitmap) ?: return@launch
                             val shareIntent = buildShareIntent(context, uri, song, selectedLines)
@@ -469,120 +379,45 @@ fun LyricShareSheet(
 }
 
 @Composable
-private fun RatioSelector(
-    current: LyricCardRatio,
-    onSelect: (LyricCardRatio) -> Unit,
+private fun <T> CompactPillToggle(
+    options: List<Pair<T, String>>,
+    selected: T,
+    onSelect: (T) -> Unit,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(12.dp))
             .background(Color.White.copy(alpha = 0.08f))
-            .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(14.dp))
-            .padding(4.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+            .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(12.dp))
+            .padding(3.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        LyricCardRatio.entries.forEach { item ->
-            val selected = current == item
-            val bg = if (selected) Color.White else Color.Transparent
-            val fg = if (selected) Color.Black else Color.White.copy(alpha = 0.75f)
-
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(bg)
-                    .clickable { onSelect(item) }
-                    .padding(vertical = 8.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = item.label,
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                    color = fg,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun AlignmentSelector(
-    current: LyricCardAlignment,
-    onSelect: (LyricCardAlignment) -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(Color.White.copy(alpha = 0.08f))
-            .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(14.dp))
-            .padding(4.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        LyricCardAlignment.entries.forEach { item ->
-            val selected = current == item
-            val bg = if (selected) Color.White else Color.Transparent
-            val fg = if (selected) Color.Black else Color.White.copy(alpha = 0.75f)
-
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(bg)
-                    .clickable { onSelect(item) }
-                    .padding(vertical = 8.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = item.label,
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                    color = fg,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun SegmentedStyleSelector(
-    selectedStyle: LyricCardStyle,
-    onStyleSelected: (LyricCardStyle) -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(Color.White.copy(alpha = 0.08f))
-            .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(14.dp))
-            .padding(4.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        LyricCardStyle.entries.forEach { style ->
-            val selected = selectedStyle == style
+        options.forEach { (value, label) ->
+            val isSelected = selected == value
             val bg by animateColorAsState(
-                targetValue = if (selected) Color.White else Color.Transparent,
+                targetValue = if (isSelected) Color(0xFF8B5CF6) else Color.Transparent,
                 animationSpec = tween(200),
-                label = "segBg",
+                label = "pillBg",
             )
-            val fg = if (selected) Color.Black else Color.White.copy(alpha = 0.75f)
+            val fg = if (isSelected) Color.White else Color.White.copy(alpha = 0.70f)
 
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .clip(RoundedCornerShape(10.dp))
+                    .clip(RoundedCornerShape(9.dp))
                     .background(bg)
-                    .clickable { onStyleSelected(style) }
-                    .padding(vertical = 10.dp),
+                    .clickable { onSelect(value) }
+                    .padding(vertical = 8.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = stringResource(style.labelRes),
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                    text = label,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                     color = fg,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }
@@ -590,18 +425,26 @@ private fun SegmentedStyleSelector(
 }
 
 @Composable
-private fun PaletteSelector(
+private fun MinimalThemeSwatches(
     current: LyricCardPalette,
     onSelect: (LyricCardPalette) -> Unit,
 ) {
+    val swatches = listOf(
+        LyricCardPalette.ARTWORK,
+        LyricCardPalette.OBSIDIAN,
+        LyricCardPalette.VIBRA_PURPLE,
+        LyricCardPalette.NEON,
+        LyricCardPalette.SUNSET,
+        LyricCardPalette.OCEAN,
+    )
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        LyricCardPalette.entries.forEach { palette ->
-            val selected = current == palette
+        swatches.forEach { palette ->
+            val isSelected = current == palette
             val gradient = Brush.linearGradient(
                 listOf(palette.primaryColor, palette.secondaryColor),
             )
@@ -610,36 +453,36 @@ private fun PaletteSelector(
                 modifier = Modifier
                     .clip(RoundedCornerShape(12.dp))
                     .clickable { onSelect(palette) }
-                    .padding(4.dp),
+                    .padding(2.dp),
             ) {
                 Box(
                     modifier = Modifier
-                        .size(44.dp)
+                        .size(38.dp)
                         .clip(CircleShape)
                         .background(gradient)
                         .border(
-                            width = if (selected) 2.5.dp else 1.dp,
-                            color = if (selected) Color.White else Color.White.copy(alpha = 0.25f),
+                            width = if (isSelected) 2.5.dp else 1.dp,
+                            color = if (isSelected) Color.White else Color.White.copy(alpha = 0.20f),
                             shape = CircleShape,
                         ),
                     contentAlignment = Alignment.Center,
                 ) {
-                    if (selected) {
+                    if (isSelected) {
                         Icon(
                             imageVector = Icons.Rounded.Check,
                             contentDescription = null,
                             tint = Color.White,
-                            modifier = Modifier.size(20.dp),
+                            modifier = Modifier.size(16.dp),
                         )
                     }
                 }
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(3.dp))
                 Text(
                     text = palette.label,
                     style = MaterialTheme.typography.labelSmall,
                     fontSize = 11.sp,
-                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                    color = if (selected) Color.White else Color.White.copy(alpha = 0.65f),
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                    color = if (isSelected) Color.White else Color.White.copy(alpha = 0.60f),
                 )
             }
         }
@@ -647,43 +490,7 @@ private fun PaletteSelector(
 }
 
 @Composable
-private fun FontSelector(
-    current: LyricCardFont,
-    onSelect: (LyricCardFont) -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        LyricCardFont.entries.forEach { font ->
-            val selected = current == font
-            val bg = if (selected) Color.White.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.08f)
-            val border = if (selected) Color.White.copy(alpha = 0.85f) else Color.White.copy(alpha = 0.15f)
-
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(bg)
-                    .border(1.dp, border, RoundedCornerShape(12.dp))
-                    .clickable { onSelect(font) }
-                    .padding(horizontal = 14.dp, vertical = 9.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = font.label,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                    color = if (selected) Color.White else Color.White.copy(alpha = 0.70f),
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ActionButton(
+private fun MinimalActionButton(
     label: String,
     icon: ImageVector,
     accent: Boolean,
@@ -692,20 +499,16 @@ private fun ActionButton(
     onClick: () -> Unit,
 ) {
     val background = if (accent) {
-        Color.White
+        Color(0xFF8B5CF6)
     } else {
-        Color.White.copy(alpha = 0.14f)
+        Color.White.copy(alpha = 0.12f)
     }
-    val foreground = if (accent) {
-        Color.Black
-    } else {
-        Color.White
-    }
+    val foreground = Color.White
     val borderModifier = if (!accent) {
         Modifier.border(
             width = 1.dp,
-            color = Color.White.copy(alpha = if (enabled) 0.24f else 0.10f),
-            shape = RoundedCornerShape(16.dp),
+            color = Color.White.copy(alpha = if (enabled) 0.20f else 0.08f),
+            shape = RoundedCornerShape(14.dp),
         )
     } else {
         Modifier
@@ -714,17 +517,17 @@ private fun ActionButton(
     val finalBackground = if (accent) {
         if (enabled) background else background.copy(alpha = 0.40f)
     } else {
-        if (enabled) background else Color.White.copy(alpha = 0.06f)
+        if (enabled) background else Color.White.copy(alpha = 0.05f)
     }
     val finalForeground = if (enabled) foreground else foreground.copy(alpha = 0.45f)
 
     Row(
         modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(14.dp))
             .background(finalBackground)
             .then(borderModifier)
             .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 15.dp),
+            .padding(horizontal = 12.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -732,12 +535,12 @@ private fun ActionButton(
             imageVector = icon,
             contentDescription = null,
             tint = finalForeground,
-            modifier = Modifier.size(20.dp),
+            modifier = Modifier.size(18.dp),
         )
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(6.dp))
         Text(
             text = label,
-            style = MaterialTheme.typography.titleMedium,
+            style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.Bold,
             color = finalForeground,
             maxLines = 1,
@@ -752,15 +555,15 @@ private fun buildShareIntent(
     song: Song,
     lines: List<String>,
 ): Intent {
-    val lyricSnippet = lines.take(3).joinToString("\n") { "“$it”" }
+    val lyricSnippet = lines.take(3).joinToString("\n") { "\"$it\"" }
     val caption = buildString {
         append(lyricSnippet)
         append("\n\n")
         append(song.title)
-        append(" — ")
+        append(" - ")
         append(song.artist)
         append("\n")
-        append("Shared via Vibra Music: https://fortuneadebayo.space/")
+        append("Shared via Vibra Music")
     }
 
     return Intent(Intent.ACTION_SEND).apply {

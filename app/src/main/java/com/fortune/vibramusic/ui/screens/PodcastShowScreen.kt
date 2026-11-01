@@ -29,6 +29,7 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.NotificationsNone
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material.icons.rounded.Sort
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -161,8 +162,8 @@ fun PodcastShowScreen(
                             // Album-style Cover Artwork (220dp x 220dp with 12dp rounded corners and shadow)
                             Box(
                                 modifier = Modifier
-                                    .size(220.dp)
-                                    .clip(RoundedCornerShape(12.dp))
+                                    .size(240.dp)
+                                    .clip(RoundedCornerShape(18.dp))
                                     .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
                             ) {
                                 if (!show.thumbnailUrl.isNullOrBlank()) {
@@ -247,8 +248,8 @@ fun PodcastShowScreen(
                                     contentAlignment = Alignment.Center,
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Rounded.PlayArrow,
-                                        contentDescription = "Shuffle",
+                                        imageVector = Icons.Rounded.Shuffle,
+                                        contentDescription = stringResource(R.string.shuffle),
                                         tint = MaterialTheme.colorScheme.onSurface,
                                         modifier = Modifier.size(22.dp),
                                     )

@@ -202,6 +202,7 @@ object InnertubeParser {
         return sections.mapNotNull { section ->
             section.o("musicCarouselShelfRenderer")?.let(::carouselShelf)
                 ?: section.o("musicShelfRenderer")?.let(::plainShelf)
+                ?: section.o("gridRenderer")?.let(::gridShelf)
         }
     }
 
@@ -337,6 +338,24 @@ object InnertubeParser {
             parseResponsiveListItem(it.o("musicResponsiveListItemRenderer"))
         }.map { ShelfItem(it.title, it.artist, it.thumbnailUrl, it.videoId, null, isVideo = it.isVideo) }
         return if (items.isEmpty()) null else HomeShelf(title.ifBlank { "For you" }, items)
+    }
+
+    private fun gridShelf(grid: JsonObject): HomeShelf? {
+        val title = grid.o("header").o("gridHeaderRenderer").o("title").runs()
+        val items = grid.a("items").orEmpty().mapNotNull { item ->
+            parseNavigationButton(item.o("musicNavigationButtonRenderer"))
+                ?: item.o("musicResponsiveListItemRenderer")?.let(::parseResponsiveListItem)?.let { song ->
+                    ShelfItem(song.title, song.artist, song.thumbnailUrl, song.videoId, null, isVideo = song.isVideo)
+                }
+        }
+        if (items.isEmpty()) return null
+        val isMoodShelf = title.contains("mood", ignoreCase = true) || items.any { it.browseId?.startsWith("FEmusic_moods") == true }
+        val finalTitle = if (isMoodShelf) "Find your mood" else title.ifBlank { "Find your mood" }
+        return HomeShelf(
+            title = finalTitle,
+            items = items,
+            subtitle = "",
+        )
     }
 
     /**

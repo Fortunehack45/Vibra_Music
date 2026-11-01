@@ -1420,7 +1420,7 @@ fun SettingsScreen(
                 )
             }
             val checkForUpdatesTitle = "Check for updates"
-            row(checkForUpdatesTitle, "update", "version", "github", "upgrade") {
+            row(checkForUpdatesTitle, "update", "version", "store", "upgrade") {
                 SettingsRow(
                     icon = Icons.Rounded.Upgrade,
                     title = checkForUpdatesTitle,

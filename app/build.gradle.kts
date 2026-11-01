@@ -78,19 +78,7 @@ val listenTogetherServer: String = if (
 }
 
 /*
- * Bump this by hand before cutting each sideloaded test build ("beta2",
- * "beta3", ...) and blank it out before cutting the real release. Marks the
- * versionName below as a pre-release: AppUpdateChecker.isNewer() treats any
- * "-suffix" as older than a clean release of the same number, so testers
- * still get the update prompt once the matching tag is actually published.
- *
- * Applied to release builds as well as debug ones, and that is the whole
- * point of it. A sideloaded beta is a *release* build — signed with the real
- * key, installed over the real package — so leaving the marker off it is
- * exactly the case that strands a tester: their build calls itself 1.6.1,
- * the published 1.6.1 then matches it, isNewer() says no, and no prompt ever
- * comes. Blanking this line is the one step that turns a beta into a release,
- * so it is the one place to get right.
+ * Version name and pre-release suffix configuration.
  */
 val betaSuffix = ""
 

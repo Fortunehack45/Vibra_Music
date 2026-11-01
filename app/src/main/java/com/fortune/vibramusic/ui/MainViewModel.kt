@@ -10,7 +10,6 @@ import com.fortune.vibramusic.auth.YouTubeProfile
 import com.fortune.vibramusic.auth.profileId
 import com.fortune.vibramusic.auth.sessionId
 import com.fortune.vibramusic.auth.adjacentProfile
-import com.fortune.vibramusic.data.AppUpdateChecker
 import com.fortune.vibramusic.data.LocalLikesStore
 import com.fortune.vibramusic.data.LocalMediaRepository
 import com.fortune.vibramusic.data.LocalPlaylistsStore
@@ -583,11 +582,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      */
     private val _detailStack = MutableStateFlow<List<DetailPage>>(emptyList())
     val detailStack: StateFlow<List<DetailPage>> = _detailStack.asStateFlow()
-
-
-    /** Set once per launch if GitHub has a release newer than this build. */
-    val updateAvailable: StateFlow<AppUpdateChecker.UpdateInfo?> = AppUpdateChecker.available
-
     // ---- Ratings, library and playlists -------------------------------------
 
     /**
@@ -1507,12 +1501,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 .drop(1)
                 .debounce(300)
                 .collect { reloadRemoteDetail(com.fortune.vibramusic.data.smb.SmbConfig.BROWSE_ID) }
-        }
-        viewModelScope.launch {
-            // A leftover APK only means "Install Now" for the session that
-            // downloaded it — see AppUpdateChecker.clearCache.
-            AppUpdateChecker.clearCache(getApplication())
-            AppUpdateChecker.check()
         }
     }
 

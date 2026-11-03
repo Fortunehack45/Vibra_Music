@@ -346,14 +346,14 @@
         </activity-alias>
 
         <!-- Backward compatibility aliases to prevent ActivityNotFoundException for existing launcher shortcuts.
-             Note: CATEGORY_LAUNCHER is deliberately omitted so the OS launcher displays only the one primary icon. -->
+             Disabled by default so OEM launchers (e.g. Infinix XOS) display only the one primary LauncherDefault icon. -->
         <activity-alias
             android:name=".LauncherGlassDark"
             android:targetActivity=".MainActivity"
             android:icon="@mipmap/ic_launcher"
             android:roundIcon="@mipmap/ic_launcher_round"
             android:label="@string/app_name"
-            android:enabled="true"
+            android:enabled="false"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -368,7 +368,7 @@
             android:icon="@mipmap/ic_launcher"
             android:roundIcon="@mipmap/ic_launcher_round"
             android:label="@string/app_name"
-            android:enabled="true"
+            android:enabled="false"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

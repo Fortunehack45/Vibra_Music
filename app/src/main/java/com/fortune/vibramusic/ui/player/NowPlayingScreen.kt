@@ -159,6 +159,7 @@ import coil3.compose.AsyncImage
 import coil3.compose.AsyncImagePainter
 import com.fortune.vibramusic.ui.theme.StatusBarIcons
 import com.fortune.vibramusic.ui.theme.rememberArtworkTopBandLuminance
+import com.fortune.vibramusic.ui.theme.rememberScreenOrientation
 import com.fortune.vibramusic.ui.theme.topBandScrimAlpha
 import com.fortune.vibramusic.ui.LyricsProviderState
 import com.fortune.vibramusic.ui.components.optimizedHazeEffect
@@ -526,6 +527,11 @@ private fun SlidingPlayerDeck(
     }
 }
 
+@Composable
+private fun WhileShown(shown: () -> Boolean, content: @Composable () -> Unit) {
+    if (shown()) content()
+}
+
 /**
  * Apple Music's Now Playing, closely: artwork that shrinks when paused, a
  * hairline scrubber with elapsed / remaining either side, oversized transport
@@ -684,7 +690,10 @@ fun NowPlayingScreen(
     val controlsLocked = rememberControlsLocked()
     var showListenTogetherMembers by remember { mutableStateOf(false) }
     var showVideoQuality by remember { mutableStateOf(false) }
-    var videoQuality by remember { mutableStateOf(VideoQualityUi()) }
+    var videoRendered by remember { mutableStateOf(false) }
+    LaunchedEffect(song.videoId) { videoRendered = false }
+    val screenOrientation = rememberScreenOrientation()
+    val videoAspectState = MusicVideoEngine.aspect.collectAsStateWithLifecycle()
     // Who's actually in the party is worth a look before the settings page —
     // see [ListenTogetherMembersSheet]. Only meaningful once there is a party
     // to show, so the pill and the caption fall back to [onListenTogether]
@@ -1537,10 +1546,6 @@ fun NowPlayingScreen(
         }
         if (showVideoQuality) {
             VideoQualitySheet(
-                quality = videoQuality,
-                onSelectQuality = { height ->
-                    videoQuality = videoQuality.copy(held = height)
-                },
                 onDismiss = { showVideoQuality = false },
             )
         }
@@ -1596,7 +1601,53 @@ fun NowPlayingScreen(
         }
     }
 
-    if (landscape) {
+    if (landscape && song.isVideo) {
+        val versionAligning by AppSettings.versionAlignmentInProgress.collectAsStateWithLifecycle()
+        val transitionWindow by AppSettings.smartTransitionWindow.collectAsStateWithLifecycle()
+        Box(modifier = modifier.fillMaxSize()) {
+            FullscreenVideoPlayer(
+                song = song,
+                isPlaying = isPlaying,
+                artRequest = art.request,
+                rendered = videoRendered,
+                onRenderedChanged = { videoRendered = it },
+                onExitFullscreen = screenOrientation::portrait,
+                onOpenQuality = { showVideoQuality = true },
+                scrubber = {
+                    PlayerScrubber(
+                        shown = shown,
+                        durationMs = durationMs,
+                        loading = versionAligning || audioVersionSwitching,
+                        transitionWindow = transitionWindow
+                            ?.takeIf { !scrub.scrubbing && it.end > it.start }
+                            ?.let { it.start..it.end },
+                        onScrub = onScrub,
+                        onScrubFinished = onScrubFinished,
+                    ) {
+                        PlaybackQualityLabel(
+                            song = song,
+                            isLoading = isLoading,
+                            modifier = Modifier
+                                .align(Alignment.Center)
+                                .padding(horizontal = 8.dp),
+                        )
+                    }
+                },
+                transport = {
+                    TransportRow(
+                        isPlaying = isPlaying,
+                        isLoading = isLoading || audioVersionSwitching,
+                        previousEnabled = !controlsLocked && (hasPrevious || pastRestartPoint),
+                        nextEnabled = !controlsLocked && hasNext,
+                        onPrevious = onPrevious,
+                        onPlayPause = onPlayPause,
+                        onNext = onNext,
+                        compact = true,
+                    )
+                },
+            )
+        }
+    } else if (landscape) {
         // Paused always wins outright over a scrub in progress — see
         // [ARTWORK_PAUSE_SHRINK_SCALE].
         val landscapeArtScale by animateFloatAsState(
@@ -2614,9 +2665,8 @@ fun NowPlayingScreen(
                         // time instead of composition.
                         .layout { measurable, constraints ->
                             val side = artSize().roundToPx()
-                            val isVid = song.isVideo
                             val width = side
-                            val height = if (isVid) (side * 9f / 16f).roundToInt() else side
+                            val height = side
 
                             val mini = if (dock != null && docking()) {
                                 val m = dock.miniArtOnScreen()
@@ -2655,8 +2705,9 @@ fun NowPlayingScreen(
                             layout(placeable.width, placeable.height) { placeable.placeRelative(0, 0) }
                         }
                         .drawWithContent {
-                            sleeveLayer.record { this@drawWithContent.drawContent() }
-                            if (!docking()) {
+                            if (docking()) {
+                                sleeveLayer.record { this@drawWithContent.drawContent() }
+                            } else {
                                 drawContent()
                             }
                         }
@@ -2672,7 +2723,7 @@ fun NowPlayingScreen(
                             // The paused shrink and the swipe nudge only make
                             // sense on the full sleeve.
                             val collapse = p()
-                            val idle = artScale + (1f - artScale) * collapse
+                            val idle = if (song.isVideo) 1f else artScale + (1f - artScale) * collapse
                             scaleX = idle
                             scaleY = idle
                             translationX = swipeSettle.value * (1f - collapse)
@@ -2714,11 +2765,13 @@ fun NowPlayingScreen(
                             // bleed artwork is off, including its Canvas.
                             .hazeSource(playerHaze)
                             .graphicsLayer {
-                                alpha = if (heroArtLoaded || canvasRendered) {
+                                val base = if (heroArtLoaded || canvasRendered) {
                                     1f - heroVisible()
                                 } else {
                                     1f
                                 }
+                                val videoSleeve = if (!song.isVideo || docking()) 1f else (p() * 2f - 1f).coerceIn(0f, 1f)
+                                alpha = base * videoSleeve
                             }
                             // A drop shadow grounds a photo; on the flat
                             // placeholder tile it has nothing to sit behind, so
@@ -2726,9 +2779,9 @@ fun NowPlayingScreen(
                             // the first. Only cast it once there's actually art.
                             .shadow(
                                 if (art.loaded) 10.dp else 0.dp,
-                                RoundedCornerShape(if (song.isVideo) 14.dp else 8.dp),
+                                RoundedCornerShape(10.dp),
                             )
-                            .clip(RoundedCornerShape(if (song.isVideo) 14.dp else 8.dp))
+                            .clip(RoundedCornerShape(10.dp))
                             .background(Color.Black.copy(alpha = 0.18f)),
                         contentAlignment = Alignment.Center,
                     ) {
@@ -2756,30 +2809,7 @@ fun NowPlayingScreen(
                                 .drawWithContent { if (art.loaded || !canvasRendered) drawContent() },
                         )
 
-                        if (song.isVideo) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .clip(RoundedCornerShape(14.dp)),
-                            ) {
-                                AndroidMusicVideo(
-                                    videoId = song.videoId,
-                                    fit = false,
-                                    onRenderedChanged = { },
-                                    modifier = Modifier.fillMaxSize(),
-                                    priority = 2,
-                                )
-                                VideoCornerControls(
-                                    quality = videoQuality,
-                                    fullscreen = false,
-                                    onToggleFullscreen = { },
-                                    onOpenQuality = { showVideoQuality = true },
-                                    modifier = Modifier
-                                        .align(Alignment.TopEnd)
-                                        .padding(8.dp),
-                                )
-                            }
-                        } else if (!heroMode) {
+                        if (!heroMode) {
                             canvas?.takeIf { !collapsePastHalf }?.let { clip ->
                                 CanvasArtworkPlayer(
                                     canvas = clip,
@@ -2810,6 +2840,59 @@ fun NowPlayingScreen(
                                     alpha = (1f - p() * 2f) * spotifyChromeAlpha
                                 },
                         )
+                    }
+                }
+
+                // The music video, across the player's whole width, at its own shape,
+                // centred where the sleeve's square sits. Put away for the
+                // collapse into the lyrics or the queue, and for the trip to the mini player,
+                // which takes the picture over.
+                if (song.isVideo) {
+                    val boxWidthPx = with(density) { maxWidth.roundToPx() }
+                    WhileShown({ !collapsePastHalf && !docking() }) {
+                        val aspect = videoAspectState.value.coerceIn(1f, 2.4f)
+                        Box(
+                            modifier = Modifier
+                                .offset {
+                                    val height = (boxWidthPx / aspect).roundToInt()
+                                    val centre = (artTop() + artSize() / 2).roundToPx()
+                                    IntOffset(0, centre - height / 2)
+                                }
+                                .layout { measurable, _ ->
+                                    val height = (boxWidthPx / aspect).roundToInt()
+                                    val placeable = measurable.measure(Constraints.fixed(boxWidthPx, height))
+                                    layout(boxWidthPx, height) { placeable.placeRelative(0, 0) }
+                                }
+                                .graphicsLayer {
+                                    alpha = (1f - p() * 2f).coerceIn(0f, 1f)
+                                    translationX = swipeSettle.value * (1f - p())
+                                },
+                        ) {
+                            if (!videoRendered) {
+                                VideoLoadingBackdrop(
+                                    Modifier
+                                        .fillMaxSize()
+                                        .clip(RoundedCornerShape(10.dp)),
+                                )
+                            }
+                            AndroidMusicVideo(
+                                videoId = song.videoId,
+                                fit = true,
+                                onRenderedChanged = { videoRendered = it },
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clip(RoundedCornerShape(10.dp)),
+                                priority = 1,
+                            )
+                            VideoCornerControls(
+                                fullscreen = false,
+                                onToggleFullscreen = screenOrientation::landscape,
+                                onOpenQuality = { showVideoQuality = true },
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(8.dp),
+                            )
+                        }
                     }
                 }
 

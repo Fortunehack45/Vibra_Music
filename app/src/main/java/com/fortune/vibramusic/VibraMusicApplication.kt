@@ -1,8 +1,10 @@
 package com.fortune.vibramusic
 
 import android.app.Application
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Process
 import android.util.Log
@@ -109,6 +111,22 @@ class VibraMusicApplication : Application(), SingletonImageLoader.Factory {
         runCatching {
             authStore = AuthStore(this)
         }.onFailure { Log.e("VibraMusic", "Failed to initialize AuthStore", it) }
+
+        // Enforce single launcher icon state: disable secondary aliases if enabled by prior versions
+        runCatching {
+            val pm = packageManager
+            val pkg = packageName
+            listOf(".LauncherGlassDark", ".LauncherGlassLight").forEach { alias ->
+                val component = ComponentName(pkg, "$pkg$alias")
+                if (pm.getComponentEnabledSetting(component) != PackageManager.COMPONENT_ENABLED_STATE_DISABLED) {
+                    pm.setComponentEnabledSetting(
+                        component,
+                        PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                        PackageManager.DONT_KILL_APP
+                    )
+                }
+            }
+        }.onFailure { Log.w("VibraMusic", "Failed to sanitize launcher aliases", it) }
 
         val backgroundInit = thread(name = "startup-init") {
             runCatching { SourceRegistry.init(this) }.onFailure { Log.w("VibraMusic", "Failed to init SourceRegistry", it) }

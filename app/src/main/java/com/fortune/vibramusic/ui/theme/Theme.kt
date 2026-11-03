@@ -7,10 +7,13 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
@@ -148,6 +151,24 @@ fun StatusBarIcons(dark: Boolean) {
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.statusBarColor = android.graphics.Color.TRANSPARENT
         WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = dark
+    }
+}
+
+@Composable
+fun HideSystemBars(hidden: Boolean) {
+    val view = LocalView.current
+    if (view.isInEditMode) return
+    val window = findWindow(view) ?: return
+    DisposableEffect(window, hidden) {
+        if (!hidden) return@DisposableEffect onDispose {}
+        val controller = WindowCompat.getInsetsController(window, view)
+        val behavior = controller.systemBarsBehavior
+        controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        controller.hide(WindowInsetsCompat.Type.systemBars())
+        onDispose {
+            controller.show(WindowInsetsCompat.Type.systemBars())
+            controller.systemBarsBehavior = behavior
+        }
     }
 }
 

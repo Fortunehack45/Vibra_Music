@@ -7,6 +7,7 @@ import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -20,6 +21,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -52,6 +54,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.input.pointer.util.addPointerInputChange
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.text.style.TextOverflow
@@ -68,6 +71,7 @@ import com.fortune.vibramusic.data.settings.AppSettings
 import com.fortune.vibramusic.ui.components.thumbnailBorder
 import com.fortune.vibramusic.ui.haptics.Haptic
 import com.fortune.vibramusic.ui.haptics.rememberHaptics
+import com.fortune.vibramusic.ui.player.AndroidMusicVideo
 import com.fortune.vibramusic.ui.player.PlayerDock
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
@@ -379,16 +383,37 @@ fun MiniPlayer(
                 ),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            AsyncImage(
-                model = rememberRemoteArtworkUrl(song)?.artworkAt(ROW_ART_PX),
-                contentDescription = null,
+            val isVideo = song.isVideo
+            val artWidth by animateDpAsState(
+                targetValue = if (isVideo) 71.dp else 40.dp,
+                animationSpec = tween(durationMillis = 250),
+                label = "miniPlayerArtWidth",
+            )
+            Box(
                 modifier = Modifier
-                    .size(40.dp)
+                    .size(width = artWidth, height = 40.dp)
                     .playerDockArt(dock, ART_CORNER)
                     .clip(RoundedCornerShape(ART_CORNER))
                     .thumbnailBorder(RoundedCornerShape(ART_CORNER))
                     .background(MaterialTheme.colorScheme.surfaceVariant),
-            )
+                contentAlignment = Alignment.Center,
+            ) {
+                AsyncImage(
+                    model = rememberRemoteArtworkUrl(song)?.artworkAt(ROW_ART_PX),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                if (isVideo) {
+                    AndroidMusicVideo(
+                        videoId = song.videoId,
+                        fit = false,
+                        onRenderedChanged = {},
+                        modifier = Modifier.fillMaxSize(),
+                        priority = 0,
+                    )
+                }
+            }
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
                 ExplicitSongTitle(

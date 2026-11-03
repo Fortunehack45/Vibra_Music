@@ -70,13 +70,22 @@ class StartupAndManifestIntegrityTest {
     }
 
     @Test
-    fun legacyAliasesAreEnabledAndTargetMainActivityWithoutLauncherCategory() {
+    fun legacyAliasesAreDisabledByDefaultAndTargetMainActivityWithoutLauncherCategory() {
         val manifestFile = resolveManifestFile()
         val content = manifestFile.readText()
 
         // Ensure legacy aliases exist to avoid ActivityNotFoundException on existing shortcuts
         assertTrue(content.contains("android:name=\".LauncherGlassDark\""))
         assertTrue(content.contains("android:name=\".LauncherGlassLight\""))
+
+        // Ensure legacy aliases are disabled by default in manifest to prevent OEM launchers (Infinix XOS) showing 3 icons
+        val darkIndex = content.indexOf("android:name=\".LauncherGlassDark\"")
+        val darkBlock = content.substring(darkIndex, darkIndex + 300)
+        assertTrue("LauncherGlassDark must be disabled by default", darkBlock.contains("android:enabled=\"false\""))
+
+        val lightIndex = content.indexOf("android:name=\".LauncherGlassLight\"")
+        val lightBlock = content.substring(lightIndex, lightIndex + 300)
+        assertTrue("LauncherGlassLight must be disabled by default", lightBlock.contains("android:enabled=\"false\""))
 
         // Ensure CrashActivity is declared in isolated :crash process
         assertTrue(content.contains("android:name=\".ui.CrashActivity\""))

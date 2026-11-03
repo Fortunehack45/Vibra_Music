@@ -280,8 +280,16 @@ object AudioCache {
         analysisHeadWant.clear()
         renditionKeys.clear()
         scope.launch {
-            cache.keys.toList().forEach { cache.removeResource(it) }
-            withContext(Dispatchers.Main) { onComplete() }
+            if (::cache.isInitialized) {
+                runCatching {
+                    cache.keys.toList().forEach { cache.removeResource(it) }
+                }
+            }
+            runCatching {
+                withContext(Dispatchers.Main) { onComplete() }
+            }.onFailure {
+                runCatching { onComplete() }
+            }
         }
     }
 

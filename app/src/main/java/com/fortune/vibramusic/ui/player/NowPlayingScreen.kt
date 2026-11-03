@@ -716,7 +716,8 @@ fun NowPlayingScreen(
     // CanvasRepository, which is also where the "is this actually the right
     // track" check lives.
     val spotifyCanvasAutoHide by AppSettings.spotifyCanvasAutoHide.collectAsStateWithLifecycle()
-    val canvas = if (isPodcast) null else rememberCanvasArtwork(song)
+    val videoMode = song.isVideo
+    val canvas = if (isPodcast || videoMode) null else rememberCanvasArtwork(song)
     var canvasAspect by remember(canvas) { mutableFloatStateOf(0f) }
     // Whether the clip actually has a frame on screen right now, and one of
     // them — used to blow the sleeve out to the full-bleed hero treatment and
@@ -1134,8 +1135,10 @@ fun NowPlayingScreen(
     // Spotify Canvas is the player background on a phone, independent of the
     // still-art full-bleed preference. Other providers and static artwork keep
     // answering to that preference exactly as before.
-    val heroMode = spotifyCanvasOnPhone ||
+    val heroMode = !videoMode && (
+        spotifyCanvasOnPhone ||
         (fullBleedArt && playerFillsWindow(windowWidth))
+    )
 
     // Whether there's a still image to blow out — a placeholder tile is a card
     // or it is nothing, and going full-bleed with one would just tint the top
@@ -1546,6 +1549,7 @@ fun NowPlayingScreen(
         }
         if (showVideoQuality) {
             VideoQualitySheet(
+                hazeState = playerHaze,
                 onDismiss = { showVideoQuality = false },
             )
         }
@@ -1601,7 +1605,7 @@ fun NowPlayingScreen(
         }
     }
 
-    if (landscape && song.isVideo) {
+    if (landscape && videoMode) {
         val versionAligning by AppSettings.versionAlignmentInProgress.collectAsStateWithLifecycle()
         val transitionWindow by AppSettings.smartTransitionWindow.collectAsStateWithLifecycle()
         Box(modifier = modifier.fillMaxSize()) {
@@ -1646,6 +1650,7 @@ fun NowPlayingScreen(
                     )
                 },
             )
+            playerOverlays()
         }
     } else if (landscape) {
         // Paused always wins outright over a scrub in progress — see
@@ -2770,7 +2775,7 @@ fun NowPlayingScreen(
                                 } else {
                                     1f
                                 }
-                                val videoSleeve = if (!song.isVideo || docking()) 1f else (p() * 2f - 1f).coerceIn(0f, 1f)
+                                val videoSleeve = if (!videoMode || docking()) 1f else (p() * 2f - 1f).coerceIn(0f, 1f)
                                 alpha = base * videoSleeve
                             }
                             // A drop shadow grounds a photo; on the flat
@@ -2778,11 +2783,13 @@ fun NowPlayingScreen(
                             // it just reads as a second, darker square ringing
                             // the first. Only cast it once there's actually art.
                             .shadow(
-                                if (art.loaded) 10.dp else 0.dp,
+                                if (art.loaded && (!videoMode || docking())) 10.dp else 0.dp,
                                 RoundedCornerShape(10.dp),
                             )
                             .clip(RoundedCornerShape(10.dp))
-                            .background(Color.Black.copy(alpha = 0.18f)),
+                            .background(
+                                if (videoMode && !docking()) Color.Transparent else Color.Black.copy(alpha = 0.18f),
+                            ),
                         contentAlignment = Alignment.Center,
                     ) {
                         if (!art.loaded && !canvasRendered) {

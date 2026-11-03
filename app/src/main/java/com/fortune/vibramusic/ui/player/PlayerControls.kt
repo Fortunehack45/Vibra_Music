@@ -337,7 +337,7 @@ internal fun SleeveNerdStats(song: Song, modifier: Modifier = Modifier) {
                     // not, so naming the video limitation there would describe
                     // a rule that is not the one in force.
                     inParty -> stringResource(R.string.automix_stopped_in_party)
-                    song.isVideoOrigin ->
+                    song.isVideo || song.isVideoOrigin ->
                         stringResource(R.string.automix_not_supported_video)
                     else -> stringResource(
                         R.string.automix_analysis_status,

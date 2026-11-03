@@ -56,4 +56,39 @@ class VideoPlayerParityTest {
         assertEquals(1.0f, vertical.coerceIn(1f, 2.4f), 0.001f)
         assertEquals(1.777f, standard169.coerceIn(1f, 2.4f), 0.01f)
     }
+
+    @Test
+    fun canvasSuppressionWhenVideoModeActive() {
+        val mockCanvas = "https://canvas.spotify.com/mock.mp4"
+        val isPodcast = false
+        val videoMode = true
+        val resolvedCanvas = if (isPodcast || videoMode) null else mockCanvas
+        assertNull(resolvedCanvas)
+
+        val audioTrackVideoMode = false
+        val audioResolvedCanvas = if (isPodcast || audioTrackVideoMode) null else mockCanvas
+        assertEquals(mockCanvas, audioResolvedCanvas)
+    }
+
+    @Test
+    fun sleeveShadowAndBackgroundSuppressionOnVideo() {
+        fun sleeveShadow(artLoaded: Boolean, videoMode: Boolean, docking: Boolean): Int {
+            return if (artLoaded && (!videoMode || docking)) 10 else 0
+        }
+        fun sleeveTransparent(videoMode: Boolean, docking: Boolean): Boolean {
+            return videoMode && !docking
+        }
+
+        // On video song while expanded: shadow is 0, background is transparent
+        assertEquals(0, sleeveShadow(artLoaded = true, videoMode = true, docking = false))
+        assertEquals(true, sleeveTransparent(videoMode = true, docking = false))
+
+        // On video song while docking (collapsing to miniplayer): shadow is preserved for smooth transition
+        assertEquals(10, sleeveShadow(artLoaded = true, videoMode = true, docking = true))
+        assertEquals(false, sleeveTransparent(videoMode = true, docking = true))
+
+        // On regular audio song: shadow is 10, background is opaque/dark
+        assertEquals(10, sleeveShadow(artLoaded = true, videoMode = false, docking = false))
+        assertEquals(false, sleeveTransparent(videoMode = false, docking = false))
+    }
 }

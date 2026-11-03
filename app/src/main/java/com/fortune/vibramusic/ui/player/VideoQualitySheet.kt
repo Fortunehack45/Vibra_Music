@@ -29,14 +29,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Fullscreen
 import androidx.compose.material.icons.rounded.FullscreenExit
-import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -63,6 +59,7 @@ import com.fortune.vibramusic.data.model.Song
 import com.fortune.vibramusic.ui.haptics.Haptic
 import com.fortune.vibramusic.ui.haptics.rememberHaptics
 import com.fortune.vibramusic.ui.theme.HideSystemBars
+import dev.chrisbanes.haze.HazeState
 import kotlinx.coroutines.delay
 
 /** How long the controls stay over a playing video untouched. */
@@ -134,7 +131,7 @@ fun VideoCornerControls(
                 .height(30.dp)
                 .widthIn(min = 44.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(Color.Black.copy(alpha = 0.52f))
+                .background(Color.Black.copy(alpha = 0.38f))
                 .clickable(onClick = onOpenQuality)
                 .padding(horizontal = 8.dp),
             contentAlignment = Alignment.Center,
@@ -159,7 +156,7 @@ fun VideoCornerControls(
             modifier = Modifier
                 .size(30.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(Color.Black.copy(alpha = 0.52f))
+                .background(Color.Black.copy(alpha = 0.38f))
                 .clickable(onClick = onToggleFullscreen),
             contentAlignment = Alignment.Center,
         ) {
@@ -192,7 +189,7 @@ fun VideoCornerControls(
                 .height(30.dp)
                 .widthIn(min = 44.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(Color.Black.copy(alpha = 0.52f))
+                .background(Color.Black.copy(alpha = 0.38f))
                 .clickable(onClick = onOpenQuality)
                 .padding(horizontal = 8.dp),
             contentAlignment = Alignment.Center,
@@ -217,7 +214,7 @@ fun VideoCornerControls(
             modifier = Modifier
                 .size(30.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(Color.Black.copy(alpha = 0.52f))
+                .background(Color.Black.copy(alpha = 0.38f))
                 .clickable(onClick = onToggleFullscreen),
             contentAlignment = Alignment.Center,
         ) {
@@ -361,133 +358,83 @@ fun FullscreenVideoPlayer(
 }
 
 /**
- * Liquid Glass Video Quality Bottom Sheet matching BitChord design.
+ * Liquid Glass Video Quality Bottom Sheet matching BitChord design (Image 5).
+ * Implemented using [PlayerDrawer] with frosted backdrop and [ROW_SHAPE] capsules.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun VideoQualitySheet(
+    hazeState: HazeState,
+    onDismiss: () -> Unit,
+) {
+    val quality by MusicVideoEngine.quality.collectAsStateWithLifecycle()
+    val selected = quality.selected()
+
+    PlayerDrawer(
+        hazeState = hazeState,
+        title = stringResource(R.string.video_quality),
+        onDismiss = onDismiss,
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            // Auto Option
+            QualityRow(
+                name = stringResource(R.string.video_quality_auto),
+                detail = if (quality.held == null) selected?.let(::videoQualityLabel) else null,
+                active = quality.held == null,
+            ) {
+                MusicVideoEngine.setQuality(null)
+                onDismiss()
+            }
+
+            // Heights available
+            quality.heights.forEach { height ->
+                QualityRow(
+                    name = videoQualityLabel(height),
+                    detail = "${height}p",
+                    active = quality.held != null && selected == height,
+                ) {
+                    MusicVideoEngine.setQuality(height)
+                    onDismiss()
+                }
+            }
+        }
+    }
+}
+
 @Composable
 fun VideoQualitySheet(
     onDismiss: () -> Unit,
 ) {
     val quality by MusicVideoEngine.quality.collectAsStateWithLifecycle()
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val selected = quality.selected()
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        dragHandle = { BottomSheetDefaults.DragHandle() },
-        containerColor = MaterialTheme.colorScheme.surface,
-        contentColor = MaterialTheme.colorScheme.onSurface,
-        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+    PlayerDrawer(
+        hazeState = HazeState(),
+        title = stringResource(R.string.video_quality),
+        onDismiss = onDismiss,
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 32.dp),
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Text(
-                text = stringResource(R.string.video_quality),
-                style = MaterialTheme.typography.titleLarge.copy(
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 20.sp,
-                ),
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(bottom = 16.dp),
-            )
-
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+            QualityRow(
+                name = stringResource(R.string.video_quality_auto),
+                detail = if (quality.held == null) selected?.let(::videoQualityLabel) else null,
+                active = quality.held == null,
             ) {
-                // Auto Option
-                QualityRowItem(
-                    name = stringResource(R.string.video_quality_auto),
-                    detail = if (quality.held == null) selected?.let(::videoQualityLabel) else null,
-                    active = quality.held == null,
-                    onSelect = {
-                        MusicVideoEngine.setQuality(null)
-                        onDismiss()
-                    },
-                )
-
-                // Heights available
-                quality.heights.forEach { height ->
-                    QualityRowItem(
-                        name = videoQualityLabel(height),
-                        detail = "${height}p",
-                        active = quality.held != null && selected == height,
-                        onSelect = {
-                            MusicVideoEngine.setQuality(height)
-                            onDismiss()
-                        },
-                    )
-                }
+                MusicVideoEngine.setQuality(null)
+                onDismiss()
             }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun VideoQualitySheet(
-    quality: VideoQualityUi,
-    onSelectQuality: (Int?) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val selected = quality.selected()
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        dragHandle = { BottomSheetDefaults.DragHandle() },
-        containerColor = MaterialTheme.colorScheme.surface,
-        contentColor = MaterialTheme.colorScheme.onSurface,
-        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 32.dp),
-        ) {
-            Text(
-                text = stringResource(R.string.video_quality),
-                style = MaterialTheme.typography.titleLarge.copy(
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 20.sp,
-                ),
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(bottom = 16.dp),
-            )
-
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                // Auto Option
-                QualityRowItem(
-                    name = stringResource(R.string.video_quality_auto),
-                    detail = if (quality.held == null) selected?.let(::videoQualityLabel) else null,
-                    active = quality.held == null,
-                    onSelect = {
-                        onSelectQuality(null)
-                        onDismiss()
-                    },
-                )
-
-                // Heights available
-                quality.heights.forEach { height ->
-                    QualityRowItem(
-                        name = videoQualityLabel(height),
-                        detail = "${height}p",
-                        active = quality.held != null && selected == height,
-                        onSelect = {
-                            onSelectQuality(height)
-                            onDismiss()
-                        },
-                    )
+            quality.heights.forEach { height ->
+                QualityRow(
+                    name = videoQualityLabel(height),
+                    detail = "${height}p",
+                    active = quality.held != null && selected == height,
+                ) {
+                    MusicVideoEngine.setQuality(height)
+                    onDismiss()
                 }
             }
         }
@@ -495,24 +442,18 @@ fun VideoQualitySheet(
 }
 
 @Composable
-private fun QualityRowItem(
+private fun QualityRow(
     name: String,
     detail: String?,
     active: Boolean,
     onSelect: () -> Unit,
 ) {
     val haptics = rememberHaptics()
-    val bg = if (active) {
-        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
-    } else {
-        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
-    }
-
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(bg)
+            .clip(ROW_SHAPE)
+            .background(Color.White.copy(alpha = if (active) 0.10f else 0.05f))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -521,7 +462,7 @@ private fun QualityRowItem(
                 haptics.play(Haptic.Select)
                 onSelect()
             }
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+            .padding(horizontal = 16.dp, vertical = 15.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
@@ -529,7 +470,7 @@ private fun QualityRowItem(
             style = MaterialTheme.typography.bodyLarge.copy(
                 fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
             ),
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (active) 1f else 0.85f),
+            color = Color.White.copy(alpha = if (active) 1f else 0.85f),
             maxLines = 1,
             modifier = Modifier.weight(1f),
         )
@@ -538,8 +479,8 @@ private fun QualityRowItem(
             Text(
                 text = detail,
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
-                modifier = Modifier.padding(horizontal = 8.dp),
+                color = Color.White.copy(alpha = 0.55f),
+                modifier = Modifier.padding(horizontal = 10.dp),
             )
         }
 
@@ -551,7 +492,7 @@ private fun QualityRowItem(
                 Icon(
                     imageVector = Icons.Rounded.Check,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
+                    tint = Color.White,
                     modifier = Modifier.size(20.dp),
                 )
             }

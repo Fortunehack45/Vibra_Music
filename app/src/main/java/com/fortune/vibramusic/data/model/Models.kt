@@ -19,6 +19,7 @@ data class Song(
     val durationText: String? = null,
     /** Browse ids lifted from the row, used by the long-press actions. */
     val artistId: String? = null,
+    val artists: List<ArtistRef> = emptyList(),
     val albumId: String? = null,
     /** Names the album page header, which [albumId] alone can't. */
     val albumName: String? = null,
@@ -569,6 +570,10 @@ data class ArtistPage(
     val monthlyListenerCount: String? = null,
     /** The header's subscribe button, when the page carries one. */
     val subscription: SubscriptionState? = null,
+    /** The header's Mix button: the artist's radio, them and the artists around them. */
+    val radio: WatchTarget? = null,
+    /** The header's Shuffle button: the artist's own catalogue, shuffled. */
+    val shuffle: WatchTarget? = null,
 )
 
 /**

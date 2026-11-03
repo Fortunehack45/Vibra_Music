@@ -34,6 +34,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import java.io.File
@@ -56,6 +59,25 @@ object InnerTubeXResolver {
         val profileId: String,
         val headers: Map<String, String>,
     )
+
+    /** A music video's picture: a video-only stream, and the identity its fetch has to wear. */
+    class VideoStream(
+        val videoId: String,
+        val url: String,
+        val width: Int,
+        val height: Int,
+        val mimeType: String,
+        val headers: Map<String, String>,
+        /** Every height this video is offered at, largest first — what a quality picker lists. */
+        val heights: List<Int>,
+        /** InnerTubeX's catalog id for the client that minted [url]; what a refusal skips. */
+        val profileId: String,
+    ) {
+        val aspect: Float get() = if (height > 0) width.toFloat() / height else 0f
+    }
+
+    private val _sessionGeneration = MutableStateFlow(0)
+    val sessionGeneration: StateFlow<Int> = _sessionGeneration.asStateFlow()
 
     private var prefs: SharedPreferences? = null
     private var poTokens: PoTokenGenerator? = null
@@ -243,6 +265,63 @@ object InnerTubeXResolver {
         return extracted
     }
 
+    /**
+     * The picture for [videoId], at most [maxHeight] tall, for the player to
+     * show over its own audio.
+     */
+    suspend fun extractVideo(
+        videoId: String,
+        maxHeight: Int,
+        skipClients: Set<String> = emptySet(),
+        ageRestricted: Boolean = false,
+    ): VideoStream? {
+        innerTube.cookie = Innertube.cookie
+        innerTube.visitorData = Innertube.ensureVisitorData()
+        innerTube.locale = YouTubeLocale(gl = "US", hl = Innertube.currentLanguage)
+        val stream = extractor.extract(
+            videoId = videoId,
+            hints = ContentHints(
+                isAgeRestricted = true.takeIf { ageRestricted },
+                wantVideo = true,
+                maxVideoHeight = maxHeight,
+            ).withStreamCapabilities(allowHls = false, allowSabr = false, allowBoundedRange = true),
+            excludedClients = excludedFor(videoId) + skipClients,
+            audioQuality = AudioQuality.LOW,
+            clientPlaybackNonce = generateClientPlaybackNonce(),
+        ) ?: return null
+        val url = stream.videoUrl ?: return null
+        val width = stream.videoWidth ?: 0
+        val height = stream.videoHeight ?: 0
+        val mime = stream.videoMimeType.orEmpty()
+        TrackLog.d(
+            TAG,
+            "video: ${width}x$height $mime ${stream.videoCodecs.orEmpty()} via ${stream.profileId}" +
+                if (ageRestricted) " (age-restricted)" else "",
+            about = videoId,
+        )
+        return VideoStream(
+            videoId = videoId,
+            url = url,
+            width = width,
+            height = height,
+            mimeType = mime,
+            headers = stream.headers,
+            heights = (stream.availableVideoHeights.orEmpty() + height)
+                .filter { it > 0 }
+                .distinct()
+                .sortedDescending(),
+            profileId = stream.profileId,
+        )
+    }
+
+    /**
+     * A picture's URL was refused mid-playback: the same signal [onRefused]
+     * acts on for audio, minus the exclusion.
+     */
+    fun onVideoRefused() {
+        scope.launch { runCatching { cipherService.refreshAfterStreamRejection() } }
+    }
+
     /** Headers the media fetch for [url] must carry, when InnerTubeX minted it. */
     fun headersFor(url: String): Map<String, String>? = minted[url]?.headers
 
@@ -265,6 +344,7 @@ object InnerTubeXResolver {
     }
 
     fun onSessionChanged() {
+        _sessionGeneration.value++
         excluded.clear()
         minted.clear()
         // A new cookie or visitor means a new player config and PoToken binding.

@@ -993,27 +993,34 @@ object InnertubeParser {
     private data class Credits(
         val artistId: String? = null,
         val artistName: String? = null,
+        val artists: List<com.fortune.vibramusic.data.model.ArtistRef> = emptyList(),
         val albumId: String? = null,
         val albumName: String? = null,
     )
 
     private fun creditsOf(runs: List<JsonElement>): Credits {
         var credits = Credits()
+        val artists = mutableListOf<com.fortune.vibramusic.data.model.ArtistRef>()
         runs.forEach { run ->
             val browse = run.o("navigationEndpoint").o("browseEndpoint")
             val id = browse.s("browseId") ?: return@forEach
             val pageType = browse.o("browseEndpointContextSupportedConfigs")
                 .o("browseEndpointContextMusicConfig").s("pageType").orEmpty()
             val text = run.s("text")?.trim().orEmpty()
-            credits = when {
-                ("ARTIST" in pageType || "USER_CHANNEL" in pageType || id.startsWith("UC")) && credits.artistId == null ->
-                    credits.copy(artistId = id, artistName = text)
-                ("ALBUM" in pageType || "PODCAST_SHOW" in pageType || id.startsWith("MPSP")) && credits.albumId == null ->
-                    credits.copy(albumId = id, albumName = text)
-                else -> credits
+            if ("ARTIST" in pageType || "USER_CHANNEL" in pageType || id.startsWith("UC")) {
+                if (text.isNotBlank()) {
+                    artists += com.fortune.vibramusic.data.model.ArtistRef(name = text, browseId = id)
+                }
+                if (credits.artistId == null) {
+                    credits = credits.copy(artistId = id, artistName = text)
+                }
+            } else if ("ALBUM" in pageType || "PODCAST_SHOW" in pageType || id.startsWith("MPSP")) {
+                if (credits.albumId == null) {
+                    credits = credits.copy(albumId = id, albumName = text)
+                }
             }
         }
-        return credits
+        return credits.copy(artists = artists)
     }
 
     /**
@@ -1251,10 +1258,61 @@ object InnertubeParser {
             )
         }.distinctBy { it.key }
 
+    /**
+     * Every two-row item anywhere in the response, regardless of sectioning —
+     * for responses like `FEmusic_mixed_for_you` or a grid view where the
+     * caller wants the cards and not the shelves they came in.
+     */
+    fun parseTwoRowItemsDeep(root: JsonElement): List<ShelfItem> =
+        collectRenderers(root, "musicTwoRowItemRenderer").mapNotNull(::parseTwoRowItem)
+
+    /**
+     * How many paired tracks (official video paired with its catalogue audio
+     * song) a watch queue response contains, and how many of those pairs were
+     * completed with an audio half. Editorial playlists are almost entirely
+     * paired; user playlists carry few, and radio mixes generated on the fly
+     * carry no pairs at all.
+     */
+    fun watchQueuePairs(root: JsonElement): Pair<Int, Int> {
+        val wrappers = collectRenderers(root, "playlistPanelVideoWrapperRenderer")
+        return wrappers.size to wrappers.count { wrapper -> wrapperRenderers(wrapper).any { it.isAudioTrack() } }
+    }
+
+    private fun wrapperRenderers(wrapper: JsonObject): List<JsonObject> =
+        listOfNotNull(wrapper.o("primaryRenderer").o("playlistPanelVideoRenderer")) +
+            wrapper.a("counterpart").orEmpty().mapNotNull { it.o("counterpartRenderer").o("playlistPanelVideoRenderer") }
+
+    /** A catalogue song (ATV), as opposed to a music video upload. */
+    private fun JsonObject.isAudioTrack(): Boolean = musicVideoType() == MUSIC_VIDEO_TYPE_ATV
+
+    private fun JsonObject.musicVideoType(): String? =
+        o("navigationEndpoint").o("watchEndpoint").o("watchEndpointMusicSupportedConfigs")
+            .o("watchEndpointMusicConfig").s("musicVideoType")
+
+    private const val MUSIC_VIDEO_TYPE_ATV = "MUSIC_VIDEO_TYPE_ATV"
+
     /** Tracks of a watch queue (`next` response) — the AutoPlay radio mix. */
-    fun parseWatchQueue(root: JsonElement): List<Song> {
+    fun parseWatchQueue(root: JsonElement, preferAudio: Boolean = false, preferVideo: Boolean = false): List<Song> {
         val out = LinkedHashMap<String, Song>()
-        collectRenderers(root, "playlistPanelVideoRenderer").forEach { renderer ->
+        // Each pair stands in the queue as one row: the audio half where
+        // there is one, and the other half dropped.
+        val replacements = HashMap<String, JsonObject>()
+        val dropped = HashSet<String>()
+        if (preferAudio || preferVideo) {
+            collectRenderers(root, "playlistPanelVideoWrapperRenderer").forEach { wrapper ->
+                val halves = wrapperRenderers(wrapper)
+                val primary = halves.firstOrNull() ?: return@forEach
+                val audio = halves.firstOrNull { if (preferVideo) !it.isAudioTrack() else it.isAudioTrack() }
+                    ?: return@forEach
+                val primaryId = primary.s("videoId") ?: return@forEach
+                replacements[primaryId] = audio
+                halves.filter { it !== primary }.mapNotNullTo(dropped) { it.s("videoId") }
+            }
+        }
+        collectRenderers(root, "playlistPanelVideoRenderer").forEach { found ->
+            val foundId = found.s("videoId") ?: return@forEach
+            if (foundId in dropped) return@forEach
+            val renderer = replacements[foundId] ?: found
             val videoId = renderer.s("videoId") ?: return@forEach
             val title = renderer.o("title").runs()
             if (title.isBlank()) return@forEach
@@ -1281,6 +1339,7 @@ object InnertubeParser {
                 thumbnailUrl = renderer.o("thumbnail").a("thumbnails").best(),
                 durationText = renderer.o("lengthText").runs().takeIf { it.isNotBlank() },
                 artistId = credits.artistId,
+                artists = credits.artists,
                 albumId = credits.albumId,
                 albumName = credits.albumName,
                 playbackSourceType = if (isPodcast) com.fortune.vibramusic.data.model.PlaybackSourceType.PODCASTS else null,

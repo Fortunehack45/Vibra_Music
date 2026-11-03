@@ -33,6 +33,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshState
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -51,6 +52,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.fortune.vibramusic.data.model.Song
+import com.fortune.vibramusic.data.model.TopPick
+import com.fortune.vibramusic.data.model.TopPickMood
 import com.fortune.vibramusic.ui.components.MiniEqualizer
 import com.fortune.vibramusic.ui.theme.VibraPurple
 import androidx.compose.material.icons.Icons
@@ -118,34 +121,56 @@ fun HomeScreen(
     recentlyPlayedLoading: Boolean = false,
     currentSong: Song? = null,
     isPlaying: Boolean = false,
+    topPicks: List<TopPick>? = null,
+    topPicksLoading: Boolean = false,
+    listenerName: String? = null,
+    onTopPickClick: ((TopPick, String) -> Unit)? = null,
+    onTopPickLongPress: ((TopPick) -> Unit)? = null,
+    onMoodClick: ((TopPickMood, String) -> Unit)? = null,
+    onMoodsShowAll: () -> Unit = {},
+    artworkMotion: Boolean = true,
 ) {
     val recentsViewType by AppSettings.homeRecentsViewType.collectAsStateWithLifecycle()
 
-    PullToRefresh(
-        refreshing = refreshing,
-        onRefresh = onRefresh,
-        state = pullState,
-        modifier = modifier,
-    ) {
-        LazyColumn(
-            state = listState,
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = contentPadding,
+    CompositionLocalProvider(LocalArtworkMotion provides artworkMotion) {
+        PullToRefresh(
+            refreshing = refreshing,
+            onRefresh = onRefresh,
+            state = pullState,
+            modifier = modifier,
         ) {
-            item {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.displayLarge,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    modifier = Modifier.padding(horizontal = PAGE_GUTTER, vertical = 8.dp),
-                )
-            }
-            if (!signedIn && onSignIn != null) {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = contentPadding,
+            ) {
                 item {
-                    SignInBanner(onSignIn = onSignIn, modifier = Modifier.padding(bottom = 8.dp))
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.displayLarge,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        modifier = Modifier.padding(horizontal = PAGE_GUTTER, vertical = 8.dp),
+                    )
                 }
-            }
-            when (state) {
+                if (!signedIn && onSignIn != null) {
+                    item {
+                        SignInBanner(onSignIn = onSignIn, modifier = Modifier.padding(bottom = 8.dp))
+                    }
+                }
+                if (onTopPickClick != null) {
+                    when {
+                        !topPicks.isNullOrEmpty() -> item(key = "top-picks") {
+                            TopPicksShelf(
+                                picks = topPicks,
+                                listenerName = listenerName,
+                                onClick = onTopPickClick,
+                                onLongPress = onTopPickLongPress,
+                            )
+                        }
+                        topPicks == null && topPicksLoading -> topPicksSkeleton()
+                    }
+                }
+                when (state) {
                 is UiState.Loading -> {
                     if (recentlyPlayedLoading) {
                         recentlyPlayedSkeleton(listLayout = recentsViewType == LibraryViewType.LIST)
@@ -184,22 +209,18 @@ fun HomeScreen(
                                 },
                             )
                         },
+                        onMoodClick = onMoodClick,
+                        onMoodsShowAll = onMoodsShowAll,
                     )
                     if (loadingMore) feedMoreSkeleton()
                 }
             }
         }
     }
+}
 
     if (onLoadMore != null && state is UiState.Success) {
         val loadMore by rememberUpdatedState(onLoadMore)
-        // Re-checked on every layout change, rather than on the rising edge of
-        // "the tail is in view". A page that appends only a shelf or two leaves
-        // the list still near its end, so an edge-triggered effect would never
-        // fire a second time: the feed dead-ended at the bottom with no
-        // skeleton and no request in flight to explain it. Restarting on
-        // [loadingMore] re-checks the moment a page settles, so the next one is
-        // asked for while the tail is still on screen to show it loading.
         LaunchedEffect(listState, loadingMore) {
             snapshotFlow {
                 val layout = listState.layoutInfo
@@ -224,12 +245,19 @@ private fun androidx.compose.foundation.lazy.LazyListScope.itemsIndexedShelves(
     currentSong: Song? = null,
     isPlaying: Boolean = false,
     onRecentsViewTypeToggle: () -> Unit,
+    onMoodClick: ((TopPickMood, String) -> Unit)? = null,
+    onMoodsShowAll: () -> Unit = {},
 ) {
     shelves.forEachIndexed { index, shelf ->
+        if (index == 1 && onMoodClick != null) {
+            item(key = "find-your-mood") { FindYourMoodShelf(onMoodClick, onMoodsShowAll) }
+        }
+        val isMood = shelf.title.equals("Find your mood", ignoreCase = true) ||
+            shelf.title.contains("mood", ignoreCase = true)
+        if (isMood && onMoodClick != null) return@forEachIndexed
+
         item(key = shelf.title + index) {
             val openItem: (ShelfItem) -> Unit = { item -> onItemClick(item, shelf.title) }
-            val isMood = shelf.title.equals("Find your mood", ignoreCase = true) ||
-                shelf.title.contains("mood", ignoreCase = true)
             if (index == 0 && shelf.title.equals(RECENTS_TITLE, ignoreCase = true)) {
                 RecentShelf(
                     shelf = shelf,

@@ -29,6 +29,12 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import com.fortune.vibramusic.data.TopPicks
+import com.fortune.vibramusic.data.model.TopPick
+import com.fortune.vibramusic.data.model.TopPickKind
+import com.fortune.vibramusic.data.model.TopPickMood
+import com.fortune.vibramusic.ui.screens.MoodGridPage
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -233,6 +239,7 @@ import com.fortune.vibramusic.ui.components.FloatingBottomBar
 import com.fortune.vibramusic.ui.components.GlassNavBar
 import com.fortune.vibramusic.ui.components.floatingtabbar.rememberFloatingTabBarScrollConnection
 import com.fortune.vibramusic.ui.components.FrostedTopBar
+import com.fortune.vibramusic.ui.components.PAGE_GUTTER
 import com.fortune.vibramusic.ui.components.LastfmLoginAlert
 import com.fortune.vibramusic.ui.components.LocalAppBackdrop
 import com.fortune.vibramusic.ui.components.LocalLiquidGlassEnabled
@@ -653,6 +660,20 @@ private fun VibraMusicApp(
     val homeState by viewModel.home.collectAsStateWithLifecycle()
     val homeLoadingMore by viewModel.homeLoadingMore.collectAsStateWithLifecycle()
     val homeRecentlyPlayedLoading by viewModel.homeRecentlyPlayedLoading.collectAsStateWithLifecycle()
+    val topPicks by viewModel.topPicks.collectAsStateWithLifecycle()
+    val topPicksLoading by viewModel.topPicksLoading.collectAsStateWithLifecycle()
+    var showMoodGrid by rememberSaveable { mutableStateOf(false) }
+
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                viewModel.refreshTopPicksIfStale()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     // The top bar's icon is the quiet, always-there nudge; this is the
 
@@ -2513,12 +2534,29 @@ private fun VibraMusicApp(
         BackHandler(enabled = libraryShowAll != null && detail == null) { libraryShowAll = null }
         BackHandler(enabled = detailActiveShelf != null) { detailActiveShelf = null }
 
+        val coveredByPlayer by remember {
+            derivedStateOf { showNowPlaying && playerDock.attached && playerDock.openFraction() >= 1f }
+        }
+
+        DisposableEffect(controller) {
+            com.fortune.vibramusic.ui.player.MusicVideoEngine.attach(controller)
+            onDispose {
+                com.fortune.vibramusic.ui.player.MusicVideoEngine.attach(null)
+            }
+        }
+
         // On a tablet the page and the player stand side by side rather than
         // one over the other: everything a phone stacks in a single column —
         // the feed, the frosted bars, the tab row — becomes the left half of
         // a row, and the player is the right. Off a tablet the row has the
         // one child it always had and changes nothing.
-        Row(Modifier.fillMaxSize()) {
+        Row(
+            Modifier
+                .fillMaxSize()
+                .drawWithContent {
+                    if (!coveredByPlayer) drawContent()
+                },
+        ) {
             Box(Modifier.weight(1f).fillMaxHeight()) {
                 AnimatedContent(
                     targetState = when {
@@ -3056,6 +3094,47 @@ private fun VibraMusicApp(
                             title = stringResource(R.string.listen_now),
                             signedIn = signedIn,
                             onSignIn = { webSession = WebSessionMode.SIGN_IN },
+                            topPicks = topPicks,
+                            topPicksLoading = topPicksLoading,
+                            listenerName = account?.name,
+                            onTopPickClick = { pick, pickTitle ->
+                                if (pick.kind == TopPickKind.LATEST_RELEASE && pick.browseId != null) {
+                                    val isAlbum = pick.browseId.startsWith("MPRE")
+                                    viewModel.openDetail(
+                                        browseId = pick.browseId,
+                                        title = pick.title,
+                                        subtitle = pick.subtitle,
+                                        thumbnailUrl = pick.images.firstOrNull(),
+                                        type = if (isAlbum) BrowseType.ALBUM else BrowseType.PLAYLIST,
+                                    )
+                                } else {
+                                    scope.launch {
+                                        TopPicks.queue(pick).onSuccess { queueSongs ->
+                                            if (queueSongs.isNotEmpty()) {
+                                                playFrom(
+                                                    queueSongs,
+                                                    0,
+                                                    QueueSource(pickTitle, PlaybackSourceType.HOME),
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            onMoodClick = { mood, moodTitle ->
+                                scope.launch {
+                                    TopPicks.queue(TopPicks.moodStation(mood)).onSuccess { queueSongs ->
+                                        if (queueSongs.isNotEmpty()) {
+                                            playFrom(
+                                                queueSongs,
+                                                0,
+                                                QueueSource(moodTitle, PlaybackSourceType.HOME),
+                                            )
+                                        }
+                                    }
+                                }
+                            },
+                            onMoodsShowAll = { showMoodGrid = true },
                             onItemClick = { item, shelfTitle ->
                                 val isVideoSection = item.isVideo ||
                                     shelfTitle.contains("video", ignoreCase = true) ||
@@ -4644,6 +4723,45 @@ private fun VibraMusicApp(
                 },
                 onDismiss = { songSortMenuOpen = false },
             )
+        }
+
+        if (showMoodGrid) {
+            BackHandler { showMoodGrid = false }
+            ModalBottomSheet(
+                onDismissRequest = { showMoodGrid = false },
+                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                containerColor = MaterialTheme.colorScheme.background,
+            ) {
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 32.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.find_your_mood),
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onBackground,
+                        modifier = Modifier.padding(horizontal = PAGE_GUTTER, vertical = 16.dp),
+                    )
+                    MoodGridPage(
+                        gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState(),
+                        onClick = { mood, moodTitle ->
+                            showMoodGrid = false
+                            scope.launch {
+                                TopPicks.queue(TopPicks.moodStation(mood)).onSuccess { queueSongs ->
+                                    if (queueSongs.isNotEmpty()) {
+                                        playFrom(
+                                            queueSongs,
+                                            0,
+                                            QueueSource(moodTitle, PlaybackSourceType.HOME),
+                                        )
+                                    }
+                                }
+                            }
+                        },
+                    )
+                }
+            }
         }
 
         if (showAccountSelector) {

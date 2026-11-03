@@ -19,6 +19,7 @@ import com.fortune.vibramusic.data.model.ShelfItem
 import com.fortune.vibramusic.data.model.Song
 import com.fortune.vibramusic.data.model.SongMenu
 import com.fortune.vibramusic.data.model.UserPlaylist
+import com.fortune.vibramusic.data.model.WatchTarget
 import com.fortune.vibramusic.data.settings.AppSettings
 import com.fortune.vibramusic.data.sources.TrackMatcher
 import kotlinx.coroutines.CancellationException
@@ -128,19 +129,75 @@ object YtMusicRepository {
         )
     }
 
+    private const val HISTORY_MEMO_MS = 60_000L
+    private class HistoryMemo(val cookie: String?, val at: Long, val songs: List<Song>)
+    @Volatile private var historyMemo: HistoryMemo? = null
+
     /**
      * The raw fetch behind both [recentlyPlayed] and [history]: the account's
      * listening history, newest first, one row per play collapsed to one row
      * per track.
-     *
-     * A track played three times today is three rows in the feed — what that
-     * dedupe costs is the times, which is fine for "what you have been
-     * listening to" but would matter for a log. YouTube's own page groups them
-     * under Today and Yesterday headings that the shelf parser doesn't carry
-     * through either.
      */
-    private suspend fun fetchHistory(): List<Song> =
-        InnertubeParser.collectSongsDeep(Innertube.browse(HISTORY)).distinctBy { it.videoId }
+    private suspend fun fetchHistory(): List<Song> {
+        val songs = InnertubeParser.collectSongsDeep(Innertube.browse(HISTORY)).distinctBy { it.videoId }
+        historyMemo = HistoryMemo(Innertube.cookie, System.currentTimeMillis(), songs)
+        return songs
+    }
+
+    /**
+     * Listening history for a caller that can live with it being a minute or
+     * two old — Top Picks, built right after Recents fetched the same feed.
+     */
+    suspend fun recentHistory(): Result<List<Song>> = call("history:recent") {
+        if (Innertube.cookie == null) return@call emptyList()
+        val memo = historyMemo
+        if (memo != null && memo.cookie == Innertube.cookie &&
+            System.currentTimeMillis() - memo.at < HISTORY_MEMO_MS
+        ) {
+            memo.songs
+        } else {
+            fetchHistory()
+        }
+    }
+
+    /**
+     * The landing page for an artist.
+     */
+    suspend fun artistLanding(browseId: String): Result<ArtistPage> = call("artistLanding:$browseId") {
+        InnertubeParser.parseArtistPage(Innertube.browse(browseId))
+    }
+
+    /**
+     * The queue a watch target starts — a mix, a playlist radio, or an artist's
+     * Mix or Shuffle button. Music videos are dropped, as everywhere a queue is
+     * built for the listener rather than picked by them.
+     */
+    suspend fun watchQueue(target: WatchTarget): Result<List<Song>> = call("watch:${target.playlistId}") {
+        InnertubeParser.parseWatchQueue(
+            Innertube.nextPlaylist(target.playlistId, target.videoId, target.params),
+        ).filterNot { it.isVideo }
+    }
+
+    /**
+     * A playlist's tracks as a watch queue, each one as audio where YouTube
+     * can say what the audio version is.
+     */
+    suspend fun playlistAsAudio(playlistId: String): Result<List<Song>> = call("watchAudio:$playlistId") {
+        val response = Innertube.nextPlaylist(playlistId)
+        val songs = InnertubeParser.parseWatchQueue(response, preferAudio = true)
+        val (pairs, audioPairs) = InnertubeParser.watchQueuePairs(response)
+        Log.d(TAG, "watchAudio $playlistId rows=${songs.size} pairs=$pairs audioPairs=$audioPairs videosLeft=${songs.count { it.isVideo }}")
+        songs
+    }
+
+    /**
+     * The cards of the signed-in "Mixed for you" page — My Supermix, Discover
+     * Mix, New Release Mix and the numbered My Mixes.
+     */
+    suspend fun mixedForYou(): Result<List<ShelfItem>> = call("mixedForYou") {
+        if (Innertube.cookie == null) return@call emptyList()
+        InnertubeParser.parseTwoRowItemsDeep(Innertube.browse("FEmusic_mixed_for_you"))
+    }
 
     /**
      * The account's listening history, in the order YouTube Music keeps it.

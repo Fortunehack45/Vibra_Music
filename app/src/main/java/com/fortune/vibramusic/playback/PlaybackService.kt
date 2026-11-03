@@ -7601,6 +7601,7 @@ class PlaybackService : MediaLibraryService() {
         ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> = scope.future(Dispatchers.Main) {
             val resolved = withContext(Dispatchers.IO) { resolveMediaItems(mediaItems) }
             val validIndex = startIndex.coerceIn(0, (resolved.size - 1).coerceAtLeast(0))
+            player?.prepare()
             player?.playWhenReady = true
             MediaSession.MediaItemsWithStartPosition(
                 ImmutableList.copyOf(resolved),

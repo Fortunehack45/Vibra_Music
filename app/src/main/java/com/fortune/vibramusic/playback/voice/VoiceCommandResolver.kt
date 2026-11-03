@@ -269,7 +269,8 @@ object VoiceCommandResolver {
                 it.item.title.equals(effectiveQuery, ignoreCase = true)
             } ?: if (parsedArtist != null) directArtists?.firstOrNull() else null
 
-            if (directArtist != null && parsedTitle == null) {
+            val isExplicitSongSearch = explicitTitle != null || cleanQuery.contains(" by ", ignoreCase = true)
+            if (directArtist != null && (!isExplicitSongSearch || parsedTitle == null)) {
                 val artistPage = YtMusicRepository.artistPage(directArtist.item.browseId).getOrNull()
                 val songs = artistPage?.songs.orEmpty()
                 if (songs.isNotEmpty()) {

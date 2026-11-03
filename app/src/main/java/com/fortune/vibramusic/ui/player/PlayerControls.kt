@@ -280,6 +280,7 @@ internal fun PlaybackQualityLabel(
  */
 @Composable
 internal fun SleeveNerdStats(song: Song, modifier: Modifier = Modifier) {
+    if (song.isVideo || song.isVideoOrigin) return
     val showNerdStats by AppSettings.showNerdStats.collectAsStateWithLifecycle()
     if (!showNerdStats) return
     val context = LocalContext.current

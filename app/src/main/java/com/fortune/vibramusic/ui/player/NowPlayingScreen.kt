@@ -2762,11 +2762,12 @@ fun NowPlayingScreen(
                                     .fillMaxSize()
                                     .clip(RoundedCornerShape(14.dp)),
                             ) {
-                                PodcastVideoView(
+                                AndroidMusicVideo(
                                     videoId = song.videoId,
-                                    isPlaying = isPlaying,
-                                    positionMs = position.positionMs,
+                                    fit = false,
+                                    onRenderedChanged = { },
                                     modifier = Modifier.fillMaxSize(),
+                                    priority = 2,
                                 )
                                 VideoCornerControls(
                                     quality = videoQuality,

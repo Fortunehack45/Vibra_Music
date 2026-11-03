@@ -43,6 +43,8 @@ import com.fortune.vibramusic.data.model.SearchResult
 import com.fortune.vibramusic.data.model.ShelfItem
 import com.fortune.vibramusic.data.model.Song
 import com.fortune.vibramusic.data.model.SongMenu
+import com.fortune.vibramusic.data.model.TopPick
+import com.fortune.vibramusic.data.model.WatchTarget
 import com.fortune.vibramusic.data.model.SubscriptionState
 import com.fortune.vibramusic.data.model.UiState
 import com.fortune.vibramusic.data.model.UserPlaylist
@@ -62,11 +64,15 @@ import com.fortune.vibramusic.data.model.SPOTIFY_PENDING_PREFIX
 import com.fortune.vibramusic.data.model.SPOTIFY_MISSING_PREFIX
 import com.fortune.vibramusic.download.Downloads
 import android.util.LruCache
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.channels.BufferOverflow
@@ -88,6 +94,15 @@ import com.fortune.vibramusic.data.sources.SourceKind
 import com.fortune.vibramusic.data.sources.SourceRegistry
 import com.fortune.vibramusic.data.sources.SourceResolver
 import com.fortune.vibramusic.data.sources.TrackMatcher
+import com.fortune.vibramusic.data.TopPicks
+import com.fortune.vibramusic.data.AppleArtistPhotos
+import com.fortune.vibramusic.data.model.ArtistRef
+import com.fortune.vibramusic.data.stats.ListeningStats
+import com.fortune.vibramusic.data.stats.ReplayPeriod
+import com.fortune.vibramusic.data.DebugLog as Log
+import java.io.File
+import java.time.LocalDateTime
+import kotlinx.coroutines.flow.first
 import com.fortune.vibramusic.playback.StreamChoice
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
@@ -110,6 +125,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _home = MutableStateFlow<UiState<List<HomeShelf>>>(UiState.Loading)
     val home: StateFlow<UiState<List<HomeShelf>>> = _home.asStateFlow()
+
+    private val _topPicks = MutableStateFlow<List<TopPick>?>(null)
+    val topPicks: StateFlow<List<TopPick>?> = _topPicks.asStateFlow()
+    private val _topPicksLoading = MutableStateFlow(false)
+    val topPicksLoading: StateFlow<Boolean> = _topPicksLoading.asStateFlow()
+    private var topPicksJob: Job? = null
+    private var topPicksSlotShown: String? = null
 
     /**
      * Token for the next page of Home shelves; null once there's nothing
@@ -1714,6 +1736,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         // out: it has its own skeleton at the head of the page rather than the
         // one at the tail.
         _homePendingShelves.value = 1 + YtMusicRepository.HOME_SUPPLEMENT_BROWSE_IDS.size
+        loadTopPicks(identity, rebuild = false)
         viewModelScope.launch {
             launch {
                 try {
@@ -1804,6 +1827,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val supplements = YtMusicRepository.HOME_SUPPLEMENT_BROWSE_IDS.map { browseId ->
             async { YtMusicRepository.homeSupplement(browseId).getOrNull().orEmpty() }
         }
+        if (topPicksJob?.isActive != true) loadTopPicks(identity, rebuild = false)
         YtMusicRepository.home().onSuccess { feed ->
             if (identity != listenerKey()) return@onSuccess
             homeContinuation = feed.continuation
@@ -1820,6 +1844,77 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 publishHomeShelves(extraShelves)
             }
         }
+    }
+
+    private val TOP_PICKS_FILE = "top_picks_v4.json"
+
+    private fun loadTopPicks(identity: String?, rebuild: Boolean) {
+        topPicksJob?.cancel()
+        val file = File(getApplication<Application>().filesDir, TOP_PICKS_FILE)
+        val slot = topPicksSlot()
+        topPicksJob = viewModelScope.launch {
+            val stored = withContext(Dispatchers.IO) {
+                runCatching { file.takeIf { it.exists() }?.readText() }.getOrNull()?.let(TopPicks::decode)
+            }?.takeIf { it.listener == identity && it.picks.isNotEmpty() }
+            stored?.let { AppleArtistPhotos.seed(it.photos) }
+            if (stored != null) {
+                _topPicks.value = stored.picks
+                topPicksSlotShown = stored.day
+            } else if (!rebuild) {
+                _topPicks.value = null
+            }
+            if (!rebuild && stored?.day == slot) {
+                _topPicksLoading.value = false
+                return@launch
+            }
+            _topPicksLoading.value = _topPicks.value == null
+            val picks = buildTopPicks()?.takeIf { it.isNotEmpty() }
+            if (identity != listenerKey()) return@launch
+            _topPicksLoading.value = false
+            if (picks == null) {
+                if (_topPicks.value == null) _topPicks.value = emptyList()
+                return@launch
+            }
+            _topPicks.value = picks
+            topPicksSlotShown = slot
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    file.writeText(TopPicks.encode(TopPicks.Stored(identity, slot, picks, AppleArtistPhotos.snapshot())))
+                }
+            }
+        }
+    }
+
+    fun refreshTopPicksIfStale() {
+        if (topPicksJob?.isActive == true) return
+        if (topPicksSlotShown == null || topPicksSlotShown == topPicksSlot()) return
+        loadTopPicks(listenerKey(), rebuild = false)
+    }
+
+    private fun topPicksSlot(now: LocalDateTime = LocalDateTime.now()): String =
+        "${now.toLocalDate()}T%02d".format(now.hour)
+
+    private suspend fun buildTopPicks(): List<TopPick>? {
+        val shelves = withTimeoutOrNull(8_000L) { _home.first { it !is UiState.Loading } }
+            .let { (it as? UiState.Success)?.data.orEmpty() }
+        return try {
+            TopPicks.build(shelves, localTaste())
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w("Vibra Music", "topPicks failed: ${e.message}")
+            null
+        }
+    }
+
+    private suspend fun localTaste(): TopPicks.LocalTaste {
+        val month = runCatching { ListeningStats.summary(ReplayPeriod.THIS_MONTH) }.getOrNull()
+            ?: return TopPicks.LocalTaste()
+        return TopPicks.LocalTaste(
+            artists = month.artists.take(10).map { ArtistRef(name = it.title, browseId = it.browseId) },
+            songs = month.songs.take(5).map { it.song },
+            genres = month.genres.take(3).map { it.title },
+        )
     }
 
     /**
@@ -2578,6 +2673,24 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     if (songs.isEmpty()) UiState.Error(text(R.string.downloaded_playlist_empty))
                     else UiState.Success(songs)
                 }
+                browseId.startsWith("RD") || browseId.startsWith("VLRD") -> {
+                    val playlistId = browseId.removePrefix("VL")
+                    YtMusicRepository.playlistAsAudio(playlistId).fold(
+                        onSuccess = { songs ->
+                            if (songs.isEmpty()) UiState.Error(text(R.string.no_tracks_here))
+                            else UiState.Success(songs)
+                        },
+                        onFailure = { err ->
+                            YtMusicRepository.watchQueue(WatchTarget(playlistId = playlistId)).fold(
+                                onSuccess = { songs ->
+                                    if (songs.isEmpty()) UiState.Error(text(R.string.no_tracks_here))
+                                    else UiState.Success(songs)
+                                },
+                                onFailure = { UiState.Error(err.friendly()) },
+                            )
+                        },
+                    )
+                }
                 browseId == "local:downloads" -> {
                     val context = getApplication<Application>()
                     val songs = Downloads.getDownloadedSongs(context)
@@ -2804,6 +2917,24 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     val songs = downloadedPlaylist(browseId)
                     if (songs.isEmpty()) UiState.Error(text(R.string.downloaded_playlist_empty))
                     else UiState.Success(songs)
+                }
+                browseId.startsWith("RD") || browseId.startsWith("VLRD") -> {
+                    val playlistId = browseId.removePrefix("VL")
+                    YtMusicRepository.playlistAsAudio(playlistId).fold(
+                        onSuccess = { songs ->
+                            if (songs.isEmpty()) UiState.Error(text(R.string.no_tracks_here))
+                            else UiState.Success(songs)
+                        },
+                        onFailure = { err ->
+                            YtMusicRepository.watchQueue(WatchTarget(playlistId = playlistId)).fold(
+                                onSuccess = { songs ->
+                                    if (songs.isEmpty()) UiState.Error(text(R.string.no_tracks_here))
+                                    else UiState.Success(songs)
+                                },
+                                onFailure = { UiState.Error(err.friendly()) },
+                            )
+                        },
+                    )
                 }
                 browseId == "local:downloads" -> {
                     val songs = Downloads.getDownloadedSongs(context)

@@ -1886,13 +1886,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun refreshTopPicksIfStale() {
-        if (topPicksJob?.isActive == true) return
-        if (topPicksSlotShown == null || topPicksSlotShown == topPicksSlot()) return
-        loadTopPicks(listenerKey(), rebuild = false)
+        runCatching {
+            if (topPicksJob?.isActive == true) return
+            if (topPicksSlotShown == null || topPicksSlotShown == topPicksSlot()) return
+            loadTopPicks(listenerKey(), rebuild = false)
+        }
     }
 
-    private fun topPicksSlot(now: LocalDateTime = LocalDateTime.now()): String =
+    private fun topPicksSlot(now: LocalDateTime = LocalDateTime.now()): String = runCatching {
         "${now.toLocalDate()}T%02d".format(now.hour)
+    }.getOrDefault("slot_default")
 
     private suspend fun buildTopPicks(): List<TopPick>? {
         val shelves = withTimeoutOrNull(8_000L) { _home.first { it !is UiState.Loading } }

@@ -65,10 +65,12 @@ object TopPicks {
         val history = historyAsync.await()
         val ranked = weightedSample(rankArtists(history, local.artists).take(ARTIST_POOL), ARTISTS)
         val pages = ranked.map { artist ->
-            async { YtMusicRepository.artistLanding(artist.browseId!!).getOrNull() }
+            async { artist.browseId?.let { YtMusicRepository.artistLanding(it).getOrNull() } }
         }.awaitAll()
         val artists = ranked.zip(pages).mapNotNull { (ref, page) ->
-            page?.let { ArtistCard(it.copy(name = it.name ?: ref.name), ref.browseId!!) }
+            val browseId = ref.browseId ?: return@mapNotNull null
+            val landingPage = page ?: return@mapNotNull null
+            ArtistCard(landingPage.copy(name = landingPage.name ?: ref.name), browseId)
         }
             // One person can be two channels (an artist's own and a "Topic"
             // one, or a spelling of their name); two of them would be the

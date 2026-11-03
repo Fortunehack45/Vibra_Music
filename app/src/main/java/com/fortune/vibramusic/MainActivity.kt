@@ -428,18 +428,22 @@ class MainActivity : AppCompatActivity() {
      * hardware limits, which is why Settings describes this as a preference.
      */
     private fun applyPerformanceMode(enabled: Boolean, refreshRate: Int, composeView: View) {
-        val supportedRefreshRate = composeView.display.resolvePerformanceRefreshRate(refreshRate)
-        window.attributes = window.attributes.apply {
-            preferredRefreshRate = if (enabled) supportedRefreshRate.toFloat() else 0f
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
-            window.setFrameRatePowerSavingsBalanced(!enabled)
-            composeView.requestedFrameRate = if (enabled) {
-                supportedRefreshRate.toFloat()
-            } else {
-                View.REQUESTED_FRAME_RATE_CATEGORY_DEFAULT
+        runCatching {
+            val supportedRefreshRate = composeView.display?.resolvePerformanceRefreshRate(refreshRate) ?: 60
+            window.attributes = window.attributes.apply {
+                preferredRefreshRate = if (enabled) supportedRefreshRate.toFloat() else 0f
             }
-        }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+                runCatching {
+                    window.setFrameRatePowerSavingsBalanced(!enabled)
+                    composeView.requestedFrameRate = if (enabled) {
+                        supportedRefreshRate.toFloat()
+                    } else {
+                        View.REQUESTED_FRAME_RATE_CATEGORY_DEFAULT
+                    }
+                }
+            }
+        }.onFailure { android.util.Log.w("VibraMusic", "Could not apply performance mode", it) }
     }
 
     /**
@@ -668,7 +672,7 @@ private fun VibraMusicApp(
     DisposableEffect(lifecycleOwner) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
-                viewModel.refreshTopPicksIfStale()
+                runCatching { viewModel.refreshTopPicksIfStale() }
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)

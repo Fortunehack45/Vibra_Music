@@ -78,6 +78,17 @@ object MusicVideoEngine {
     private const val RELEASE_GRACE_MS = 4_000L
     private const val CHUNK_BYTES = 1L * 1024 * 1024
     private const val STREAM_TTL_MS = 60 * 60 * 1000L
+    private const val MIN_VIDEO_ASPECT = 1.2f
+    private const val AUTO_HEIGHT = 1080
+    private const val METERED_HEIGHT = 480
+    private const val KEY_QUALITY = "quality"
+    private const val MAX_REFUSED_CLIENTS = 3
+
+    private val REFUSAL_CODES = setOf(403, 404, 410)
+    private val ESCALATED_REASONS = setOf(
+        StreamResolveException.Reason.AGE_RESTRICTED,
+        StreamResolveException.Reason.NO_PLAYABLE_STREAM,
+    )
 
     private val scope = MainScope()
 
@@ -102,17 +113,6 @@ object MusicVideoEngine {
     private val ageGated = HashSet<String>()
     private val refused = HashMap<String, MutableSet<String>>()
     private var loadedProfile: String? = null
-
-    init {
-        scope.launch {
-            InnerTubeXResolver.sessionGeneration.drop(1).collect {
-                noPicture.clear()
-                streams.clear()
-                refused.clear()
-                refresh()
-            }
-        }
-    }
 
     private val _shownVideoId = MutableStateFlow<String?>(null)
     val shownVideoId: StateFlow<String?> = _shownVideoId.asStateFlow()
@@ -192,6 +192,18 @@ object MusicVideoEngine {
             }
             noPicture += id
             unload()
+        }
+    }
+
+    // ARCHITECTURE GUARD: init runs in declaration order, after all state flows and listeners exist.
+    init {
+        scope.launch {
+            InnerTubeXResolver.sessionGeneration.drop(1).collect {
+                noPicture.clear()
+                streams.clear()
+                refused.clear()
+                refresh()
+            }
         }
     }
 
@@ -438,19 +450,6 @@ object MusicVideoEngine {
             exo.playbackParameters = PlaybackParameters(speed)
         }
     }
-
-    private const val MIN_VIDEO_ASPECT = 1.2f
-    private const val AUTO_HEIGHT = 1080
-    private const val METERED_HEIGHT = 480
-    private const val KEY_QUALITY = "quality"
-
-    private val REFUSAL_CODES = setOf(403, 404, 410)
-    private const val MAX_REFUSED_CLIENTS = 3
-
-    private val ESCALATED_REASONS = setOf(
-        StreamResolveException.Reason.AGE_RESTRICTED,
-        StreamResolveException.Reason.NO_PLAYABLE_STREAM,
-    )
 }
 
 /**

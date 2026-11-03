@@ -1468,6 +1468,42 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (_library.value is UiState.Success) refresh(Feed.LIBRARY)
     }
 
+    /**
+     * Whether a play has been registered since the home feed was last fetched.
+     *
+     * The feed leads with listening history, so it's out of date the moment a
+     * track starts — but re-fetching there would rearrange the page under
+     * whoever is reading it, and the tab is usually in the background anyway.
+     * It's re-fetched when the tab is next opened instead.
+     */
+    private var homeStale = false
+
+    /** Call when the home tab becomes visible. */
+    fun onHomeShown() {
+        if (!homeStale) return
+        homeStale = false
+        // A first load already in flight will pick the new play up by itself.
+        if (_home.value is UiState.Success) refresh(Feed.HOME)
+    }
+
+    /**
+     * A feed that can be pulled down to refresh. Tracked per feed rather than
+     * as one flag: a pull on Library while Home is still refreshing in the
+     * background shouldn't leave the wrong tab showing a loader.
+     */
+    enum class Feed { HOME, EXPLORE, PODCASTS, LIBRARY }
+
+    private val _refreshing = MutableStateFlow(emptySet<Feed>())
+    val refreshing: StateFlow<Set<Feed>> = _refreshing.asStateFlow()
+
+    private var podcastJob: Job? = null
+
+    /** Recent searches, kept on device as rich entity records. */
+    val searchHistory: StateFlow<List<SearchHistoryEntity>> = SearchHistory.recent
+
+    // ARCHITECTURE GUARD: All state properties must be declared ABOVE this init block.
+    // In Kotlin, class member properties and init blocks run strictly in declaration order.
+    // Any property declared below init will be null during init execution.
     init {
         LikeState.seedLiked(LocalLikesStore.getLikedIds())
         startSearchPipeline()
@@ -1526,24 +1562,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /**
-     * Whether a play has been registered since the home feed was last fetched.
-     *
-     * The feed leads with listening history, so it's out of date the moment a
-     * track starts — but re-fetching there would rearrange the page under
-     * whoever is reading it, and the tab is usually in the background anyway.
-     * It's re-fetched when the tab is next opened instead.
-     */
-    private var homeStale = false
-
-    /** Call when the home tab becomes visible. */
-    fun onHomeShown() {
-        if (!homeStale) return
-        homeStale = false
-        // A first load already in flight will pick the new play up by itself.
-        if (_home.value is UiState.Success) refresh(Feed.HOME)
-    }
-
     private fun loadAccount() {
         val identity = listenerKey()
         viewModelScope.launch {
@@ -1576,16 +1594,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * A feed that can be pulled down to refresh. Tracked per feed rather than
-     * as one flag: a pull on Library while Home is still refreshing in the
-     * background shouldn't leave the wrong tab showing a loader.
-     */
-    enum class Feed { HOME, EXPLORE, PODCASTS, LIBRARY }
-
-    private val _refreshing = MutableStateFlow(emptySet<Feed>())
-    val refreshing: StateFlow<Set<Feed>> = _refreshing.asStateFlow()
-
-    /**
      * Re-fetches [feed] in place. Unlike the `load*` entry points this leaves
      * the current content on screen rather than dropping back to the loading
      * state — a refresh that swapped the page for a spinner would be a worse
@@ -1606,8 +1614,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             _refreshing.value = _refreshing.value - feed
         }
     }
-
-    private var podcastJob: Job? = null
 
     fun loadPodcasts(force: Boolean = false) {
         if (_podcasts.value is UiState.Success && !force) return
@@ -1846,8 +1852,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private val TOP_PICKS_FILE = "top_picks_v4.json"
-
     private fun loadTopPicks(identity: String?, rebuild: Boolean) {
         topPicksJob?.cancel()
         val file = File(getApplication<Application>().filesDir, TOP_PICKS_FILE)
@@ -2022,9 +2026,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             if (identity == listenerKey()) _history.value = next
         }
     }
-
-    /** Recent searches, kept on device as rich entity records. */
-    val searchHistory: StateFlow<List<SearchHistoryEntity>> = SearchHistory.recent
 
     /**
      * Records a full entity payload in the history — used when the user taps
@@ -2481,6 +2482,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     companion object {
+        private const val TOP_PICKS_FILE = "top_picks_v4.json"
         private const val SPOTIFY_MATCH_PARALLELISM = 6
 
         /**

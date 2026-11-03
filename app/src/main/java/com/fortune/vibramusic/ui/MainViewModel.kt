@@ -2546,8 +2546,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             browseId.startsWith(Downloads.PLAYLIST_PREFIX) -> BrowseType.PLAYLIST
             browseId.startsWith("local_") || browseId.startsWith("VLlocal_") -> BrowseType.PLAYLIST
             browseId.startsWith("UC") -> BrowseType.ARTIST
-            browseId.startsWith("MPREb") || browseId.startsWith("VLOLAK") || browseId.startsWith("OLAK") -> BrowseType.ALBUM
-            browseId.startsWith("VL") || browseId.startsWith("PL") -> BrowseType.PLAYLIST
+            browseId.startsWith("MPRE") || browseId.startsWith("VLOLAK") || browseId.startsWith("OLAK") -> BrowseType.ALBUM
+            browseId.startsWith("VL") || browseId.startsWith("PL") || browseId.startsWith("RD") -> BrowseType.PLAYLIST
             else -> fallback
         }
     }
@@ -2675,13 +2675,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 browseId.startsWith("RD") || browseId.startsWith("VLRD") -> {
                     val playlistId = browseId.removePrefix("VL")
+                    val seedVideoId = if (playlistId.startsWith("RDAMVM")) playlistId.removePrefix("RDAMVM") else null
                     YtMusicRepository.playlistAsAudio(playlistId).fold(
                         onSuccess = { songs ->
                             if (songs.isEmpty()) UiState.Error(text(R.string.no_tracks_here))
                             else UiState.Success(songs)
                         },
                         onFailure = { err ->
-                            YtMusicRepository.watchQueue(WatchTarget(playlistId = playlistId)).fold(
+                            YtMusicRepository.watchQueue(WatchTarget(playlistId = playlistId, videoId = seedVideoId)).fold(
                                 onSuccess = { songs ->
                                     if (songs.isEmpty()) UiState.Error(text(R.string.no_tracks_here))
                                     else UiState.Success(songs)
@@ -2920,13 +2921,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 browseId.startsWith("RD") || browseId.startsWith("VLRD") -> {
                     val playlistId = browseId.removePrefix("VL")
+                    val seedVideoId = if (playlistId.startsWith("RDAMVM")) playlistId.removePrefix("RDAMVM") else null
                     YtMusicRepository.playlistAsAudio(playlistId).fold(
                         onSuccess = { songs ->
                             if (songs.isEmpty()) UiState.Error(text(R.string.no_tracks_here))
                             else UiState.Success(songs)
                         },
                         onFailure = { err ->
-                            YtMusicRepository.watchQueue(WatchTarget(playlistId = playlistId)).fold(
+                            YtMusicRepository.watchQueue(WatchTarget(playlistId = playlistId, videoId = seedVideoId)).fold(
                                 onSuccess = { songs ->
                                     if (songs.isEmpty()) UiState.Error(text(R.string.no_tracks_here))
                                     else UiState.Success(songs)

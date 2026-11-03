@@ -1420,71 +1420,71 @@
     <string name="mix_beatmatch_default_subtitle" translatable="false">Sync tempo and align beat grids between tracks</string>
     <string name="video_quality" translatable="false">Video quality</string>
     <string name="video_quality_auto" translatable="false">Auto</string>
-    <string name="top_picks_for_you">Top Picks for You</string>
-    <string name="top_pick_made_for_you">Made for You</string>
-    <string name="top_pick_mood_for_you">Mood for You</string>
-    <string name="top_pick_featuring">Featuring %1$s</string>
-    <string name="top_pick_and_similar">%1$s &amp; Similar Artists</string>
-    <string name="top_pick_named_station">%1$s’s Station</string>
-    <string name="top_pick_your_station">Your Station</string>
-    <string name="top_pick_discovery_station">Discovery Station</string>
-    <string name="top_pick_new_from">New from %1$s</string>
-    <string name="find_your_mood">Find Your Mood</string>
-    <string name="mood_energy">Energy</string>
-    <string name="mood_energy_line">High-voltage tracks to keep you moving.</string>
-    <string name="mood_relax">Relax</string>
-    <string name="mood_relax_line">Easy, soothing sounds to slow things down.</string>
-    <string name="mood_feeling_blue">Feeling Blue</string>
-    <string name="mood_feeling_blue_line">Sad songs for when you need them.</string>
-    <string name="mood_feel_good">Feel Good</string>
-    <string name="mood_feel_good_line">Bright, upbeat songs to lift the day.</string>
-    <string name="mood_focus">Focus</string>
-    <string name="mood_focus_line">Steady music to keep you in the zone.</string>
-    <string name="mood_heartbreak">Heartbreak</string>
-    <string name="mood_heartbreak_line">Breakup anthems, one tear at a time.</string>
-    <string name="mood_love">Love</string>
-    <string name="mood_love_line">Romantic songs for the moment.</string>
-    <string name="mood_after_hours">After Hours</string>
-    <string name="mood_after_hours_line">Late-night grooves for when the city goes quiet.</string>
-    <string name="mood_alone_time">Alone Time</string>
-    <string name="mood_alone_time_line">Mellow songs for time to yourself.</string>
-    <string name="mood_chill">Chill</string>
-    <string name="mood_chill_line">Laid-back sounds to take it easy.</string>
-    <string name="mood_commuting">Commuting</string>
-    <string name="mood_commuting_line">The right soundtrack for the road.</string>
-    <string name="mood_eating_cooking">Eating &amp; Cooking</string>
-    <string name="mood_eating_cooking_line">Warm, easy music for the kitchen and the table.</string>
-    <string name="mood_evening">Evening</string>
-    <string name="mood_evening_line">Gentle songs to wind the day down.</string>
-    <string name="mood_fitness">Fitness</string>
-    <string name="mood_fitness_line">Hard-hitting tracks to push you further.</string>
-    <string name="mood_gaming">Gaming</string>
-    <string name="mood_gaming_line">Soundtracks to level up to.</string>
-    <string name="mood_home">Home</string>
-    <string name="mood_home_line">Easy listening for a slow day in.</string>
-    <string name="mood_morning">Morning</string>
-    <string name="mood_morning_line">Bright songs to start the day right.</string>
-    <string name="mood_motivation">Motivation</string>
-    <string name="mood_motivation_line">Anthems to get you up and going.</string>
-    <string name="mood_outdoors">Outdoors</string>
-    <string name="mood_outdoors_line">Music for fresh air and open roads.</string>
-    <string name="mood_party">Party</string>
-    <string name="mood_party_line">Crowd-pleasers to keep the night going.</string>
-    <string name="mood_sleep">Sleep</string>
-    <string name="mood_sleep_line">Soft, calming sounds to drift off to.</string>
-    <string name="mood_social">Social</string>
-    <string name="mood_social_line">Songs everyone in the room will know.</string>
-    <string name="mood_sports">Sports</string>
-    <string name="mood_sports_line">Game-day energy, start to finish.</string>
-    <string name="mood_summertime">Summertime Sounds</string>
-    <string name="mood_summertime_line">Sunny songs for long, warm days.</string>
-    <string name="mood_holiday">Holiday</string>
-    <string name="mood_holiday_line">Festive favourites for the season.</string>
-    <string name="mood_weekend">Weekend</string>
-    <string name="mood_weekend_line">Feel-good music for your days off.</string>
-    <string name="mood_wellbeing">Wellbeing</string>
-    <string name="mood_wellbeing_line">Calm music for mindfulness and yoga.</string>
-    <string name="mood_work">Work</string>
-    <string name="mood_work_line">Steady instrumentals to get things done.</string>
+    <string name="top_picks_for_you" translatable="false">Top Picks for You</string>
+    <string name="top_pick_made_for_you" translatable="false">Made for You</string>
+    <string name="top_pick_mood_for_you" translatable="false">Mood for You</string>
+    <string name="top_pick_featuring" translatable="false">Featuring %1$s</string>
+    <string name="top_pick_and_similar" translatable="false">%1$s &amp; Similar Artists</string>
+    <string name="top_pick_named_station" translatable="false">%1$s’s Station</string>
+    <string name="top_pick_your_station" translatable="false">Your Station</string>
+    <string name="top_pick_discovery_station" translatable="false">Discovery Station</string>
+    <string name="top_pick_new_from" translatable="false">New from %1$s</string>
+    <string name="find_your_mood" translatable="false">Find Your Mood</string>
+    <string name="mood_energy" translatable="false">Energy</string>
+    <string name="mood_energy_line" translatable="false">High-voltage tracks to keep you moving.</string>
+    <string name="mood_relax" translatable="false">Relax</string>
+    <string name="mood_relax_line" translatable="false">Easy, soothing sounds to slow things down.</string>
+    <string name="mood_feeling_blue" translatable="false">Feeling Blue</string>
+    <string name="mood_feeling_blue_line" translatable="false">Sad songs for when you need them.</string>
+    <string name="mood_feel_good" translatable="false">Feel Good</string>
+    <string name="mood_feel_good_line" translatable="false">Bright, upbeat songs to lift the day.</string>
+    <string name="mood_focus" translatable="false">Focus</string>
+    <string name="mood_focus_line" translatable="false">Steady music to keep you in the zone.</string>
+    <string name="mood_heartbreak" translatable="false">Heartbreak</string>
+    <string name="mood_heartbreak_line" translatable="false">Breakup anthems, one tear at a time.</string>
+    <string name="mood_love" translatable="false">Love</string>
+    <string name="mood_love_line" translatable="false">Romantic songs for the moment.</string>
+    <string name="mood_after_hours" translatable="false">After Hours</string>
+    <string name="mood_after_hours_line" translatable="false">Late-night grooves for when the city goes quiet.</string>
+    <string name="mood_alone_time" translatable="false">Alone Time</string>
+    <string name="mood_alone_time_line" translatable="false">Mellow songs for time to yourself.</string>
+    <string name="mood_chill" translatable="false">Chill</string>
+    <string name="mood_chill_line" translatable="false">Laid-back sounds to take it easy.</string>
+    <string name="mood_commuting" translatable="false">Commuting</string>
+    <string name="mood_commuting_line" translatable="false">The right soundtrack for the road.</string>
+    <string name="mood_eating_cooking" translatable="false">Eating &amp; Cooking</string>
+    <string name="mood_eating_cooking_line" translatable="false">Warm, easy music for the kitchen and the table.</string>
+    <string name="mood_evening" translatable="false">Evening</string>
+    <string name="mood_evening_line" translatable="false">Gentle songs to wind the day down.</string>
+    <string name="mood_fitness" translatable="false">Fitness</string>
+    <string name="mood_fitness_line" translatable="false">Hard-hitting tracks to push you further.</string>
+    <string name="mood_gaming" translatable="false">Gaming</string>
+    <string name="mood_gaming_line" translatable="false">Soundtracks to level up to.</string>
+    <string name="mood_home" translatable="false">Home</string>
+    <string name="mood_home_line" translatable="false">Easy listening for a slow day in.</string>
+    <string name="mood_morning" translatable="false">Morning</string>
+    <string name="mood_morning_line" translatable="false">Bright songs to start the day right.</string>
+    <string name="mood_motivation" translatable="false">Motivation</string>
+    <string name="mood_motivation_line" translatable="false">Anthems to get you up and going.</string>
+    <string name="mood_outdoors" translatable="false">Outdoors</string>
+    <string name="mood_outdoors_line" translatable="false">Music for fresh air and open roads.</string>
+    <string name="mood_party" translatable="false">Party</string>
+    <string name="mood_party_line" translatable="false">Crowd-pleasers to keep the night going.</string>
+    <string name="mood_sleep" translatable="false">Sleep</string>
+    <string name="mood_sleep_line" translatable="false">Soft, calming sounds to drift off to.</string>
+    <string name="mood_social" translatable="false">Social</string>
+    <string name="mood_social_line" translatable="false">Songs everyone in the room will know.</string>
+    <string name="mood_sports" translatable="false">Sports</string>
+    <string name="mood_sports_line" translatable="false">Game-day energy, start to finish.</string>
+    <string name="mood_summertime" translatable="false">Summertime Sounds</string>
+    <string name="mood_summertime_line" translatable="false">Sunny songs for long, warm days.</string>
+    <string name="mood_holiday" translatable="false">Holiday</string>
+    <string name="mood_holiday_line" translatable="false">Festive favourites for the season.</string>
+    <string name="mood_weekend" translatable="false">Weekend</string>
+    <string name="mood_weekend_line" translatable="false">Feel-good music for your days off.</string>
+    <string name="mood_wellbeing" translatable="false">Wellbeing</string>
+    <string name="mood_wellbeing_line" translatable="false">Calm music for mindfulness and yoga.</string>
+    <string name="mood_work" translatable="false">Work</string>
+    <string name="mood_work_line" translatable="false">Steady instrumentals to get things done.</string>
 </resources>
 

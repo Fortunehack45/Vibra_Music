@@ -183,7 +183,8 @@ object YtMusicRepository {
      * can say what the audio version is.
      */
     suspend fun playlistAsAudio(playlistId: String): Result<List<Song>> = call("watchAudio:$playlistId") {
-        val response = Innertube.nextPlaylist(playlistId)
+        val seedVideoId = if (playlistId.startsWith("RDAMVM")) playlistId.removePrefix("RDAMVM") else null
+        val response = Innertube.nextPlaylist(playlistId, seedVideoId)
         val songs = InnertubeParser.parseWatchQueue(response, preferAudio = true)
         val (pairs, audioPairs) = InnertubeParser.watchQueuePairs(response)
         Log.d(TAG, "watchAudio $playlistId rows=${songs.size} pairs=$pairs audioPairs=$audioPairs videosLeft=${songs.count { it.isVideo }}")
@@ -635,7 +636,7 @@ object YtMusicRepository {
      */
     data class SongPage(
         val songs: List<Song>,
-        val continuation: String?,
+        val continuation: String? = null,
         val suggested: List<Song> = emptyList(),
         /**
          * Whether the release this page describes is in the library. Only the
@@ -673,14 +674,38 @@ object YtMusicRepository {
      * first response. The rest arrives behind a page that is by then already
      * being read — see [moreSongs].
      */
-    suspend fun browseSongs(browseId: String): Result<SongPage> = call("browse:$browseId") {
-        val response = Innertube.browse(browseId)
-        var page = if (browseId.startsWith("MPREb")) {
+    suspend fun browseSongs(rawBrowseId: String): Result<SongPage> = call("browse:$rawBrowseId") {
+        val browseId = when {
+            rawBrowseId.startsWith("PL") || rawBrowseId.startsWith("OLAK") -> "VL$rawBrowseId"
+            else -> rawBrowseId
+        }
+        if (browseId.startsWith("RD") || browseId.startsWith("VLRD")) {
+            val playlistId = browseId.removePrefix("VL")
+            val seedVideoId = if (playlistId.startsWith("RDAMVM")) playlistId.removePrefix("RDAMVM") else null
+            val songs = playlistAsAudio(playlistId).getOrNull()
+                ?: watchQueue(WatchTarget(playlistId = playlistId, videoId = seedVideoId)).getOrNull()
+                ?: emptyList()
+            return@call if (songs.isEmpty()) {
+                SongPage(emptyList(), continuation = null)
+            } else {
+                SongPage(songs = songs, continuation = null)
+            }
+        }
+        val response = try {
+            Innertube.browse(browseId)
+        } catch (e: Exception) {
+            if (!browseId.startsWith("VL") && (browseId.startsWith("PL") || browseId.startsWith("OLAK"))) {
+                Innertube.browse("VL$browseId")
+            } else {
+                throw e
+            }
+        }
+        var page = if (browseId.startsWith("MPRE")) {
             albumPageOf(response)
         } else {
             pageOf(response)
         }
-        if (page.songs.isEmpty() && !browseId.startsWith("VL")) {
+        if (page.songs.isEmpty() && !browseId.startsWith("VL") && !browseId.startsWith("MPRE") && !browseId.startsWith("UC")) {
             val fallbackResponse = runCatching { Innertube.browse("VL$browseId") }.getOrNull()
             if (fallbackResponse != null) {
                 val fallbackPage = pageOf(fallbackResponse)
@@ -709,11 +734,23 @@ object YtMusicRepository {
     private suspend fun albumPageOf(albumResponse: JsonObject): SongPage {
         val metadata = pageOf(albumResponse)
         val playlistId = InnertubeParser.parseAlbumPlaylistId(albumResponse) ?: return metadata
-        val tracks = pageOf(Innertube.browse("VL${playlistId.removePrefix("VL")}"))
+        if (playlistId.startsWith("RD")) {
+            if (metadata.songs.isNotEmpty()) return metadata
+            val seedVideoId = if (playlistId.startsWith("RDAMVM")) playlistId.removePrefix("RDAMVM") else null
+            val songs = playlistAsAudio(playlistId).getOrNull()
+                ?: watchQueue(WatchTarget(playlistId = playlistId, videoId = seedVideoId)).getOrNull()
+                ?: emptyList()
+            return if (songs.isNotEmpty()) metadata.copy(songs = songs) else metadata
+        }
+        val normalizedPlaylistId = "VL${playlistId.removePrefix("VL")}"
+        val tracks = runCatching {
+            pageOf(Innertube.browse(normalizedPlaylistId))
+        }.getOrNull() ?: return metadata
+
         return tracks.copy(
             library = metadata.library,
-            header = metadata.header,
-            description = metadata.description,
+            header = metadata.header ?: tracks.header,
+            description = metadata.description ?: tracks.description,
         )
     }
 

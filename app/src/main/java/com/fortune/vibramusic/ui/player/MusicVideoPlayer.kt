@@ -196,12 +196,14 @@ object MusicVideoEngine {
     }
 
     fun attach(controller: Player?) {
-        if (this.controller === controller) return
-        this.controller?.removeListener(controllerListener)
-        this.controller = controller
-        controller?.addListener(controllerListener)
-        _playing.value = controller?.isPlaying == true
-        refresh()
+        runCatching {
+            if (this.controller === controller) return
+            this.controller?.removeListener(controllerListener)
+            this.controller = controller
+            controller?.addListener(controllerListener)
+            _playing.value = controller?.isPlaying == true
+            refresh()
+        }.onFailure { TrackLog.w(TAG, "Failed to attach controller: ${it.message}") }
     }
 
     internal fun claim(view: TextureView, priority: Int): () -> Unit {
@@ -259,22 +261,24 @@ object MusicVideoEngine {
         }
     }
 
-    private fun wanted(): Song? {
+    private fun wanted(): Song? = runCatching {
         val song = controller?.currentMediaItem?.toSong() ?: return null
-        return song.takeIf { it.isVideo && it.videoId !in noPicture }
-    }
+        song.takeIf { it.isVideo && it.videoId !in noPicture }
+    }.getOrNull()
 
     private fun refresh() {
-        val song = if (surfaces.isEmpty()) null else wanted()
-        if (song == null) {
-            if (surfaces.isNotEmpty() || wanted()?.videoId != loadedId) unload()
-            return
-        }
-        if (song.videoId == loadedId) {
-            startSync()
-            return
-        }
-        load(song.videoId)
+        runCatching {
+            val song = if (surfaces.isEmpty()) null else wanted()
+            if (song == null) {
+                if (surfaces.isNotEmpty() || wanted()?.videoId != loadedId) unload()
+                return
+            }
+            if (song.videoId == loadedId) {
+                startSync()
+                return
+            }
+            load(song.videoId)
+        }.onFailure { TrackLog.w(TAG, "Failed to refresh video: ${it.message}") }
     }
 
     fun setQuality(height: Int?) {

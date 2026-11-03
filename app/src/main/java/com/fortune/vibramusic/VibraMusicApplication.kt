@@ -102,19 +102,27 @@ class VibraMusicApplication : Application(), SingletonImageLoader.Factory {
             defaultHandler?.uncaughtException(thread, throwable)
         }
 
-        // Ensure the default launcher component is enabled so users upgrading from
-        // previous builds never encounter ActivityNotFoundException or launch failure.
+        // Prune any legacy aliases that were erroneously enabled in previous builds
+        // to guarantee exactly one launcher icon appears on the device home screen.
         runCatching {
             val pm = packageManager
-            val defaultLauncher = android.content.ComponentName(this, "$packageName.LauncherDefault")
-            if (pm.getComponentEnabledSetting(defaultLauncher) != android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED) {
+            val darkLauncher = android.content.ComponentName(this, "$packageName.LauncherGlassDark")
+            val lightLauncher = android.content.ComponentName(this, "$packageName.LauncherGlassLight")
+            if (pm.getComponentEnabledSetting(darkLauncher) == android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED) {
                 pm.setComponentEnabledSetting(
-                    defaultLauncher,
-                    android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                    darkLauncher,
+                    android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
                     android.content.pm.PackageManager.DONT_KILL_APP,
                 )
             }
-        }.onFailure { Log.w("VibraMusic", "Could not verify default launcher state", it) }
+            if (pm.getComponentEnabledSetting(lightLauncher) == android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED) {
+                pm.setComponentEnabledSetting(
+                    lightLauncher,
+                    android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                    android.content.pm.PackageManager.DONT_KILL_APP,
+                )
+            }
+        }.onFailure { Log.w("VibraMusic", "Could not prune duplicate launcher aliases", it) }
 
         // PlaybackService shares this process, so seeding the cookie here means
 
@@ -206,7 +214,7 @@ class VibraMusicApplication : Application(), SingletonImageLoader.Factory {
 
         }
 
-        AppSettings.init(this, authStore)
+        runCatching { AppSettings.init(this, authStore) }.onFailure { Log.w("VibraMusic", "Failed to init AppSettings", it) }
 
         // Restores a party this device is still a member of, so a process death
 
@@ -216,13 +224,13 @@ class VibraMusicApplication : Application(), SingletonImageLoader.Factory {
 
         // the next connect, which is the only way to be sure they are current.
 
-        ListenTogether.init(this)
+        runCatching { ListenTogether.init(this) }.onFailure { Log.w("VibraMusic", "Failed to init ListenTogether", it) }
 
-        SearchHistory.init(this)
+        runCatching { SearchHistory.init(this) }.onFailure { Log.w("VibraMusic", "Failed to init SearchHistory", it) }
 
-        LastPlayed.init(this)
+        runCatching { LastPlayed.init(this) }.onFailure { Log.w("VibraMusic", "Failed to init LastPlayed", it) }
 
-        com.fortune.vibramusic.playback.PartyPersonalQueueStash.init(this)
+        runCatching { com.fortune.vibramusic.playback.PartyPersonalQueueStash.init(this) }.onFailure { Log.w("VibraMusic", "Failed to init PartyPersonalQueueStash", it) }
 
         // Which tracks the listener has reverted to YouTube's own upload. Read
 
@@ -230,13 +238,13 @@ class VibraMusicApplication : Application(), SingletonImageLoader.Factory {
 
         // snapshot below is turned back into queue items.
 
-        OriginalVersion.init(this)
+        runCatching { OriginalVersion.init(this) }.onFailure { Log.w("VibraMusic", "Failed to init OriginalVersion", it) }
 
         // What's already saved to Downloads, so the song menu can say so
 
         // without a media-store query per row.
 
-        Downloads.init(this)
+        runCatching { Downloads.init(this) }.onFailure { Log.w("VibraMusic", "Failed to init Downloads", it) }
 
         // The device's own listening record. Opened here rather than in
 
@@ -244,18 +252,18 @@ class VibraMusicApplication : Application(), SingletonImageLoader.Factory {
 
         // both live in this process — one owner, one directory.
 
-        ListeningStats.init(this)
+        runCatching { ListeningStats.init(this) }.onFailure { Log.w("VibraMusic", "Failed to init ListeningStats", it) }
 
         // After AppSettings, whose switch decides whether half of it runs.
 
-        ArtistFacts.init(this)
+        runCatching { ArtistFacts.init(this) }.onFailure { Log.w("VibraMusic", "Failed to init ArtistFacts", it) }
 
         // One cache directory can only be opened once per process, and
 
         // PlaybackService shares this one — so it's opened here, not there.
 
-        AudioCache.init(this)
-        com.fortune.vibramusic.data.cache.OfflineCacheManager.init(this)
+        runCatching { AudioCache.init(this) }.onFailure { Log.w("VibraMusic", "Failed to init AudioCache", it) }
+        runCatching { com.fortune.vibramusic.data.cache.OfflineCacheManager.init(this) }.onFailure { Log.w("VibraMusic", "Failed to init OfflineCacheManager", it) }
 
         // The offscreen WebView that mints a Spotify access token from the
 
@@ -271,8 +279,8 @@ class VibraMusicApplication : Application(), SingletonImageLoader.Factory {
             AppSettings.setSpotifySpdcToken("")
         }
 
-        SpotifyToken.init(this)
-        SpotifyToken.warmUp()
+        runCatching { SpotifyToken.init(this) }.onFailure { Log.w("VibraMusic", "Failed to init SpotifyToken", it) }
+        runCatching { SpotifyToken.warmUp() }.onFailure { Log.w("VibraMusic", "Failed to warm up SpotifyToken", it) }
 
         // A sideloaded update is just a new APK over the old one, so app data —
 
@@ -299,9 +307,9 @@ class VibraMusicApplication : Application(), SingletonImageLoader.Factory {
         }
 
         // Initialize LastFM with saved settings if available
-        initLastfm()
+        runCatching { initLastfm() }.onFailure { Log.w("VibraMusic", "Failed to init LastFM", it) }
 
-        backgroundInit.join()
+        runCatching { backgroundInit.join(3000L) }.onFailure { Log.w("VibraMusic", "Background init join timed out", it) }
     }
 
 

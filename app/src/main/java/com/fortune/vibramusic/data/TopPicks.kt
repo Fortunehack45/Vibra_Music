@@ -197,7 +197,8 @@ object TopPicks {
                 .filter { normalizedArtistName(it.title).let { key -> key.isNotEmpty() && key != own } }
                 .distinctBy { normalizedArtistName(it.title) }
                 .take(RELATED_CANDIDATES)
-                .associate { it.title to it.browseId!! }
+                .mapNotNull { item -> item.browseId?.let { item.title to it } }
+                .toMap()
         }
     }
 
@@ -393,9 +394,10 @@ object TopPicks {
         val chosen = playlists(shelf).take(6).shuffled().take(MOOD_PLAYLISTS)
         val songs = chosen.map { item ->
             async {
-                val playlistId = item.browseId!!.removePrefix("VL")
+                val browseId = item.browseId ?: return@async emptyList()
+                val playlistId = browseId.removePrefix("VL")
                 YtMusicRepository.playlistAsAudio(playlistId).getOrNull()?.takeIf { it.isNotEmpty() }
-                    ?: YtMusicRepository.browseSongs(item.browseId!!).getOrNull()?.songs.orEmpty()
+                    ?: YtMusicRepository.browseSongs(browseId).getOrNull()?.songs.orEmpty()
             }
         }.awaitAll().flatten()
             .distinctBy { it.videoId }

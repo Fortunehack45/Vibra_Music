@@ -353,12 +353,12 @@ class MainActivity : AppCompatActivity() {
         enableEdgeToEdge()
         // Before the composition, so a cold launch from a widget's artwork has
         // the request already standing by the time Siren MusicApp first reads it.
-        PlayerDeepLink.consume(intent)
-        JamInviteLink.consume(intent)
+        runCatching { PlayerDeepLink.consume(intent) }
+        runCatching { JamInviteLink.consume(intent) }
         // Likewise for a link tapped or shared from another app — see [MusicLink].
-        MusicLink.consume(intent)
+        runCatching { MusicLink.consume(intent) }
         lifecycleScope.launch(Dispatchers.IO) {
-            com.fortune.vibramusic.data.supabase.SupabaseService.pingDatabase()
+            runCatching { com.fortune.vibramusic.data.supabase.SupabaseService.pingDatabase() }
         }
         setContent {
             val theme by AppSettings.themeMode.collectAsStateWithLifecycle()
@@ -519,8 +519,10 @@ private fun VibraMusicApp(
             setShown = { showNowPlaying = it },
         )
     }
-    playerSheetMotion.windowInfo = LocalWindowInfo.current
-    playerSheetMotion.flingVelocity = LocalViewConfiguration.current.maximumFlingVelocity
+    val currentWindowInfo = LocalWindowInfo.current
+    val currentViewConfig = LocalViewConfiguration.current
+    playerSheetMotion.windowInfo = currentWindowInfo
+    playerSheetMotion.flingVelocity = currentViewConfig.maximumFlingVelocity
     // The far end of the relay from a widget's artwork. Cleared here rather than
     // where it was set, so the request is spent by being served — see
     // [PlayerDeepLink.handled]. The sheet itself is gated on there being a track,
@@ -2543,9 +2545,9 @@ private fun VibraMusicApp(
         }
 
         DisposableEffect(controller) {
-            com.fortune.vibramusic.ui.player.MusicVideoEngine.attach(controller)
+            runCatching { com.fortune.vibramusic.ui.player.MusicVideoEngine.attach(controller) }
             onDispose {
-                com.fortune.vibramusic.ui.player.MusicVideoEngine.attach(null)
+                runCatching { com.fortune.vibramusic.ui.player.MusicVideoEngine.attach(null) }
             }
         }
 

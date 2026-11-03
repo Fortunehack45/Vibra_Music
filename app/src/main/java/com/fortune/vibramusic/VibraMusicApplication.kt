@@ -102,6 +102,20 @@ class VibraMusicApplication : Application(), SingletonImageLoader.Factory {
             defaultHandler?.uncaughtException(thread, throwable)
         }
 
+        // Ensure the default launcher component is enabled so users upgrading from
+        // previous builds never encounter ActivityNotFoundException or launch failure.
+        runCatching {
+            val pm = packageManager
+            val defaultLauncher = android.content.ComponentName(this, "$packageName.LauncherDefault")
+            if (pm.getComponentEnabledSetting(defaultLauncher) != android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED) {
+                pm.setComponentEnabledSetting(
+                    defaultLauncher,
+                    android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                    android.content.pm.PackageManager.DONT_KILL_APP,
+                )
+            }
+        }.onFailure { Log.w("VibraMusic", "Could not verify default launcher state", it) }
+
         // PlaybackService shares this process, so seeding the cookie here means
 
         // stream resolution is authenticated from the first play onwards.
@@ -124,9 +138,9 @@ class VibraMusicApplication : Application(), SingletonImageLoader.Factory {
 
         val backgroundInit = thread(name = "startup-init") {
 
-            SourceRegistry.init(this)
+            runCatching { SourceRegistry.init(this) }.onFailure { Log.w("VibraMusic", "Failed to init SourceRegistry", it) }
 
-            InnerTubeXResolver.init(this)
+            runCatching { InnerTubeXResolver.init(this) }.onFailure { Log.w("VibraMusic", "Failed to init InnerTubeXResolver", it) }
 
             // Its own directory: canvas clips are looping video, not audio, and
 
@@ -138,13 +152,16 @@ class VibraMusicApplication : Application(), SingletonImageLoader.Factory {
 
             // seconds of video from the network on every loop.
 
-            CanvasCache.init(this)
-            com.fortune.vibramusic.data.lyrics.CustomLyricsStore.init(this)
-            com.fortune.vibramusic.data.LocalLikesStore.init(this)
-            com.fortune.vibramusic.data.LocalPlaylistsStore.init(this)
-            com.fortune.vibramusic.playback.smart.MetaSchedulerHolder.init(this)
-            val smartStore = com.fortune.vibramusic.playback.smart.AnalysisStore(this)
-            com.fortune.vibramusic.playback.smart.AcousticCatalogService.purgeFabricatedMeta(this, smartStore)
+            runCatching { CanvasCache.init(this) }.onFailure { Log.w("VibraMusic", "Failed to init CanvasCache", it) }
+            runCatching { com.fortune.vibramusic.data.lyrics.CustomLyricsStore.init(this) }.onFailure { Log.w("VibraMusic", "Failed to init CustomLyricsStore", it) }
+            runCatching { com.fortune.vibramusic.data.LocalLikesStore.init(this) }.onFailure { Log.w("VibraMusic", "Failed to init LocalLikesStore", it) }
+            runCatching { com.fortune.vibramusic.data.LocalPlaylistsStore.init(this) }.onFailure { Log.w("VibraMusic", "Failed to init LocalPlaylistsStore", it) }
+            runCatching { com.fortune.vibramusic.playback.smart.MetaSchedulerHolder.init(this) }.onFailure { Log.w("VibraMusic", "Failed to init MetaSchedulerHolder", it) }
+            runCatching {
+                val smartStore = com.fortune.vibramusic.playback.smart.AnalysisStore(this)
+                com.fortune.vibramusic.playback.smart.AcousticCatalogService.purgeFabricatedMeta(this, smartStore)
+            }.onFailure { Log.w("VibraMusic", "Failed to init AnalysisStore", it) }
+
         }
 
         // Migration-safe: an old single cookie becomes the first encrypted

@@ -32,10 +32,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import com.fortune.vibramusic.ui.icons.SfIcons
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -295,9 +295,10 @@ fun FrostedTopBar(
                         modifier = Modifier.align(Alignment.CenterStart).padding(start = 4.dp),
                     ) {
                         Icon(
-                            SfIcons.ArrowBack,
+                            Icons.AutoMirrored.Rounded.ArrowBack,
                             contentDescription = stringResource(R.string.back),
                             tint = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(22.dp),
                         )
                     }
                 }
@@ -434,10 +435,12 @@ private fun ArtworkPageBackButton(
         contentAlignment = Alignment.Center,
     ) {
         Icon(
-            SfIcons.ArrowBack,
+            Icons.AutoMirrored.Rounded.ArrowBack,
             contentDescription = stringResource(R.string.back),
             tint = contentColor,
-            modifier = Modifier.align(Alignment.Center),
+            modifier = Modifier
+                .size(22.dp)
+                .align(Alignment.Center),
         )
     }
 }

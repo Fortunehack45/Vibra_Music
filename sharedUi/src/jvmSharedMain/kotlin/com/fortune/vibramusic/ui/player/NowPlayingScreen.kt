@@ -1207,9 +1207,13 @@ fun NowPlayingScreen(
     // clip running the full screen. CanvasArtworkPlayer masks itself on every
     // API level now, and both layers answer to this.
     val canvasOnPhone = canvas != null && playerFillsWindow(windowWidth)
-    val spotifyCanvasOnPhone = canvasOnPhone
     val heroMode = canvasOnPhone ||
         (fullBleedArt && playerFillsWindow(windowWidth))
+    val spotifyCanvasFullscreenPreference = false
+    val isTablet = tabletSizedPlayer(windowWidth)
+    val isLandscape = landscapePlayerAvailable(windowWidth, windowHeight)
+    val spotifyCanvasOnPhone = !isTablet && !isLandscape &&
+        spotifyCanvasFullscreenPreference
 
     // Whether there's a still image to blow out — a placeholder tile is a card
     // or it is nothing, and going full-bleed with one would just tint the top
@@ -1254,14 +1258,19 @@ fun NowPlayingScreen(
     // composition pass, so the still art is whole again in the very frame the
     // clip goes, rather than a frame later with no artwork anywhere.
     val heroClip = canvas?.takeIf { heroMode && !collapsePastHalf }
-    val spotifyCanvasFullscreen = canvasOnPhone && heroClip != null
+    val heroClipMounted = heroClip
+    val spotifyCanvasFullscreen = spotifyCanvasOnPhone
     val spotifyCanvasPresentation = spotifyCanvasFullscreen && canvasRendered
-    val canvasFirstPortrait = false
-    val heroClipMounted = canvas?.takeIf {
-        heroMode && (!(lyricsOpen || queueOpen) || !collapseDone)
-    }
-    val clipFullscreen = canvasOnPhone && heroClipMounted != null
-    val clipPortrait = false
+
+    val canvasFirstFullscreen = spotifyCanvasFullscreen &&
+        heroClip?.source == CanvasSource.SPOTIFY
+    val clipFullscreen = spotifyCanvasFullscreen &&
+        heroClipMounted?.source == CanvasSource.SPOTIFY
+
+    val canvasFirstPortrait = !spotifyCanvasFullscreen &&
+        heroClip != null && canvasAspect > 0f && canvasAspect < 1f
+    val clipPortrait = !clipFullscreen &&
+        heroClipMounted != null && canvasAspect > 0f && canvasAspect < 1f
 
     // The setting defaults on, restoring the five-second stand-down, but the
     // listener can keep the deck open indefinitely from Spotify integration.
@@ -2052,9 +2061,15 @@ fun NowPlayingScreen(
                 modifier = Modifier.graphicsLayer { alpha = 1f - fullArtworkBackdropAlpha },
             )
         } else if (!tabletArtworkBackdrop) {
+            val backdropSeam = when {
+                clipFullscreen -> 0.dp
+                clipPortrait -> clipBottom
+                heroMode -> heroHeight
+                else -> 0.dp
+            }
             ArtworkMeshBackdrop(
                 mesh = artMesh,
-                seam = if (heroMode) heroHeight else 0.dp,
+                seam = backdropSeam,
                 modifier = Modifier.graphicsLayer { alpha = 1f - fullArtworkBackdropAlpha },
             )
         }
@@ -2066,30 +2081,17 @@ fun NowPlayingScreen(
         // invisible view to full-player bounds before its first frame is shown.
         if (heroMode && heroHeight > 0.dp) {
             heroClipMounted?.let { clip ->
-                val targetCanvasHeight = if (spotifyCanvasControlsOpen) {
-                    heroHeight
-                } else if (playerBounds.height > 0) {
-                    with(density) { playerBounds.height.toDp() }
-                } else {
-                    heroHeight
-                }
-                val canvasHeight by animateDpAsState(
-                    targetValue = if (targetCanvasHeight > 0.dp) targetCanvasHeight else heroHeight,
-                    animationSpec = tween(SPOTIFY_CANVAS_CONTROLS_ANIMATION_MS),
-                    label = "canvasHeight",
-                )
-                val canvasBottomFade by animateFloatAsState(
-                    targetValue = if (spotifyCanvasControlsOpen) HERO_FADE_FRACTION else 0f,
-                    animationSpec = tween(SPOTIFY_CANVAS_CONTROLS_ANIMATION_MS),
-                    label = "canvasBottomFade",
-                )
                 CanvasArtworkPlayer(
                     canvas = clip,
                     isPlaying = isPlaying,
                     pausedForTransition = lyricsOpen || queueOpen || queueDragging ||
                         collapseStarted || dockMoving,
-                    contentMode = CanvasContentMode.CROP,
-                    alignPortraitTop = false,
+                    contentMode = if (clipFullscreen) {
+                        CanvasContentMode.CROP
+                    } else {
+                        CanvasContentMode.FIT_PORTRAIT
+                    },
+                    alignPortraitTop = clipPortrait,
                     onAspectRatioChanged = { canvasAspect = it },
                     portraitRevealBounds = playerBounds,
                     presentationAlpha = { (1f - 2f * p()).coerceIn(0f, 1f) * dockFade() },
@@ -2097,12 +2099,18 @@ fun NowPlayingScreen(
                     onFrameCaptured = {},
                     refreshFrameEveryMs = null,
                     onCoverChanged = { canvasCover.floatValue = it },
-                    bottomFade = canvasBottomFade,
-                    bottomFadeEndPx = null,
+                    bottomFade = when {
+                        clipFullscreen -> 0f
+                        clipPortrait -> clipFadeFraction
+                        else -> HERO_FADE_FRACTION
+                    },
+                    bottomFadeEndPx = if (clipPortrait) with(density) { clipBottom.toPx() } else null,
                     modifier = Modifier
                         .align(Alignment.TopStart)
-                        .fillMaxWidth()
-                        .height(canvasHeight)
+                        .then(
+                            if (clipFullscreen || clipPortrait) Modifier.fillMaxSize()
+                            else Modifier.fillMaxWidth().height(heroHeight),
+                        )
                         .hazeSource(playerHaze),
                 )
             }

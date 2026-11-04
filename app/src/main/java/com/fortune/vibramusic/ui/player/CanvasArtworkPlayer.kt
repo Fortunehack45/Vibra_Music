@@ -614,13 +614,16 @@ private fun TextureView.setBottomFade(fraction: Float, bounds: IntSize, endPx: F
         endY,
         intArrayOf(
             android.graphics.Color.BLACK,
-            android.graphics.Color.argb(235, 0, 0, 0),
-            android.graphics.Color.argb(184, 0, 0, 0),
-            android.graphics.Color.argb(112, 0, 0, 0),
-            android.graphics.Color.argb(40, 0, 0, 0),
+            android.graphics.Color.argb(254, 0, 0, 0),
+            android.graphics.Color.argb(246, 0, 0, 0),
+            android.graphics.Color.argb(225, 0, 0, 0),
+            android.graphics.Color.argb(185, 0, 0, 0),
+            android.graphics.Color.argb(125, 0, 0, 0),
+            android.graphics.Color.argb(55, 0, 0, 0),
+            android.graphics.Color.argb(12, 0, 0, 0),
             android.graphics.Color.TRANSPARENT,
         ),
-        floatArrayOf(0f, 0.22f, 0.45f, 0.68f, 0.86f, 1f),
+        floatArrayOf(0f, 0.12f, 0.25f, 0.40f, 0.58f, 0.74f, 0.88f, 0.96f, 1f),
         Shader.TileMode.CLAMP,
     )
     setRenderEffect(

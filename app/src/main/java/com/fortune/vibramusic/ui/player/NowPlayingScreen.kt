@@ -1139,11 +1139,15 @@ fun NowPlayingScreen(
     // clip running the full screen. CanvasArtworkPlayer masks itself on every
     // API level now, and both layers answer to this.
     val canvasOnPhone = canvas != null && playerFillsWindow(windowWidth)
-    val spotifyCanvasOnPhone = canvasOnPhone
     val heroMode = !videoMode && (
         canvasOnPhone ||
         (fullBleedArt && playerFillsWindow(windowWidth))
     )
+    val spotifyCanvasFullscreenPreference = false
+    val isTablet = tabletSizedPlayer(windowWidth)
+    val isLandscape = landscapePlayerAvailable(windowWidth, windowHeight)
+    val spotifyCanvasOnPhone = !isTablet && !isLandscape &&
+        spotifyCanvasFullscreenPreference
 
     // Whether there's a still image to blow out — a placeholder tile is a card
     // or it is nothing, and going full-bleed with one would just tint the top
@@ -1190,9 +1194,19 @@ fun NowPlayingScreen(
     // the clip goes, instead of a frame later with the sleeve behind it still
     // transparent and no artwork anywhere.
     val heroClip = canvas?.takeIf { heroMode && !collapsePastHalf }
-    val spotifyCanvasFullscreen = canvasOnPhone && heroClip != null
+    val heroClipMounted = heroClip
+    val spotifyCanvasFullscreen = spotifyCanvasOnPhone
     val spotifyCanvasPresentation = spotifyCanvasFullscreen && canvasRendered
-    val canvasFirstPortrait = false
+
+    val canvasFirstFullscreen = spotifyCanvasFullscreen &&
+        heroClip?.source == CanvasSource.SPOTIFY
+    val clipFullscreen = spotifyCanvasFullscreen &&
+        heroClipMounted?.source == CanvasSource.SPOTIFY
+
+    val canvasFirstPortrait = !spotifyCanvasFullscreen &&
+        heroClip != null && canvasAspect > 0f && canvasAspect < 1f
+    val clipPortrait = !clipFullscreen &&
+        heroClipMounted != null && canvasAspect > 0f && canvasAspect < 1f
 
     // The setting defaults on, restoring the five-second stand-down, but the
     // listener can keep the deck open indefinitely from Spotify integration.
@@ -1267,19 +1281,64 @@ fun NowPlayingScreen(
     // is nothing to show that early either.
     var heroHeight by remember { mutableStateOf(0.dp) }
     var playerBounds by remember { mutableStateOf(IntSize.Zero) }
-    // The bottom of a top-aligned, contained clip in the full-player view.
-    // Use measured pixels and the decoded display aspect, never screen constants.
-    val renderedCanvasBottom = if (canvasFirstPortrait && playerBounds.width > 0 && playerBounds.height > 0) {
-        val viewAspect = playerBounds.width.toFloat() / playerBounds.height
-        val videoHeight = if (canvasAspect >= viewAspect) playerBounds.width / canvasAspect
-            else playerBounds.height.toFloat()
-        with(density) { videoHeight.toDp() }
-    } else 0.dp
-    // Match the old hero's fade height in physical pixels, not its much larger
-    // percentage of a portrait video. The mask ends at the real video bottom.
-    val canvasFirstFadeFraction = if (renderedCanvasBottom > 0.dp) {
-        (heroHeight.value * HERO_FADE_FRACTION / renderedCanvasBottom.value).coerceIn(0f, 1f)
-    } else 0f
+
+    // Where a contained portrait canvas ends vertically, relative to the
+    // player's coordinate space. A portrait canvas's TextureView is sized
+    // to fill the player bounds, then scaled to FIT_PORTRAIT aligned to the
+    // top edge. The bottom edge of the actual video frame is therefore at:
+    // videoHeight = playerWidth / canvasAspect (capped at playerHeight).
+    // The bottom fade must start right above this edge, not at the bottom
+    // of the entire player screen — otherwise the fade would paint over empty
+    // space below the video, leaving the video's bottom edge hard.
+    fun canvasBottom(portrait: Boolean): Dp =
+        if (portrait && playerBounds.width > 0 && playerBounds.height > 0) {
+            val viewAspect = playerBounds.width.toFloat() / playerBounds.height
+            val videoHeight = if (canvasAspect >= viewAspect) {
+                // Width-constrained: video fills player width, height is proportional
+                playerBounds.width / canvasAspect
+            } else {
+                // Height-constrained: video fills player height
+                playerBounds.height.toFloat()
+            }
+            with(density) { videoHeight.toDp() }
+        } else {
+            0.dp
+        }
+
+    val canvasFirstBottom = canvasBottom(canvasFirstPortrait)
+    val clipBottom = canvasBottom(clipPortrait)
+
+    // For a contained portrait canvas, fade fraction is scaled so the fade
+    // zone height (fadeFraction * canvasBottom) matches the standard fade zone
+    // height on square hero art (HERO_FADE_FRACTION * heroHeight).
+    val clipFadeFraction = if (clipBottom > 0.dp) {
+        (heroHeight.value * HERO_FADE_FRACTION / clipBottom.value).coerceIn(0f, 1f)
+    } else {
+        0f
+    }
+    val canvasFirstFadeFraction = if (canvasFirstBottom > 0.dp) {
+        (heroHeight.value * HERO_FADE_FRACTION / canvasFirstBottom.value).coerceIn(0f, 1f)
+    } else {
+        0f
+    }
+    val heroFadeFraction = when {
+        clipFullscreen -> 0f
+        clipPortrait -> clipFadeFraction
+        else -> HERO_FADE_FRACTION
+    }
+    val heroFadeBottom = when {
+        clipFullscreen -> 0.dp
+        clipPortrait -> clipBottom
+        else -> heroHeight
+    }
+    val heroFadeBottomPx = with(density) { heroFadeBottom.toPx() }
+
+    val activeCanvasBottom = when {
+        clipFullscreen -> with(density) { playerBounds.height.toDp() }
+        clipPortrait -> clipBottom
+        else -> heroHeight
+    }
+    val activeCanvasBottomPx = with(density) { activeCanvasBottom.toPx() }
     val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     // What sits between the status bar and the artwork: the drag strip. Read
     // in three places — the strip itself,
@@ -1624,6 +1683,7 @@ fun NowPlayingScreen(
         }
     }
     val docking: () -> Boolean = { dockT() < 1f }
+    val dockMoving by remember { derivedStateOf { docking() } }
     val dockFade: () -> Float = { ((dockT() - 0.15f) / 0.85f).coerceIn(0f, 1f) }
     val sleeveLayer = rememberGraphicsLayer()
 
@@ -2008,9 +2068,15 @@ fun NowPlayingScreen(
                 modifier = Modifier.graphicsLayer { alpha = 1f - fullArtworkBackdropAlpha },
             )
         } else if (!tabletArtworkBackdrop) {
+            val backdropSeam = when {
+                clipFullscreen -> 0.dp
+                clipPortrait -> clipBottom
+                heroMode -> heroHeight
+                else -> 0.dp
+            }
             ArtworkMeshBackdrop(
                 mesh = artMesh,
-                seam = if (heroMode) heroHeight else 0.dp,
+                seam = backdropSeam,
                 modifier = Modifier.graphicsLayer { alpha = 1f - fullArtworkBackdropAlpha },
             )
         }
@@ -2110,43 +2176,37 @@ fun NowPlayingScreen(
         // Mount once, behind the controls. A known portrait aspect changes the
         // invisible view to full-player bounds before its first frame is shown.
         if (heroMode && heroHeight > 0.dp) {
-            heroClip?.let { clip ->
-                val targetCanvasHeight = if (spotifyCanvasControlsOpen) {
-                    heroHeight
-                } else if (playerBounds.height > 0) {
-                    with(density) { playerBounds.height.toDp() }
-                } else {
-                    heroHeight
-                }
-                val canvasHeight by animateDpAsState(
-                    targetValue = if (targetCanvasHeight > 0.dp) targetCanvasHeight else heroHeight,
-                    animationSpec = tween(SPOTIFY_CANVAS_CONTROLS_ANIMATION_MS),
-                    label = "canvasHeight",
-                )
-                val canvasBottomFade by animateFloatAsState(
-                    targetValue = if (spotifyCanvasControlsOpen) HERO_FADE_FRACTION else 0f,
-                    animationSpec = tween(SPOTIFY_CANVAS_CONTROLS_ANIMATION_MS),
-                    label = "canvasBottomFade",
-                )
+            heroClipMounted?.let { clip ->
                 CanvasArtworkPlayer(
                     canvas = clip,
                     isPlaying = isPlaying,
-                    pausedForTransition = collapseStarted,
-                    contentMode = CanvasContentMode.CROP,
-                    alignPortraitTop = false,
+                    pausedForTransition = lyricsOpen || queueOpen || queueDragging ||
+                        collapseStarted || dockMoving,
+                    contentMode = if (clipFullscreen) {
+                        CanvasContentMode.CROP
+                    } else {
+                        CanvasContentMode.FIT_PORTRAIT
+                    },
+                    alignPortraitTop = clipPortrait,
                     onAspectRatioChanged = { canvasAspect = it },
                     portraitRevealBounds = playerBounds,
-                    presentationAlpha = { (1f - 2f * p()).coerceIn(0f, 1f) },
+                    presentationAlpha = { (1f - 2f * p()).coerceIn(0f, 1f) * dockFade() },
                     onRenderedChanged = { canvasRendered = it },
                     onFrameCaptured = {},
                     refreshFrameEveryMs = null,
                     onCoverChanged = { canvasCover.floatValue = it },
-                    bottomFade = canvasBottomFade,
-                    bottomFadeEndPx = null,
+                    bottomFade = when {
+                        clipFullscreen -> 0f
+                        clipPortrait -> clipFadeFraction
+                        else -> HERO_FADE_FRACTION
+                    },
+                    bottomFadeEndPx = if (clipPortrait) with(density) { clipBottom.toPx() } else null,
                     modifier = Modifier
                         .align(Alignment.TopStart)
-                        .fillMaxWidth()
-                        .height(canvasHeight)
+                        .then(
+                            if (clipFullscreen || clipPortrait) Modifier.fillMaxSize()
+                            else Modifier.fillMaxWidth().height(heroHeight),
+                        )
                         .hazeSource(playerHaze),
                 )
             }

@@ -1972,7 +1972,6 @@ fun NowPlayingScreen(
         Box(
             modifier = Modifier
                 .matchParentSize()
-                .hazeSource(playerHaze)
                 .then(if (glassActive) Modifier.layerBackdrop(playerBackdrop) else Modifier),
         ) {
         // Anchored to the sleeve's bottom edge, so the screen carries on in the

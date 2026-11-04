@@ -41,7 +41,6 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animate
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -2010,7 +2009,7 @@ fun NowPlayingScreen(
         } else if (!tabletArtworkBackdrop) {
             ArtworkMeshBackdrop(
                 mesh = artMesh,
-                seam = if (heroMode) heroHeight else 0.dp,
+                seam = if (heroMode && !spotifyCanvasPresentation) heroHeight else 0.dp,
                 modifier = Modifier.graphicsLayer { alpha = 1f - fullArtworkBackdropAlpha },
             )
         }
@@ -2111,23 +2110,6 @@ fun NowPlayingScreen(
         // invisible view to full-player bounds before its first frame is shown.
         if (heroMode && heroHeight > 0.dp) {
             heroClip?.let { clip ->
-                val targetCanvasHeight = if (spotifyCanvasControlsOpen) {
-                    heroHeight
-                } else if (playerBounds.height > 0) {
-                    with(density) { playerBounds.height.toDp() }
-                } else {
-                    heroHeight
-                }
-                val canvasHeight by animateDpAsState(
-                    targetValue = if (targetCanvasHeight > 0.dp) targetCanvasHeight else heroHeight,
-                    animationSpec = tween(SPOTIFY_CANVAS_CONTROLS_ANIMATION_MS),
-                    label = "canvasHeight",
-                )
-                val canvasBottomFade by animateFloatAsState(
-                    targetValue = if (spotifyCanvasControlsOpen) HERO_FADE_FRACTION else 0f,
-                    animationSpec = tween(SPOTIFY_CANVAS_CONTROLS_ANIMATION_MS),
-                    label = "canvasBottomFade",
-                )
                 CanvasArtworkPlayer(
                     canvas = clip,
                     isPlaying = isPlaying,
@@ -2138,23 +2120,14 @@ fun NowPlayingScreen(
                     portraitRevealBounds = playerBounds,
                     presentationAlpha = { (1f - 2f * p()).coerceIn(0f, 1f) },
                     onRenderedChanged = { canvasRendered = it },
-                    onFrameCaptured = {
-                        if (!tabletArtworkBackdrop && !lyricsOpen && !queueOpen) {
-                            canvasFrame = it
-                        }
-                    },
-                    refreshFrameEveryMs = if (tabletArtworkBackdrop || lyricsOpen || queueOpen) {
-                        null
-                    } else {
-                        meshRefreshMs
-                    },
+                    onFrameCaptured = {},
+                    refreshFrameEveryMs = null,
                     onCoverChanged = { canvasCover.floatValue = it },
-                    bottomFade = canvasBottomFade,
+                    bottomFade = 0f,
                     bottomFadeEndPx = null,
                     modifier = Modifier
                         .align(Alignment.TopStart)
-                        .fillMaxWidth()
-                        .height(canvasHeight)
+                        .fillMaxSize()
                         .hazeSource(playerHaze),
                 )
             }
@@ -2194,28 +2167,38 @@ fun NowPlayingScreen(
         )
 
         // Spotify Canvas control deck background scrim.
-        // Provides smooth contrast and legibility for the playback controls while allowing
-        // the rich artwork mesh gradient beneath the dissolved video to glow through.
-        AnimatedVisibility(
-            visible = spotifyCanvasPresentation && spotifyCanvasControlsOpen,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .fillMaxHeight(0.56f),
-            enter = fadeIn(tween(SPOTIFY_CANVAS_CONTROLS_ANIMATION_MS)) + playerDeckSlideIn(),
-            exit = fadeOut(tween(SPOTIFY_CANVAS_CONTROLS_ANIMATION_MS)) + playerDeckSlideOut(),
-        ) {
+        // Provides an imperceptibly smooth 16-stop progressive easing gradient (t^2.4 power curve)
+        // that dissolves seamlessly from transparent into deep black over the controls.
+        // Starts with zero slope at Y=0.28 so there is no straight line or visible boundary edge.
+        val canvasDeckAlpha by animateFloatAsState(
+            targetValue = if (spotifyCanvasPresentation && spotifyCanvasControlsOpen) 1f else 0f,
+            animationSpec = tween(SPOTIFY_CANVAS_CONTROLS_ANIMATION_MS, easing = FastOutSlowInEasing),
+            label = "canvasDeckAlpha",
+        )
+
+        val progressiveCanvasScrimBrush = remember {
+            val startY = 0.28f
+            val endY = 1.00f
+            val scrimSteps = 16
+            val stops = List(scrimSteps) { i ->
+                val progress = i / (scrimSteps - 1).toFloat()
+                val eased = progress.toDouble().pow(2.4).toFloat()
+                val y = startY + (endY - startY) * progress
+                val alpha = (eased * 0.88f).coerceIn(0f, 1f)
+                y to Color.Black.copy(alpha = alpha)
+            }
+            Brush.verticalGradient(
+                0f to Color.Transparent,
+                *stops.toTypedArray(),
+            )
+        }
+
+        if (spotifyCanvasPresentation && canvasDeckAlpha > 0.001f) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            0.00f to Color.Transparent,
-                            SPOTIFY_DECK_TOP_FADE_FRACTION to Color.Black.copy(alpha = 0.20f),
-                            0.65f to Color.Black.copy(alpha = 0.50f),
-                            1.00f to Color.Black.copy(alpha = 0.75f),
-                        ),
-                    ),
+                    .graphicsLayer { alpha = canvasDeckAlpha }
+                    .background(progressiveCanvasScrimBrush),
             )
         }
         }

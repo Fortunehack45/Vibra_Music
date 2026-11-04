@@ -56,6 +56,7 @@ import com.fortune.vibramusic.ui.components.GLASS_EDGE_WIDTH
 import com.fortune.vibramusic.ui.components.LocalLiquidGlassEnabled
 import com.fortune.vibramusic.ui.components.isGlassSupported
 import com.fortune.vibramusic.ui.components.liquidGlass
+import com.fortune.vibramusic.ui.components.liquidGlassButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.VolumeDown
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
@@ -628,29 +629,25 @@ internal fun CircleGlyph(
     Box(
         modifier = Modifier
             .size(38.dp)
-            .clip(shape)
             .then(
                 if (useGlass) {
                     Modifier
                         .liquidGlass(shape)
-                        .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
                         .then(
-                            if (active) Modifier.background(Color.White.copy(alpha = 0.16f))
+                            if (active) Modifier.background(Color.White.copy(alpha = 0.16f), shape)
                             else Modifier
                         )
                 } else {
                     Modifier
+                        .clip(shape)
                         .background(Color.White.copy(alpha = discAlpha))
                         .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
                 }
             )
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-            ) {
-                haptics.play(haptic)
-                onClick()
-            },
+            .liquidGlassButton(
+                onClick = onClick,
+                haptic = haptic,
+            ),
         contentAlignment = Alignment.Center,
     ) {
         Crossfade(
@@ -778,14 +775,12 @@ private fun Pill(
     Row(
         modifier = modifier
             .height(BOTTOM_ACTION_SIZE)
-            .clip(shape)
             .then(
                 if (useGlass) {
-                    Modifier
-                        .liquidGlass(shape)
-                        .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
+                    Modifier.liquidGlass(shape)
                 } else {
                     Modifier
+                        .clip(shape)
                         .background(Color.White.copy(alpha = 0.14f))
                         .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
                 }
@@ -1132,33 +1127,31 @@ private fun BottomGlyph(
     Box(
         modifier = Modifier
             .size(BOTTOM_ACTION_SIZE)
-            .clip(shape)
             .then(
                 if (useGlass) {
                     Modifier
                         .liquidGlass(shape)
-                        .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
                         .then(
-                            if (highlighted) Modifier.background(Color.White.copy(alpha = 0.16f))
+                            if (highlighted) Modifier.background(Color.White.copy(alpha = 0.16f), shape)
                             else Modifier
                         )
                 } else {
                     Modifier
+                        .clip(shape)
                         .background(if (highlighted) Color.White.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.12f))
                         .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
                 }
             )
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-            ) {
-                val now = SystemClock.uptimeMillis()
-                if (now - lastTap.longValue >= tapWindowMs) {
-                    lastTap.longValue = now
-                    haptics.play(haptic)
-                    onClick()
-                }
-            }
+            .liquidGlassButton(
+                onClick = {
+                    val now = SystemClock.uptimeMillis()
+                    if (now - lastTap.longValue >= tapWindowMs) {
+                        lastTap.longValue = now
+                        onClick()
+                    }
+                },
+                haptic = haptic,
+            )
             .semantics { this.contentDescription = contentDescription },
         contentAlignment = Alignment.Center,
     ) {

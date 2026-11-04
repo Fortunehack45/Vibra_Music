@@ -39,7 +39,10 @@ import androidx.compose.ui.unit.sp
 import com.fortune.vibramusic.R
 import com.fortune.vibramusic.ui.components.GLASS_EDGE_COLOR
 import com.fortune.vibramusic.ui.components.GLASS_EDGE_WIDTH
+import com.fortune.vibramusic.ui.components.LocalLiquidGlassEnabled
+import com.fortune.vibramusic.ui.components.isGlassSupported
 import com.fortune.vibramusic.ui.components.liquidGlass
+import com.fortune.vibramusic.ui.components.liquidGlassButton
 import com.fortune.vibramusic.ui.haptics.Haptic
 import com.fortune.vibramusic.ui.haptics.rememberHaptics
 import com.fortune.vibramusic.ui.icons.VibraMusicIcons
@@ -198,20 +201,30 @@ fun PlaybackSpeedPill(
     var optimisticSpeed by remember(speed) { mutableFloatStateOf(speed) }
     val displaySpeed = if (optimisticSpeed % 1f == 0f) "${optimisticSpeed.toInt()}.0x" else "${optimisticSpeed}x"
 
+    val useGlass = LocalLiquidGlassEnabled.current && isGlassSupported()
     Box(
         modifier = modifier
             .height(34.dp)
-            .clip(pillShape)
-            .liquidGlass(shape = pillShape)
-            .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, pillShape)
-            .clickable {
-                haptics.play(Haptic.Tick)
-                val currentIndex = SPEED_STEPS.indexOfFirst { kotlin.math.abs(it - optimisticSpeed) < 0.05f }
-                val nextIndex = if (currentIndex in 0 until SPEED_STEPS.lastIndex) currentIndex + 1 else 0
-                val nextSpeed = SPEED_STEPS[nextIndex]
-                optimisticSpeed = nextSpeed
-                onSpeedChange(nextSpeed)
-            }
+            .then(
+                if (useGlass) {
+                    Modifier.liquidGlass(shape = pillShape)
+                } else {
+                    Modifier
+                        .clip(pillShape)
+                        .background(Color.White.copy(alpha = 0.16f))
+                        .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, pillShape)
+                }
+            )
+            .liquidGlassButton(
+                onClick = {
+                    val currentIndex = SPEED_STEPS.indexOfFirst { kotlin.math.abs(it - optimisticSpeed) < 0.05f }
+                    val nextIndex = if (currentIndex in 0 until SPEED_STEPS.lastIndex) currentIndex + 1 else 0
+                    val nextSpeed = SPEED_STEPS[nextIndex]
+                    optimisticSpeed = nextSpeed
+                    onSpeedChange(nextSpeed)
+                },
+                haptic = Haptic.Tick,
+            )
             .padding(horizontal = 10.dp),
         contentAlignment = Alignment.Center,
     ) {
@@ -243,19 +256,26 @@ fun ShowNotesPill(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val haptics = rememberHaptics()
     val pillShape = RoundedCornerShape(percent = 50)
+    val useGlass = LocalLiquidGlassEnabled.current && isGlassSupported()
 
     Box(
         modifier = modifier
             .height(34.dp)
-            .clip(pillShape)
-            .liquidGlass(shape = pillShape)
-            .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, pillShape)
-            .clickable {
-                haptics.play(Haptic.Tap)
-                onClick()
-            }
+            .then(
+                if (useGlass) {
+                    Modifier.liquidGlass(shape = pillShape)
+                } else {
+                    Modifier
+                        .clip(pillShape)
+                        .background(Color.White.copy(alpha = 0.16f))
+                        .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, pillShape)
+                }
+            )
+            .liquidGlassButton(
+                onClick = onClick,
+                haptic = Haptic.Tap,
+            )
             .padding(horizontal = 10.dp),
         contentAlignment = Alignment.Center,
     ) {

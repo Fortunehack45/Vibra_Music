@@ -1724,6 +1724,7 @@ fun NowPlayingScreen(
         val panelOpen = lyricsOpen || queueOpen
         CompositionLocalProvider(
             LocalAppBackdrop provides playerBackdrop,
+            LocalLiquidGlassEnabled provides useGlass,
         ) {
             Box(modifier = modifier.fillMaxSize()) {
                 LandscapePlayerLayout(
@@ -2216,6 +2217,7 @@ fun NowPlayingScreen(
                     ),
             )
         }
+        }
 
         // Spotify Canvas keeps its pixels sharp across the whole phone. Pure
         // glass blur belongs only under the temporary lower control deck,
@@ -2306,10 +2308,10 @@ fun NowPlayingScreen(
                     .background(Color.Black),
             )
         }
-        }
 
         CompositionLocalProvider(
             LocalAppBackdrop provides playerBackdrop,
+            LocalLiquidGlassEnabled provides useGlass,
         ) {
         Box(
             modifier = Modifier.fillMaxSize(),

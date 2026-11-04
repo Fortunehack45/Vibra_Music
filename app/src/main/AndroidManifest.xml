@@ -164,13 +164,9 @@
             </intent-filter>
 
             <!--
-              "Play <something>" said out loud, and the search a media app is
-              handed when the assistant has words but no app in mind. An empty
-              query means "play music" with nothing said about what, which is
-              resumed rather than searched — see [MusicLink].
+              Text search dispatched when assistant or system sends a standard search action.
             -->
             <intent-filter>
-                <action android:name="android.media.action.MEDIA_PLAY_FROM_SEARCH" />
                 <action android:name="android.intent.action.SEARCH" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
@@ -325,6 +321,25 @@
                 <data android:scheme="http" />
                 <data android:host="vibramusic.app" />
                 <data android:host="www.vibramusic.app" />
+            </intent-filter>
+        </activity>
+
+        <!--
+          Headless voice search handler for Google Assistant, Gemini, and system voice actions.
+          Receives MEDIA_PLAY_FROM_SEARCH, communicates directly with PlaybackService, and finishes
+          without displaying any activity window or bringing MainActivity to the foreground.
+        -->
+        <activity
+            android:name=".playback.voice.VoicePlayActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:launchMode="singleInstance">
+            <intent-filter>
+                <action android:name="android.media.action.MEDIA_PLAY_FROM_SEARCH" />
+                <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
 

@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.ui.player
+package com.fortune.vibramusic.ui.player
 
 import androidx.compose.ui.unit.constrainHeight
 import androidx.compose.ui.unit.constrainWidth
@@ -2254,7 +2254,7 @@ fun NowPlayingScreen(
                                 // this processes roughly 30% of the pixels used
                                 // by optimizedHazeEffect's normal 33% path.
                                 inputScale = HazeInputScale.Fixed(0.18f)
-                                canDrawArea = { true }
+                                canDrawArea = { it.zIndex >= 0f }
                                 mask = Brush.verticalGradient(
                                     0.00f to Color.Transparent,
                                     SPOTIFY_DECK_TOP_FADE_FRACTION to Color.Black,

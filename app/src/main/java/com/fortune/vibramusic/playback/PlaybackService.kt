@@ -7662,8 +7662,14 @@ class PlaybackService : MediaLibraryService() {
                                     if (query.isNotBlank()) {
                                         try {
                                             withTimeoutOrNull(3000L) {
-                                                YtMusicRepository.search(query, SearchFilter.SONGS).getOrNull()
+                                                val searchSongs = YtMusicRepository.search(query, SearchFilter.SONGS).getOrNull()
                                                     ?.mapNotNull { if (it is SearchResult.Track) it.song else null }
+                                                val exactMatch = searchSongs?.firstOrNull { it.title.equals(query, ignoreCase = true) }
+                                                if (exactMatch != null) {
+                                                    listOf(exactMatch) + (searchSongs - exactMatch)
+                                                } else {
+                                                    searchSongs.orEmpty()
+                                                }
                                             } ?: emptyList()
                                         } catch (_: Exception) {
                                             emptyList()

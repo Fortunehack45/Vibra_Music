@@ -25,7 +25,7 @@
         <intent
             android:action="android.media.action.MEDIA_PLAY_FROM_SEARCH"
             android:targetPackage="com.fortune.vibramusic"
-            android:targetClass="com.fortune.vibramusic.MainActivity">
+            android:targetClass="com.fortune.vibramusic.playback.voice.VoicePlayActivity">
             <parameter
                 android:name="media.name"
                 android:key="query" />
@@ -69,7 +69,7 @@
         <intent
             android:action="android.media.action.MEDIA_PLAY_FROM_SEARCH"
             android:targetPackage="com.fortune.vibramusic"
-            android:targetClass="com.fortune.vibramusic.MainActivity">
+            android:targetClass="com.fortune.vibramusic.playback.voice.VoicePlayActivity">
             <parameter
                 android:name="music.title"
                 android:key="query" />
@@ -89,7 +89,7 @@
         <intent
             android:action="android.media.action.MEDIA_PLAY_FROM_SEARCH"
             android:targetPackage="com.fortune.vibramusic"
-            android:targetClass="com.fortune.vibramusic.MainActivity" />
+            android:targetClass="com.fortune.vibramusic.playback.voice.VoicePlayActivity" />
     </capability>
 
     <capability android:name="actions.intent.PAUSE_MUSIC">
@@ -124,7 +124,7 @@
         <intent
             android:action="android.media.action.MEDIA_PLAY_FROM_SEARCH"
             android:targetPackage="com.fortune.vibramusic"
-            android:targetClass="com.fortune.vibramusic.MainActivity" />
+            android:targetClass="com.fortune.vibramusic.playback.voice.VoicePlayActivity" />
     </capability>
 
     <capability android:name="actions.intent.OPEN_APP_FEATURE">

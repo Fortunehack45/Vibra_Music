@@ -262,6 +262,12 @@ object VoiceCommandResolver {
         }
 
         if (effectiveQuery.isNotBlank()) {
+            val songResults = YtMusicRepository.search(effectiveQuery, SearchFilter.SONGS).getOrNull()
+                ?.filterIsInstance<SearchResult.Track>()
+            val exactSongMatch = songResults?.any {
+                it.song.title.equals(effectiveQuery, ignoreCase = true)
+            } == true
+
             // First check if query directly names an artist without a specific song
             val directArtists = YtMusicRepository.search(effectiveQuery, SearchFilter.ARTISTS).getOrNull()
                 ?.filterIsInstance<SearchResult.Browse>()
@@ -270,7 +276,7 @@ object VoiceCommandResolver {
             } ?: if (parsedArtist != null) directArtists?.firstOrNull() else null
 
             val isExplicitSongSearch = explicitTitle != null || cleanQuery.contains(" by ", ignoreCase = true)
-            if (directArtist != null && (!isExplicitSongSearch || parsedTitle == null)) {
+            if (directArtist != null && !exactSongMatch && (!isExplicitSongSearch || parsedTitle == null)) {
                 val artistPage = YtMusicRepository.artistPage(directArtist.item.browseId).getOrNull()
                 val songs = artistPage?.songs.orEmpty()
                 if (songs.isNotEmpty()) {
@@ -288,9 +294,8 @@ object VoiceCommandResolver {
                 }
             }
 
-            val songs = YtMusicRepository.search(effectiveQuery, SearchFilter.SONGS).getOrNull()
-                ?.filterIsInstance<SearchResult.Track>()
-            val topSong = songs?.firstOrNull()?.song
+            val topSong = (songResults?.firstOrNull { it.song.title.equals(effectiveQuery, ignoreCase = true) }
+                ?: songResults?.firstOrNull())?.song
             if (topSong != null) {
                 val msg = formatString(
                     context,

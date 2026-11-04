@@ -50,6 +50,8 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import com.fortune.vibramusic.ui.components.rememberBlurredBackdrop
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
@@ -305,19 +307,20 @@ private fun TopPickCard(
                     .aspectRatio(730f / 484f),
             )
         }
-        CardCaption(text, eyebrowColor, Modifier.align(Alignment.BottomStart).padding(16.dp))
+        CardCaption(text, eyebrowColor, Modifier.align(Alignment.BottomStart))
     }
 }
 
 @Composable
 private fun CardCaption(text: CardText, eyebrowColor: Color, modifier: Modifier) {
     Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(2.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
     ) {
         Text(
-            text = text.eyebrow.uppercase(),
-            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 11.sp, lineHeight = 16.sp),
+            text = text.eyebrow,
+            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp, lineHeight = 16.sp),
             color = eyebrowColor,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -345,29 +348,65 @@ private fun CardCaption(text: CardText, eyebrowColor: Color, modifier: Modifier)
     }
 }
 
+/** The line above the title on a photo card: white, let through, as on Apple Music's phone app. */
 private val PhotoEyebrow = Color.White.copy(alpha = 0.62f)
 
+private const val BACKDROP_SOURCE_PX = 160
+
+/**
+ * A release's card, as Apple Music draws one: the cover whole, as a square at
+ * the top, and under it the cover's lower edge running on out of focus,
+ * behind the caption.
+ *
+ * The blur is not a blur pass on screen: [rememberBlurredBackdrop] blurs a
+ * small copy of the cover once, as it loads, and the image cache keeps the
+ * result.
+ */
 @Composable
 private fun ReleaseArt(url: String?, modifier: Modifier) {
     Box(modifier.background(Color.Black)) {
+        AsyncImage(
+            model = rememberBlurredBackdrop(url.croppedAt(BACKDROP_SOURCE_PX)),
+            contentDescription = null,
+            contentScale = ContentScale.FillBounds,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .fillMaxHeight(0.42f),
+        )
+        // Toned down toward the caption, as Apple does, so the white text reads
+        // on any cover.
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        0.6f to Color.Black.copy(alpha = 0.08f),
+                        1f to Color.Black.copy(alpha = 0.38f),
+                    ),
+                ),
+        )
         AsyncImage(
             model = url.croppedAt(HEADER_ART_PX),
             contentDescription = null,
             contentScale = ContentScale.Crop,
             modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(1f),
-        )
-        Box(
-            Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        0.5f to Color.Transparent,
-                        0.75f to Color.Black.copy(alpha = 0.5f),
-                        1f to Color.Black.copy(alpha = 0.85f),
-                    ),
-                ),
+                .aspectRatio(1f)
+                // Faded out over its last stretch, so the cover runs into the
+                // blur under it instead of ending on a hard line. Offscreen so
+                // the mask cuts the cover alone; the cover never animates, so
+                // the layer is drawn once and reused while it scrolls.
+                .graphicsLayer {
+                    compositingStrategy = CompositingStrategy.Offscreen
+                }
+                .drawWithContent {
+                    drawContent()
+                    drawRect(
+                        Brush.verticalGradient(0.78f to Color.Black, 1f to Color.Transparent),
+                        blendMode = BlendMode.DstIn,
+                    )
+                },
         )
     }
 }

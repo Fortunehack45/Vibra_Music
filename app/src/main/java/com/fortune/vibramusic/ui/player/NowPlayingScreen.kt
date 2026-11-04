@@ -1612,6 +1612,53 @@ fun NowPlayingScreen(
         }
     }
 
+    val dock = LocalPlayerDock.current
+    if (dock != null) {
+        DisposableEffect(dock) {
+            onDispose { dock.attached = false }
+        }
+    }
+    val dockFrame = remember { DockFrame() }
+    val dockT: () -> Float = {
+        if (dock == null) {
+            1f
+        } else {
+            val open = dock.openFraction()
+            if (dockFrame.anchor != null && dock.hasMiniArt()) open else 1f
+        }
+    }
+    val docking: () -> Boolean = { dockT() < 1f }
+    val dockFade: () -> Float = { ((dockT() - 0.15f) / 0.85f).coerceIn(0f, 1f) }
+    val sleeveLayer = rememberGraphicsLayer()
+
+    val dockHost = Modifier
+        .then(
+            if (dock != null) {
+                Modifier.onGloballyPositioned { coordinates ->
+                    dockFrame.host = coordinates
+                    if (dockFrame.anchor != null && dockFrame.anchorFor == coordinates.size) {
+                        return@onGloballyPositioned
+                    }
+                    val offset = dock.offset() ?: return@onGloballyPositioned
+                    dockFrame.anchorFor = coordinates.size
+                    dockFrame.anchor = coordinates.localToScreen(Offset.Zero) - Offset(0f, offset.toInt().toFloat())
+                    if (!dock.attached) dock.attached = true
+                }
+            } else {
+                Modifier
+            }
+        )
+        .drawWithContent {
+            drawContent()
+            if (docking()) {
+                translate(dockFrame.portalLeft, dockFrame.portalTop) {
+                    val portalScale = dockFrame.portalScale
+                    scale(portalScale, portalScale, pivot = Offset.Zero) { drawLayer(sleeveLayer) }
+                }
+            }
+        }
+        .graphicsLayer { alpha = if (docking()) dockFade().coerceAtLeast(0.00392f) else 1f }
+
     if (landscape && videoMode) {
         val versionAligning by AppSettings.versionAlignmentInProgress.collectAsStateWithLifecycle()
         val transitionWindow by AppSettings.smartTransitionWindow.collectAsStateWithLifecycle()
@@ -1915,10 +1962,17 @@ fun NowPlayingScreen(
         return
     }
 
-    Box(modifier = modifier.fillMaxSize().onSizeChanged { playerBounds = it }.background(Color.Black)) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .onSizeChanged { playerBounds = it }
+            .then(dockHost)
+            .background(Color.Black),
+    ) {
         Box(
             modifier = Modifier
                 .matchParentSize()
+                .hazeSource(playerHaze)
                 .then(if (glassActive) Modifier.layerBackdrop(playerBackdrop) else Modifier),
         ) {
         // Anchored to the sleeve's bottom edge, so the screen carries on in the
@@ -2259,66 +2313,17 @@ fun NowPlayingScreen(
         }
         }
 
-        val dock = LocalPlayerDock.current
-        if (dock != null) {
-            DisposableEffect(dock) {
-                onDispose { dock.attached = false }
-            }
-        }
-        val dockFrame = remember { DockFrame() }
-        val dockT: () -> Float = {
-            if (dock == null) {
-                1f
-            } else {
-                val open = dock.openFraction()
-                if (dockFrame.anchor != null && dock.hasMiniArt()) open else 1f
-            }
-        }
-        val docking: () -> Boolean = { dockT() < 1f }
-        val dockFade: () -> Float = { ((dockT() - 0.15f) / 0.85f).coerceIn(0f, 1f) }
-        val sleeveLayer = rememberGraphicsLayer()
-
-        val dockHost = Modifier
-            .then(
-                if (dock != null) {
-                    Modifier.onGloballyPositioned { coordinates ->
-                        dockFrame.host = coordinates
-                        if (dockFrame.anchor != null && dockFrame.anchorFor == coordinates.size) {
-                            return@onGloballyPositioned
-                        }
-                        val offset = dock.offset() ?: return@onGloballyPositioned
-                        dockFrame.anchorFor = coordinates.size
-                        dockFrame.anchor = coordinates.localToScreen(Offset.Zero) - Offset(0f, offset.toInt().toFloat())
-                        if (!dock.attached) dock.attached = true
-                    }
-                } else {
-                    Modifier
-                }
-            )
-            .drawWithContent {
-                drawContent()
-                if (docking()) {
-                    translate(dockFrame.portalLeft, dockFrame.portalTop) {
-                        val portalScale = dockFrame.portalScale
-                        scale(portalScale, portalScale, pivot = Offset.Zero) { drawLayer(sleeveLayer) }
-                    }
-                }
-            }
-
         CompositionLocalProvider(
             LocalAppBackdrop provides playerBackdrop,
         ) {
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .then(dockHost),
+            modifier = Modifier.fillMaxSize(),
         ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
                 .navigationBarsPadding()
-                .graphicsLayer { alpha = if (docking()) dockFade().coerceAtLeast(0.004f) else 1f }
                 // Observe unclaimed taps across the whole Canvas. Buttons and
                 // the compact metadata row consume their own taps first; empty
                 // video above or below them toggles the lower deck either way.
@@ -2681,39 +2686,37 @@ fun NowPlayingScreen(
                             val width = side
                             val height = side
 
-                            val mini = if (dock != null && docking()) {
+                            if (dock != null && docking()) {
                                 val m = dock.miniArtOnScreen()
                                 val anchor = dockFrame.anchor
                                 val offset = dock.offset()
                                 if (m != null && anchor != null && offset != null) {
                                     dockFrame.offset = offset.toInt().toFloat()
-                                    m.translate(
+                                    val miniInHost = m.translate(
                                         -(anchor.x),
                                         -(anchor.y + dockFrame.offset),
                                     )
-                                } else null
-                            } else null
-
-                            val openRect = Rect(0f, 0f, width.toFloat(), height.toFloat())
-                            if (mini != null) {
-                                val travel = dock?.sheetTravel ?: 0f
-                                if (travel > 0f) {
-                                    dockFrame.ride = ((mini.top + dockFrame.offset) / travel).coerceIn(0f, 1f)
+                                    val openRect = if (dockFrame.openWidth > 0f) {
+                                        Rect(dockFrame.openLeft, dockFrame.openTop, dockFrame.openLeft + dockFrame.openWidth, dockFrame.openTop + dockFrame.openHeight)
+                                    } else {
+                                        Rect(0f, 0f, width.toFloat(), height.toFloat())
+                                    }
+                                    val travel = dock.sheetTravel
+                                    if (travel > 0f) {
+                                        dockFrame.ride = ((miniInHost.top + dockFrame.offset - openRect.top) / travel).coerceIn(0f, 1f)
+                                    }
+                                    val unridden = dockFrame.offset * (1f - dockFrame.ride)
+                                    val targetRect = lerp(miniInHost, openRect.translate(0f, -unridden), dockT())
+                                    dockFrame.portalLeft = targetRect.left
+                                    dockFrame.portalTop = targetRect.top
+                                    dockFrame.portalScale = if (openRect.width > 0f) targetRect.width / openRect.width else 1f
                                 }
-                            }
-                            val unridden = dockFrame.offset * (1f - dockFrame.ride)
-                            val targetRect = if (mini != null) lerp(mini, openRect.translate(0f, -unridden), dockT()) else openRect
-                            dockFrame.portalLeft = targetRect.left
-                            dockFrame.portalTop = targetRect.top
-                            dockFrame.portalScale = if (mini != null && openRect.width > 0f) {
-                                val startScale = mini.width / openRect.width
-                                startScale + (1f - startScale) * dockT()
                             } else {
-                                1f
+                                dockFrame.portalScale = 1f
                             }
 
                             val placeable = measurable.measure(
-                                constraints.constrain(Constraints.fixed(targetRect.width.roundToInt(), targetRect.height.roundToInt())),
+                                constraints.constrain(Constraints.fixed(width, height)),
                             )
                             layout(placeable.width, placeable.height) { placeable.placeRelative(0, 0) }
                         }
@@ -2724,14 +2727,17 @@ fun NowPlayingScreen(
                                 drawContent()
                             }
                         }
-                        // Where the dismiss band starts. Read here, above the
-                        // paused shrink below, so the band covers the sleeve's
-                        // slot rather than the 86% of it that is drawn while
-                        // paused — the ring of backdrop the shrink opens up is
-                        // still the artwork as far as a finger is concerned, and
-                        // a band that breathed with the shrink would hand it
-                        // back and forth on every play and pause.
-                        .onGloballyPositioned { dismissBandTop = it.boundsInRoot().top }
+                        // Where the dismiss band starts and where open coordinates are captured.
+                        .onGloballyPositioned { coordinates ->
+                            dismissBandTop = coordinates.boundsInRoot().top
+                            if (dockT() >= 1f && coordinates.isAttached && dockFrame.host?.isAttached == true) {
+                                val inHost = dockFrame.host!!.localPositionOf(coordinates, Offset.Zero)
+                                dockFrame.openLeft = inHost.x
+                                dockFrame.openTop = inHost.y
+                                dockFrame.openWidth = coordinates.size.width.toFloat()
+                                dockFrame.openHeight = coordinates.size.height.toFloat()
+                            }
+                        }
                         .graphicsLayer {
                             // The paused shrink and the swipe nudge only make
                             // sense on the full sleeve.
@@ -3584,4 +3590,8 @@ private class DockFrame {
     var portalTop = 0f
     var portalScale = 1f
     var host: LayoutCoordinates? = null
+    var openLeft = 0f
+    var openTop = 0f
+    var openWidth = 0f
+    var openHeight = 0f
 }

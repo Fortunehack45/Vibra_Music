@@ -4136,6 +4136,7 @@ private fun VibraMusicApp(
                 // and drag handle included — see SongActionsSheet.
                 containerColor = Color.Transparent,
                 dragHandle = null,
+                contentWindowInsets = { WindowInsets(0, 0, 0, 0) },
             ) {
                 SongActionsSheet(
                     song = song,

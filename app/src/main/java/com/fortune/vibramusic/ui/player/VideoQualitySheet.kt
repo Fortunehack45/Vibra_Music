@@ -404,44 +404,6 @@ fun VideoQualitySheet(
 }
 
 @Composable
-fun VideoQualitySheet(
-    onDismiss: () -> Unit,
-) {
-    val quality by MusicVideoEngine.quality.collectAsStateWithLifecycle()
-    val selected = quality.selected()
-
-    PlayerDrawer(
-        hazeState = HazeState(),
-        title = stringResource(R.string.video_quality),
-        onDismiss = onDismiss,
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            QualityRow(
-                name = stringResource(R.string.video_quality_auto),
-                detail = if (quality.held == null) selected?.let(::videoQualityLabel) else null,
-                active = quality.held == null,
-            ) {
-                MusicVideoEngine.setQuality(null)
-                onDismiss()
-            }
-            quality.heights.forEach { height ->
-                QualityRow(
-                    name = videoQualityLabel(height),
-                    detail = "${height}p",
-                    active = quality.held != null && selected == height,
-                ) {
-                    MusicVideoEngine.setQuality(height)
-                    onDismiss()
-                }
-            }
-        }
-    }
-}
-
-@Composable
 private fun QualityRow(
     name: String,
     detail: String?,

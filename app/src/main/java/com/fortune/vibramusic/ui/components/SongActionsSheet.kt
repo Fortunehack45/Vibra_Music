@@ -6,6 +6,7 @@ import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -436,7 +437,12 @@ private fun TintedSheet(
             washFraction = 0.75f,
             artPx = ROW_ART_PX,
         )
-        Column(Modifier.fillMaxWidth().heightIn(max = maxHeight)) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .heightIn(max = maxHeight)
+                .navigationBarsPadding(),
+        ) {
             // Drawn rather than taken from BottomSheetDefaults, whose handle
             // carries 22dp of padding on each side — half a row's worth of
             // nothing between the grip and the track it is about. Kept outside

@@ -629,17 +629,18 @@ internal fun CircleGlyph(
     Box(
         modifier = Modifier
             .size(38.dp)
+            .clip(shape)
             .then(
                 if (useGlass) {
                     Modifier
                         .liquidGlass(shape)
+                        .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
                         .then(
                             if (active) Modifier.background(Color.White.copy(alpha = 0.16f), shape)
                             else Modifier
                         )
                 } else {
                     Modifier
-                        .clip(shape)
                         .background(Color.White.copy(alpha = discAlpha))
                         .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
                 }
@@ -775,12 +776,14 @@ private fun Pill(
     Row(
         modifier = modifier
             .height(BOTTOM_ACTION_SIZE)
+            .clip(shape)
             .then(
                 if (useGlass) {
-                    Modifier.liquidGlass(shape)
+                    Modifier
+                        .liquidGlass(shape)
+                        .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
                 } else {
                     Modifier
-                        .clip(shape)
                         .background(Color.White.copy(alpha = 0.14f))
                         .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
                 }
@@ -1127,17 +1130,18 @@ private fun BottomGlyph(
     Box(
         modifier = Modifier
             .size(BOTTOM_ACTION_SIZE)
+            .clip(shape)
             .then(
                 if (useGlass) {
                     Modifier
                         .liquidGlass(shape)
+                        .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
                         .then(
                             if (highlighted) Modifier.background(Color.White.copy(alpha = 0.16f), shape)
                             else Modifier
                         )
                 } else {
                     Modifier
-                        .clip(shape)
                         .background(if (highlighted) Color.White.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.12f))
                         .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
                 }

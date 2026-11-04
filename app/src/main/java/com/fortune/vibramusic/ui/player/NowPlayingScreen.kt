@@ -1972,7 +1972,7 @@ fun NowPlayingScreen(
         Box(
             modifier = Modifier
                 .matchParentSize()
-                .hazeSource(playerHaze)
+                .hazeSource(playerHaze, zIndex = -1f)
                 .then(if (glassActive) Modifier.layerBackdrop(playerBackdrop) else Modifier),
         ) {
         // Anchored to the sleeve's bottom edge, so the screen carries on in the
@@ -2279,7 +2279,7 @@ fun NowPlayingScreen(
                                 // this processes roughly 30% of the pixels used
                                 // by optimizedHazeEffect's normal 33% path.
                                 inputScale = HazeInputScale.Fixed(0.18f)
-                                canDrawArea = { true }
+                                canDrawArea = { it.zIndex >= 0f }
                                 mask = Brush.verticalGradient(
                                     0.00f to Color.Transparent,
                                     SPOTIFY_DECK_TOP_FADE_FRACTION to Color.Black,

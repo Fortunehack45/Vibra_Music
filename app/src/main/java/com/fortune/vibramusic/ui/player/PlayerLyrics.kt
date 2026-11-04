@@ -1961,39 +1961,15 @@ internal fun LyricsPanel(
                             indication = LocalIndication.current,
                         ) {
                             if (isSelectingForShare) {
-                                haptics.play(Haptic.Tap)
-                                if (selectedIndices.isEmpty()) {
-                                    selectedIndices.add(index)
-                                } else {
-                                    val min = selectedIndices.minOrNull() ?: index
-                                    val max = selectedIndices.maxOrNull() ?: index
-                                    if (index == min && selectedIndices.size > 1) {
-                                        selectedIndices.remove(min)
-                                    } else if (index == max && selectedIndices.size > 1) {
-                                        selectedIndices.remove(max)
-                                    } else if (index in min..max) {
-                                        if (selectedIndices.size == 1) {
-                                            selectedIndices.clear()
-                                        } else {
-                                            selectedIndices.clear()
-                                            selectedIndices.add(index)
-                                        }
+                                if (!line.isGap && line.text.isNotBlank()) {
+                                    haptics.play(Haptic.Tap)
+                                    if (selectedIndices.contains(index)) {
+                                        selectedIndices.remove(index)
                                     } else {
-                                        val newMin = minOf(min, index)
-                                        val newMax = maxOf(max, index)
-                                        val span = newMax - newMin + 1
-                                        if (span <= 5) {
-                                            selectedIndices.clear()
-                                            for (i in newMin..newMax) {
-                                                selectedIndices.add(i)
-                                            }
+                                        if (selectedIndices.size < 5) {
+                                            selectedIndices.add(index)
                                         } else {
-                                            if (index == min - 1 || index == max + 1) {
-                                                Toast.makeText(context, R.string.max_lyrics_reached, Toast.LENGTH_SHORT).show()
-                                            } else {
-                                                selectedIndices.clear()
-                                                selectedIndices.add(index)
-                                            }
+                                            Toast.makeText(context, R.string.max_lyrics_reached, Toast.LENGTH_SHORT).show()
                                         }
                                     }
                                 }
@@ -2157,11 +2133,15 @@ internal fun LyricsPanel(
                         )
                     }
 
+                    val validSelectedCount = selectedIndices.count { idx ->
+                        val l = lines.getOrNull(idx)
+                        l != null && !l.isGap && l.text.isNotBlank()
+                    }
                     Text(
-                        text = if (selectedIndices.isEmpty()) {
+                        text = if (validSelectedCount == 0) {
                             stringResource(R.string.select_up_to_5_lines)
                         } else {
-                            stringResource(R.string.lyrics_selected, selectedIndices.size, 5)
+                            stringResource(R.string.lyrics_selected, validSelectedCount, 5)
                         },
                         style = MaterialTheme.typography.labelLarge.copy(
                             platformStyle = androidx.compose.ui.text.PlatformTextStyle(
@@ -2264,9 +2244,10 @@ internal fun LyricsPanel(
         }
 
         if (showShareSheet && currentSong != null) {
-            val selectedLines = remember(selectedIndices, lines) {
+            val selectedLines = remember(selectedIndices.toList(), lines) {
                 selectedIndices.sorted().mapNotNull { idx ->
-                    lines.getOrNull(idx)?.text?.takeIf { it.isNotBlank() }
+                    val item = lines.getOrNull(idx)
+                    item?.text?.takeIf { !item.isGap && it.isNotBlank() }
                 }
             }
             if (selectedLines.isNotEmpty()) {

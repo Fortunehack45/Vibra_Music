@@ -8,6 +8,9 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import com.fortune.vibramusic.ui.haptics.Haptic
+import com.fortune.vibramusic.ui.haptics.rememberHaptics
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -98,6 +101,42 @@ fun PodcastScreen(
     contentPadding: PaddingValues,
 ) {
     var selectedFilter by remember { mutableStateOf("All") }
+    val haptics = rememberHaptics()
+
+    val feed = (state as? UiState.Success)?.data
+    val tokens = remember(selectedFilter) {
+        if (selectedFilter in listOf("All", "Top Shows", "Live Broadcasts")) emptyList()
+        else selectedFilter.lowercase().split("&", " ", ",").filter { it.isNotBlank() && it != "and" }
+    }
+    val showsToDisplay = remember(feed, selectedFilter, tokens) {
+        if (feed == null) emptyList()
+        else when (selectedFilter) {
+            "All", "Top Shows" -> feed.topShows
+            "Live Broadcasts" -> emptyList()
+            else -> feed.topShows.filter { show ->
+                tokens.any { token ->
+                    show.title.contains(token, ignoreCase = true) ||
+                    show.author.contains(token, ignoreCase = true) ||
+                    show.description?.contains(token, ignoreCase = true) == true
+                }
+            }
+        }
+    }
+    val episodesToDisplay = remember(feed, selectedFilter, tokens) {
+        if (feed == null) emptyList()
+        else when (selectedFilter) {
+            "All" -> feed.latestEpisodes.ifEmpty { feed.liveBroadcasts }
+            "Live Broadcasts" -> feed.liveBroadcasts
+            "Top Shows" -> emptyList()
+            else -> feed.latestEpisodes.filter { ep ->
+                tokens.any { token ->
+                    ep.title.contains(token, ignoreCase = true) ||
+                    ep.author.contains(token, ignoreCase = true) ||
+                    ep.description?.contains(token, ignoreCase = true) == true
+                }
+            }
+        }
+    }
 
     PullToRefresh(
         refreshing = refreshing,
@@ -140,7 +179,15 @@ fun PodcastScreen(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(20.dp))
                                 .background(bg)
-                                .clickable { selectedFilter = filter }
+                                .border(
+                                    width = 1.dp,
+                                    color = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.08f),
+                                    shape = RoundedCornerShape(20.dp),
+                                )
+                                .clickable {
+                                    haptics.play(Haptic.Select)
+                                    selectedFilter = filter
+                                }
                                 .padding(horizontal = 14.dp, vertical = 8.dp),
                         ) {
                             Text(
@@ -187,10 +234,10 @@ fun PodcastScreen(
                     }
 
                     // 2. Top Shows Carousel
-                    if (feed.topShows.isNotEmpty() && (selectedFilter == "All" || selectedFilter == "Top Shows")) {
+                    if (showsToDisplay.isNotEmpty()) {
                         item {
                             Text(
-                                text = stringResource(R.string.top_podcast_shows),
+                                text = if (selectedFilter == "Top Shows" || selectedFilter == "All") stringResource(R.string.top_podcast_shows) else "$selectedFilter shows",
                                 style = MaterialTheme.typography.titleLarge,
                                 color = MaterialTheme.colorScheme.onBackground,
                                 modifier = Modifier.padding(horizontal = PAGE_GUTTER, vertical = 12.dp),
@@ -203,7 +250,7 @@ fun PodcastScreen(
                                 contentPadding = PaddingValues(horizontal = PAGE_GUTTER),
                                 horizontalArrangement = Arrangement.spacedBy(14.dp),
                             ) {
-                                items(feed.topShows) { show ->
+                                items(showsToDisplay) { show ->
                                     PodcastShowCard(
                                         show = show,
                                         onClick = { onShowClick(show) },
@@ -213,13 +260,8 @@ fun PodcastScreen(
                         }
                     }
 
-                    // 3. Quick Listens Shelf (horizontal columns of 3, matching Home screen rhythm)
-                    if (selectedFilter != "Top Shows") {
-                        val episodesToDisplay = when (selectedFilter) {
-                            "Live Broadcasts" -> feed.liveBroadcasts
-                            else -> feed.latestEpisodes.ifEmpty { feed.liveBroadcasts }
-                        }
-
+                    // 3. Quick Listens Shelf & Episodes List
+                    if (episodesToDisplay.isNotEmpty()) {
                         if (episodesToDisplay.size >= 3 && selectedFilter == "All") {
                             item {
                                 Text(
@@ -255,37 +297,38 @@ fun PodcastScreen(
                             }
                         }
 
-                        if (episodesToDisplay.isNotEmpty()) {
-                            item {
-                                Text(
-                                    text = if (selectedFilter == "Live Broadcasts") stringResource(R.string.live_podcasts)
-                                    else stringResource(R.string.latest_episodes),
-                                    style = MaterialTheme.typography.titleLarge,
-                                    color = MaterialTheme.colorScheme.onBackground,
-                                    modifier = Modifier.padding(horizontal = PAGE_GUTTER, vertical = 14.dp),
-                                )
-                            }
+                        item {
+                            Text(
+                                text = when (selectedFilter) {
+                                    "Live Broadcasts" -> stringResource(R.string.live_podcasts)
+                                    "All" -> stringResource(R.string.latest_episodes)
+                                    else -> "$selectedFilter episodes"
+                                },
+                                style = MaterialTheme.typography.titleLarge,
+                                color = MaterialTheme.colorScheme.onBackground,
+                                modifier = Modifier.padding(horizontal = PAGE_GUTTER, vertical = 14.dp),
+                            )
+                        }
 
-                            items(episodesToDisplay, key = { it.videoId }) { episode ->
-                                val isCurrent = episode.videoId == currentVideoId
-                                PodcastEpisodeCard(
-                                    episode = episode,
-                                    isPlaying = isPlaying,
-                                    isCurrent = isCurrent,
-                                    onPlay = { onEpisodeClick(episode) },
-                                    onAddToQueue = onAddToQueue?.let { { it(episode) } },
-                                    modifier = Modifier
-                                        .padding(horizontal = PAGE_GUTTER, vertical = 6.dp),
-                                )
-                            }
-                        } else if (selectedFilter == "Live Broadcasts") {
-                            item {
-                                MessageState(
-                                    message = stringResource(R.string.no_podcasts_found),
-                                    actionLabel = stringResource(R.string.retry),
-                                    onAction = onRefresh,
-                                )
-                            }
+                        items(episodesToDisplay, key = { it.videoId }) { episode ->
+                            val isCurrent = episode.videoId == currentVideoId
+                            PodcastEpisodeCard(
+                                episode = episode,
+                                isPlaying = isPlaying,
+                                isCurrent = isCurrent,
+                                onPlay = { onEpisodeClick(episode) },
+                                onAddToQueue = onAddToQueue?.let { { it(episode) } },
+                                modifier = Modifier
+                                    .padding(horizontal = PAGE_GUTTER, vertical = 6.dp),
+                            )
+                        }
+                    } else if (showsToDisplay.isEmpty()) {
+                        item {
+                            MessageState(
+                                message = if (selectedFilter == "Live Broadcasts") stringResource(R.string.no_podcasts_found) else "No podcasts found for \"$selectedFilter\"",
+                                actionLabel = "Reset to All",
+                                onAction = { selectedFilter = "All" },
+                            )
                         }
                     }
 

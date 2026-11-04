@@ -275,7 +275,7 @@ fun FullscreenVideoPlayer(
             fit = true,
             onRenderedChanged = onRenderedChanged,
             modifier = Modifier.fillMaxSize(),
-            priority = 1,
+            priority = 2,
         )
 
         AnimatedVisibility(

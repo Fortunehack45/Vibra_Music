@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.ui.player
+package com.fortune.vibramusic.ui.player
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -54,6 +54,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.fortune.vibramusic.data.settings.AppSettings
+import com.fortune.vibramusic.ui.components.MenuFrostDark
+import com.fortune.vibramusic.ui.components.liveMenuFrost
 import com.fortune.vibramusic.ui.components.optimizedHazeEffect
 import com.fortune.vibramusic.ui.utils.containSheetGestures
 import dev.chrisbanes.haze.HazeState
@@ -186,15 +188,9 @@ internal fun PlayerDrawer(
                 .offset { IntOffset(0, offset.roundToInt()) }
                 .clip(DRAWER_SHAPE)
                 .then(
-                    if (reduceDynamicBlur) {
-                        Modifier.background(Color(0xFF121212))
-                    } else {
-                        Modifier
-                            .optimizedHazeEffect(
-                                state = hazeState,
-                                style = HazeMaterials.regular(Color(0xFF141414)),
-                            )
-                            .background(Color(0xFF121212).copy(alpha = 0.9f))
+                    when {
+                        reduceDynamicBlur -> Modifier.background(MenuFrostDark)
+                        else -> Modifier.liveMenuFrost(hazeState, MenuFrostDark)
                     }
                 )
                 .clickable(

@@ -693,6 +693,11 @@ fun NowPlayingScreen(
     var videoRendered by remember { mutableStateOf(false) }
     LaunchedEffect(song.videoId) { videoRendered = false }
     val screenOrientation = rememberScreenOrientation()
+    var fullscreenRequested by remember { mutableStateOf(false) }
+    val exitFullscreen = {
+        fullscreenRequested = false
+        screenOrientation.portrait()
+    }
     val videoAspectState = MusicVideoEngine.aspect.collectAsStateWithLifecycle()
     // Who's actually in the party is worth a look before the settings page —
     // see [ListenTogetherMembersSheet]. Only meaningful once there is a party
@@ -956,6 +961,8 @@ fun NowPlayingScreen(
     PlayerBackHandler(enabled = showAudioPipeline) { showAudioPipeline = false }
 
     PlayerBackHandler(enabled = lyricsOffsetOpen, onBack = onDismissLyricsOffset)
+
+    PlayerBackHandler(enabled = landscapePlayerAvailable(windowWidth, windowHeight) && (song.isVideo || fullscreenRequested), onBack = exitFullscreen)
 
     // 0 = full sleeve, 1 = queue. Everything that moves reads off this.
     //
@@ -1615,7 +1622,7 @@ fun NowPlayingScreen(
                 artRequest = art.request,
                 rendered = videoRendered,
                 onRenderedChanged = { videoRendered = it },
-                onExitFullscreen = screenOrientation::portrait,
+                onExitFullscreen = exitFullscreen,
                 onOpenQuality = { showVideoQuality = true },
                 scrubber = {
                     PlayerScrubber(
@@ -1652,6 +1659,7 @@ fun NowPlayingScreen(
             )
             playerOverlays()
         }
+        return
     } else if (landscape) {
         // Paused always wins outright over a scrub in progress — see
         // [ARTWORK_PAUSE_SHRINK_SCALE].
@@ -2893,7 +2901,10 @@ fun NowPlayingScreen(
                             )
                             VideoCornerControls(
                                 fullscreen = false,
-                                onToggleFullscreen = screenOrientation::landscape,
+                                onToggleFullscreen = {
+                                    fullscreenRequested = true
+                                    screenOrientation.landscape()
+                                },
                                 onOpenQuality = { showVideoQuality = true },
                                 modifier = Modifier
                                     .align(Alignment.TopEnd)

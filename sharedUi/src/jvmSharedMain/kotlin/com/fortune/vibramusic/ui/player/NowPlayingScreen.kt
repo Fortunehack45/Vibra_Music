@@ -2047,34 +2047,20 @@ fun NowPlayingScreen(
         // The tablet has no mirrored main-player treatment to crossfade from.
         // Legacy mesh is the whole backdrop on every page, so the lyrics and
         // queue panels must not crossfade the blurred artwork over it.
-        val legacyMeshBackdrop = !tabletArtworkBackdrop && !spotifyCanvasPresentation &&
-            legacyMesh && !canvasFirstPortrait
+        val legacyMeshBackdrop = !tabletArtworkBackdrop && !spotifyCanvasPresentation && legacyMesh
         val fullArtworkBackdropAlpha by animateFloatAsState(
             targetValue = if (
                 !legacyMeshBackdrop &&
-                (tabletArtworkBackdrop || lyricsOpen || queueOpen) &&
-                (tabletArtworkBackdrop || fullArtworkBlurImage != null)
+                (tabletArtworkBackdrop || fullArtworkBlurImage != null) &&
+                (!spotifyCanvasPresentation || lyricsOpen || queueOpen)
             ) 1f else 0f,
             animationSpec = tween(durationMillis = 360, easing = FastOutSlowInEasing),
             label = "fullArtworkBackdropCrossfade",
         )
         if (legacyMeshBackdrop) {
-            // v1.5's backdrop, restored verbatim: no seam, because the blobs
-            // are not anchored to anything on screen — they fill the player and
-            // the artwork simply sits on top of them. Keyed on the track, so
-            // they drift when the player opens and on every skip, then rest.
-            // Position ticks recompose this screen twice a second and must not
-            // drag a full-screen blur along with them, which is why the palette
-            // is passed as one immutable value.
             MeshGradientBackground(
                 palette = rememberArtworkColors(remoteArt, canvasFrame),
                 trackKey = song.videoId,
-                modifier = Modifier.graphicsLayer { alpha = 1f - fullArtworkBackdropAlpha },
-            )
-        } else if (!tabletArtworkBackdrop && !spotifyCanvasPresentation) {
-            ArtworkMeshBackdrop(
-                mesh = artMesh,
-                seam = if (canvasFirstPortrait) renderedCanvasBottom else if (heroMode) heroHeight else 0.dp,
                 modifier = Modifier.graphicsLayer { alpha = 1f - fullArtworkBackdropAlpha },
             )
         }
@@ -2254,7 +2240,7 @@ fun NowPlayingScreen(
                                 // this processes roughly 30% of the pixels used
                                 // by optimizedHazeEffect's normal 33% path.
                                 inputScale = HazeInputScale.Fixed(0.18f)
-                                canDrawArea = { it.zIndex >= 0f }
+                                canDrawArea = { true }
                                 mask = Brush.verticalGradient(
                                     0.00f to Color.Transparent,
                                     SPOTIFY_DECK_TOP_FADE_FRACTION to Color.Black,

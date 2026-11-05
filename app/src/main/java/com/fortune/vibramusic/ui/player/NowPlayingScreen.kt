@@ -2013,6 +2013,12 @@ fun NowPlayingScreen(
                 trackKey = song.videoId,
                 modifier = Modifier.graphicsLayer { alpha = 1f - fullArtworkBackdropAlpha },
             )
+        } else {
+            ArtworkMeshBackdrop(
+                mesh = artMesh,
+                seam = if (canvasFirstPortrait) renderedCanvasBottom else if (heroMode) heroHeight else 0.dp,
+                modifier = Modifier.graphicsLayer { alpha = 1f - fullArtworkBackdropAlpha },
+            )
         }
         fullArtworkBlurContent(
             Modifier.graphicsLayer { alpha = fullArtworkBackdropAlpha },
@@ -2136,15 +2142,10 @@ fun NowPlayingScreen(
                     },
                     onRenderedChanged = { canvasRendered = it },
                     onFrameCaptured = {
-                        if (!spotifyCanvasFullscreen && !tabletArtworkBackdrop &&
-                            !lyricsOpen && !queueOpen
-                        ) canvasFrame = it
+                        if (!tabletArtworkBackdrop && !lyricsOpen && !queueOpen) canvasFrame = it
                     },
-                    // The full-screen Spotify video has no mesh to re-tint.
-                    // Keeping this null also removes the old three-second GPU
-                    // readback cadence from this provider alone.
                     refreshFrameEveryMs = if (
-                        spotifyCanvasFullscreen || tabletArtworkBackdrop || lyricsOpen || queueOpen
+                        tabletArtworkBackdrop || lyricsOpen || queueOpen
                     ) {
                         null
                     } else {

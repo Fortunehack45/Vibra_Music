@@ -31,6 +31,7 @@ import com.fortune.vibramusic.ui.components.GLASS_EDGE_COLOR
 import com.fortune.vibramusic.ui.components.GLASS_EDGE_WIDTH
 import com.fortune.vibramusic.ui.components.LocalLiquidGlassEnabled
 import com.fortune.vibramusic.ui.components.isGlassSupported
+import com.fortune.vibramusic.ui.components.glassIndicatorColor
 import com.fortune.vibramusic.ui.components.liquidGlass
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.animateScrollBy
@@ -1133,18 +1134,17 @@ internal fun TranslationToggleButton(
     Box(
         modifier = Modifier
             .size(38.dp)
-            .clip(shape)
             .then(
                 if (useGlass) {
                     Modifier
                         .liquidGlass(shape)
-                        .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
                         .then(
-                            if (active) Modifier.background(Color.White.copy(alpha = 0.16f))
+                            if (active) Modifier.background(glassIndicatorColor().copy(alpha = 0.25f), shape)
                             else Modifier
                         )
                 } else {
                     Modifier
+                        .clip(shape)
                         .background(Color.White.copy(alpha = discAlpha))
                         .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
                 }
@@ -1200,18 +1200,19 @@ internal fun RomanizationToggleButton(
     Box(
         modifier = Modifier
             .size(34.dp)
-            .clip(shape)
             .then(
                 if (useGlass) {
                     Modifier
                         .liquidGlass(shape)
-                        .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
                         .then(
-                            if (active) Modifier.background(Color.White.copy(alpha = 0.12f))
+                            if (active) Modifier.background(glassIndicatorColor().copy(alpha = 0.25f), shape)
                             else Modifier
                         )
                 } else {
-                    Modifier.background(Color.White.copy(alpha = discAlpha))
+                    Modifier
+                        .clip(shape)
+                        .background(Color.White.copy(alpha = discAlpha))
+                        .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
                 }
             )
             .clickable(

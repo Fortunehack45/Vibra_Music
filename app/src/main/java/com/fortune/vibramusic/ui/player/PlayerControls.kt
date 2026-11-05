@@ -54,6 +54,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import com.fortune.vibramusic.ui.components.GLASS_EDGE_COLOR
 import com.fortune.vibramusic.ui.components.GLASS_EDGE_WIDTH
 import com.fortune.vibramusic.ui.components.LocalLiquidGlassEnabled
+import com.fortune.vibramusic.ui.components.glassIndicatorColor
 import com.fortune.vibramusic.ui.components.isGlassSupported
 import com.fortune.vibramusic.ui.components.liquidGlass
 import com.fortune.vibramusic.ui.components.liquidGlassButton
@@ -629,18 +630,17 @@ internal fun CircleGlyph(
     Box(
         modifier = Modifier
             .size(38.dp)
-            .clip(shape)
             .then(
                 if (useGlass) {
                     Modifier
                         .liquidGlass(shape)
-                        .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
                         .then(
-                            if (active) Modifier.background(Color.White.copy(alpha = 0.16f), shape)
+                            if (active) Modifier.background(glassIndicatorColor().copy(alpha = 0.25f), shape)
                             else Modifier
                         )
                 } else {
                     Modifier
+                        .clip(shape)
                         .background(Color.White.copy(alpha = discAlpha))
                         .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
                 }
@@ -776,14 +776,12 @@ private fun Pill(
     Row(
         modifier = modifier
             .height(BOTTOM_ACTION_SIZE)
-            .clip(shape)
             .then(
                 if (useGlass) {
-                    Modifier
-                        .liquidGlass(shape)
-                        .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
+                    Modifier.liquidGlass(shape)
                 } else {
                     Modifier
+                        .clip(shape)
                         .background(Color.White.copy(alpha = 0.14f))
                         .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
                 }
@@ -1130,18 +1128,17 @@ private fun BottomGlyph(
     Box(
         modifier = Modifier
             .size(BOTTOM_ACTION_SIZE)
-            .clip(shape)
             .then(
                 if (useGlass) {
                     Modifier
                         .liquidGlass(shape)
-                        .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
                         .then(
-                            if (highlighted) Modifier.background(Color.White.copy(alpha = 0.16f), shape)
+                            if (highlighted) Modifier.background(glassIndicatorColor().copy(alpha = 0.25f), shape)
                             else Modifier
                         )
                 } else {
                     Modifier
+                        .clip(shape)
                         .background(if (highlighted) Color.White.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.12f))
                         .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
                 }

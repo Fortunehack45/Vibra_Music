@@ -357,9 +357,6 @@ class MainActivity : AppCompatActivity() {
         runCatching { JamInviteLink.consume(intent) }
         // Likewise for a link tapped or shared from another app — see [MusicLink].
         runCatching { MusicLink.consume(intent) }
-        lifecycleScope.launch(Dispatchers.IO) {
-            runCatching { com.fortune.vibramusic.data.supabase.SupabaseService.pingDatabase() }
-        }
         setContent {
             val theme by AppSettings.themeMode.collectAsStateWithLifecycle()
             val highPerformance by AppSettings.highPerformanceMode.collectAsStateWithLifecycle()
@@ -3707,21 +3704,48 @@ private fun VibraMusicApp(
                                 detail == null && selectedTab == TAB_LIBRARY
 
                             if (inLibraryTab) {
-                                IconButton(
-                                    onClick = {
-                                        showHistory = true
-                                        viewModel.loadHistory()
-                                    },
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .then(
+                                            if (glassActive) {
+                                                Modifier.liquidGlass(shape = CircleShape)
+                                            } else {
+                                                Modifier
+                                                    .clip(CircleShape)
+                                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
+                                                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), CircleShape)
+                                            }
+                                        )
+                                        .padding(start = 2.dp, end = 2.dp),
                                 ) {
-                                    Icon(
-                                        Icons.Rounded.History,
-                                        contentDescription = stringResource(R.string.listening_history),
-                                        tint = if (glassActive) glassContentColor() else MaterialTheme.colorScheme.onSurface,
-                                        modifier = Modifier.size(22.dp),
+                                    IconButton(
+                                        modifier = Modifier.size(36.dp),
+                                        onClick = {
+                                            showHistory = true
+                                            viewModel.loadHistory()
+                                        },
+                                    ) {
+                                        Icon(
+                                            Icons.Rounded.History,
+                                            contentDescription = stringResource(R.string.listening_history),
+                                            tint = if (glassActive) glassContentColor() else MaterialTheme.colorScheme.onSurface,
+                                            modifier = Modifier.size(20.dp),
+                                        )
+                                    }
+                                    TopBarAccountButton(
+                                        account = account,
+                                        avatarUrl = activeAvatar,
+                                        onClick = {
+                                            if (signedIn) {
+                                                viewModel.loadChannels()
+                                                showAccountSelector = true
+                                            } else showSettings = true
+                                        },
+                                        onSwipeProfile = { forward -> viewModel.stepProfile(forward) },
                                     )
                                 }
-                            }
-                            if (!isReleaseDetail) {
+                            } else if (!isReleaseDetail) {
                                 TopBarAccountButton(
                                     account = account,
                                     avatarUrl = activeAvatar,

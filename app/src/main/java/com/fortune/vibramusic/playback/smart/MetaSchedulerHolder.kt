@@ -36,7 +36,6 @@ object MetaSchedulerHolder {
                         scope = scope,
                         analyzer = TrackAnalyzer.getInstance(appCtx),
                         tags = LocalTagReader(appCtx),
-                        shared = SharedMetaClient(),
                         dao = metaDao,
                     )
                     instance = scheduler

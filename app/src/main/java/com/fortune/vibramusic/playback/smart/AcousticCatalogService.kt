@@ -208,12 +208,13 @@ object AcousticCatalogService {
 
         scope.launch {
             try {
-                // 1. Fast cloud cache lookup from Supabase (<5KB data, ~100ms)
-                val sharedResults = SharedMetaClient().lookup(listOf(song.videoId))
-                val cloud = sharedResults.firstOrNull()
-                if (cloud != null && cloud.bpm != null && cloud.bpm.value > 0.0) {
-                    val tempo = cloud.bpm.value
-                    val camelot = cloud.key?.value?.code ?: ""
+                // 1. Check local Room database cache
+                val localAnalysis = runCatching {
+                    com.fortune.vibramusic.data.db.VibraDb.get(context).analysisDao().getTrackAnalysis(song.videoId)
+                }.getOrNull()
+                if (localAnalysis != null && localAnalysis.bpm > 0f) {
+                    val tempo = localAnalysis.bpm.toDouble()
+                    val camelot = localAnalysis.camelot
                     val data = AcousticData(tempo, camelot)
                     memoryCache[song.videoId] = data
                     prefs?.edit()?.putString(song.videoId, "$tempo:$camelot")?.apply()
@@ -274,9 +275,6 @@ object AcousticCatalogService {
                     MetaSchedulerHolder.getDao(context),
                 )
                 AnalysisStore.notifyUpdated(song.videoId)
-
-                // Sync to shared cloud cache so future queries resolve instantly for all users
-                SharedMetaClient().upload(metaToSave)
             } catch (e: Exception) {
                 Log.d(TAG, "Acoustic resolution failed for ${song.title}: ${e.message}")
             } finally {

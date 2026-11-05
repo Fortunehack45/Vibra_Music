@@ -34,16 +34,6 @@ val lastfmSecret: String = (
         ?: System.getenv("LASTFM_SECRET")
         ?: ""
     ).trim()
-val supabaseUrl: String = (
-    localProps.getProperty("SUPABASE_URL")
-        ?: System.getenv("SUPABASE_URL")
-        ?: "https://yinaxpgnnadhbkplokvl.supabase.co"
-    ).trim()
-val supabaseAnonKey: String = (
-    localProps.getProperty("SUPABASE_ANON_KEY")
-        ?: System.getenv("SUPABASE_ANON_KEY")
-        ?: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlpbmF4cGdubmFkaGJrcGxva3ZsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIxNTYxNDQsImV4cCI6MjEwNzczMjE0NH0.PtGQ_Yy4X-bKEPaukfydrlABsZKiYrzSfQ_Awz5075g"
-    ).trim()
 val spotifySpdc: String = (
     localProps.getProperty("SPOTIFY_SPDC")
         ?: System.getenv("SPOTIFY_SPDC")
@@ -150,8 +140,6 @@ android {
             "LISTEN_TOGETHER_SERVER",
             "\"${listenTogetherServer.replace("\\", "\\\\").replace("\"", "\\\"")}\"",
         )
-        buildConfigField("String", "SUPABASE_URL", "\"${supabaseUrl.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
-        buildConfigField("String", "SUPABASE_ANON_KEY", "\"${supabaseAnonKey.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
         buildConfigField("String", "SPOTIFY_SPDC", "\"${spotifySpdc.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
     }
 
@@ -265,6 +253,7 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+        prefab = true
     }
     lint {
         checkReleaseBuilds = false
@@ -448,6 +437,16 @@ dependencies {
     // ---- Smartwatch Wear OS Support ----
     implementation("com.google.android.gms:play-services-wearable:20.0.1")
     implementation("androidx.wear:wear-remote-interactions:1.1.0")
+
+    // ---- Room / SQLite (Local cache for TrackAnalysis & MixPlan) ----
+    implementation("androidx.room:room-runtime:2.6.1")
+    implementation("androidx.room:room-ktx:2.6.1")
+
+    // ---- WorkManager for background library analysis ----
+    implementation("androidx.work:work-runtime-ktx:2.9.1")
+
+    // ---- Oboe (NDK real-time audio callback) ----
+    implementation("com.google.oboe:oboe:1.9.3")
 
     testImplementation("junit:junit:4.13.2")
     // A real HTTP server for the addon tests. The addon protocol is entirely

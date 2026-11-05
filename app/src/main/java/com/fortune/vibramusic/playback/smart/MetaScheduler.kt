@@ -27,7 +27,6 @@ class MetaScheduler(
     private val scope: CoroutineScope,
     private val analyzer: TrackAnalyzer,
     private val tags: LocalTagReader,
-    private val shared: SharedMetaClient,
     private val dao: TrackMetaDao,
     private val maxParallel: Int = 1,
 ) {
@@ -47,10 +46,6 @@ class MetaScheduler(
         scope.launch(Dispatchers.IO) {
             val missing = songs.filter { TrackMetaRepository.peek(it.videoId)?.complete != true }
             if (missing.isEmpty()) return@launch
-
-            // Stage 1b: ONE fast batched cloud request for the missing set (<5KB)
-            val sharedResults = shared.lookup(missing.map { it.videoId })
-            sharedResults.forEach { TrackMetaRepository.ingest(it, dao) }
 
             // Only enqueue heavy on-device audio decoding (Stage 2) for immediate playing/next tracks.
             // Playlist and library browsing must NEVER trigger heavy audio stream decoding on dozens of songs.

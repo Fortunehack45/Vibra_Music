@@ -415,7 +415,7 @@ object ListeningStats {
         }
     }
 
-    /** Every bucket serialized as JSON for Supabase cloud sync. */
+    /** Every bucket serialized as JSON for local persistence and backup. */
     suspend fun exportBucketsJson(): String {
         val list = exportAll()
         return json.encodeToString(kotlinx.serialization.builtins.ListSerializer(StoredBucket.serializer()), list)
@@ -509,7 +509,7 @@ object ListeningStats {
         }
     }
 
-    /** Restores buckets from Supabase cloud sync JSON safely without dropping existing listens. */
+    /** Restores buckets from backup JSON safely without dropping existing listens. */
     fun importBucketsJson(jsonStr: String) {
         if (jsonStr.isBlank() || jsonStr.trim() == "[]") return
         runCatching {

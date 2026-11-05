@@ -87,7 +87,6 @@ object ListeningRecorder {
         if (++samplesSinceFlush >= FLUSH_EVERY) {
             samplesSinceFlush = 0
             ListeningStats.flush()
-            com.fortune.vibramusic.data.supabase.UserCloudSyncManager.backupListeningExperience()
         }
     }
 
@@ -105,7 +104,6 @@ object ListeningRecorder {
         playCounted = false
         samplesSinceFlush = 0
         ListeningStats.flush()
-        com.fortune.vibramusic.data.supabase.UserCloudSyncManager.backupListeningExperience()
     }
 
     // -- Filling in what the queue didn't carry ------------------------------

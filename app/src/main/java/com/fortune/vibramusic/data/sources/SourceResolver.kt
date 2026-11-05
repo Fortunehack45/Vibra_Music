@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.data.sources
+package com.fortune.vibramusic.data.sources
 
 import android.net.Uri
 import android.util.Log
@@ -12,6 +12,7 @@ import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.selects.select
+import kotlinx.coroutines.yield
 
 /**
  * Turns a queued track into an openable stream, using whichever source can
@@ -790,6 +791,9 @@ object SourceResolver {
                 val first = select {
                     running.forEach { candidate -> candidate.onAwait { candidate } }
                 }
+                // Yield to allow any coroutines ready in this dispatch cycle to complete
+                // so rank can break ties between sources that arrived simultaneously.
+                yield()
                 // Anything that crossed the line while that one was being waited
                 // on is already sitting there. Folding those in costs no time at
                 // all and is what lets rank break a tie between two sources that

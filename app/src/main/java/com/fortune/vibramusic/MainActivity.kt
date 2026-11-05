@@ -3704,53 +3704,21 @@ private fun VibraMusicApp(
                                 detail == null && selectedTab == TAB_LIBRARY
 
                             if (inLibraryTab) {
-                                val pillShape = CircleShape
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier
-                                        .clip(pillShape)
-                                        .then(
-                                            if (reduceDynamicBlur) {
-                                                Modifier.background(MaterialTheme.colorScheme.surface)
-                                            } else if (glassActive) {
-                                                Modifier.liquidGlass(shape = pillShape)
-                                            } else {
-                                                Modifier.optimizedHazeEffect(
-                                                    state = hazeState,
-                                                    style = HazeMaterials.regular(MaterialTheme.colorScheme.surface),
-                                                )
-                                            }
-                                        )
-                                        .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, pillShape)
-                                        .padding(start = 2.dp, end = 2.dp),
+                                IconButton(
+                                    onClick = {
+                                        showHistory = true
+                                        viewModel.loadHistory()
+                                    },
                                 ) {
-                                    IconButton(
-                                        modifier = Modifier.size(36.dp),
-                                        onClick = {
-                                            showHistory = true
-                                            viewModel.loadHistory()
-                                        },
-                                    ) {
-                                        Icon(
-                                            Icons.Rounded.History,
-                                            contentDescription = stringResource(R.string.listening_history),
-                                            tint = if (glassActive) glassContentColor() else MaterialTheme.colorScheme.onSurface,
-                                            modifier = Modifier.size(20.dp),
-                                        )
-                                    }
-                                    TopBarAccountButton(
-                                        account = account,
-                                        avatarUrl = activeAvatar,
-                                        onClick = {
-                                            if (signedIn) {
-                                                viewModel.loadChannels()
-                                                showAccountSelector = true
-                                            } else showSettings = true
-                                        },
-                                        onSwipeProfile = { forward -> viewModel.stepProfile(forward) },
+                                    Icon(
+                                        Icons.Rounded.History,
+                                        contentDescription = stringResource(R.string.listening_history),
+                                        tint = if (glassActive) glassContentColor() else MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.size(20.dp),
                                     )
                                 }
-                            } else if (!isReleaseDetail) {
+                            }
+                            if (!isReleaseDetail) {
                                 TopBarAccountButton(
                                     account = account,
                                     avatarUrl = activeAvatar,

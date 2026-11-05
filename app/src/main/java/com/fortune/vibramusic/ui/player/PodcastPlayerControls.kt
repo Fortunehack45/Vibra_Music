@@ -205,16 +205,16 @@ fun PlaybackSpeedPill(
     Box(
         modifier = modifier
             .height(34.dp)
+            .clip(pillShape)
             .then(
                 if (useGlass) {
                     Modifier.liquidGlass(shape = pillShape)
                 } else {
                     Modifier
-                        .clip(pillShape)
                         .background(Color.White.copy(alpha = 0.16f))
-                        .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, pillShape)
                 }
             )
+            .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, pillShape)
             .liquidGlassButton(
                 onClick = {
                     val currentIndex = SPEED_STEPS.indexOfFirst { kotlin.math.abs(it - optimisticSpeed) < 0.05f }
@@ -262,16 +262,16 @@ fun ShowNotesPill(
     Box(
         modifier = modifier
             .height(34.dp)
+            .clip(pillShape)
             .then(
                 if (useGlass) {
                     Modifier.liquidGlass(shape = pillShape)
                 } else {
                     Modifier
-                        .clip(pillShape)
                         .background(Color.White.copy(alpha = 0.16f))
-                        .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, pillShape)
                 }
             )
+            .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, pillShape)
             .liquidGlassButton(
                 onClick = onClick,
                 haptic = Haptic.Tap,

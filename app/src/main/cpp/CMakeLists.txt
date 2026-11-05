@@ -47,11 +47,12 @@ target_include_directories(vibra_analysis PRIVATE
 # arithmetic (see audio_analysis.cpp) is tuned against exact IEEE behaviour.
 target_compile_options(vibra_analysis PRIVATE -O3 -fvisibility=hidden -fexceptions)
 
+find_package(oboe REQUIRED CONFIG)
 find_library(log-lib log)
 target_link_libraries(vibra_analysis
     ${log-lib}
-    "-lc++_static"
-    "-lc++abi"
+    oboe::oboe
+    c++_shared
 )
 
 # 16KB page-size support (Android 15+ 16KB kernels, Play requirement): align

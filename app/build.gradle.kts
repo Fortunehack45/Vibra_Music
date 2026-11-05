@@ -128,7 +128,7 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         externalNativeBuild {
             cmake {
-                arguments("-DANDROID_STL=c++_static")
+                arguments("-DANDROID_STL=c++_shared")
             }
         }
 

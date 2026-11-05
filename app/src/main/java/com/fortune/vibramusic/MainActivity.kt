@@ -3704,19 +3704,24 @@ private fun VibraMusicApp(
                                 detail == null && selectedTab == TAB_LIBRARY
 
                             if (inLibraryTab) {
+                                val pillShape = CircleShape
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     modifier = Modifier
+                                        .clip(pillShape)
                                         .then(
-                                            if (glassActive) {
-                                                Modifier.liquidGlass(shape = CircleShape)
+                                            if (reduceDynamicBlur) {
+                                                Modifier.background(MaterialTheme.colorScheme.surface)
+                                            } else if (glassActive) {
+                                                Modifier.liquidGlass(shape = pillShape)
                                             } else {
-                                                Modifier
-                                                    .clip(CircleShape)
-                                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
-                                                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), CircleShape)
+                                                Modifier.optimizedHazeEffect(
+                                                    state = hazeState,
+                                                    style = HazeMaterials.regular(MaterialTheme.colorScheme.surface),
+                                                )
                                             }
                                         )
+                                        .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, pillShape)
                                         .padding(start = 2.dp, end = 2.dp),
                                 ) {
                                     IconButton(

@@ -630,6 +630,7 @@ internal fun CircleGlyph(
     Box(
         modifier = Modifier
             .size(38.dp)
+            .clip(shape)
             .then(
                 if (useGlass) {
                     Modifier
@@ -640,11 +641,10 @@ internal fun CircleGlyph(
                         )
                 } else {
                     Modifier
-                        .clip(shape)
                         .background(Color.White.copy(alpha = discAlpha))
-                        .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
                 }
             )
+            .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
             .liquidGlassButton(
                 onClick = onClick,
                 haptic = haptic,
@@ -776,16 +776,16 @@ private fun Pill(
     Row(
         modifier = modifier
             .height(BOTTOM_ACTION_SIZE)
+            .clip(shape)
             .then(
                 if (useGlass) {
                     Modifier.liquidGlass(shape)
                 } else {
                     Modifier
-                        .clip(shape)
                         .background(Color.White.copy(alpha = 0.14f))
-                        .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
                 }
             )
+            .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
             .animateContentSize(
                 animationSpec = spring(
                     dampingRatio = 0.82f,
@@ -1128,6 +1128,7 @@ private fun BottomGlyph(
     Box(
         modifier = Modifier
             .size(BOTTOM_ACTION_SIZE)
+            .clip(shape)
             .then(
                 if (useGlass) {
                     Modifier
@@ -1138,11 +1139,10 @@ private fun BottomGlyph(
                         )
                 } else {
                     Modifier
-                        .clip(shape)
                         .background(if (highlighted) Color.White.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.12f))
-                        .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
                 }
             )
+            .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
             .liquidGlassButton(
                 onClick = {
                     val now = SystemClock.uptimeMillis()

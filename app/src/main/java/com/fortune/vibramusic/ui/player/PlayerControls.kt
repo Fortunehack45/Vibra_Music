@@ -634,7 +634,7 @@ internal fun CircleGlyph(
             .then(
                 if (useGlass) {
                     Modifier
-                        .liquidGlass(shape)
+                        .liquidGlass(shape, resolutionScale = 1f)
                         .then(
                             if (active) Modifier.background(glassIndicatorColor().copy(alpha = 0.25f), shape)
                             else Modifier
@@ -779,7 +779,7 @@ private fun Pill(
             .clip(shape)
             .then(
                 if (useGlass) {
-                    Modifier.liquidGlass(shape)
+                    Modifier.liquidGlass(shape, resolutionScale = 1f)
                 } else {
                     Modifier
                         .background(Color.White.copy(alpha = 0.14f))
@@ -1132,7 +1132,7 @@ private fun BottomGlyph(
             .then(
                 if (useGlass) {
                     Modifier
-                        .liquidGlass(shape)
+                        .liquidGlass(shape, resolutionScale = 1f)
                         .then(
                             if (highlighted) Modifier.background(glassIndicatorColor().copy(alpha = 0.25f), shape)
                             else Modifier

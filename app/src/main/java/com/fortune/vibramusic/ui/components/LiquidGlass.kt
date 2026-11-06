@@ -270,7 +270,15 @@ fun Modifier.liquidGlassButton(
  * throws for any other shape type.
  */
 @Composable
-fun Modifier.liquidGlass(shape: CornerBasedShape): Modifier {
+fun Modifier.liquidGlass(
+    shape: CornerBasedShape,
+    /**
+     * Fraction of full resolution the backdrop is recorded and refracted at. Small
+     * controls pass 1f: at a third of resolution a 38dp button's lens is smeared
+     * back up 3x and reads as plain frosted blur instead of refracting glass.
+     */
+    resolutionScale: Float = GLASS_RESOLUTION_SCALE,
+): Modifier {
     if (!isGlassSupported()) return this
     val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
     if (reduceDynamicBlur) {
@@ -280,9 +288,9 @@ fun Modifier.liquidGlass(shape: CornerBasedShape): Modifier {
     val backdrop = LocalAppBackdrop.current
     val exportedBackdrop = LocalGlassExport.current
     val density = LocalDensity.current
-    val blurPx = with(density) { BLUR_RADIUS_DP.dp.toPx() } * GLASS_RESOLUTION_SCALE
-    val lensHeightPx = with(density) { (LENS_HEIGHT * LENS_MAX_DP).dp.toPx() } * GLASS_RESOLUTION_SCALE
-    val lensAmountPx = with(density) { (LENS_AMOUNT * LENS_MAX_DP).dp.toPx() } * GLASS_RESOLUTION_SCALE
+    val blurPx = with(density) { BLUR_RADIUS_DP.dp.toPx() } * resolutionScale
+    val lensHeightPx = with(density) { (LENS_HEIGHT * LENS_MAX_DP).dp.toPx() } * resolutionScale
+    val lensAmountPx = with(density) { (LENS_AMOUNT * LENS_MAX_DP).dp.toPx() } * resolutionScale
     val surfaceTintColor = if (MaterialTheme.colorScheme.surface.luminance() > 0.5f) {
         Color(0xFFFAFAFA)
     } else {
@@ -310,6 +318,6 @@ fun Modifier.liquidGlass(shape: CornerBasedShape): Modifier {
             drawRect(color = surfaceTintColor.copy(alpha = SURFACE_OPACITY), size = size)
         },
         exportedBackdrop = exportedBackdrop,
-        backdropScale = GLASS_RESOLUTION_SCALE,
+        backdropScale = resolutionScale,
     )
 }

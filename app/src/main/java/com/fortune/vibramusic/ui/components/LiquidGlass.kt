@@ -45,6 +45,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import com.fortune.vibramusic.ui.haptics.Haptic
 import com.fortune.vibramusic.ui.haptics.rememberHaptics
 import kotlinx.coroutines.launch
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 
 import androidx.compose.runtime.compositionLocalOf
@@ -319,5 +320,64 @@ fun Modifier.liquidGlass(
         },
         exportedBackdrop = exportedBackdrop,
         backdropScale = resolutionScale,
+    )
+}
+
+private val LENS_HEIGHT_DP = 12.dp
+private val LENS_AMOUNT_DP = 14.dp
+private val LENS_SHADOW = Shadow(
+    radius = 12.dp,
+    offset = DpOffset(0.dp, 2.dp),
+    color = Color.Black.copy(alpha = 0.30f),
+)
+
+/**
+ * Renders a crystal-clear liquid glass lens matching the optical physics and
+ * chromatic dispersion of the navigation bar's animated selection pill.
+ *
+ * Unlike [liquidGlass] (which renders a frosted, blurred surface with 40% tint
+ * for large background bars and menus), [liquidGlassLens] renders an unblurred,
+ * 1:1 native resolution optical lens with high refraction, rainbow chromatic
+ * aberration dispersion along curved rims, specular highlight, and soft contact
+ * drop shadow.
+ */
+@Composable
+fun Modifier.liquidGlassLens(
+    shape: CornerBasedShape,
+    active: Boolean = false,
+    activeTint: Color = glassIndicatorColor().copy(alpha = 0.25f),
+): Modifier {
+    if (!isGlassSupported()) return this
+    val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
+    if (reduceDynamicBlur) {
+        return background(MaterialTheme.colorScheme.surface, shape)
+            .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
+    }
+    val backdrop = LocalAppBackdrop.current
+    val exportedBackdrop = LocalGlassExport.current
+    val density = LocalDensity.current
+    val lensHeightPx = with(density) { LENS_HEIGHT_DP.toPx() }
+    val lensAmountPx = with(density) { LENS_AMOUNT_DP.toPx() }
+
+    return drawBackdrop(
+        backdrop = backdrop,
+        shape = { shape },
+        effects = {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                lens(
+                    refractionHeight = lensHeightPx,
+                    refractionAmount = lensAmountPx,
+                    depthEffect = true,
+                    chromaticAberration = true,
+                )
+            }
+        },
+        highlight = { Highlight.Default },
+        shadow = { LENS_SHADOW },
+        onDrawSurface = if (active) {
+            { drawRect(color = activeTint, size = size) }
+        } else null,
+        exportedBackdrop = exportedBackdrop,
+        backdropScale = 1f,
     )
 }

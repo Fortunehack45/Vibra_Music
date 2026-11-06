@@ -43,6 +43,7 @@ import com.fortune.vibramusic.ui.components.LocalLiquidGlassEnabled
 import com.fortune.vibramusic.ui.components.isGlassSupported
 import com.fortune.vibramusic.ui.components.liquidGlass
 import com.fortune.vibramusic.ui.components.liquidGlassButton
+import com.fortune.vibramusic.ui.components.liquidGlassLens
 import com.fortune.vibramusic.ui.haptics.Haptic
 import com.fortune.vibramusic.ui.haptics.rememberHaptics
 import com.fortune.vibramusic.ui.icons.VibraMusicIcons
@@ -208,13 +209,13 @@ fun PlaybackSpeedPill(
             .clip(pillShape)
             .then(
                 if (useGlass) {
-                    Modifier.liquidGlass(shape = pillShape)
+                    Modifier.liquidGlassLens(shape = pillShape)
                 } else {
                     Modifier
                         .background(Color.White.copy(alpha = 0.16f))
+                        .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, pillShape)
                 }
             )
-            .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, pillShape)
             .liquidGlassButton(
                 onClick = {
                     val currentIndex = SPEED_STEPS.indexOfFirst { kotlin.math.abs(it - optimisticSpeed) < 0.05f }
@@ -265,13 +266,13 @@ fun ShowNotesPill(
             .clip(pillShape)
             .then(
                 if (useGlass) {
-                    Modifier.liquidGlass(shape = pillShape)
+                    Modifier.liquidGlassLens(shape = pillShape)
                 } else {
                     Modifier
                         .background(Color.White.copy(alpha = 0.16f))
+                        .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, pillShape)
                 }
             )
-            .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, pillShape)
             .liquidGlassButton(
                 onClick = onClick,
                 haptic = Haptic.Tap,

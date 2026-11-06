@@ -58,6 +58,7 @@ import com.fortune.vibramusic.ui.components.glassIndicatorColor
 import com.fortune.vibramusic.ui.components.isGlassSupported
 import com.fortune.vibramusic.ui.components.liquidGlass
 import com.fortune.vibramusic.ui.components.liquidGlassButton
+import com.fortune.vibramusic.ui.components.liquidGlassLens
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.VolumeDown
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
@@ -633,18 +634,17 @@ internal fun CircleGlyph(
             .clip(shape)
             .then(
                 if (useGlass) {
-                    Modifier
-                        .liquidGlass(shape, resolutionScale = 1f)
-                        .then(
-                            if (active) Modifier.background(glassIndicatorColor().copy(alpha = 0.25f), shape)
-                            else Modifier
-                        )
+                    Modifier.liquidGlassLens(
+                        shape = shape,
+                        active = active,
+                        activeTint = glassIndicatorColor().copy(alpha = 0.25f),
+                    )
                 } else {
                     Modifier
                         .background(Color.White.copy(alpha = discAlpha))
+                        .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
                 }
             )
-            .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
             .liquidGlassButton(
                 onClick = onClick,
                 haptic = haptic,
@@ -779,13 +779,13 @@ private fun Pill(
             .clip(shape)
             .then(
                 if (useGlass) {
-                    Modifier.liquidGlass(shape, resolutionScale = 1f)
+                    Modifier.liquidGlassLens(shape = shape)
                 } else {
                     Modifier
                         .background(Color.White.copy(alpha = 0.14f))
+                        .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
                 }
             )
-            .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
             .animateContentSize(
                 animationSpec = spring(
                     dampingRatio = 0.82f,
@@ -1131,18 +1131,17 @@ private fun BottomGlyph(
             .clip(shape)
             .then(
                 if (useGlass) {
-                    Modifier
-                        .liquidGlass(shape, resolutionScale = 1f)
-                        .then(
-                            if (highlighted) Modifier.background(glassIndicatorColor().copy(alpha = 0.25f), shape)
-                            else Modifier
-                        )
+                    Modifier.liquidGlassLens(
+                        shape = shape,
+                        active = highlighted,
+                        activeTint = glassIndicatorColor().copy(alpha = 0.25f),
+                    )
                 } else {
                     Modifier
                         .background(if (highlighted) Color.White.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.12f))
+                        .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
                 }
             )
-            .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
             .liquidGlassButton(
                 onClick = {
                     val now = SystemClock.uptimeMillis()

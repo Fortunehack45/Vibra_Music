@@ -2111,8 +2111,6 @@ fun NowPlayingScreen(
                 )
             }
 
-        }
-
         // Mount once, behind the controls. A known portrait aspect changes the
         // invisible view to full-player bounds before its first frame is shown.
         if (heroMode && heroHeight > 0.dp) {
@@ -2168,6 +2166,7 @@ fun NowPlayingScreen(
                         .hazeSource(playerHaze),
                 )
             }
+        }
         }
 
         // This transparent top gradient is always present while the modal

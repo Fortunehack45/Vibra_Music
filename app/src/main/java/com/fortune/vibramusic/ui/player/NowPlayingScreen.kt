@@ -2218,6 +2218,20 @@ fun NowPlayingScreen(
                     ),
             )
         }
+
+        val spotifyCanvasDim = animateFloatAsState(
+            targetValue = if (spotifyCanvasPresentation && spotifyCanvasControlsOpen) 0.5f else 0f,
+            animationSpec = tween(SPOTIFY_CANVAS_CONTROLS_ANIMATION_MS),
+            label = "spotifyCanvasDim",
+        )
+        val spotifyCanvasDimShowing by remember { derivedStateOf { spotifyCanvasDim.value > 0f } }
+        if (spotifyCanvasPresentation || spotifyCanvasDimShowing) {
+            Box(
+                Modifier.matchParentSize()
+                    .graphicsLayer { alpha = spotifyCanvasDim.value }
+                    .background(Color.Black),
+            )
+        }
         }
 
         // Spotify Canvas keeps its pixels sharp across the whole phone. Pure
@@ -2262,7 +2276,7 @@ fun NowPlayingScreen(
                                 // and replaces its alpha with a dark 0.8 tint.
                                 style = HazeStyle(
                                     backgroundColor = Color.Transparent,
-                                    tints = emptyList(),
+                                    tints = listOf(HazeTint(Color.Black.copy(alpha = 0.5f))),
                                     // Canvas stays sharp above the deck; the
                                     // lower glass needs stronger separation
                                     // from a moving video than static artwork.
@@ -2296,19 +2310,6 @@ fun NowPlayingScreen(
         // the fade never recomposes the player. Drawn above the glass deck, not
         // under it: the deck's blur samples the video layer itself, so a dim
         // beneath it never reached the glass and the deck stayed bright.
-        val spotifyCanvasDim = animateFloatAsState(
-            targetValue = if (spotifyCanvasPresentation && spotifyCanvasControlsOpen) 0.5f else 0f,
-            animationSpec = tween(SPOTIFY_CANVAS_CONTROLS_ANIMATION_MS),
-            label = "spotifyCanvasDim",
-        )
-        val spotifyCanvasDimShowing by remember { derivedStateOf { spotifyCanvasDim.value > 0f } }
-        if (spotifyCanvasPresentation || spotifyCanvasDimShowing) {
-            Box(
-                Modifier.matchParentSize()
-                    .graphicsLayer { alpha = spotifyCanvasDim.value }
-                    .background(Color.Black),
-            )
-        }
 
         CompositionLocalProvider(
             LocalAppBackdrop provides playerBackdrop,

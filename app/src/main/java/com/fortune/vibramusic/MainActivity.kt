@@ -996,7 +996,9 @@ private fun VibraMusicApp(
     val explorePull = rememberPullToRefreshState()
     val podcastPull = rememberPullToRefreshState()
     val libraryPull = rememberPullToRefreshState()
+    val detailPull = rememberPullToRefreshState()
     val refreshing by viewModel.refreshing.collectAsStateWithLifecycle()
+    val detailRefreshing by viewModel.detailRefreshing.collectAsStateWithLifecycle()
     val currentFeed = when {
         showSettings || showAccountScrobbling || detail != null -> null
         selectedTab == TAB_HOME -> MainViewModel.Feed.HOME
@@ -1015,12 +1017,13 @@ private fun VibraMusicApp(
         if (currentFeed == MainViewModel.Feed.PODCASTS) viewModel.loadPodcasts()
     }
 
-    val currentPull = when (currentFeed) {
-        MainViewModel.Feed.HOME -> homePull
-        MainViewModel.Feed.EXPLORE -> explorePull
-        MainViewModel.Feed.PODCASTS -> podcastPull
-        MainViewModel.Feed.LIBRARY -> libraryPull
-        null -> null
+    val currentPull = when {
+        detail != null -> detailPull
+        currentFeed == MainViewModel.Feed.HOME -> homePull
+        currentFeed == MainViewModel.Feed.EXPLORE -> explorePull
+        currentFeed == MainViewModel.Feed.PODCASTS -> podcastPull
+        currentFeed == MainViewModel.Feed.LIBRARY -> libraryPull
+        else -> null
     }
     val scrolled by remember(currentListState) {
         derivedStateOf {
@@ -2980,6 +2983,9 @@ private fun VibraMusicApp(
                             listState = detailListState,
                             activeShelf = detailActiveShelf,
                             onActiveShelfChange = { detailActiveShelf = it },
+                            refreshing = detailRefreshing,
+                            onRefresh = { viewModel.refreshDetail(page.browseId) },
+                            pullState = detailPull,
                             onSongClick = { songs, index ->
                                 playFrom(
                                     songs,
@@ -3514,7 +3520,7 @@ private fun VibraMusicApp(
                         detail != null -> detailScrolled
                         else -> scrolled || selectedTab == TAB_SEARCH
                     },
-                    refreshing = currentFeed != null && currentFeed in refreshing,
+                    refreshing = (detail != null && detailRefreshing) || (currentFeed != null && currentFeed in refreshing),
                     pullFraction = { currentPull?.distanceFraction ?: 0f },
                     onBack = when {
                         showSpotifyLibrary && detail == null -> ({ showSpotifyLibrary = false })

@@ -1,6 +1,14 @@
 package com.fortune.vibramusic.ui.screens
 
 import androidx.compose.ui.layout.layout
+
+import androidx.compose.foundation.LocalOverscrollFactory
+
+import com.fortune.vibramusic.ui.utils.rememberIosOverscrollFactory
+
+import androidx.compose.material3.pulltorefresh.PullToRefreshState
+
+import com.fortune.vibramusic.ui.components.PullToRefresh
 import androidx.compose.ui.graphics.CompositingStrategy
 import com.fortune.vibramusic.ui.graphics.smootherStep
 import com.fortune.vibramusic.ui.graphics.FADE_CURVE_STOPS
@@ -65,7 +73,8 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -292,6 +301,9 @@ fun DetailScreen(
     onToggleReleaseLibrary: ((String) -> Unit)? = null,
     songSort: SongSort = SongSort.DEFAULT,
     reorder: (@Composable (ArtworkPalette) -> Unit)? = null,
+    refreshing: Boolean = false,
+    onRefresh: (() -> Unit)? = null,
+    pullState: PullToRefreshState? = null,
 ) {
     val rawSongs = (page.songs as? UiState.Success)?.data.orEmpty()
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -448,13 +460,18 @@ fun DetailScreen(
                     )
                 }
 
-                if (reorder != null) {
-                    reorder(palette)
-                } else LazyColumn(
-                    state = listState,
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(bottom = contentPadding.calculateBottomPadding()),
-                ) {
+                @Composable
+                fun DetailBody() {
+                    CompositionLocalProvider(
+                        LocalOverscrollFactory provides rememberIosOverscrollFactory(allowTop = false),
+                    ) {
+                        if (reorder != null) {
+                            reorder(palette)
+                        } else LazyColumn(
+                            state = listState,
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(bottom = contentPadding.calculateBottomPadding()),
+                        ) {
                     item(key = "header") {
                         if (isArtist) {
                             ArtistHeader(
@@ -791,6 +808,21 @@ fun DetailScreen(
                     }
                     if (isArtist) aboutItem()
                 }
+                    }
+                }
+
+                if (pullState != null && onRefresh != null) {
+                    PullToRefresh(
+                        refreshing = refreshing,
+                        onRefresh = onRefresh,
+                        state = pullState,
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
+                        DetailBody()
+                    }
+                } else {
+                    DetailBody()
+                }
             }
         } else {
             ArtistShelfGridPage(
@@ -899,8 +931,7 @@ private fun ReleaseHeader(
                                 ),
                                 blendMode = BlendMode.DstIn,
                             )
-                        }
-                        .background(palette.elevated),
+                        },
                 )
                 canvas?.let { clip ->
                     CanvasArtworkPlayer(

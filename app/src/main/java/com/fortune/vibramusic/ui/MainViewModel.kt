@@ -603,6 +603,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      */
     private val _detailStack = MutableStateFlow<List<DetailPage>>(emptyList())
     val detailStack: StateFlow<List<DetailPage>> = _detailStack.asStateFlow()
+    private val _detailRefreshing = MutableStateFlow(false)
+    val detailRefreshing: StateFlow<Boolean> = _detailRefreshing.asStateFlow()
     // ---- Ratings, library and playlists -------------------------------------
 
     /**
@@ -2875,6 +2877,161 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         },
         albumName = album,
     )
+
+    fun refreshDetail(browseId: String) {
+        if (_detailRefreshing.value) return
+        val current = _detailStack.value.lastOrNull { it.browseId == browseId } ?: return
+        viewModelScope.launch {
+            _detailRefreshing.value = true
+            try {
+                if (browseId.startsWith(SPOTIFY_PAGE_PREFIX)) {
+                    val playlistId = browseId.removePrefix(SPOTIFY_PAGE_PREFIX)
+                    val spotifySongs = runCatching {
+                        val (_, importedTracks, coverUrl) = SpotifyImporter.fetchPlaylistTracks(playlistId)
+                        if (coverUrl != null) {
+                            _detailStack.value = _detailStack.value.map {
+                                if (it.browseId == browseId && it.thumbnailUrl == null) it.copy(thumbnailUrl = coverUrl) else it
+                            }
+                        }
+                        importedTracks.mapIndexed { i, t ->
+                            SpotifyTrack(
+                                id = "imp_$i",
+                                title = t.title,
+                                artist = t.artist,
+                                album = "",
+                                durationMs = 0,
+                                imageUrl = current.thumbnailUrl ?: coverUrl,
+                            )
+                        }
+                    }.getOrNull()
+                    if (!spotifySongs.isNullOrEmpty()) {
+                        val songs = spotifySongs.map { it.asPendingSong() }
+                        _detailStack.value = _detailStack.value.map {
+                            if (it.browseId == browseId) it.copy(songs = UiState.Success(songs)) else it
+                        }
+                    }
+                    return@launch
+                }
+
+                val resolved = browseTypeOf(browseId, current.type)
+                var sections = current.sections
+                var artwork: String? = null
+                var name: String? = null
+                var credit: String? = null
+                var more: String? = null
+                var suggested = current.suggestedSongs
+                var library = current.library
+                var description = current.description
+                var subscriberCountText = current.subscriberCountText
+                var monthlyListenerCount = current.monthlyListenerCount
+                var subscription = current.subscription
+
+                val remote = remoteLibrary(browseId)
+                val state: UiState<List<Song>> = when {
+                    browseId.startsWith("VLlocal_") || browseId.startsWith("local_") -> {
+                        val stored = LocalPlaylistsStore.getPlaylist(browseId)
+                        val songs = stored?.songs.orEmpty()
+                        if (songs.isNotEmpty()) UiState.Success(songs) else current.songs
+                    }
+                    browseId == YtMusicRepository.LIKED_MUSIC && !_signedIn.value -> {
+                        val songs = LocalLikesStore.getLikedSongs()
+                        if (songs.isNotEmpty()) UiState.Success(songs) else current.songs
+                    }
+                    remote != null -> remoteSongsState(remote)
+                    Downloads.recordIdOf(browseId) != null -> {
+                        val songs = downloadedPlaylist(browseId)
+                        if (songs.isNotEmpty()) UiState.Success(songs) else current.songs
+                    }
+                    browseId.startsWith("RD") || browseId.startsWith("VLRD") -> {
+                        val playlistId = browseId.removePrefix("VL")
+                        val seedVideoId = if (playlistId.startsWith("RDAMVM")) playlistId.removePrefix("RDAMVM") else null
+                        YtMusicRepository.playlistAsAudio(playlistId).fold(
+                            onSuccess = { if (it.isNotEmpty()) UiState.Success(it) else current.songs },
+                            onFailure = {
+                                YtMusicRepository.watchQueue(WatchTarget(playlistId = playlistId, videoId = seedVideoId)).fold(
+                                    onSuccess = { if (it.isNotEmpty()) UiState.Success(it) else current.songs },
+                                    onFailure = { current.songs },
+                                )
+                            },
+                        )
+                    }
+                    browseId == "local:downloads" -> {
+                        val context = getApplication<Application>()
+                        val songs = Downloads.getDownloadedSongs(context)
+                        if (songs.isNotEmpty()) UiState.Success(songs) else current.songs
+                    }
+                    browseId == "local:all" -> {
+                        val context = getApplication<Application>()
+                        if (LocalMediaRepository.hasStoragePermission(context)) {
+                            val songs = LocalMediaRepository.getLocalMusic(context)
+                            if (songs.isNotEmpty()) UiState.Success(songs) else current.songs
+                        } else current.songs
+                    }
+                    resolved == BrowseType.ARTIST -> {
+                        YtMusicRepository.artistPage(browseId).fold(
+                            onSuccess = { page ->
+                                sections = page.sections
+                                artwork = page.thumbnailUrl
+                                name = page.name
+                                description = page.description
+                                subscriberCountText = page.subscriberCountText
+                                monthlyListenerCount = page.monthlyListenerCount
+                                subscription = page.subscription
+                                if (page.songs.isNotEmpty() || sections.isNotEmpty()) {
+                                    UiState.Success(page.songs.withArtwork(current.thumbnailUrl ?: artwork))
+                                } else current.songs
+                            },
+                            onFailure = { current.songs },
+                        )
+                    }
+                    else -> {
+                        YtMusicRepository.browseSongs(browseId).fold(
+                            onSuccess = { page ->
+                                page.owned?.let { setPlaylistOwned(browseId, it) }
+                                page.header?.let { header ->
+                                    if (current.title.isBlank()) name = header.title
+                                    if (resolved == BrowseType.ALBUM && header.subtitle.isNotBlank()) {
+                                        credit = header.subtitle
+                                    } else if (current.subtitle.isBlank()) {
+                                        credit = header.subtitle
+                                    }
+                                    if (current.thumbnailUrl == null) artwork = header.thumbnailUrl
+                                }
+                                description = page.description
+                                if (page.songs.isNotEmpty()) {
+                                    more = page.continuation
+                                    suggested = page.suggested.withArtwork(current.thumbnailUrl ?: artwork)
+                                    library = page.library
+                                    UiState.Success(page.songs.withArtwork(current.thumbnailUrl ?: artwork))
+                                } else current.songs
+                            },
+                            onFailure = { current.songs },
+                        )
+                    }
+                }
+                _detailStack.value = _detailStack.value.map {
+                    if (it.browseId == browseId) {
+                        it.copy(
+                            songs = state,
+                            sections = sections,
+                            thumbnailUrl = artwork ?: it.thumbnailUrl,
+                            title = name ?: it.title,
+                            subtitle = credit ?: it.subtitle,
+                            suggestedSongs = suggested,
+                            library = library,
+                            description = description,
+                            subscriberCountText = subscriberCountText,
+                            monthlyListenerCount = monthlyListenerCount,
+                            subscription = subscription,
+                        )
+                    } else it
+                }
+                more?.let { fillIn(browseId, it, current.thumbnailUrl ?: artwork) }
+            } finally {
+                _detailRefreshing.value = false
+            }
+        }
+    }
 
     fun reloadLocalDetail(browseId: String) {
         viewModelScope.launch {

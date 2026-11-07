@@ -56,7 +56,10 @@ private fun rubberBand(rawDistance: Float, containerPx: Float): Float {
  * It replaces Android's stretch/glow with a UIScrollView-like rubber band during a
  * drag, then critically damps the content back to its resting position on release.
  */
-private class IosOverscrollEffect : OverscrollEffect {
+private class IosOverscrollEffect(
+    private val allowTop: Boolean = true,
+    private val allowBottom: Boolean = true,
+) : OverscrollEffect {
     private val rawPullX = mutableFloatStateOf(0f)
     private val rawPullY = mutableFloatStateOf(0f)
     private var containerWidthPx = 0f
@@ -88,8 +91,12 @@ private class IosOverscrollEffect : OverscrollEffect {
                 stretchedX = leftover.x
             }
             if (leftover.y != 0f) {
-                rawPullY.floatValue += leftover.y
-                stretchedY = leftover.y
+                val allow = if (leftover.y > 0f) allowTop else allowBottom
+                if (allow || (leftover.y > 0f && rawPullY.floatValue < 0f) || (leftover.y < 0f && rawPullY.floatValue > 0f)) {
+                    val target = rawPullY.floatValue + leftover.y
+                    rawPullY.floatValue = if (!allowTop && target > 0f) 0f else if (!allowBottom && target < 0f) 0f else target
+                    stretchedY = leftover.y
+                }
             }
         }
         return Offset(consumed.x + paidX + stretchedX, consumed.y + paidY + stretchedY)
@@ -103,9 +110,10 @@ private class IosOverscrollEffect : OverscrollEffect {
         val leftover = velocity - consumed
         if (!isInProgress && leftover == Velocity.Zero) return
 
+        val leftoverY = if (!allowTop && leftover.y > 0f) 0f else if (!allowBottom && leftover.y < 0f) 0f else leftover.y
         coroutineScope {
             launch { settle(rawPullX, leftover.x) }
-            launch { settle(rawPullY, leftover.y) }
+            launch { settle(rawPullY, leftoverY) }
         }
     }
 
@@ -138,7 +146,11 @@ private class IosOverscrollEffect : OverscrollEffect {
 
     override val node: DelegatableNode = IosOverscrollNode(
         offsetX = { rubberBand(rawPullX.floatValue, containerWidthPx) },
-        offsetY = { rubberBand(rawPullY.floatValue, containerHeightPx) },
+        offsetY = {
+            val raw = rawPullY.floatValue
+            val clampedRaw = if (!allowTop && raw > 0f) 0f else if (!allowBottom && raw < 0f) 0f else raw
+            rubberBand(clampedRaw, containerHeightPx)
+        },
         onMeasured = { width, height ->
             containerWidthPx = width
             containerHeightPx = height
@@ -169,22 +181,35 @@ private class IosOverscrollNode(
     }
 }
 
-private class IosOverscrollFactory(
+class IosOverscrollFactory(
     private val density: Density,
     private val scope: CoroutineScope,
+    private val allowTop: Boolean = true,
+    private val allowBottom: Boolean = true,
 ) : OverscrollFactory {
-    override fun createOverscrollEffect(): OverscrollEffect = IosOverscrollEffect()
+    override fun createOverscrollEffect(): OverscrollEffect =
+        IosOverscrollEffect(allowTop = allowTop, allowBottom = allowBottom)
 
     override fun equals(other: Any?): Boolean =
-        other is IosOverscrollFactory && other.density == density && other.scope === scope
+        other is IosOverscrollFactory &&
+            other.density == density &&
+            other.scope === scope &&
+            other.allowTop == allowTop &&
+            other.allowBottom == allowBottom
 
-    override fun hashCode(): Int = 31 * density.hashCode() + scope.hashCode()
+    override fun hashCode(): Int =
+        31 * (31 * (31 * density.hashCode() + scope.hashCode()) + allowTop.hashCode()) + allowBottom.hashCode()
 }
 
 /** Provides iOS-style rubber-band overscroll to every descendant scroll container. */
 @Composable
-fun rememberIosOverscrollFactory(): OverscrollFactory {
+fun rememberIosOverscrollFactory(
+    allowTop: Boolean = true,
+    allowBottom: Boolean = true,
+): OverscrollFactory {
     val density = LocalDensity.current
     val scope = rememberCoroutineScope()
-    return remember(density, scope) { IosOverscrollFactory(density, scope) }
+    return remember(density, scope, allowTop, allowBottom) {
+        IosOverscrollFactory(density, scope, allowTop, allowBottom)
+    }
 }

@@ -51,6 +51,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import com.fortune.vibramusic.data.model.Song
 import com.fortune.vibramusic.data.model.TopPick
 import com.fortune.vibramusic.data.model.TopPickMood
@@ -79,6 +80,7 @@ import com.fortune.vibramusic.ui.components.MessageState
 import com.fortune.vibramusic.ui.components.PAGE_GUTTER
 import com.fortune.vibramusic.ui.components.PullToRefresh
 import com.fortune.vibramusic.ui.components.SHELF_CARD_WIDTH
+import com.fortune.vibramusic.ui.components.VideoThumbnails
 import com.fortune.vibramusic.ui.components.SignInBanner
 import com.fortune.vibramusic.ui.components.feedMoreSkeleton
 import com.fortune.vibramusic.ui.components.feedSkeleton
@@ -950,13 +952,19 @@ private fun ServiceCard(colors: List<Color>, trackKey: String, icon: ImageVector
     }
 }
 
+/** A music video's frame, or a square one when the listener asked for that — see [VideoThumbnails]. */
+val VIDEO_ASPECT: Float get() = if (VideoThumbnails.square) 1f else 16f / 9f
+
+/** Wide enough that a 16:9 card stands about as tall as a square [SHELF_CARD_WIDTH] one. */
+val VIDEO_CARD_WIDTH: Dp get() = if (VideoThumbnails.square) SHELF_CARD_WIDTH else 248.dp
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun VideoShelfCard(
     item: ShelfItem,
     onClick: () -> Unit,
     onLongPress: (() -> Unit)? = null,
-    modifier: Modifier = Modifier.width(248.dp),
+    modifier: Modifier = Modifier.width(VIDEO_CARD_WIDTH),
     titleColor: Color = MaterialTheme.colorScheme.onBackground,
     subtitleColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
     placeholderColor: Color = MaterialTheme.colorScheme.surfaceVariant,
@@ -968,7 +976,7 @@ fun VideoShelfCard(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(16f / 9f)
+                .aspectRatio(VIDEO_ASPECT)
                 .clip(RoundedCornerShape(12.dp))
                 .thumbnailBorder(RoundedCornerShape(12.dp))
                 .background(placeholderColor),

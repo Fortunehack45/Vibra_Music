@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.ui.components
+package com.fortune.vibramusic.ui.components
 
 import com.fortune.vibramusic.ui.LocalPullToRefreshEnabled
 import com.fortune.vibramusic.ui.AppUiHost
@@ -144,6 +144,25 @@ val FLOATING_BAR_MAX_WIDTH = 440.dp
  * showing: enough to say the row scrolls without a card being half a card.
  */
 val SHELF_CARD_WIDTH = 150.dp
+
+/**
+ * A track's thumbnail box at [height]: square for a song, 16:9 at the same
+ * height for a music video — its picture's own shape, as YouTube Music lists
+ * one, rather than a still cropped into a square — unless the listener asked
+ * for square, see [VideoThumbnails].
+ */
+fun Modifier.trackArtSize(height: Dp, isVideo: Boolean): Modifier =
+    if (isVideo && !VideoThumbnails.square) size(width = height * (16f / 9f), height = height) else size(height)
+
+/**
+ * The "Square video thumbnails" setting, as every surface that sizes a music
+ * video reads it. Compose state rather than a flow so a plain read anywhere in
+ * composition follows it, [trackArtSize] and [VIDEO_CARD_WIDTH][com.fortune.vibramusic.ui.screens.VIDEO_CARD_WIDTH]
+ * included, without each caller collecting it.
+ */
+object VideoThumbnails {
+    var square by mutableStateOf(false)
+}
 
 /** Share of the row a lead-shelf card takes, so the next one peeks in past it. */
 private const val HERO_CARD_FRACTION = 0.70f

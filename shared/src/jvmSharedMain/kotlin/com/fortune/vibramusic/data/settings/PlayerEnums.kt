@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.data.settings
+package com.fortune.vibramusic.data.settings
 
 /**
  * Stream bitrate ceiling on the YouTube fallback path — MEDIUM, HIGH and
@@ -25,6 +25,18 @@ enum class AudioQuality(
     HIGH(Int.MAX_VALUE, "High", "JioSaavn up to 320kbps, YouTube fallback", "144 MB/hr"),
     LOSSLESS(Int.MAX_VALUE, "Lossless", "Your addons + JioSaavn, bit-exact where available", "300+ MB/hr"),
     ;
+}
+
+/** What the phone's main player stands on, below the artwork. */
+enum class PlayerTheme {
+    /** The artwork's own colours hung off its bottom edge, as a mesh. */
+    DEFAULT,
+
+    /** v1.5's four quantised blobs, drifting behind the whole screen. */
+    LEGACY,
+
+    /** The cover blurred across the whole screen, as the lyrics and queue are. */
+    SIMPLE,
 }
 
 /** The surface that was last open inside the expanded player. */

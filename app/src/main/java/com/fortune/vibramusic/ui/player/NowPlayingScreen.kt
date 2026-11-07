@@ -97,6 +97,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import com.fortune.vibramusic.ui.components.LocalAppBackdrop
 import com.fortune.vibramusic.ui.components.LocalLiquidGlassEnabled
+import com.fortune.vibramusic.data.settings.PlayerTheme
+import com.fortune.vibramusic.ui.player.LocalPlayerChrome
 import com.fortune.vibramusic.ui.components.isGlassSupported
 import com.fortune.vibramusic.ui.components.backdrop.backdrops.rememberLayerBackdrop
 import com.fortune.vibramusic.ui.components.backdrop.backdrops.layerBackdrop
@@ -672,6 +674,8 @@ fun NowPlayingScreen(
     val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
     val useGlass = LocalLiquidGlassEnabled.current && isGlassSupported()
     val glassActive = useGlass && !reduceDynamicBlur
+    val playerTheme by AppSettings.playerTheme.collectAsStateWithLifecycle()
+    val disableBlendEffects by AppSettings.disableBlendEffects.collectAsStateWithLifecycle()
     val paintPlayerBackdrop: ContentDrawScope.() -> Unit = remember {
         {
             drawRect(Color.Black)
@@ -1725,6 +1729,7 @@ fun NowPlayingScreen(
         CompositionLocalProvider(
             LocalAppBackdrop provides playerBackdrop,
             LocalLiquidGlassEnabled provides useGlass,
+            LocalPlayerChrome provides (!disableBlendEffects),
         ) {
             Box(modifier = modifier.fillMaxSize()) {
                 LandscapePlayerLayout(
@@ -1990,12 +1995,13 @@ fun NowPlayingScreen(
         // retained layers' alpha changes when a panel opens, so the full-cover
         // blur is neither rebuilt nor switched in on a hard frame boundary.
         // The tablet has no mirrored main-player treatment to crossfade from.
-        val legacyMeshBackdrop = !tabletArtworkBackdrop && !spotifyCanvasPresentation && legacyMesh
+        val legacyMeshBackdrop = !tabletArtworkBackdrop && !spotifyCanvasPresentation && (playerTheme == PlayerTheme.LEGACY || legacyMesh)
         val fullArtworkBackdropAlpha by animateFloatAsState(
             targetValue = if (
-                !legacyMeshBackdrop &&
+                playerTheme == PlayerTheme.SIMPLE ||
+                (!legacyMeshBackdrop &&
                 (tabletArtworkBackdrop || fullArtworkBlurImage != null) &&
-                (!spotifyCanvasPresentation || lyricsOpen || queueOpen)
+                (!spotifyCanvasPresentation || lyricsOpen || queueOpen))
             ) 1f else 0f,
             animationSpec = tween(durationMillis = 360, easing = FastOutSlowInEasing),
             label = "fullArtworkBackdropCrossfade",
@@ -2310,9 +2316,11 @@ fun NowPlayingScreen(
         // under it: the deck's blur samples the video layer itself, so a dim
         // beneath it never reached the glass and the deck stayed bright.
 
+        val playerChrome = !disableBlendEffects && !spotifyCanvasFullscreen
         CompositionLocalProvider(
             LocalAppBackdrop provides playerBackdrop,
             LocalLiquidGlassEnabled provides useGlass,
+            LocalPlayerChrome provides playerChrome,
         ) {
         Box(
             modifier = Modifier.fillMaxSize(),

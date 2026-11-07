@@ -1470,6 +1470,12 @@ object AudioCache {
         }
     }
 
+    fun noteSongs(songs: List<com.fortune.vibramusic.data.model.Song>) {}
+
+    fun prefetchDirect(upcoming: Upcoming) {}
+
+    fun cancelDirect() {}
+
     /**
      * Pulls [length] bytes of [videoId] from [position] into the cache.
      * [CacheWriter] fetches only the gaps, so a range already partly on disk —

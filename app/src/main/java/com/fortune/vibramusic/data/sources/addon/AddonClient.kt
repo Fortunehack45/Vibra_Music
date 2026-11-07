@@ -33,7 +33,7 @@ import java.util.concurrent.TimeUnit
  * request abandoned after it has already reached somebody's server is work
  * their server did for nobody.
  */
-class AddonClient(rawBaseUrl: String) {
+class AddonClient(rawBaseUrl: String, private val pickedQuality: String? = null) {
 
     /** Where this addon lives, with `/manifest.json` and trailing slashes off. */
     val baseUrl: String = normalizeBase(rawBaseUrl)
@@ -197,7 +197,8 @@ class AddonClient(rawBaseUrl: String) {
      * quality. See [atmosHint].
      */
     private suspend fun settingsFor(tier: String): Map<String, String> {
-        val declared = manifest().getOrNull()?.settings.orEmpty()
+        val manifest = manifest().getOrNull()
+        val declared = manifest?.settings.orEmpty()
         val params = LinkedHashMap<String, String>()
         declared.forEach { setting ->
             val key = setting.key.takeIf { it.isNotBlank() } ?: return@forEach
@@ -207,7 +208,12 @@ class AddonClient(rawBaseUrl: String) {
             val options = declared.firstOrNull { it.key == QUALITY_KEY }
                 ?.options.orEmpty()
                 .mapNotNull { it.stringValue }
-            params[QUALITY_KEY] = matchTier(tier, options) ?: tier
+            val chosen = when {
+                tier != TIER_LOSSLESS -> matchTier(tier, options)
+                manifest == null -> pickedQuality
+                else -> pickedQuality?.takeIf { it in options } ?: options.firstOrNull()
+            }
+            params[QUALITY_KEY] = chosen ?: tier
         }
         atmosHint()?.let { params.putIfAbsent(ATMOS_KEY, it) }
         return params
@@ -262,11 +268,7 @@ class AddonClient(rawBaseUrl: String) {
     private fun matchTier(tier: String, options: List<String>): String? {
         if (options.isEmpty()) return null
         options.firstOrNull { it.equals(tier, ignoreCase = true) }?.let { return it }
-        val wanted = when (tier.uppercase()) {
-            TIER_LOSSLESS -> LOSSLESS_WORDS
-            TIER_LOW -> LOW_WORDS
-            else -> HIGH_WORDS
-        }
+        val wanted = if (tier.equals(TIER_LOW, ignoreCase = true)) LOW_WORDS else HIGH_WORDS
         return options.firstOrNull { option -> wanted.any { it in option.lowercase() } }
             ?: options.first()
     }
@@ -393,7 +395,7 @@ class AddonClient(rawBaseUrl: String) {
         const val TIER_HIGH = "HIGH"
         const val TIER_LOW = "LOW"
 
-        private const val QUALITY_KEY = "quality"
+        internal const val QUALITY_KEY = "quality"
 
         /** The spec's immersive-audio hint, and the only value Siren Music ever sends for it. */
         private const val ATMOS_KEY = "atmos"

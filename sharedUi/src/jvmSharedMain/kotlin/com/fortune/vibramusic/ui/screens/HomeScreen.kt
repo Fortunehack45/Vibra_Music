@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.ui.screens
+package com.fortune.vibramusic.ui.screens
 
 import com.fortune.vibramusic.ui.components.contextClick
 import com.fortune.vibramusic.ui.AppUi
@@ -79,6 +79,7 @@ import com.fortune.vibramusic.ui.components.RowMoreButton
 import com.fortune.vibramusic.ui.components.PlayingAccent
 import com.fortune.vibramusic.ui.components.PullToRefresh
 import com.fortune.vibramusic.ui.components.SHELF_CARD_WIDTH
+import com.fortune.vibramusic.ui.components.VideoThumbnails
 import com.fortune.vibramusic.ui.components.SearchPlayingBars
 import com.fortune.vibramusic.ui.components.SignInBanner
 import com.fortune.vibramusic.ui.components.feedMoreSkeleton

@@ -7,6 +7,7 @@ import com.fortune.vibramusic.data.model.Song
 import com.fortune.vibramusic.data.settings.AppSettings
 import com.fortune.vibramusic.data.settings.AudioQuality
 import com.fortune.vibramusic.data.settings.DownloadQuality
+import com.fortune.vibramusic.data.sources.StreamLengthProbe
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
@@ -211,6 +212,53 @@ object SourceResolver {
      * runs with sound already playing and is where a slow source's better answer
      * gets its hearing.
      */
+    fun directAddons(): List<MusicSource> {
+        val active = SourceRegistry.activeForPlayback()
+        val youtube = active.firstOrNull { it.kind == SourceKind.YOUTUBE } ?: return emptyList()
+        return rankedAbove(youtube.configId, active).filter { it.kind == SourceKind.ADDON }
+    }
+
+    suspend fun directStream(
+        target: TrackMatcher.Target,
+        lengthOf: (suspend () -> Int?)? = null,
+    ): SourceStream? = coroutineScope {
+        if (target.title.isBlank() || target.isVideo) return@coroutineScope null
+        val addons = directAddons()
+        if (addons.isEmpty()) return@coroutineScope null
+        val length = lengthOf?.takeIf { target.durationSec == null }?.let { fetch ->
+            async {
+                try {
+                    fetch()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    null
+                }
+            }
+        }
+        val found = try {
+            bestAcross(
+                addons,
+                target,
+                requestForNow(),
+                strictLength = true,
+                requireSharedArtist = target.artist.isNotBlank(),
+                driftSec = upgradeSlackSec(),
+                lengthLater = length?.let { pending -> { pending.await() } },
+                checkFileLength = true,
+            )
+        } finally {
+            length?.cancel()
+        }
+        val (source, stream) = found ?: return@coroutineScope null
+        TrackLog.d(
+            TAG,
+            "direct: '${target.title}' from ${source.displayName} at ${stream.format.summary}" +
+                if (stream.belowRequest) " (below request)" else "",
+        )
+        stream
+    }
+
     suspend fun substituteForYouTube(target: TrackMatcher.Target): SourceStream? {
         // Video rows always use YouTube's own stream unless the listener
         // explicitly converts the current item in the player. A module match
@@ -769,6 +817,9 @@ object SourceResolver {
         waitForAll: Boolean = false,
         strictLength: Boolean = false,
         requireSharedArtist: Boolean = false,
+        driftSec: Int = UPGRADE_DRIFT_SEC,
+        lengthLater: (suspend () -> Int?)? = null,
+        checkFileLength: Boolean = false,
         accept: (MusicSource, SourceStream) -> Boolean = { _, _ -> true },
     ): Pair<MusicSource, SourceStream>? = coroutineScope {
         val running: MutableList<Deferred<Pair<MusicSource, SourceStream?>>> = sources
@@ -778,9 +829,12 @@ object SourceResolver {
                         source,
                         target,
                         request,
-                        waitForAll,
-                        strictLength,
-                        requireSharedArtist,
+                        waitForAll = waitForAll,
+                        strictLength = strictLength,
+                        requireSharedArtist = requireSharedArtist,
+                        driftSec = driftSec,
+                        lengthLater = lengthLater,
+                        checkFileLength = checkFileLength,
                     )
                 }
             }
@@ -847,8 +901,17 @@ object SourceResolver {
         waitForAll: Boolean = false,
         strictLength: Boolean = false,
         requireSharedArtist: Boolean = false,
+        driftSec: Int = UPGRADE_DRIFT_SEC,
+        lengthLater: (suspend () -> Int?)? = null,
+        checkFileLength: Boolean = false,
     ): SourceStream? {
-        for (query in TrackMatcher.queries(target)) {
+        val matchOn = if (lengthLater != null && target.durationSec == null) {
+            val resolved = lengthLater()
+            if (resolved != null) target.copy(durationSec = resolved) else target
+        } else {
+            target
+        }
+        for (query in TrackMatcher.queries(matchOn)) {
             val candidates = attempt(source) {
                 source.search(
                     query,
@@ -983,11 +1046,37 @@ object SourceResolver {
     private fun atmosWanted(): Boolean =
         DeviceCodecs.playsDolbyAtmos && AppSettings.dolbyAtmos.value
 
+    private fun upgradeSlackSec(): Int = AppSettings.upgradeLengthSlackSeconds.value
+
+    private suspend fun cutShort(
+        source: MusicSource,
+        match: Song,
+        stream: SourceStream,
+        target: TrackMatcher.Target,
+    ): Boolean {
+        val expectedSec = target.durationSec ?: TrackMatcher.secondsOf(match.durationText) ?: return false
+        val bytes = StreamLengthProbe.bytesOf(stream) ?: return false
+        if (!StreamLengthProbe.tooShort(bytes, stream.format, expectedSec, upgradeSlackSec())) return false
+        TrackLog.w(
+            TAG,
+            "${source.displayName} served ${bytes / 1024}kB of ${stream.format.summary} for " +
+                "'${match.title}', too little to hold ${expectedSec}s - a preview or a cut-off file; looking further",
+        )
+        return true
+    }
+
+    private fun betterOf(
+        current: Pair<MusicSource, SourceStream>?,
+        candidate: Pair<MusicSource, SourceStream>,
+    ): Pair<MusicSource, SourceStream> =
+        if (current == null || isBetter(candidate.second.format, current.second.format)) candidate else current
+
     private suspend fun streamBest(
         source: MusicSource,
         matches: List<Song>,
         target: TrackMatcher.Target,
         request: StreamRequest,
+        checkFileLength: Boolean = false,
     ): SourceStream? {
         val wantsLossless = request is StreamRequest.Lossless
         val ordered = preferred(matches, target, wantsLossless)
@@ -995,13 +1084,11 @@ object SourceResolver {
         for (match in ordered.take(STREAM_ATTEMPTS)) {
             val trackId = SourceRegistry.parseTrackKey(match.videoId)?.second ?: match.videoId
             val opened = attempt(source) { source.stream(trackId, request) } ?: continue
-            // The row this URL came from knows how long the recording is; the
-            // URL itself doesn't. Carried along so a caller swapping this into
-            // a track already playing can check it — see [SourceStream.durationSec].
             val stream = opened.copy(
                 durationSec = TrackMatcher.secondsOf(match.durationText),
                 sourceConfigId = source.configId,
             )
+            if (checkFileLength && cutShort(source, match, stream, target)) continue
             val served = stream.format
             if (!wantsLossless || served.isLossless == true || served.isDolbyAtmos || served.statesNothingLossy) {
                 TrackLog.d(

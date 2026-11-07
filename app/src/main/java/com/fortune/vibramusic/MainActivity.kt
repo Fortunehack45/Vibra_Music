@@ -1,5 +1,8 @@
 package com.fortune.vibramusic
 
+import com.fortune.vibramusic.data.model.withoutVideos
+import com.fortune.vibramusic.ui.components.ChoiceAlert
+
 import android.Manifest
 import android.content.Context
 import android.content.Intent
@@ -566,6 +569,7 @@ private fun VibraMusicApp(
     // background at all. Hosting it here also puts the scrim over the tab bar
     // and the mini player, like every other alert in the app.
     var editingSource by remember { mutableStateOf<SourceConfig?>(null) }
+    var choosingSourceQuality by remember { mutableStateOf<SourceConfig?>(null) }
     var confirmJioSaavn by remember { mutableStateOf(false) }
     var editingPartyServer by remember { mutableStateOf(false) }
     var showHistory by remember { mutableStateOf(false) }
@@ -661,6 +665,21 @@ private fun VibraMusicApp(
     SystemBarIcons(dark = !darkTheme && !showNowPlaying && !showReplay && replayStory == null)
 
     val homeState by viewModel.home.collectAsStateWithLifecycle()
+    val hideRecents by AppSettings.hideRecents.collectAsStateWithLifecycle()
+    val hideHomeVideos by AppSettings.hideHomeVideos.collectAsStateWithLifecycle()
+    val hideTopPicks by AppSettings.hideTopPicks.collectAsStateWithLifecycle()
+    val hideHomeMoods by AppSettings.hideHomeMoods.collectAsStateWithLifecycle()
+    val visibleHomeState = remember(homeState, hideHomeVideos, hideRecents) {
+        val loaded = homeState as? com.fortune.vibramusic.data.model.UiState.Success
+        if (loaded != null && (hideHomeVideos || hideRecents)) {
+            var shelves = loaded.data
+            if (hideRecents) shelves = shelves.filterNot { it.title == YtMusicRepository.RECENT_TITLE }
+            if (hideHomeVideos) shelves = shelves.withoutVideos()
+            com.fortune.vibramusic.data.model.UiState.Success(shelves)
+        } else {
+            homeState
+        }
+    }
     val homeLoadingMore by viewModel.homeLoadingMore.collectAsStateWithLifecycle()
     val homeRecentlyPlayedLoading by viewModel.homeRecentlyPlayedLoading.collectAsStateWithLifecycle()
     val topPicks by viewModel.topPicks.collectAsStateWithLifecycle()
@@ -2528,6 +2547,7 @@ private fun VibraMusicApp(
         BackHandler(enabled = showLastfmLogin) { showLastfmLogin = false }
         BackHandler(enabled = discordDialog != null) { discordDialog = null }
         BackHandler(enabled = editingSource != null) { editingSource = null }
+        BackHandler(enabled = choosingSourceQuality != null) { choosingSourceQuality = null }
         BackHandler(enabled = editingPartyServer) { editingPartyServer = false }
         BackHandler(enabled = showHistory) { showHistory = false }
         BackHandler(enabled = showSpotifyLibrary && detail == null) { showSpotifyLibrary = false }
@@ -2778,6 +2798,7 @@ private fun VibraMusicApp(
                         SourcesScreen(
                             contentPadding = listPadding,
                             onEditSource = { editingSource = it },
+                            onChooseSourceQuality = { choosingSourceQuality = it },
                             onEditWebDav = { showWebDavEditor = true },
                             onEditSmb = { showSmbEditor = true },
                             onConfirmJioSaavn = { confirmJioSaavn = true },
@@ -3092,7 +3113,7 @@ private fun VibraMusicApp(
                         )
                     } else when (key.removePrefix(TAB_KEY).toIntOrNull() ?: selectedTab) {
                         TAB_HOME -> HomeScreen(
-                            state = homeState,
+                            state = visibleHomeState,
                             listState = homeListState,
                             title = stringResource(R.string.listen_now),
                             signedIn = signedIn,
@@ -3100,43 +3121,49 @@ private fun VibraMusicApp(
                             topPicks = topPicks,
                             topPicksLoading = topPicksLoading,
                             listenerName = account?.name,
-                            onTopPickClick = { pick, pickTitle ->
-                                if (pick.kind == TopPickKind.LATEST_RELEASE && pick.browseId != null) {
-                                    val isAlbum = pick.browseId.startsWith("MPRE")
-                                    viewModel.openDetail(
-                                        browseId = pick.browseId,
-                                        title = pick.title,
-                                        subtitle = pick.subtitle,
-                                        thumbnailUrl = pick.images.firstOrNull(),
-                                        type = if (isAlbum) BrowseType.ALBUM else BrowseType.PLAYLIST,
-                                    )
-                                } else {
+                            onTopPickClick = (
+                                if (hideTopPicks) null
+                                else { pick, pickTitle ->
+                                    if (pick.kind == TopPickKind.LATEST_RELEASE && pick.browseId != null) {
+                                        val isAlbum = pick.browseId.startsWith("MPRE")
+                                        viewModel.openDetail(
+                                            browseId = pick.browseId,
+                                            title = pick.title,
+                                            subtitle = pick.subtitle,
+                                            thumbnailUrl = pick.images.firstOrNull(),
+                                            type = if (isAlbum) BrowseType.ALBUM else BrowseType.PLAYLIST,
+                                        )
+                                    } else {
+                                        scope.launch {
+                                            TopPicks.queue(pick).onSuccess { queueSongs ->
+                                                if (queueSongs.isNotEmpty()) {
+                                                    playFrom(
+                                                        queueSongs,
+                                                        0,
+                                                        QueueSource(pickTitle, PlaybackSourceType.HOME),
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            ),
+                            onMoodClick = (
+                                if (hideHomeMoods) null
+                                else { mood, moodTitle ->
                                     scope.launch {
-                                        TopPicks.queue(pick).onSuccess { queueSongs ->
+                                        TopPicks.queue(TopPicks.moodStation(mood)).onSuccess { queueSongs ->
                                             if (queueSongs.isNotEmpty()) {
                                                 playFrom(
                                                     queueSongs,
                                                     0,
-                                                    QueueSource(pickTitle, PlaybackSourceType.HOME),
+                                                    QueueSource(moodTitle, PlaybackSourceType.HOME),
                                                 )
                                             }
                                         }
                                     }
                                 }
-                            },
-                            onMoodClick = { mood, moodTitle ->
-                                scope.launch {
-                                    TopPicks.queue(TopPicks.moodStation(mood)).onSuccess { queueSongs ->
-                                        if (queueSongs.isNotEmpty()) {
-                                            playFrom(
-                                                queueSongs,
-                                                0,
-                                                QueueSource(moodTitle, PlaybackSourceType.HOME),
-                                            )
-                                        }
-                                    }
-                                }
-                            },
+                            ),
                             onMoodsShowAll = { showMoodGrid = true },
                             onItemClick = { item, shelfTitle ->
                                 val isVideoSection = item.isVideo ||
@@ -4246,6 +4273,12 @@ private fun VibraMusicApp(
                     // drops it for a local file via `isOffline`, this catches
                     // the rest.
                     onShare = share.takeIf { song.videoId.isNotBlank() },
+                    onAutomixOverview = if (fromPlayer && AppSettings.songTransitions.value.automix) {
+                        {
+                            songActions = null
+                            AppSettings.mixViewOpen.value = true
+                        }
+                    } else null,
                     onCopyLog = if (fromPlayer) {
                         {
                             songActions = null
@@ -5076,6 +5109,25 @@ private fun VibraMusicApp(
                     editingSource = null
                 },
                 scope = scope,
+            )
+        }
+
+
+        choosingSourceQuality?.let { config ->
+            ChoiceAlert(
+                hazeState = hazeState,
+                title = stringResource(R.string.audio_quality),
+                message = null,
+                options = config.qualityOptions,
+                selected = config.activeQuality,
+                label = { it?.label.orEmpty() },
+                onSelect = { option ->
+                    SourceRegistry.config(config.id)?.let {
+                        SourceRegistry.update(it.copy(pickedQuality = option?.value))
+                    }
+                    choosingSourceQuality = null
+                },
+                onDismiss = { choosingSourceQuality = null },
             )
         }
 

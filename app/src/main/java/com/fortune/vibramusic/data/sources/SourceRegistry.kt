@@ -8,6 +8,7 @@ import com.fortune.vibramusic.auth.EncryptedPrefs
 import com.fortune.vibramusic.data.TrackLog
 import com.fortune.vibramusic.data.settings.AppSettings
 import com.fortune.vibramusic.data.sources.addon.AddonClient
+import com.fortune.vibramusic.data.sources.addon.AddonQualityOption
 import com.fortune.vibramusic.data.sources.addon.AddonException
 import com.fortune.vibramusic.data.sources.addon.DetectedFormat
 import com.fortune.vibramusic.data.sources.addon.SourceFormats
@@ -36,7 +37,13 @@ data class SourceConfig(
     val baseUrl: String = "",
     /** JioSaavn is opt-in because catalogue matches can select the wrong recording. */
     val enabled: Boolean = kind != SourceKind.JIOSAAVN,
+    val allowDownloads: Boolean = true,
+    val checkValidLossless: Boolean = false,
+    val qualityOptions: List<AddonQualityOption> = emptyList(),
+    val pickedQuality: String? = null,
 ) {
+    val activeQuality: AddonQualityOption?
+        get() = qualityOptions.firstOrNull { it.value == pickedQuality } ?: qualityOptions.firstOrNull()
     /** What the sources screen and the player show. Never blank. */
     val displayName: String
         get() = label.ifBlank {
@@ -208,6 +215,34 @@ object SourceRegistry {
 
     fun instance(configId: String): MusicSource? = instances[configId]
 
+    fun updatePolicy(
+        configId: String,
+        allowDownloads: Boolean,
+        checkValidLossless: Boolean,
+        qualityOptions: List<AddonQualityOption> = emptyList(),
+    ) {
+        val current = config(configId) ?: return
+        if (current.allowDownloads == allowDownloads &&
+            current.checkValidLossless == checkValidLossless &&
+            current.qualityOptions == qualityOptions
+        ) {
+            return
+        }
+        publish(
+            configs.value.map {
+                if (it.id == configId) {
+                    it.copy(
+                        allowDownloads = allowDownloads,
+                        checkValidLossless = checkValidLossless,
+                        qualityOptions = qualityOptions,
+                    )
+                } else {
+                    it
+                }
+            },
+        )
+    }
+
     fun config(configId: String): SourceConfig? = configs.value.firstOrNull { it.id == configId }
 
     /**
@@ -348,6 +383,12 @@ object SourceRegistry {
                     kind = SourceKind.ADDON,
                     baseUrl = detected.baseUrl,
                     label = detected.manifest.displayName,
+                    allowDownloads = detected.manifest.downloadsAllowed,
+                    checkValidLossless = detected.manifest.requiresLosslessOutput,
+                    qualityOptions = detected.manifest.qualityOptions,
+                    pickedQuality = existing?.pickedQuality?.takeIf { picked ->
+                        detected.manifest.qualityOptions.any { it.value == picked }
+                    },
                 ),
             )
             is DetectedFormat.ModuleIndex -> Result.success(

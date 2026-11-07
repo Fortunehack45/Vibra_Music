@@ -258,7 +258,7 @@ fun ShelfSkeleton(index: Int = 0, cardWidth: Dp = SHELF_CARD_WIDTH, cardCorner: 
 }
 
 /** Home and Explore while the first page of shelves is still loading. */
-fun LazyListScope.feedSkeleton(shelves: Int = 3, firstIsHero: Boolean = true) {
+fun LazyListScope.feedSkeleton(shelves: Int = 3, firstIsHero: Boolean = false) {
     if (firstIsHero) {
         item(key = "skeleton:hero") { HeroShelfSkeleton() }
         items(shelves - 1, key = { "skeleton:shelf:$it" }) { index ->

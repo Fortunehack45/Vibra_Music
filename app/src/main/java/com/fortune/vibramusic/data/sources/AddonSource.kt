@@ -37,7 +37,7 @@ class AddonSource(
     override val kind: SourceKind get() = config.kind
     override val displayName: String get() = config.displayName
 
-    private val client = AddonClient(config.baseUrl)
+    private val client = AddonClient(config.baseUrl, config.pickedQuality)
 
     /**
      * Rows this addon has recently handed over, by their own track id.
@@ -72,12 +72,21 @@ class AddonSource(
      * of retrying fixes, and so is a rejection; anything else is a server
      * having a bad minute and is worth trying again on the next track.
      */
+    private fun recordPolicy(manifest: com.fortune.vibramusic.data.sources.addon.AddonManifest) =
+        SourceRegistry.updatePolicy(
+            config.id,
+            manifest.downloadsAllowed,
+            manifest.requiresLosslessOutput,
+            manifest.qualityOptions,
+        )
+
     override suspend fun health(): SourceHealth = withContext(Dispatchers.IO) {
         if (config.baseUrl.isBlank()) {
             return@withContext SourceHealth.Rejected("An addon URL is required")
         }
         client.manifest().fold(
             onSuccess = { manifest ->
+                recordPolicy(manifest)
                 SourceHealth.Ok(
                     listOfNotNull(
                         manifest.displayName.takeIf { it.isNotBlank() },

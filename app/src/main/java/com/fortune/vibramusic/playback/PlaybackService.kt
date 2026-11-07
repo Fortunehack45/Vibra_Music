@@ -1,5 +1,10 @@
 package com.fortune.vibramusic.playback
 
+import com.fortune.vibramusic.playback.MusicOnlyPlayback
+import com.fortune.vibramusic.playback.asMusicOnlyOf
+import com.fortune.vibramusic.playback.DirectSourceGate
+import kotlin.math.abs
+
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -934,6 +939,7 @@ class PlaybackService : MediaLibraryService() {
         ) {
             val exoPlayer = player ?: return
             if (reason == Player.DISCONTINUITY_REASON_SEEK) {
+                lastSeekAt = android.os.SystemClock.elapsedRealtime()
                 if (exoPlayer.isPlaying) pushDiscordPresence(exoPlayer)
                 updateLyricSubtitle()
                 WearBridge.republish(this@PlaybackService, exoPlayer)
@@ -966,6 +972,7 @@ class PlaybackService : MediaLibraryService() {
             // *first* item of the other player — so it is booked by
             // [adoptPlayer] instead, and what is left arriving here is only ever
             // ExoPlayer moving the queue on by itself, a repeat, or a skip.
+            convertVideosAround(exoPlayer)
             onTrackBecameCurrent(
                 mediaItem,
                 previousEnded = reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO ||
@@ -1077,6 +1084,7 @@ class PlaybackService : MediaLibraryService() {
             // The player this fired on, which is by definition the one the
             // session is currently pointed at.
             val exoPlayer = player ?: return
+            convertVideosAround(exoPlayer)
             if (exoPlayer.isPlaying) prefetchAround(exoPlayer)
             warmLoudnessFigures(exoPlayer)
             if (reason == Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED) {
@@ -1575,7 +1583,7 @@ class PlaybackService : MediaLibraryService() {
             DefaultDataSource.Factory(this, resolvingFactory),
         )
         AudioCache.setUpstream(defaultDataSourceFactory)
-        mediaSourceFactory = DefaultMediaSourceFactory(AudioCache.playbackFactory(defaultDataSourceFactory))
+        mediaSourceFactory = DefaultMediaSourceFactory(MusicOnlyPlayback.holdingFactory(AudioCache.playbackFactory(defaultDataSourceFactory)))
             .setLoadErrorHandlingPolicy(PermanentAwareLoadErrorPolicy())
         WearBridge.attachStreams(AudioCache.playbackFactory(defaultDataSourceFactory))
 
@@ -1628,6 +1636,7 @@ class PlaybackService : MediaLibraryService() {
         observeScrobbling()
         observeDiscord()
         watchSleepTimer()
+        watchDirectWindow()
         PartyPersonalQueueStash.clear()
         val restored = restoreLastQueue(exoPlayer)
         if (restored) {
@@ -2143,6 +2152,7 @@ class PlaybackService : MediaLibraryService() {
         )
         .setAudioAttributes(AUDIO_ATTRIBUTES, /* handleAudioFocus = */ ownsSession)
         .setHandleAudioBecomingNoisy(ownsSession)
+        .setWakeMode(C.WAKE_MODE_LOCAL)
         .build()
 
     private fun startTransitionPreview(args: Bundle) {
@@ -2842,6 +2852,7 @@ class PlaybackService : MediaLibraryService() {
         .setLoadControl(farBufferingLoadControl())
         .setAudioAttributes(AUDIO_ATTRIBUTES, /* handleAudioFocus = */ ownsSession)
         .setHandleAudioBecomingNoisy(ownsSession)
+        .setWakeMode(C.WAKE_MODE_LOCAL)
         // Back restarts the track once you're this far into it; only a
         // press before that steps to the previous one.
         .setMaxSeekToPreviousPositionMs(BACK_RESTARTS_AFTER_MS)
@@ -3173,6 +3184,7 @@ class PlaybackService : MediaLibraryService() {
         }
         if (exoPlayer.isPlaying) registerCurrentPlay()
         savePlaybackState(exoPlayer)
+        convertVideosAround(exoPlayer)
         prefetchAround(exoPlayer)
         // The second look belongs to the track it was started for; the
         // queue moving on ends it — unless it is already proving what it
@@ -5432,6 +5444,167 @@ class PlaybackService : MediaLibraryService() {
     }
 
     /** Stops both rendition selection and byte read-ahead, and makes resume retry. */
+
+    /** Audio-version lookups running for the music-only setting, by video id. */
+    private val musicOnlyLookups = HashMap<String, Job>()
+
+    /**
+     * Turns the playing row and the next one into their audio versions, for
+     * "Prefer music-only version" — see [MusicOnlyPlayback]. Run whenever either
+     * could have changed; a row already answered costs a map lookup.
+     *
+     * Not mid-blend or mid-swap, which both copy this queue onto the standby
+     * player. Both end in [onTrackBecameCurrent], which comes back here.
+     */
+    private fun convertVideosAround(exoPlayer: ExoPlayer) {
+        if (!MusicOnlyPlayback.isActive()) return
+        if (crossfade?.isTransitioning() == true || versionSwapJob?.isActive == true) return
+        val rows = listOf(exoPlayer.currentMediaItemIndex, exoPlayer.nextMediaItemIndex)
+            .filter { it in 0 until exoPlayer.mediaItemCount }
+            .distinct()
+        MusicOnlyPlayback.forgetExcept(rows.map { exoPlayer.getMediaItemAt(it).mediaId }.toSet())
+        for (index in rows) {
+            val item = exoPlayer.getMediaItemAt(index)
+            if (!MusicOnlyPlayback.wants(item)) continue
+            val video = item.toSong()
+            val audio = YtMusicRepository.cachedAudioVersion(video.videoId)
+            when {
+                audio == null -> lookUpMusicOnly(video)
+                audio.videoId == video.videoId || audio.isVideo -> MusicOnlyPlayback.settle(video.videoId)
+                else -> {
+                    applyMusicOnly(exoPlayer, index, item, video, audio)
+                    // Replacing a row can run the whole transition, which trims
+                    // history, so the indexes above may no longer hold.
+                    convertVideosAround(exoPlayer)
+                    return
+                }
+            }
+        }
+    }
+
+    private fun lookUpMusicOnly(video: Song) {
+        if (musicOnlyLookups[video.videoId]?.isActive == true) return
+        musicOnlyLookups[video.videoId] = scope.launch {
+            val audio = withTimeoutOrNull(MusicOnlyPlayback.ANSWER_TIMEOUT_MS) {
+                runCatching { YtMusicRepository.resolveAudio(video) }.getOrNull()
+            }
+            musicOnlyLookups.remove(video.videoId)
+            if (audio == null || audio.videoId == video.videoId) {
+                TrackLog.d("VibraMusic", "music-only: no audio version, playing the video's own audio", about = video.videoId)
+                MusicOnlyPlayback.settle(video.videoId)
+            }
+            val live = player ?: return@launch
+            convertVideosAround(live)
+            if (live.isPlaying) prefetchAround(live)
+        }
+    }
+
+    private fun applyMusicOnly(exoPlayer: ExoPlayer, index: Int, item: MediaItem, video: Song, audio: Song) {
+        TrackLog.d("VibraMusic", "music-only: playing '${audio.title}' (${audio.videoId})", about = video.videoId)
+        YtMusicRepository.rememberVideoVersion(audio.videoId, video)
+        val replacement = audio.asMusicOnlyOf(video).toMediaItem()
+        val isCurrent = index == exoPlayer.currentMediaItemIndex
+        if (isCurrent && exoPlayer.isPlaying) {
+            smoothSwapCurrentTrackVersion(replacement)
+            return
+        }
+        val position = if (isCurrent) exoPlayer.currentPosition else 0L
+        exoPlayer.replaceMediaItem(index, replacement)
+        if (position > 0L) {
+            exoPlayer.seekTo(exoPlayer.currentMediaItemIndex, position.coerceAtLeast(0L))
+        }
+    }
+
+    /** The playback URI [checkSubstituteLength] last measured, so each opened item is measured once. */
+    private var lengthCheckedUri: String? = null
+
+    /**
+     * Puts a YouTube-queued track back on YouTube when the addon copy it
+     * started on decodes to the wrong length — the check the upgrade path's
+     * audition makes before any swap, made here for a copy that played from
+     * the first note with no audition behind it.
+     */
+    private fun checkSubstituteLength(exoPlayer: ExoPlayer) {
+        val item = exoPlayer.currentMediaItem ?: return
+        val uri = item.localConfiguration?.uri ?: return
+        if (uri.scheme != "vibra" && uri.scheme != "bitchord") return
+        if (uri.authority == "source") return
+        if (QualityUpgrade.cacheTag(uri) != null) return
+        val key = uri.toString()
+        if (key == lengthCheckedUri) return
+        if (exoPlayer.playbackState != Player.STATE_READY) return
+        val decodedMs = exoPlayer.duration.takeIf { it != C.TIME_UNSET && it > 0 } ?: return
+        lengthCheckedUri = key
+        val videoId = uri.getQueryParameter("v") ?: return
+        val expectedSec = DirectSourceGate.knownLength(videoId) ?: return
+        val expectedMs = expectedSec * 1_000L
+        val substituted = StreamChoice.isSubstitute(videoId)
+        val slackMs = AppSettings.upgradeLengthSlackSeconds.value * 1_000L
+        val wrong = substituted && abs(decodedMs - expectedMs) > slackMs + 1_000L
+        if (!wrong) return
+        TrackLog.w(
+            "VibraMusic",
+            "'${item.mediaMetadata.title}' decodes to ${decodedMs}ms against ${expectedSec}s listed " +
+                "(tolerance ±${AppSettings.upgradeLengthSlackSeconds.value}s) on an addon copy",
+            about = item.mediaId,
+        )
+        val youtubeUri = Uri.parse("vibra://track/$videoId")
+        val replacement = item.buildUpon().setUri(youtubeUri).build()
+        smoothSwapCurrentTrackVersion(replacement)
+    }
+
+
+    /** When the listener last seeked, so [driveDirectWindow] can tell a scrub from playback. */
+    private var lastSeekAt = 0L
+
+    /** Ticks [driveDirectWindow] for as long as the service runs. */
+    private fun watchDirectWindow() {
+        scope.launch {
+            while (isActive) {
+                driveDirectWindow()
+                delay(DIRECT_WINDOW_STEP_MS)
+            }
+        }
+    }
+
+    /**
+     * Direct Source Stream's read-ahead, and the only one it has.
+     *
+     * Tells [DirectSourceGate] what is audible, then opens the next track once
+     * the playing one is within [DirectSourceGate.WINDOW_MS] of its transition.
+     */
+    private fun driveDirectWindow() {
+        val exoPlayer = player ?: return
+        checkSubstituteLength(exoPlayer)
+        val audible = buildSet {
+            exoPlayer.currentMediaItem?.mediaId?.let(::add)
+            if (crossfade?.isTransitioning() == true) spare?.currentMediaItem?.mediaId?.let(::add)
+        }
+        if (DirectSourceGate.onPlaying(audible)) AudioCache.cancelDirect()
+        if (!DirectSourceGate.isActive() || !exoPlayer.isPlaying) return
+        if (android.os.SystemClock.elapsedRealtime() - lastSeekAt < SEEK_SETTLE_MS) return
+        val current = exoPlayer.currentMediaItem ?: return
+        val nextIndex = exoPlayer.nextMediaItemIndex
+        if (nextIndex == C.INDEX_UNSET) return
+        val next = exoPlayer.getMediaItemAt(nextIndex)
+        if (MusicOnlyPlayback.wants(next)) return
+        val duration = exoPlayer.duration
+        if (duration == C.TIME_UNSET || duration <= 0L) return
+        val boundary = duration
+        val speed = exoPlayer.playbackParameters.speed.coerceAtLeast(0.25f)
+        val remaining = ((boundary - exoPlayer.currentPosition) / speed).toLong()
+        if (remaining > DirectSourceGate.WINDOW_MS) return
+        if (!DirectSourceGate.openNext(next.mediaId)) return
+        TrackLog.d(
+            "VibraMusic",
+            "direct window open: ${next.mediaId} with ${remaining}ms to the transition",
+            about = next.mediaId,
+        )
+        val song = next.toSong()
+        AudioCache.noteSongs(listOf(song))
+        AudioCache.prefetchDirect(AudioCache.Upcoming(song.videoId, TrackMatcher.targetOf(song)))
+    }
+
     private fun cancelPrefetch() {
         preferredPrefetchRequest = null
         preferredPrefetchJob?.cancel()
@@ -6005,11 +6178,15 @@ class PlaybackService : MediaLibraryService() {
             AppSettings.skipSilence.collect { on -> eachPlayer { it.skipSilenceEnabled = on } }
         }
         scope.launch {
-            // Re-evaluate the already queued next track immediately when this
-            // preference changes, instead of waiting for another timeline event.
+            // The queue as it stands is re-judged at once, rather than at the
+            // next track, and read-ahead may have been warming a video.
             AppSettings.preferMusicOnly.drop(1).collect {
+                MusicOnlyPlayback.reset()
                 cancelPrefetch()
-                player?.takeIf { it.isPlaying }?.let(::prefetchAround)
+                player?.let { live ->
+                    convertVideosAround(live)
+                    if (live.isPlaying) prefetchAround(live)
+                }
             }
         }
         scope.launch {
@@ -7170,6 +7347,12 @@ class PlaybackService : MediaLibraryService() {
                     val bundle = args.getBundle(EXTRA_SWAP_MEDIA_ITEM)
                     if (bundle != null) {
                         val targetSong = songFromBundle(bundle)
+                        // The listener's own choice outranks the music-only setting.
+                        if (targetSong.isVideo) {
+                            MusicOnlyPlayback.keep(targetSong.videoId)
+                        } else {
+                            session.player.currentMediaItem?.mediaId?.let(MusicOnlyPlayback::letGo)
+                        }
                         smoothSwapCurrentTrackVersion(targetSong.toMediaItem())
                     }
                 }
@@ -8010,6 +8193,18 @@ class PlaybackService : MediaLibraryService() {
             .build()
 
     private companion object {
+        /** How often [driveDirectWindow] checks whether the next track's window has opened. */
+        const val DIRECT_WINDOW_STEP_MS = 500L
+
+        /**
+         * How long the playhead has to run on its own after a seek before the
+         * direct window may open.
+         */
+        const val SEEK_SETTLE_MS = 2_000L
+
+        /** Floor on the speed the window divides by, so a near-zero speed cannot stretch it to forever. */
+        const val MIN_WINDOW_SPEED = 0.25f
+
         const val MEDIA_ROOT_ID = "root"
         const val MEDIA_RECENTS_ID = "recents"
         const val MEDIA_QUICK_PICKS_ID = "quick_picks"

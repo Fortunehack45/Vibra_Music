@@ -439,6 +439,13 @@ data class HomeShelf(
     val moreParams: String? = null,
 )
 
+/** These shelves without their music videos, and without any shelf that leaves empty. */
+fun List<HomeShelf>.withoutVideos(): List<HomeShelf> = mapNotNull { shelf ->
+    if (shelf.title.contains("video", ignoreCase = true)) return@mapNotNull null
+    val items = shelf.items.filterNot { it.isVideo }
+    if (items.isEmpty()) null else shelf.copy(items = items)
+}
+
 /** A page of the Home feed, plus the token for the next one — null once exhausted. */
 data class HomeFeed(
     val shelves: List<HomeShelf>,

@@ -189,6 +189,8 @@ fun SongActionsSheet(
     resolvingLinks: Boolean = false,
     onOpenSongInfo: (() -> Unit)? = null,
     onCustomizeTransition: (() -> Unit)? = null,
+    /** Opens the Automix mix popup on the next transition. */
+    onAutomixOverview: (() -> Unit)? = null,
 ) {
     var pickingSleepTimer by remember { mutableStateOf(false) }
     var showingSongInfo by remember(song.videoId) { mutableStateOf(false) }
@@ -369,6 +371,14 @@ fun SongActionsSheet(
             ActionRow(
                 icon = Icons.Rounded.Tune,
                 label = stringResource(R.string.lyrics_offset),
+                accent = palette.accent,
+                onClick = it,
+            )
+        }
+        onAutomixOverview?.let {
+            ActionRow(
+                icon = Icons.Rounded.GraphicEq,
+                label = stringResource(R.string.automix_overview),
                 accent = palette.accent,
                 onClick = it,
             )

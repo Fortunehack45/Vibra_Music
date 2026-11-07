@@ -1,5 +1,9 @@
 package com.fortune.vibramusic.ui.screens
 
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.graphics.CompositingStrategy
+import com.fortune.vibramusic.ui.graphics.smootherStep
+import com.fortune.vibramusic.ui.graphics.FADE_CURVE_STOPS
 import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
@@ -85,7 +89,6 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -189,6 +192,10 @@ private const val SLEEVE_MAX_HEIGHT = 0.5f
 
 private val SLEEVE_SHAPE = RoundedCornerShape(12.dp)
 private val SLEEVE_SHADOW = 18.dp
+
+private const val FULL_BLEED_MAX_HEIGHT = 0.62f
+private const val FULL_BLEED_FADE_FRACTION = 0.42f
+private val FULL_BLEED_TITLE_OVERLAP = 44.dp
 
 /** Shuffle and Add to Library either side of the release page's Play pill. */
 private val RELEASE_SIDE_BUTTON = 50.dp
@@ -387,6 +394,7 @@ fun DetailScreen(
     val downloadedTint = palette.accent.takeUnless { page.browseId.startsWith("local:") }
 
     val canvasEnabled by AppSettings.animatedCanvas.collectAsStateWithLifecycle()
+    val fullBleedArtwork by AppSettings.fullBleedDetailArtwork.collectAsStateWithLifecycle()
     val prioritizeSpotifyCanvas by AppSettings.prioritizeSpotifyCanvas.collectAsStateWithLifecycle()
     val credit = page.headerLines(songs.size).first.ifBlank { songs.firstOrNull()?.artist.orEmpty() }
     var canvas by remember(page.browseId) { mutableStateOf<CanvasArtwork?>(null) }
@@ -426,6 +434,7 @@ fun DetailScreen(
             BoxWithConstraints(Modifier.fillMaxSize().background(pageColor)) {
                 val artHeight = (maxWidth / ARTIST_PHOTO_RATIO).coerceAtMost(maxHeight * 0.6f)
                 val sleeveSize = (maxWidth * SLEEVE_FRACTION).coerceAtMost(maxHeight * SLEEVE_MAX_HEIGHT)
+                val fullBleedSleeve = fullBleedArtwork && maxWidth <= maxHeight * FULL_BLEED_MAX_HEIGHT
 
                 if (isArtist) {
                     PageBackground(
@@ -460,6 +469,7 @@ fun DetailScreen(
                                 page = page,
                                 palette = palette,
                                 sleeveSize = sleeveSize,
+                                fullBleed = fullBleedSleeve,
                                 canvas = canvas,
                                 songs = songs,
                                 onPlay = { onSongClick(songs, 0) },
@@ -843,17 +853,64 @@ private fun ReleaseHeader(
     onShuffle: () -> Unit,
     onArtistClick: ((String, String) -> Unit)?,
     onToggleLibrary: (() -> Unit)?,
+    fullBleed: Boolean = false,
 ) {
     val (credit, meta) = page.headerLines(songs.size, songs.playtime())
     val artist = songs.firstOrNull()
 
+    var artFailed by remember(page.thumbnailUrl) { mutableStateOf(false) }
+    val bleed = fullBleed && page.thumbnailUrl != null && !artFailed
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = topBarContentPadding(), bottom = 18.dp),
+            .padding(top = if (bleed) 0.dp else topBarContentPadding(), bottom = 18.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Box(
+        if (bleed) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .layout { measurable, constraints ->
+                        val placeable = measurable.measure(constraints)
+                        val height = (placeable.height - FULL_BLEED_TITLE_OVERLAP.roundToPx()).coerceAtLeast(0)
+                        layout(placeable.width, height) { placeable.place(0, 0) }
+                    }
+                    .aspectRatio(1f),
+            ) {
+                AsyncImage(
+                    model = page.thumbnailUrl?.artworkAt(HEADER_ART_PX),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    onState = { artFailed = it is AsyncImagePainter.State.Error },
+                    modifier = Modifier
+                        .matchParentSize()
+                        .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                        .drawWithContent {
+                            drawContent()
+                            drawRect(
+                                brush = Brush.verticalGradient(
+                                    colorStops = Array(FADE_CURVE_STOPS + 1) { i ->
+                                        val t = i / FADE_CURVE_STOPS.toFloat()
+                                        t to Color.Black.copy(alpha = 1f - smootherStep(t))
+                                    },
+                                    startY = size.height * (1f - FULL_BLEED_FADE_FRACTION),
+                                    endY = size.height,
+                                ),
+                                blendMode = BlendMode.DstIn,
+                            )
+                        }
+                        .background(palette.elevated),
+                )
+                canvas?.let { clip ->
+                    CanvasArtworkPlayer(
+                        canvas = clip,
+                        isPlaying = true,
+                        modifier = Modifier.matchParentSize(),
+                    )
+                }
+            }
+        } else Box(
             Modifier
                 .size(sleeveSize)
                 .shadow(SLEEVE_SHADOW, SLEEVE_SHAPE)

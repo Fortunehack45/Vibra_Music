@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.data.model
+package com.fortune.vibramusic.data.model
 
 /** Tier of an item in the playback queue. */
 enum class QueueTier {

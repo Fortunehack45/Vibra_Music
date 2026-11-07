@@ -339,6 +339,17 @@ object AppSettings {
     val dolbyAtmos = MutableStateFlow(true)
 
     /**
+     * Play a YouTube-queued track straight from an addon ranked above YouTube,
+     * rather than starting it on YouTube and swapping up mid-song.
+     *
+     * Also narrows read-ahead to the next track only, and only once the
+     * playing one is within [DirectSourceGate.WINDOW_MS][com.fortune.vibramusic.playback.DirectSourceGate.WINDOW_MS]
+     * of its transition — see [DirectSourceGate][com.fortune.vibramusic.playback.DirectSourceGate].
+     * Automix analysis is untouched: it keeps reading its own YouTube Opus copy.
+     */
+    val directSourceStream = MutableStateFlow(false)
+
+    /**
      * Widens stereo output via [com.fortune.vibramusic.playback.SpatialAudioProcessor],
      * a stereo widening + cross-feed effect running inside ExoPlayer's own
      * pipeline. Not true object-based spatial audio — YouTube only ever hands
@@ -519,20 +530,52 @@ object AppSettings {
     val fullBleedArtwork = MutableStateFlow(true)
 
     /**
-     * Puts v1.5's backdrop back on the player: four quantised blobs drifting
-     * behind the whole screen, rather than the artwork's own colours hung off
-     * the sleeve's bottom edge.
-     *
-     * Off by default, because the current backdrop replaced it for two reasons
-     * that have not gone away — see [ArtworkMesh][com.fortune.vibramusic.ui.player.ArtworkMesh]
-     * for the colour one (a cover that is nine-tenths black with a red stripe
-     * comes back from the quantiser as a red screen) and
-     * [ArtworkMeshBackdrop][com.fortune.vibramusic.ui.player.ArtworkMeshBackdrop]
-     * for the cost one (blobs that drift are a full-screen blur redrawn while
-     * they move, where a mesh is drawn once per track and then composited).
-     * Kept as a switch because people asked for the old look back, and neither
-     * reason is one a listener has to agree with.
+     * The album and playlist page's answer to [fullBleedArtwork]: the sleeve
+     * runs edge to edge off the top of the screen and dissolves into the page
+     * colour, instead of sitting framed in the middle.
      */
+    val fullBleedDetailArtwork = MutableStateFlow(false)
+
+    /**
+     * Draws the player's glyphs and text, and the dark menus' rows, in plain white
+     * over what is behind them instead of blending the artwork's colour into them.
+     */
+    val disableBlendEffects = MutableStateFlow(false)
+
+    /**
+     * What the main player stands on below the artwork.
+     */
+    val playerTheme = MutableStateFlow(PlayerTheme.DEFAULT)
+
+    /** Better Performance for Glass, a lighter frost for phones that struggle with the full effect. */
+    val glassPerformance = MutableStateFlow(false)
+
+    /** Home's Recents shelf. */
+    val hideRecents = MutableStateFlow(false)
+
+    /** Music videos come off the Home feed, along with any shelf left with nothing else on it. */
+    val hideHomeVideos = MutableStateFlow(false)
+
+    /** Home's Top Picks for You shelf. */
+    val hideTopPicks = MutableStateFlow(false)
+
+    /** Home's Find Your Mood shelf. Explore's moods are a page the listener opened, so they stay. */
+    val hideHomeMoods = MutableStateFlow(false)
+
+    /** Music videos are square wherever they show. */
+    val squareVideoThumbnails = MutableStateFlow(false)
+
+    /**
+     * The *next* Automix transition laid out for the mix popup, as the plan
+     * stands right now — for a popup opened by hand from the player's menu
+     * between blends. Only published while [mixViewOpen], and null whenever
+     * [smartMixView] has a blend to show instead.
+     */
+    val smartMixPreview = MutableStateFlow<MixTransitionView?>(null)
+
+    /** The mix popup is up. Written by the player; tells the crossfade controller someone is looking. */
+    val mixViewOpen = MutableStateFlow(false)
+
     val legacyMeshGradient = MutableStateFlow(false)
 
     /** Restores the expanded player to the surface the listener left open. */
@@ -916,6 +959,7 @@ object AppSettings {
         preferUsbDac.value = prefs.getBoolean(KEY_PREFER_USB_DAC, false)
         loudnessNormalization.value = prefs.getBoolean(KEY_LOUDNESS_NORMALIZATION, true)
         dolbyAtmos.value = prefs.getBoolean(KEY_DOLBY_ATMOS, true)
+        directSourceStream.value = prefs.getBoolean(KEY_DIRECT_SOURCE_STREAM, false)
         spatialAudio.value = prefs.getBoolean(KEY_SPATIAL_AUDIO, false)
         equalizerEnabled.value = prefs.getBoolean(KEY_EQ_ENABLED, false)
         equalizerMode.value = runCatching {
@@ -987,7 +1031,21 @@ object AppSettings {
         signatureApiEnabled.value = prefs.getBoolean(KEY_SIGNATURE_API_ENABLED, false)
         signatureApiUrl.value = prefs.getString(KEY_SIGNATURE_API_URL, "") ?: ""
         fullBleedArtwork.value = prefs.getBoolean(KEY_FULL_BLEED_ARTWORK, true)
-        legacyMeshGradient.value = prefs.getBoolean(KEY_LEGACY_MESH_GRADIENT, false)
+        fullBleedDetailArtwork.value = prefs.getBoolean(KEY_FULL_BLEED_DETAIL_ARTWORK, false)
+        disableBlendEffects.value = prefs.getBoolean(KEY_DISABLE_BLEND_EFFECTS, false)
+        glassPerformance.value = prefs.getBoolean(KEY_GLASS_PERFORMANCE, false)
+        hideRecents.value = prefs.getBoolean(KEY_HIDE_RECENTS, false)
+        hideHomeVideos.value = prefs.getBoolean(KEY_HIDE_HOME_VIDEOS, false)
+        hideTopPicks.value = prefs.getBoolean(KEY_HIDE_TOP_PICKS, false)
+        hideHomeMoods.value = prefs.getBoolean(KEY_HIDE_HOME_MOODS, false)
+        squareVideoThumbnails.value = prefs.getBoolean(KEY_SQUARE_VIDEO_THUMBNAILS, false)
+        com.fortune.vibramusic.ui.components.VideoThumbnails.square = squareVideoThumbnails.value
+        playerTheme.value = runCatching {
+            PlayerTheme.valueOf(prefs.getString(KEY_PLAYER_THEME, null).orEmpty())
+        }.getOrElse {
+            if (prefs.getBoolean(KEY_LEGACY_MESH_GRADIENT, false)) PlayerTheme.LEGACY else PlayerTheme.DEFAULT
+        }
+        legacyMeshGradient.value = (playerTheme.value == PlayerTheme.LEGACY)
         lastPlayerScreen.value = runCatching {
             LastPlayerScreen.valueOf(
                 prefs.getString(KEY_LAST_PLAYER_SCREEN, null) ?: LastPlayerScreen.MAIN.name,
@@ -1328,6 +1386,11 @@ object AppSettings {
         prefs.edit().putBoolean(KEY_DOLBY_ATMOS, value).apply()
     }
 
+    fun setDirectSourceStream(value: Boolean) {
+        directSourceStream.value = value
+        prefs.edit().putBoolean(KEY_DIRECT_SOURCE_STREAM, value).apply()
+    }
+
     fun setSpatialAudio(value: Boolean) {
         spatialAudio.value = value
         prefs.edit().putBoolean(KEY_SPATIAL_AUDIO, value).apply()
@@ -1661,11 +1724,59 @@ object AppSettings {
         prefs.edit().putBoolean(KEY_FULL_BLEED_ARTWORK, value).apply()
     }
 
+    fun setPlayerTheme(value: PlayerTheme) {
+        playerTheme.value = value
+        legacyMeshGradient.value = (value == PlayerTheme.LEGACY)
+        prefs.edit().putString(KEY_PLAYER_THEME, value.name).apply()
+    }
+
     fun setLegacyMeshGradient(value: Boolean) {
-        legacyMeshGradient.value = value
+        setPlayerTheme(if (value) PlayerTheme.LEGACY else PlayerTheme.DEFAULT)
         prefs.edit().putBoolean(KEY_LEGACY_MESH_GRADIENT, value).apply()
     }
 
+    fun setFullBleedDetailArtwork(value: Boolean) {
+        fullBleedDetailArtwork.value = value
+        prefs.edit().putBoolean(KEY_FULL_BLEED_DETAIL_ARTWORK, value).apply()
+    }
+
+    fun setDisableBlendEffects(value: Boolean) {
+        disableBlendEffects.value = value
+        prefs.edit().putBoolean(KEY_DISABLE_BLEND_EFFECTS, value).apply()
+    }
+
+    fun setGlassPerformance(value: Boolean) {
+        glassPerformance.value = value
+        prefs.edit().putBoolean(KEY_GLASS_PERFORMANCE, value).apply()
+    }
+
+    fun setHideRecents(value: Boolean) {
+        hideRecents.value = value
+        prefs.edit().putBoolean(KEY_HIDE_RECENTS, value).apply()
+    }
+
+    fun setHideHomeVideos(value: Boolean) {
+        hideHomeVideos.value = value
+        prefs.edit().putBoolean(KEY_HIDE_HOME_VIDEOS, value).apply()
+    }
+
+    fun setHideTopPicks(value: Boolean) {
+        hideTopPicks.value = value
+        prefs.edit().putBoolean(KEY_HIDE_TOP_PICKS, value).apply()
+    }
+
+    fun setHideHomeMoods(value: Boolean) {
+        hideHomeMoods.value = value
+        prefs.edit().putBoolean(KEY_HIDE_HOME_MOODS, value).apply()
+    }
+
+    fun setSquareVideoThumbnails(value: Boolean) {
+        squareVideoThumbnails.value = value
+        com.fortune.vibramusic.ui.components.VideoThumbnails.square = value
+        prefs.edit().putBoolean(KEY_SQUARE_VIDEO_THUMBNAILS, value).apply()
+    }
+
+    
     fun setLastPlayerScreen(value: LastPlayerScreen) {
         if (lastPlayerScreen.value == value) return
         lastPlayerScreen.value = value
@@ -2210,6 +2321,7 @@ object AppSettings {
     private const val KEY_PREFER_USB_DAC = "prefer_usb_dac"
     private const val KEY_LOUDNESS_NORMALIZATION = "loudness_normalization"
     private const val KEY_DOLBY_ATMOS = "dolby_atmos"
+    private const val KEY_DIRECT_SOURCE_STREAM = "direct_source_stream"
     private const val KEY_SPATIAL_AUDIO = "spatial_audio"
     private const val KEY_EQ_ENABLED = "equalizer_enabled"
     private const val KEY_EQ_MODE = "equalizer_mode"
@@ -2252,6 +2364,15 @@ object AppSettings {
     private const val KEY_SIGNATURE_API_URL = "signature_api_url"
     private const val KEY_MIGRATED_CANVAS_V52 = "migrated_canvas_defaults_v52"
     private const val KEY_FULL_BLEED_ARTWORK = "full_bleed_artwork"
+    private const val KEY_FULL_BLEED_DETAIL_ARTWORK = "full_bleed_detail_artwork"
+    private const val KEY_DISABLE_BLEND_EFFECTS = "disable_blend_effects"
+    private const val KEY_GLASS_PERFORMANCE = "glass_performance"
+    private const val KEY_PLAYER_THEME = "player_theme"
+    private const val KEY_HIDE_RECENTS = "hide_recents"
+    private const val KEY_HIDE_HOME_VIDEOS = "hide_home_videos"
+    private const val KEY_HIDE_TOP_PICKS = "hide_top_picks"
+    private const val KEY_HIDE_HOME_MOODS = "hide_home_moods"
+    private const val KEY_SQUARE_VIDEO_THUMBNAILS = "square_video_thumbnails"
     private const val KEY_LEGACY_MESH_GRADIENT = "legacy_mesh_gradient"
     private const val KEY_LAST_PLAYER_SCREEN = "last_player_screen"
     private const val KEY_SYNCED_LYRICS = "synced_lyrics"
@@ -2369,3 +2490,56 @@ data class SmartAnalysis(
  * transition is planned to occupy.
  */
 data class TransitionWindow(val start: Float, val end: Float)
+
+/**
+ * One side of an Automix blend as the mix popup draws it: the track's card and
+ * a three-band waveform of the stretch of it around the blend.
+ */
+class MixDeck(
+    val title: String,
+    val artist: String,
+    val artworkUrl: String?,
+    /** The analysed tempo, or 0 when there is none. */
+    val bpm: Double,
+    /** As the analyzer names it — "A♭ minor" — or blank. */
+    val key: String,
+    val durationMs: Long,
+    val waveStart: Double,
+    val waveEnd: Double,
+    val low: FloatArray = FloatArray(0),
+    val mid: FloatArray = FloatArray(0),
+    val high: FloatArray = FloatArray(0),
+    val analysing: Boolean = false,
+    val decoding: Boolean = false,
+) {
+    fun withWave(low: FloatArray, mid: FloatArray, high: FloatArray, start: Double, end: Double) = MixDeck(
+        title, artist, artworkUrl, bpm, key, durationMs, start, end, low, mid, high, analysing, decoding,
+    )
+
+    fun withDecoding(decoding: Boolean) = if (decoding == this.decoding) this else MixDeck(
+        title, artist, artworkUrl, bpm, key, durationMs, waveStart, waveEnd, low, mid, high, analysing, decoding,
+    )
+}
+
+/**
+ * An Automix blend laid out for the mix popup. Times are in each track's own
+ * seconds; the blend runs [outStart]..[outEnd] on the outgoing track while the
+ * incoming one covers [inStart]..[inEnd].
+ */
+class MixTransitionView(
+    val outgoing: MixDeck,
+    val incoming: MixDeck,
+    val outStart: Double,
+    val outEnd: Double,
+    val inStart: Double,
+    val inEnd: Double,
+    val beats: Int,
+    val beatMarks: FloatArray,
+    val fadeOut: FloatArray,
+    val fadeIn: FloatArray,
+    val bassSwapAt: Float = -1f,
+) {
+    fun withDecks(outgoing: MixDeck, incoming: MixDeck) = MixTransitionView(
+        outgoing, incoming, outStart, outEnd, inStart, inEnd, beats, beatMarks, fadeOut, fadeIn, bassSwapAt,
+    )
+}

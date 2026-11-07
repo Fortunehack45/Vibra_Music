@@ -260,8 +260,6 @@
     <string name="skip_silence">Skip silence</string>
     <string name="skip_silence_subtitle">Trim gaps longer than a second</string>
     <string name="skip_silence_float_subtitle">Unavailable on 32-bit float output</string>
-    <string name="prefer_music_only">Prefer music-only version</string>
-    <string name="prefer_music_only_subtitle">For music videos, show the video details while finding and loading the catalogue audio version</string>
     <string name="smart_version_alignment">Smart audio alignment</string>
     <string name="smart_version_alignment_subtitle">Analyze audio waveforms to match the exact corresponding playback moment</string>
     <string name="equalizer">Equalizer</string>
@@ -1486,5 +1484,31 @@
     <string name="mood_wellbeing_line" translatable="false">Calm music for mindfulness and yoga.</string>
     <string name="mood_work" translatable="false">Work</string>
     <string name="mood_work_line" translatable="false">Steady instrumentals to get things done.</string>
+    <string name="content_preferences">Content Preferences</string>
+    <string name="hide_recents">Hide Recents</string>
+    <string name="hide_home_videos">Hide videos from Home</string>
+    <string name="hide_home_videos_subtitle">Shelves of only videos go too. Search, artists and playlists still show them</string>
+    <string name="hide_top_picks">Hide Top Picks for You</string>
+    <string name="hide_home_moods">Hide Find Your Mood</string>
+    <string name="square_video_thumbnails">Square video thumbnails</string>
+    <string name="square_video_thumbnails_subtitle">Show music videos as squares everywhere, including the player</string>
+    <string name="prefer_music_only">Prefer music-only version</string>
+    <string name="prefer_music_only_subtitle">Music videos play as their audio version, and the next track in the queue is converted ahead of time so Automix and crossfade work</string>
+    <string name="player_theme">Player theme</string>
+    <string name="player_theme_default">Default</string>
+    <string name="player_theme_legacy">Legacy</string>
+    <string name="player_theme_simple">Simple</string>
+    <string name="player_theme_default_subtitle">The cover\'s own colours carry on below it</string>
+    <string name="player_theme_simple_subtitle">A soft blur of the cover behind the whole player</string>
+    <string name="player_theme_legacy_subtitle">Brings back the drifting colour blobs behind the player from v1.5</string>
+    <string name="disable_blend_effects">Disable blend effects</string>
+    <string name="disable_blend_effects_subtitle">Shows player icons, text and menus in plain white</string>
+    <string name="full_bleed_detail_artwork">Full-screen artwork in album &amp; playlist</string>
+    <string name="full_bleed_detail_artwork_subtitle">Runs the cover edge to edge and dissolves into the page</string>
+    <string name="glass_performance">Better Performance for Glass</string>
+    <string name="glass_performance_subtitle">A lighter frost for phones that struggle with the full effect</string>
+    <string name="automix_overview">Automix overview</string>
+    <string name="full_screen_detail_cover">Full-screen album/playlist cover</string>
+    <string name="full_screen_detail_cover_subtitle">Runs album and playlist covers to the edges of the page instead of a framed sleeve</string>
 </resources>
 

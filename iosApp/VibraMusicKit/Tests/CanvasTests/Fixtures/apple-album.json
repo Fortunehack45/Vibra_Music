@@ -1,0 +1,15 @@
+{
+  "data": [
+    {
+      "id": "1499362749",
+      "attributes": {
+        "name": "After Hours",
+        "artistName": "The Weeknd",
+        "editorialVideo": {
+          "motionDetailSquare": { "video": "https://example.com/apple/after-hours-square.m3u8" },
+          "motionDetailTall": { "video": "https://example.com/apple/after-hours-tall.m3u8" }
+        }
+      }
+    }
+  ]
+}

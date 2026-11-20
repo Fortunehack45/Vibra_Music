@@ -1,0 +1,7 @@
+{
+  "items": [
+    { "song": "Africa", "artist": "Toto", "album": "Toto IV", "url": "https://example.com/canvas/africa.mp4" },
+    { "song": "Take On Me", "artist": "a-ha", "album": "", "url": "https://example.com/canvas/take-on-me.mp4" },
+    { "incomplete": true }
+  ]
+}

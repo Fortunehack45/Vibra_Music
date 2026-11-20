@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<d:multistatus xmlns:d="DAV:">
+  <d:response>
+    <d:href>/remote.php/dav/files/user/Music/</d:href>
+    <d:propstat><d:prop>
+      <d:displayname>Music</d:displayname>
+      <d:resourcetype><d:collection/></d:resourcetype>
+    </d:prop></d:propstat>
+  </d:response>
+  <d:response>
+    <d:href>/remote.php/dav/files/user/Music/Artist%20-%20Title.mp3</d:href>
+    <d:propstat><d:prop>
+      <d:displayname>Artist - Title.mp3</d:displayname>
+      <d:resourcetype/>
+      <d:getcontenttype>audio/mpeg</d:getcontenttype>
+    </d:prop></d:propstat>
+  </d:response>
+  <d:response>
+    <d:href>/remote.php/dav/files/user/Music/cover.jpg</d:href>
+    <d:propstat><d:prop>
+      <d:displayname>cover.jpg</d:displayname>
+      <d:resourcetype/>
+      <d:getcontenttype>image/jpeg</d:getcontenttype>
+    </d:prop></d:propstat>
+  </d:response>
+  <d:response>
+    <d:href>/remote.php/dav/files/user/Music/Live/</d:href>
+    <d:propstat><d:prop>
+      <d:displayname>Live</d:displayname>
+      <d:resourcetype><d:collection/></d:resourcetype>
+    </d:prop></d:propstat>
+  </d:response>
+</d:multistatus>

@@ -1,0 +1,850 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		BC000000000000000000000E /* VibraMusicKit in Frameworks */ = {isa = PBXBuildFile; productRef = BC000000000000000000000C /* VibraMusicKit */; };
+		BC0000000000000000000010 /* VibraMusicWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = BC0000000000000000000006 /* VibraMusicWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		BC0000000000000000000041 /* VibraMusicShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = BC0000000000000000000040 /* VibraMusicShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		BC000000000000000000001E /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = BC0000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = BC0000000000000000000013;
+			remoteInfo = VibraMusicWidgetExtension;
+		};
+		BC0000000000000000000020 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = BC0000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = BC0000000000000000000011;
+			remoteInfo = VibraMusic;
+		};
+		BC0000000000000000000042 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = BC0000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = BC0000000000000000000043;
+			remoteInfo = VibraMusicShareExtension;
+		};
+		BC0000000000000000000052 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = BC0000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = BC0000000000000000000011;
+			remoteInfo = VibraMusic;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		BC0000000000000000000017 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				BC0000000000000000000010 /* VibraMusicWidgetExtension.appex in Embed Foundation Extensions */,
+				BC0000000000000000000041 /* VibraMusicShareExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		BC0000000000000000000004 /* VibraMusic.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = VibraMusic.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		BC0000000000000000000005 /* VibraMusicTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VibraMusicTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		BC0000000000000000000006 /* VibraMusicWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = VibraMusicWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		BC0000000000000000000030 /* VibraMusic-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "VibraMusic-Info.plist"; sourceTree = "<group>"; };
+		BC0000000000000000000031 /* VibraMusicWidget-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "VibraMusicWidget-Info.plist"; sourceTree = "<group>"; };
+		BC0000000000000000000032 /* VibraMusic.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = VibraMusic.entitlements; sourceTree = "<group>"; };
+		BC0000000000000000000033 /* VibraMusicWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = VibraMusicWidget.entitlements; sourceTree = "<group>"; };
+		BC0000000000000000000040 /* VibraMusicShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = VibraMusicShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		BC0000000000000000000048 /* VibraMusicShare-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "VibraMusicShare-Info.plist"; sourceTree = "<group>"; };
+		BC0000000000000000000049 /* VibraMusicShare.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = VibraMusicShare.entitlements; sourceTree = "<group>"; };
+		BC0000000000000000000050 /* VibraMusicUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VibraMusicUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		BC0000000000000000000007 /* VibraMusic */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = VibraMusic;
+			sourceTree = "<group>";
+		};
+		BC0000000000000000000008 /* VibraMusicTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = VibraMusicTests;
+			sourceTree = "<group>";
+		};
+		BC0000000000000000000009 /* VibraMusicWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = VibraMusicWidget;
+			sourceTree = "<group>";
+		};
+		BC000000000000000000002E /* Shared */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		BC0000000000000000000044 /* VibraMusicShare */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = VibraMusicShare;
+			sourceTree = "<group>";
+		};
+		BC0000000000000000000054 /* VibraMusicUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = VibraMusicUITests;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		BC0000000000000000000015 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BC000000000000000000000E /* VibraMusicKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BC0000000000000000000019 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BC000000000000000000001C /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BC0000000000000000000045 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BC0000000000000000000055 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		BC0000000000000000000002 = {
+			isa = PBXGroup;
+			children = (
+				BC0000000000000000000007 /* VibraMusic */,
+				BC000000000000000000002E /* Shared */,
+				BC0000000000000000000009 /* VibraMusicWidget */,
+				BC0000000000000000000044 /* VibraMusicShare */,
+				BC0000000000000000000008 /* VibraMusicTests */,
+				BC0000000000000000000054 /* VibraMusicUITests */,
+				BC000000000000000000000A /* Config */,
+				BC0000000000000000000003 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		BC0000000000000000000003 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				BC0000000000000000000004 /* VibraMusic.app */,
+				BC0000000000000000000005 /* VibraMusicTests.xctest */,
+				BC0000000000000000000006 /* VibraMusicWidgetExtension.appex */,
+				BC0000000000000000000040 /* VibraMusicShareExtension.appex */,
+				BC0000000000000000000050 /* VibraMusicUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		BC000000000000000000000A /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				BC0000000000000000000030 /* VibraMusic-Info.plist */,
+				BC0000000000000000000032 /* VibraMusic.entitlements */,
+				BC0000000000000000000031 /* VibraMusicWidget-Info.plist */,
+				BC0000000000000000000033 /* VibraMusicWidget.entitlements */,
+				BC0000000000000000000048 /* VibraMusicShare-Info.plist */,
+				BC0000000000000000000049 /* VibraMusicShare.entitlements */,
+			);
+			path = Config;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		BC0000000000000000000011 /* VibraMusic */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BC0000000000000000000025 /* Build configuration list for PBXNativeTarget "VibraMusic" */;
+			buildPhases = (
+				BC0000000000000000000014 /* Sources */,
+				BC0000000000000000000015 /* Frameworks */,
+				BC0000000000000000000016 /* Resources */,
+				BC0000000000000000000017 /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				BC000000000000000000001F /* PBXTargetDependency */,
+				BC000000000000000000004A /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				BC0000000000000000000007 /* VibraMusic */,
+				BC000000000000000000002E /* Shared */,
+			);
+			name = VibraMusic;
+			packageProductDependencies = (
+				BC000000000000000000000C /* VibraMusicKit */,
+			);
+			productName = VibraMusic;
+			productReference = BC0000000000000000000004 /* VibraMusic.app */;
+			productType = "com.apple.product-type.application";
+		};
+		BC0000000000000000000012 /* VibraMusicTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BC0000000000000000000028 /* Build configuration list for PBXNativeTarget "VibraMusicTests" */;
+			buildPhases = (
+				BC0000000000000000000018 /* Sources */,
+				BC0000000000000000000019 /* Frameworks */,
+				BC000000000000000000001A /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				BC0000000000000000000021 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				BC0000000000000000000008 /* VibraMusicTests */,
+			);
+			name = VibraMusicTests;
+			packageProductDependencies = (
+			);
+			productName = VibraMusicTests;
+			productReference = BC0000000000000000000005 /* VibraMusicTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		BC0000000000000000000013 /* VibraMusicWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BC000000000000000000002B /* Build configuration list for PBXNativeTarget "VibraMusicWidgetExtension" */;
+			buildPhases = (
+				BC000000000000000000001B /* Sources */,
+				BC000000000000000000001C /* Frameworks */,
+				BC000000000000000000001D /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				BC0000000000000000000009 /* VibraMusicWidget */,
+				BC000000000000000000002E /* Shared */,
+			);
+			name = VibraMusicWidgetExtension;
+			packageProductDependencies = (
+			);
+			productName = VibraMusicWidgetExtension;
+			productReference = BC0000000000000000000006 /* VibraMusicWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		BC0000000000000000000043 /* VibraMusicShareExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BC000000000000000000004B /* Build configuration list for PBXNativeTarget "VibraMusicShareExtension" */;
+			buildPhases = (
+				BC0000000000000000000047 /* Sources */,
+				BC0000000000000000000045 /* Frameworks */,
+				BC0000000000000000000046 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				BC000000000000000000002E /* Shared */,
+				BC0000000000000000000044 /* VibraMusicShare */,
+			);
+			name = VibraMusicShareExtension;
+			packageProductDependencies = (
+			);
+			productName = VibraMusicShareExtension;
+			productReference = BC0000000000000000000040 /* VibraMusicShareExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		BC0000000000000000000053 /* VibraMusicUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BC000000000000000000005B /* Build configuration list for PBXNativeTarget "VibraMusicUITests" */;
+			buildPhases = (
+				BC0000000000000000000057 /* Sources */,
+				BC0000000000000000000055 /* Frameworks */,
+				BC0000000000000000000056 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				BC000000000000000000005A /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				BC0000000000000000000054 /* VibraMusicUITests */,
+			);
+			name = VibraMusicUITests;
+			packageProductDependencies = (
+			);
+			productName = VibraMusicUITests;
+			productReference = BC0000000000000000000050 /* VibraMusicUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		BC0000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2700;
+				LastUpgradeCheck = 2700;
+				TargetAttributes = {
+					BC0000000000000000000011 = {
+						CreatedOnToolsVersion = 27.0;
+					};
+					BC0000000000000000000012 = {
+						CreatedOnToolsVersion = 27.0;
+						TestTargetID = BC0000000000000000000011;
+					};
+					BC0000000000000000000013 = {
+						CreatedOnToolsVersion = 27.0;
+					};
+					BC0000000000000000000043 = {
+						CreatedOnToolsVersion = 27.0;
+					};
+					BC0000000000000000000053 = {
+						CreatedOnToolsVersion = 27.0;
+						TestTargetID = BC0000000000000000000011;
+					};
+				};
+			};
+			buildConfigurationList = BC0000000000000000000022 /* Build configuration list for PBXProject "VibraMusic" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+				de,
+				es,
+				fr,
+				he,
+				hi,
+				id,
+				it,
+				ja,
+				pl,
+				pt,
+				ru,
+				th,
+				tr,
+				vi,
+				"zh-Hans",
+			);
+			mainGroup = BC0000000000000000000002;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				BC000000000000000000000B /* XCLocalSwiftPackageReference "../VibraMusicKit" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = BC0000000000000000000003 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				BC0000000000000000000011 /* VibraMusic */,
+				BC0000000000000000000012 /* VibraMusicTests */,
+				BC0000000000000000000013 /* VibraMusicWidgetExtension */,
+				BC0000000000000000000043 /* VibraMusicShareExtension */,
+				BC0000000000000000000053 /* VibraMusicUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		BC0000000000000000000016 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BC000000000000000000001A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BC000000000000000000001D /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BC0000000000000000000046 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BC0000000000000000000056 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		BC0000000000000000000014 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BC0000000000000000000018 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BC000000000000000000001B /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BC0000000000000000000047 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BC0000000000000000000057 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		BC000000000000000000001F /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = BC0000000000000000000013 /* VibraMusicWidgetExtension */;
+			targetProxy = BC000000000000000000001E /* PBXContainerItemProxy */;
+		};
+		BC0000000000000000000021 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = BC0000000000000000000011 /* VibraMusic */;
+			targetProxy = BC0000000000000000000020 /* PBXContainerItemProxy */;
+		};
+		BC000000000000000000004A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = BC0000000000000000000043 /* VibraMusicShareExtension */;
+			targetProxy = BC0000000000000000000042 /* PBXContainerItemProxy */;
+		};
+		BC000000000000000000005A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = BC0000000000000000000011 /* VibraMusic */;
+			targetProxy = BC0000000000000000000052 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		BC0000000000000000000023 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		BC0000000000000000000024 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_VERSION = 5.0;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		BC0000000000000000000026 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "AppIconGlassDark AppIconGlassClear AppIconGlassClearDark AppIconMonochrome";
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Config/VibraMusic.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Config/VibraMusic-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "Vibra Music";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
+				INFOPLIST_KEY_NSAppleMusicUsageDescription = "Vibra Music plays music from your library.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Vibra Music connects to SMB and WebDAV servers and Listen Together parties on your local network.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Vibra Music saves your Replay poster to Photos.";
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fortune.vibramusic.ios;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		BC0000000000000000000027 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "AppIconGlassDark AppIconGlassClear AppIconGlassClearDark AppIconMonochrome";
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Config/VibraMusic.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Config/VibraMusic-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "Vibra Music";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
+				INFOPLIST_KEY_NSAppleMusicUsageDescription = "Vibra Music plays music from your library.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Vibra Music connects to SMB and WebDAV servers and Listen Together parties on your local network.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Vibra Music saves your Replay poster to Photos.";
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fortune.vibramusic.ios;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		BC0000000000000000000029 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fortune.vibramusic.ios.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/VibraMusic.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/VibraMusic";
+			};
+			name = Debug;
+		};
+		BC000000000000000000002A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fortune.vibramusic.ios.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/VibraMusic.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/VibraMusic";
+			};
+			name = Release;
+		};
+		BC000000000000000000002C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Config/VibraMusicWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Config/VibraMusicWidget-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "Vibra Music";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fortune.vibramusic.ios.widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		BC000000000000000000002D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Config/VibraMusicWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Config/VibraMusicWidget-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "Vibra Music";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fortune.vibramusic.ios.widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		BC000000000000000000004C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = Config/VibraMusicShare.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Config/VibraMusicShare-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "Vibra Music";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fortune.vibramusic.ios.share;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		BC000000000000000000004D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = Config/VibraMusicShare.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Config/VibraMusicShare-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "Vibra Music";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fortune.vibramusic.ios.share;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		BC000000000000000000005C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fortune.vibramusic.ios.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = VibraMusic;
+			};
+			name = Debug;
+		};
+		BC000000000000000000005D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fortune.vibramusic.ios.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = VibraMusic;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		BC0000000000000000000022 /* Build configuration list for PBXProject "VibraMusic" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BC0000000000000000000023 /* Debug */,
+				BC0000000000000000000024 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		BC0000000000000000000025 /* Build configuration list for PBXNativeTarget "VibraMusic" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BC0000000000000000000026 /* Debug */,
+				BC0000000000000000000027 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		BC0000000000000000000028 /* Build configuration list for PBXNativeTarget "VibraMusicTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BC0000000000000000000029 /* Debug */,
+				BC000000000000000000002A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		BC000000000000000000002B /* Build configuration list for PBXNativeTarget "VibraMusicWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BC000000000000000000002C /* Debug */,
+				BC000000000000000000002D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		BC000000000000000000004B /* Build configuration list for PBXNativeTarget "VibraMusicShareExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BC000000000000000000004C /* Debug */,
+				BC000000000000000000004D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		BC000000000000000000005B /* Build configuration list for PBXNativeTarget "VibraMusicUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BC000000000000000000005C /* Debug */,
+				BC000000000000000000005D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		BC000000000000000000000B /* XCLocalSwiftPackageReference "../VibraMusicKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../VibraMusicKit;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		BC000000000000000000000C /* VibraMusicKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = VibraMusicKit;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = BC0000000000000000000001 /* Project object */;
+}

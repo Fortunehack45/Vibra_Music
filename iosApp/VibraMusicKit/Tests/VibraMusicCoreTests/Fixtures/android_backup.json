@@ -1,0 +1,32 @@
+{
+  "app": "vibramusic",
+  "version": 1,
+  "versionName": "1.6.1",
+  "exportedAt": "2026-09-01T10:00:00Z",
+  "settings": {
+    "audio_quality_wifi": {"type": "string", "value": "HIGH"},
+    "audio_quality_cellular": {"type": "string", "value": "LOW"},
+    "audio_quality_download": {"type": "string", "value": "STANDARD"},
+    "wifi_only_downloads": {"type": "bool", "value": "false"},
+    "crossfade_seconds": {"type": "int", "value": "6"},
+    "equalizer_balance": {"type": "float", "value": "0.25"},
+    "equalizer_bands": {"type": "string", "value": "6.0,4.0,1.5,0.0,0.0,0.0,0.0"},
+    "audio_cache_limit_bytes": {"type": "long", "value": "1073741824"},
+    "playback_speed": {"type": "float", "value": "1.0"},
+    "repeat_mode": {"type": "int", "value": "2"},
+    "autoplay": {"type": "bool", "value": "false"},
+    "theme_mode": {"type": "string", "value": "LIGHT"},
+    "lyrics_sources": {"type": "string", "value": "LRCLIB,GENIUS"},
+    "lyrics_sources_seen": {"type": "string", "value": "BINI_LYRICS,BETTER_LYRICS,BETTER_LYRICS_PORTATO,PAXSENIX,PAXSENIX_SPOTIFY,PAXSENIX_MUSIXMATCH,LYRICS_PLUS,SIMP_MUSIC,UNISON,YOUTUBE_TRANSCRIPT,YOUTUBE_MUSIC,MEGALOBIZ,KUGOU,LRCLIB,MUSIXMATCH,GENIUS"},
+    "detail_song_sorts": {"type": "string", "value": "MPREb_abc=TITLE_DESC,VLPL123=DATE_ADDED_DESC"},
+    "pinned_playlists": {"type": "string", "value": "VLPL1,VLPL2"},
+    "scrobble_delay_percent": {"type": "float", "value": "0.75"},
+    "search_history": {"type": "string", "value": "[{\"id\":\"MPREb_abc\",\"title\":\"Discovery\",\"subtitle\":\"Album • Daft Punk\",\"artworkUrl\":null,\"entityType\":\"ALBUM\",\"timestamp\":1700000000000}]"},
+    "output_pcm_mode": {"type": "string", "value": "FLOAT_32"},
+    "high_performance_mode": {"type": "bool", "value": "true"},
+    "downloaded_tracks": {"type": "stringSet", "values": ["dQw4w9WgXcQ"]},
+    "last_version_code": {"type": "int", "value": "999"},
+    "from_a_newer_build": {"type": "double", "value": "1.5"}
+  },
+  "listening": []
+}

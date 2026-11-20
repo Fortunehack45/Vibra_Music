@@ -1,0 +1,109 @@
+# Builds the VibraMusic scheme once, then runs its test plan (App/VibraMusic.xctestplan:
+# VibraMusicTests and every VibraMusicKit test target) on an iPhone 16 simulator.
+#
+# One job does both. The standard macOS runner has 3 cores, so the build dominates; splitting
+# the tests across jobs would add a runner start, an artifact download and a simulator boot per
+# job for a few minutes of tests each. A cold run should fit well inside timeout-minutes below.
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # The Xcode the tests are known to pass with. The xcode-27 image also has 27.1 and 27.2.
+  DEVELOPER_DIR: /Applications/Xcode_27.0.app/Contents/Developer
+  SIM_NAME: iPhone 16
+  XCB_FLAGS: >-
+    -workspace VibraMusic.xcworkspace -scheme VibraMusic
+    -skipPackagePluginValidation -skipMacroValidation
+    COMPILER_INDEX_STORE_ENABLE=NO
+
+jobs:
+  test:
+    name: Build and test
+    runs-on: xcode-27
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Show tools
+        run: |
+          xcodebuild -version
+          xcbeautify --version
+          sysctl -n hw.ncpu
+
+      - name: Cache Swift package checkouts
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .spm
+          key: spm-${{ runner.os }}-${{ hashFiles('VibraMusicKit/Package.resolved', 'VibraMusic.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          restore-keys: spm-${{ runner.os }}-
+
+      - name: Build for testing
+        run: |
+          set -o pipefail
+          # shellcheck disable=SC2086 # XCB_FLAGS is a list of flags
+          xcodebuild build-for-testing $XCB_FLAGS \
+            -destination "generic/platform=iOS Simulator" \
+            -derivedDataPath .derived-ci -clonedSourcePackagesDirPath .spm \
+            -jobs "$(sysctl -n hw.ncpu)" ARCHS=arm64 ONLY_ACTIVE_ARCH=NO \
+            | xcbeautify --quiet --is-ci
+
+      # The image ships no iPhone 16, so create one on the runtime that matches the selected Xcode.
+      - name: Create and boot the simulator
+        run: |
+          VERSION=$(xcrun --sdk iphonesimulator --show-sdk-version)
+          RUNTIME="com.apple.CoreSimulator.SimRuntime.iOS-${VERSION//./-}"
+          UDID=$(xcrun simctl create "$SIM_NAME" com.apple.CoreSimulator.SimDeviceType.iPhone-16 "$RUNTIME")
+          echo "SIM_UDID=$UDID" >> "$GITHUB_ENV"
+          xcrun simctl boot "$UDID"
+
+      # Playback and Automix tests need a running audio clock. A virtual machine may have no
+      # output device; BlackHole provides one.
+      - name: Make sure there is an audio output
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: "1"
+          HOMEBREW_NO_INSTALL_CLEANUP: "1"
+        run: |
+          if system_profiler SPAudioDataType | grep -q "Default Output Device: Yes"; then
+            echo "output device present"
+          else
+            brew install --quiet blackhole-2ch switchaudio-osx
+            sudo killall coreaudiod
+            sleep 3
+            SwitchAudioSource -t output -s "BlackHole 2ch" || true
+          fi
+          xcrun simctl bootstatus "$SIM_UDID" -b > /dev/null
+
+      # Each test may take 60 s (180 s at most); a failed test is retried once.
+      - name: Test
+        run: |
+          set -o pipefail
+          XCTESTRUN=$(find .derived-ci/Build/Products -maxdepth 1 -name 'VibraMusic_VibraMusic_*.xctestrun' | head -1)
+          xcodebuild test-without-building -xctestrun "$XCTESTRUN" \
+            -destination "id=$SIM_UDID" \
+            -resultBundlePath "$RUNNER_TEMP/VibraMusic.xcresult" \
+            -test-timeouts-enabled YES -default-test-execution-time-allowance 60 \
+            -maximum-test-execution-time-allowance 180 \
+            -retry-tests-on-failure -test-iterations 2 \
+            -collect-test-diagnostics never \
+            | xcbeautify --is-ci --renderer github-actions
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: xcresult
+          path: ${{ runner.temp }}/*.xcresult
+          if-no-files-found: ignore
+          retention-days: 7

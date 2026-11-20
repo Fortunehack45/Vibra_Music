@@ -1,0 +1,22 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "search_filter_all" : {
+      "comment" : "Search filter pill: every kind of result (SearchFilter.ALL's label on Android).",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "All" } } }
+    },
+    "search_filter_videos" : {
+      "comment" : "Search filter pill: music videos (SearchFilter.VIDEOS's label on Android).",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Videos" } } }
+    },
+    "search_section_more" : {
+      "comment" : "Heading over search results that are neither songs, artists, albums nor playlists.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "More" } } }
+    },
+    "search_top_result" : {
+      "comment" : "Label above the promoted first search hit.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Top result" } } }
+    }
+  },
+  "version" : "1.0"
+}

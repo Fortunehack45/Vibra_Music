@@ -1,0 +1,22 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "offline_backup" : {
+      "comment" : "Library card and page title: songs already whole on the device, playable with no connection.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Offline backup" } } }
+    },
+    "offline_backup_subtitle" : {
+      "comment" : "Subtitle of the Offline backup card.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Plays without a connection" } } }
+    },
+    "offline_backup_empty" : {
+      "comment" : "The Offline backup page with nothing in it.",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Songs you play are kept here, so they still play without a connection." } } }
+    },
+    "no_downloaded_tracks" : {
+      "comment" : "The Downloads folder with nothing in it. Android hard-coded this in MainViewModel's openDetail (\"No downloaded tracks\").",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "No downloaded tracks" } } }
+    }
+  },
+  "version" : "1.0"
+}

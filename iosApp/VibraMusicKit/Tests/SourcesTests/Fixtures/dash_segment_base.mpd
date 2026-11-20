@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<MPD xmlns="urn:mpeg:dash:schema:mpd:2011" type="static" mediaPresentationDuration="PT4M1S">
+  <Period>
+    <AdaptationSet contentType="audio">
+      <Representation id="lo" mimeType="audio/mp4" codecs="flac" bandwidth="900000" audioSamplingRate="44100">
+        <BaseURL>https://files.example.com/lo.mp4</BaseURL>
+        <SegmentBase indexRange="700-1300"><Initialization range="0-699"/></SegmentBase>
+      </Representation>
+      <Representation id="hi" mimeType="audio/mp4" codecs="flac" bandwidth="2900000" audioSamplingRate="96000">
+        <BaseURL>https://files.example.com/hi.mp4</BaseURL>
+        <SegmentBase indexRange="700-1300"><Initialization range="0-699"/></SegmentBase>
+      </Representation>
+    </AdaptationSet>
+    <AdaptationSet contentType="video" mimeType="video/mp4">
+      <Representation id="v" codecs="avc1.4d401f" bandwidth="9000000"><BaseURL>https://files.example.com/video.mp4</BaseURL></Representation>
+    </AdaptationSet>
+  </Period>
+</MPD>

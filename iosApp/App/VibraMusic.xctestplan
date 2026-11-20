@@ -1,0 +1,152 @@
+{
+  "configurations": [
+    {
+      "id": "6F1C2B3A-0000-4000-8000-000000000001",
+      "name": "Default",
+      "options": {}
+    }
+  ],
+  "defaultOptions": {
+    "targetForVariableExpansion": {
+      "containerPath": "container:VibraMusic.xcodeproj",
+      "identifier": "BC0000000000000000000011",
+      "name": "Vibra Music"
+    }
+  },
+  "testTargets": [
+    {
+      "target": {
+        "containerPath": "container:VibraMusic.xcodeproj",
+        "identifier": "BC0000000000000000000012",
+        "name": "VibraMusicTests"
+      }
+    },
+    {
+      "target": {
+        "containerPath": "container:../VibraMusicKit",
+        "identifier": "VibraMusicCoreTests",
+        "name": "VibraMusicCoreTests"
+      }
+    },
+    {
+      "target": {
+        "containerPath": "container:../VibraMusicKit",
+        "identifier": "InnerTubeTests",
+        "name": "InnerTubeTests"
+      }
+    },
+    {
+      "target": {
+        "containerPath": "container:../VibraMusicKit",
+        "identifier": "StreamResolutionTests",
+        "name": "StreamResolutionTests"
+      }
+    },
+    {
+      "target": {
+        "containerPath": "container:../VibraMusicKit",
+        "identifier": "PlaybackQueueTests",
+        "name": "PlaybackQueueTests"
+      }
+    },
+    {
+      "target": {
+        "containerPath": "container:../VibraMusicKit",
+        "identifier": "AudioDSPTests",
+        "name": "AudioDSPTests"
+      }
+    },
+    {
+      "target": {
+        "containerPath": "container:../VibraMusicKit",
+        "identifier": "PlaybackTests",
+        "name": "PlaybackTests"
+      }
+    },
+    {
+      "target": {
+        "containerPath": "container:../VibraMusicKit",
+        "identifier": "AutomixTests",
+        "name": "AutomixTests"
+      }
+    },
+    {
+      "target": {
+        "containerPath": "container:../VibraMusicKit",
+        "identifier": "LyricsTests",
+        "name": "LyricsTests"
+      }
+    },
+    {
+      "target": {
+        "containerPath": "container:../VibraMusicKit",
+        "identifier": "DownloadsTests",
+        "name": "DownloadsTests"
+      }
+    },
+    {
+      "target": {
+        "containerPath": "container:../VibraMusicKit",
+        "identifier": "SourcesTests",
+        "name": "SourcesTests"
+      }
+    },
+    {
+      "target": {
+        "containerPath": "container:../VibraMusicKit",
+        "identifier": "NetworkLibraryTests",
+        "name": "NetworkLibraryTests"
+      }
+    },
+    {
+      "target": {
+        "containerPath": "container:../VibraMusicKit",
+        "identifier": "ListenTogetherTests",
+        "name": "ListenTogetherTests"
+      }
+    },
+    {
+      "target": {
+        "containerPath": "container:../VibraMusicKit",
+        "identifier": "IntegrationsTests",
+        "name": "IntegrationsTests"
+      }
+    },
+    {
+      "target": {
+        "containerPath": "container:../VibraMusicKit",
+        "identifier": "ReplayTests",
+        "name": "ReplayTests"
+      }
+    },
+    {
+      "target": {
+        "containerPath": "container:../VibraMusicKit",
+        "identifier": "CanvasTests",
+        "name": "CanvasTests"
+      }
+    },
+    {
+      "target": {
+        "containerPath": "container:../VibraMusicKit",
+        "identifier": "ThemingTests",
+        "name": "ThemingTests"
+      }
+    },
+    {
+      "target": {
+        "containerPath": "container:../VibraMusicKit",
+        "identifier": "AudioCacheTests",
+        "name": "AudioCacheTests"
+      }
+    },
+    {
+      "target": {
+        "containerPath": "container:../VibraMusicKit",
+        "identifier": "PlaybackPolicyTests",
+        "name": "PlaybackPolicyTests"
+      }
+    }
+  ],
+  "version": 1
+}

@@ -1,0 +1,27 @@
+{
+  "_comment": "Captured 2026-09-26 from a live ANDROID_VR 1.65.10 player response (itag 140) and a 512 KB range request against its googlevideo URL. The ip query parameter is redacted. A 0-2097151 range on the same URL was answered 403.",
+  "url": "https://rr2---sn-gwpa-5hqz.googlevideo.com/videoplayback?expire=1790423725&ei=TV63at70Je-hjuMPk_an8Aw&ip=0.0.0.0&id=o-AJRZKDtGK7SRQ0A2FxNe4MtWgRzWpaOSdjyIc1KPm5wa&itag=140&source=youtube&requiressl=yes&xpc=EgVo2aDSNQ%3D%3D&cps=653&met=1790402125,&mh=O6&mm=18,29&mn=sn-gwpa-5hqz,sn-gwpa-cvhee&ms=aub,rdu&mv=m&mvi=2&pl=46&rms=aub,aub&gcr=in&initcwndbps=1637500&bui=AWzQHwrvOS7OO5ueczj4KibJc6iMamCwuAbf5-yiCjHyLPgb6v0Oxb_aphV1ucc4NIlzW07pzzENGqu2&spc=I-rgIbTJswr7o0ET1U4s4wZzzeNDEL9Ak3zE3qrCCw&vprv=1&svpuc=1&mime=audio%2Fmp4&rqh=1&gir=yes&clen=4025466&dur=248.685&lmt=1788641719186276&mt=1790401737&fvip=3&keepalive=yes&fexp=51565116,52112905,52178456&c=ANDROID_VR&txp=5532234&sparams=expire,ei,ip,id,itag,source,requiressl,xpc,gcr,bui,spc,vprv,svpuc,mime,rqh,gir,clen,dur,lmt&sig=AE0s2JYwRgIhANSjsFCDc0C6rBTbHr1ekegHATK18rnvWzGi7kyFCm3JAiEAr3k_o5bS-y47LVS9RDxnzwRx3QgCoMxCDiUDn_Q6TzI%3D&lsparams=cps,met,mh,mm,mn,ms,mv,mvi,pl,rms,initcwndbps&lsig=APaTxxMwRQIhAIFxMTcceq6nVxONy2V3wxs7YBt5reboan2c9vIyXus7AiAW25zLGd3ggl67l7GUma7ns9uodBtseth2Dxed-nXylQ%3D%3D",
+  "mimeType": "audio/mp4; codecs=\"mp4a.40.2\"",
+  "contentLength": "4025466",
+  "requestHeaders": {
+    "User-Agent": "com.google.android.apps.youtube.vr.oculus/1.65.10 (Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip",
+    "Range": "bytes=0-524287"
+  },
+  "rangeResponse": {
+    "status": 206,
+    "headers": {
+      "Content-Type": "audio/mp4",
+      "Content-Range": "bytes 0-524287/4025466",
+      "Accept-Ranges": "bytes",
+      "Content-Length": "524288",
+      "Cache-Control": "private, max-age=21299",
+      "Server": "gvs 1.0",
+      "Last-Modified": "Sat, 05 Sep 2026 20:55:19 GMT"
+    }
+  },
+  "oversizedRange": {
+    "range": "bytes=0-2097151",
+    "status": 403
+  },
+  "prefixHex": "0000001866747970646173680000000069736f366d703431000002bb6d6f6f760000006c6d76686400000000e6c22969e6c229690000ac4400a7580000010000"
+}

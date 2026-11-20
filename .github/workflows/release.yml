@@ -229,11 +229,6 @@ jobs:
             - **64-bit ARM Phones**: [`VibraMusic-${{ env.RELEASE_TAG }}-arm64-v8a.apk`](https://github.com/Fortunehack45/Vibra_Music_Releases/releases/download/${{ env.RELEASE_TAG }}/VibraMusic-${{ env.RELEASE_TAG }}-arm64-v8a.apk) — Optimized for modern 64-bit devices.
             - **32-bit / Older / Budget Phones**: [`VibraMusic-${{ env.RELEASE_TAG }}-armeabi-v7a.apk`](https://github.com/Fortunehack45/Vibra_Music_Releases/releases/download/${{ env.RELEASE_TAG }}/VibraMusic-${{ env.RELEASE_TAG }}-armeabi-v7a.apk) — For budget / older phones (Samsung Galaxy A01-A12, Redmi 9A/9C, Tecno, Infinix, etc.).
             - **PC Emulators / Chromebooks**: [`VibraMusic-${{ env.RELEASE_TAG }}-x86_64.apk`](https://github.com/Fortunehack45/Vibra_Music_Releases/releases/download/${{ env.RELEASE_TAG }}/VibraMusic-${{ env.RELEASE_TAG }}-x86_64.apk) — For x86_64 emulators and Chromebooks.
-
-            ### Windows Desktop (PC)
-            - **Windows Setup (.exe)**: [`VibraMusic-${{ env.RELEASE_TAG }}-Windows-Setup.exe`](https://github.com/Fortunehack45/Vibra_Music_Releases/releases/download/${{ env.RELEASE_TAG }}/VibraMusic-${{ env.RELEASE_TAG }}-Windows-Setup.exe) — Standard Windows installer.
-            - **Windows Installer (.msi)**: [`VibraMusic-${{ env.RELEASE_TAG }}-Windows-Installer.msi`](https://github.com/Fortunehack45/Vibra_Music_Releases/releases/download/${{ env.RELEASE_TAG }}/VibraMusic-${{ env.RELEASE_TAG }}-Windows-Installer.msi) — Install on Windows 10/11 with desktop & start menu shortcuts.
-            - **Windows Portable (.zip)**: [`VibraMusic-${{ env.RELEASE_TAG }}-Windows-Portable.zip`](https://github.com/Fortunehack45/Vibra_Music_Releases/releases/download/${{ env.RELEASE_TAG }}/VibraMusic-${{ env.RELEASE_TAG }}-Windows-Portable.zip) — Run directly without installation.
           generate_release_notes: true
           draft: false
           prerelease: false
@@ -258,11 +253,6 @@ jobs:
             - **64-bit ARM Phones**: [`VibraMusic-${{ env.RELEASE_TAG }}-arm64-v8a.apk`](https://github.com/Fortunehack45/Vibra_Music_Releases/releases/download/${{ env.RELEASE_TAG }}/VibraMusic-${{ env.RELEASE_TAG }}-arm64-v8a.apk) — Optimized for modern 64-bit devices.
             - **32-bit / Older / Budget Phones**: [`VibraMusic-${{ env.RELEASE_TAG }}-armeabi-v7a.apk`](https://github.com/Fortunehack45/Vibra_Music_Releases/releases/download/${{ env.RELEASE_TAG }}/VibraMusic-${{ env.RELEASE_TAG }}-armeabi-v7a.apk) — For budget / older phones (Samsung Galaxy A01-A12, Redmi 9A/9C, Tecno, Infinix, etc.).
             - **PC Emulators / Chromebooks**: [`VibraMusic-${{ env.RELEASE_TAG }}-x86_64.apk`](https://github.com/Fortunehack45/Vibra_Music_Releases/releases/download/${{ env.RELEASE_TAG }}/VibraMusic-${{ env.RELEASE_TAG }}-x86_64.apk) — For x86_64 emulators and Chromebooks.
-
-            ### Windows Desktop (PC)
-            - **Windows Setup (.exe)**: [`VibraMusic-${{ env.RELEASE_TAG }}-Windows-Setup.exe`](https://github.com/Fortunehack45/Vibra_Music_Releases/releases/download/${{ env.RELEASE_TAG }}/VibraMusic-${{ env.RELEASE_TAG }}-Windows-Setup.exe) — Standard Windows installer.
-            - **Windows Installer (.msi)**: [`VibraMusic-${{ env.RELEASE_TAG }}-Windows-Installer.msi`](https://github.com/Fortunehack45/Vibra_Music_Releases/releases/download/${{ env.RELEASE_TAG }}/VibraMusic-${{ env.RELEASE_TAG }}-Windows-Installer.msi) — Install on Windows 10/11 with desktop & start menu shortcuts.
-            - **Windows Portable (.zip)**: [`VibraMusic-${{ env.RELEASE_TAG }}-Windows-Portable.zip`](https://github.com/Fortunehack45/Vibra_Music_Releases/releases/download/${{ env.RELEASE_TAG }}/VibraMusic-${{ env.RELEASE_TAG }}-Windows-Portable.zip) — Run directly without installation.
           generate_release_notes: true
           draft: false
           prerelease: false

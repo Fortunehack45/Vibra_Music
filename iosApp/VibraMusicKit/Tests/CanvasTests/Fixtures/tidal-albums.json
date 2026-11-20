@@ -1,0 +1,16 @@
+{
+  "albums": {
+    "items": [
+      {
+        "title": "Ctrl",
+        "artists": [{ "name": "SZA" }],
+        "videoCover": "11111111-2222-3333-4444-555555555555"
+      },
+      {
+        "title": "SOS",
+        "artists": [{ "name": "SZA" }],
+        "videoCover": "aaaa1111-bb22-cc33-dd44-ee5566778899"
+      }
+    ]
+  }
+}

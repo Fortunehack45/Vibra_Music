@@ -1,0 +1,9 @@
+{
+  "videoId": "abc123",
+  "title": "Future Song",
+  "artist": "Someone",
+  "queueTier": "SOME_TIER_FROM_A_NEWER_BUILD",
+  "sourceQuality": "ULTRA",
+  "playbackSourceType": "PODCAST",
+  "fieldAddedLater": {"nested": [1, 2, 3]}
+}

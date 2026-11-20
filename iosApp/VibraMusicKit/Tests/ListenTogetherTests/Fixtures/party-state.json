@@ -1,0 +1,27 @@
+{
+  "type": "state",
+  "playback": {
+    "seq": 7,
+    "track": {
+      "videoId": "dQw4w9WgXcQ",
+      "title": "Never Gonna Give You Up",
+      "artist": "Rick Astley",
+      "thumbnailUrl": "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg",
+      "durationMs": 212000,
+      "fromAutoplay": false
+    },
+    "queueSeq": 3,
+    "queueIndex": 1,
+    "queueLength": 4,
+    "isPlaying": true,
+    "positionMs": 42000,
+    "anchorMs": 1757630001234,
+    "effectivePositionMs": 42350,
+    "updatedBy": "m-2",
+    "startedBy": "m-1",
+    "startedByName": "Host",
+    "autoplayEnabled": true,
+    "updatedAtMs": 1757630001200
+  },
+  "serverMs": 1757630001584
+}

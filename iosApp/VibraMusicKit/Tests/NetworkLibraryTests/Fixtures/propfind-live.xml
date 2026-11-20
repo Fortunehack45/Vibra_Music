@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<multistatus xmlns="DAV:">
+  <response>
+    <href>https://cloud.example.com/remote.php/dav/files/user/Music/Live/</href>
+    <propstat><prop>
+      <displayname>Live</displayname>
+      <resourcetype><collection/></resourcetype>
+    </prop></propstat>
+  </response>
+  <response>
+    <href>https://cloud.example.com/remote.php/dav/files/user/Music/Live/take.flac</href>
+    <propstat><prop>
+      <resourcetype/>
+      <getcontenttype>audio/flac</getcontenttype>
+    </prop></propstat>
+  </response>
+</multistatus>

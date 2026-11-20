@@ -1,0 +1,33 @@
+{
+  "results": {
+    "songs": {
+      "data": [
+        {
+          "id": "1499362962",
+          "attributes": {
+            "name": "Blinding Lights",
+            "artistName": "The Weeknd",
+            "albumName": "After Hours",
+            "url": "https://music.apple.com/us/album/blinding-lights/1499362749?i=1499362962",
+            "editorialVideo": {
+              "motionDetailSquare": { "video": "https://example.com/apple/blinding-lights-square.m3u8" },
+              "motionDetailTall": { "video": "https://example.com/apple/blinding-lights-tall.m3u8" }
+            }
+          },
+          "relationships": {
+            "albums": { "data": [{ "id": "1499362749" }] }
+          }
+        },
+        {
+          "id": "0000000000",
+          "attributes": {
+            "name": "Blinding Cover",
+            "artistName": "Tribute Act",
+            "albumName": "Tributes",
+            "url": "https://music.apple.com/us/album/tributes/0000000000?i=0000000000"
+          }
+        }
+      ]
+    }
+  }
+}

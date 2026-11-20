@@ -1,0 +1,40 @@
+# Xcode and SwiftPM build output
+build/
+DerivedData/
+.derived/
+.derived-*/
+.build/
+.swiftpm/
+.spm/
+*.xcresult
+*.ipa
+*.profraw
+*.log
+
+# Per-user Xcode state
+xcuserdata/
+*.xcuserstate
+
+# Local build settings, such as Last.fm keys
+Local.xcconfig
+
+# macOS and editors
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Scratch and debug output
+.shots/
+.tmp_verify/
+.debug/
+
+# AI coding tool configuration
+AGENTS.md
+CLAUDE.md
+.claude/
+.agents/
+.opencode/
+opencode.json
+.codex/
+.cursor/

@@ -1,0 +1,20 @@
+{
+  "results": {
+    "songs": {
+      "data": [
+        {
+          "id": "1499362962",
+          "attributes": {
+            "name": "Blinding Lights",
+            "artistName": "The Weeknd",
+            "albumName": "After Hours",
+            "url": "https://music.apple.com/us/album/blinding-lights/1499362749?i=1499362962"
+          },
+          "relationships": {
+            "albums": { "data": [{ "id": "1499362749" }] }
+          }
+        }
+      ]
+    }
+  }
+}

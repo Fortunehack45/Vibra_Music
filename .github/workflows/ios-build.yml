@@ -21,64 +21,32 @@ jobs:
 
       - name: Resolve Auto Version
         run: |
-          COMMIT_COUNT=$(git rev-list --count HEAD)
-          PATCH=$((COMMIT_COUNT - 571))
-          if [ "$PATCH" -lt 37 ]; then PATCH=37; fi
           if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
             TAG="${GITHUB_REF#refs/tags/}"
             VER_NAME="${TAG#v}"
           else
-            VER_NAME="1.8.${PATCH}"
-            TAG="v${VER_NAME}"
+            VER_NAME="1.0.0"
+            TAG="v1.0.0"
           fi
-          VER_CODE=$((30 + PATCH))
+          VER_CODE=1
           echo "RELEASE_TAG=${TAG}" >> $GITHUB_ENV
           echo "VIBRA_VERSION_NAME=${VER_NAME}" >> $GITHUB_ENV
           echo "VIBRA_VERSION_CODE=${VER_CODE}" >> $GITHUB_ENV
-          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${VER_NAME}" iosApp/iosApp/Info.plist || true
-          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${VER_CODE}" iosApp/iosApp/Info.plist || true
           echo "Resolved iOS auto version: ${TAG} (build=${VER_CODE})"
 
-      - name: Set up JDK 21
-        uses: actions/setup-java@v5
-        with:
-          distribution: 'temurin'
-          java-version: '21'
-          cache: 'gradle'
-
-      - name: Setup Android SDK & local.properties
-        run: |
-          export ANDROID_HOME="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
-          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
-          mkdir -p "$ANDROID_HOME/platforms"
-          HIGHEST_PLATFORM=$(ls -d "$ANDROID_HOME"/platforms/android-* 2>/dev/null | sort -V | tail -n 1 || true)
-          for VER in 36 37; do
-            if [ ! -d "$ANDROID_HOME/platforms/android-$VER" ] && [ -n "$HIGHEST_PLATFORM" ]; then
-              ln -s "$HIGHEST_PLATFORM" "$ANDROID_HOME/platforms/android-$VER"
-            fi
-          done
-          echo "sdk.dir=$ANDROID_HOME" > local.properties
-          echo "LASTFM_API_KEY=${{ secrets.LASTFM_API_KEY || '4ea1e882eb80524d4ed3a250f47cefe5' }}" >> local.properties
-          echo "LASTFM_SECRET=${{ secrets.LASTFM_SECRET || '00f3857fc1d79480e51242b3720a140a' }}" >> local.properties
-          echo "LISTEN_TOGETHER_SERVER=https://party.vibramusic.store" >> local.properties
-
-      - name: Build SharedUi iOS Framework (Arm64)
-        run: |
-          chmod +x gradlew
-          ./gradlew :sharedUi:linkReleaseFrameworkIosArm64 -PiosOnly=true --no-daemon
-
-      - name: Generate Xcode Project & Build Unsigned iOS App
+      - name: Build Unsigned iOS App
         working-directory: iosApp
         run: |
+          set -o pipefail
           TAG="${RELEASE_TAG}"
-          command -v xcodegen >/dev/null 2>&1 || brew install xcodegen
-          xcodegen generate
           xcodebuild \
-            -project VibraMusic.xcodeproj \
+            -workspace VibraMusic.xcworkspace \
             -scheme VibraMusic \
             -configuration Release \
             -sdk iphoneos \
             -derivedDataPath build \
+            -skipPackagePluginValidation -skipMacroValidation \
+            COMPILER_INDEX_STORE_ENABLE=NO \
             ARCHS=arm64 \
             ONLY_ACTIVE_ARCH=NO \
             CODE_SIGNING_ALLOWED=NO \

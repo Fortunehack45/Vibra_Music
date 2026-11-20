@@ -1,0 +1,18 @@
+{
+  "tracks": {
+    "items": [
+      {
+        "uri": "spotify:track:wrongartist000000000000",
+        "name": "Blinding Lights",
+        "artists": [{ "name": "Tribute Act" }],
+        "album": { "name": "Tributes" }
+      },
+      {
+        "uri": "spotify:track:0VjIjW4GlUZAMYd2vXMi3b",
+        "name": "Blinding Lights",
+        "artists": [{ "name": "The Weeknd" }],
+        "album": { "name": "After Hours" }
+      }
+    ]
+  }
+}

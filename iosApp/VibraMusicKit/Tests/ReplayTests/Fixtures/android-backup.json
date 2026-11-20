@@ -1,0 +1,81 @@
+{
+  "app": "vibramusic",
+  "version": 1,
+  "versionName": "3.2.1",
+  "exportedAt": "2026-08-14T10:00:00Z",
+  "settings": {
+    "audio_quality_wifi": {
+      "type": "string",
+      "value": "LOSSLESS"
+    },
+    "autoplay": {
+      "type": "bool",
+      "value": "true"
+    },
+    "crossfade_seconds": {
+      "type": "int",
+      "value": "6"
+    },
+    "replay_genres": {
+      "type": "bool",
+      "value": "false"
+    },
+    "playback_speed": {
+      "type": "float",
+      "value": "1.5"
+    },
+    "pinned_playlists": {
+      "type": "stringSet",
+      "values": [
+        "PLdef",
+        "PLabc"
+      ]
+    }
+  },
+  "listening": [
+    {
+      "version": 1,
+      "month": "2026-07",
+      "tracks": [
+        {
+          "id": "dQw4w9WgXcQ",
+          "title": "Never Gonna Give You Up",
+          "artist": "Rick Astley",
+          "album": "Whenever You Need Somebody",
+          "albumId": "MPREabc",
+          "artistId": "UCabc",
+          "art": "https://example.test/rick.jpg",
+          "ms": 1250000,
+          "plays": 5,
+          "last": 1783987200000
+        }
+      ],
+      "artists": [
+        {
+          "name": "Rick Astley",
+          "sub": null,
+          "art": "https://example.test/rick.jpg",
+          "id": "UCabc",
+          "ms": 1250000,
+          "plays": 5,
+          "key": "rick astley"
+        }
+      ],
+      "albums": [
+        {
+          "name": "Whenever You Need Somebody",
+          "sub": "Rick Astley",
+          "art": "https://example.test/rick.jpg",
+          "id": "MPREabc",
+          "ms": 1250000,
+          "plays": 5,
+          "key": "whenever you need somebody\u001frick astley"
+        }
+      ],
+      "hours": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1250000, 0, 0, 0, 0, 0, 0],
+      "days": {
+        "14": 1250000
+      }
+    }
+  ]
+}

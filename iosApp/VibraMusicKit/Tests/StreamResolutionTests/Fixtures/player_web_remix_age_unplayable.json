@@ -1,0 +1,479 @@
+{
+ "responseContext": {
+  "visitorData": "Cgt1Y2Z5djZ5ZHVfOCjaqd3VBjIKCgJJThIEGgAgEmLfAgrcAjIyLllUPUV1V3RLOFpSbHdfQkNlN2ltTDcxdDlXb09fSTNQS0g1VXVmMHZjZC1wNFlLMndDSkE0STBNQzhuRVRfMUMwNEJaU1BkazdlcGtsVjVHSmdDckxBQl9uQ0NMekwxUF9aYm1mOTJ3S191c0F3emx3OGdvT3ViV1dYanY3TjFwQjBLWnlxNDhaNkFSN0F5TWl0M0lVZUZQM1VaMEl3eFRQTW1NT3VPdnJsSU9mSmJDWVgtVjh0QVNwWjNLM3Bodk15emRTYVh5VnFWb2JxZHNFc2owMmpaUk1oelpUeWdnSVB1Yk9xeVRjRXFpMDdzUGQ3VVowaDFkTGM1bWZDalFjQ3lyYW44a1dvaVl0d0F6RFBLVE5JY3RjdVZ1ZDFPbnFwNC1LNkd2LW9TdnA0NERnV05Cbko3Ml93TVlNNmpMZjBIeHNnTnlGM2MxM1YwUDQxSkNoRkV6UQ%3D%3D",
+  "serviceTrackingParams": [
+   {
+    "service": "GFEEDBACK",
+    "params": [
+     {
+      "key": "is_alc_surface",
+      "value": "false"
+     },
+     {
+      "key": "ipcc",
+      "value": "0"
+     },
+     {
+      "key": "is_viewed_live",
+      "value": "False"
+     },
+     {
+      "key": "wh_paused",
+      "value": "0"
+     },
+     {
+      "key": "logged_in",
+      "value": "0"
+     }
+    ]
+   },
+   {
+    "service": "CSI",
+    "params": [
+     {
+      "key": "c",
+      "value": "WEB_REMIX"
+     },
+     {
+      "key": "cver",
+      "value": "1.20260922.09.00"
+     },
+     {
+      "key": "yt_li",
+      "value": "0"
+     },
+     {
+      "key": "GetPlayer_rid",
+      "value": "0xda4479fa15d8d9da"
+     }
+    ]
+   },
+   {
+    "service": "ECATCHER",
+    "params": [
+     {
+      "key": "client.version",
+      "value": "1.20000101"
+     },
+     {
+      "key": "client.name",
+      "value": "WEB_REMIX"
+     }
+    ]
+   }
+  ],
+  "maxAgeSeconds": 0,
+  "responseId": "IhMIwKuc1L6LlwMVP4OsAh2JEAPk"
+ },
+ "playabilityStatus": {
+  "status": "UNPLAYABLE",
+  "reason": "Video unavailable",
+  "errorScreen": {
+   "playerErrorMessageRenderer": {
+    "subreason": {
+     "runs": [
+      {
+       "text": "This video is not available"
+      }
+     ]
+    },
+    "reason": {
+     "runs": [
+      {
+       "text": "Video unavailable"
+      }
+     ]
+    },
+    "thumbnail": {
+     "thumbnails": [
+      {
+       "url": "//s.ytimg.com/yts/img/meh7-vflGevej7.png",
+       "width": 140,
+       "height": 100
+      }
+     ]
+    },
+    "icon": {
+     "iconType": "ERROR_OUTLINE"
+    }
+   }
+  },
+  "contextParams": "Q0FFU0FnZ0M="
+ },
+ "videoDetails": {
+  "videoId": "HtVdAasjOgU",
+  "title": "The Witcher 3: Wild Hunt - The Sword Of Destiny Trailer",
+  "lengthSeconds": "142",
+  "channelId": "UCzybXLxv08IApdjdN0mJhEg",
+  "isOwnerViewing": false,
+  "isCrawlable": true,
+  "thumbnail": {
+   "thumbnails": [
+    {
+     "url": "https://i.ytimg.com/vi_webp/HtVdAasjOgU/mqdefault.webp",
+     "width": 320,
+     "height": 180
+    },
+    {
+     "url": "https://i.ytimg.com/vi/HtVdAasjOgU/hqdefault.jpg?sqp=-oaymwEXCJADEOABSFryq4qpAwkIARUAAIhCGAE=&rs=AOn4CLAC29zalwlhbhVLZYmbU9gKc0OnWA",
+     "width": 400,
+     "height": 224
+    },
+    {
+     "url": "https://i.ytimg.com/vi/HtVdAasjOgU/hq720.jpg?sqp=-oaymwEXCKAGEMIDSFryq4qpAwkIARUAAIhCGAE=&rs=AOn4CLCZAL8j4b8cr6MNQwurxb4ump583A",
+     "width": 800,
+     "height": 450
+    },
+    {
+     "url": "https://i.ytimg.com/vi_webp/HtVdAasjOgU/hq720.webp",
+     "width": 1280,
+     "height": 720
+    }
+   ]
+  },
+  "allowRatings": true,
+  "viewCount": "5770561",
+  "author": "The Witcher",
+  "isPrivate": false,
+  "isUnpluggedCorpus": false,
+  "isLiveContent": false,
+  "isTvfilmVideo": false
+ },
+ "microformat": {
+  "microformatDataRenderer": {
+   "urlCanonical": "https://music.youtube.com/watch?v=HtVdAasjOgU",
+   "title": "The Witcher 3: Wild Hunt - The Sword Of Destiny Trailer",
+   "description": "For more information visit: Buy now: http://buy.thewitcher.com Facebook: https://www.fb.com/thewitcher Twitter: https://twitter.com/witchergame Homepage: htt...",
+   "thumbnail": {
+    "thumbnails": [
+     {
+      "url": "https://i.ytimg.com/vi/HtVdAasjOgU/maxresdefault.jpg",
+      "width": 1280,
+      "height": 720
+     }
+    ]
+   },
+   "siteName": "YouTube Music",
+   "appName": "YouTube Music",
+   "androidPackage": "com.google.android.apps.youtube.music",
+   "iosAppStoreId": "1017492454",
+   "iosAppArguments": "https://music.youtube.com/watch?v=HtVdAasjOgU",
+   "ogType": "video.other",
+   "urlApplinksIos": "vnd.youtube.music://music.youtube.com/watch?v=HtVdAasjOgU&feature=applinks",
+   "urlApplinksAndroid": "vnd.youtube.music://music.youtube.com/watch?v=HtVdAasjOgU&feature=applinks",
+   "urlTwitterIos": "vnd.youtube.music://music.youtube.com/watch?v=HtVdAasjOgU&feature=twitter-deep-link",
+   "urlTwitterAndroid": "vnd.youtube.music://music.youtube.com/watch?v=HtVdAasjOgU&feature=twitter-deep-link",
+   "twitterCardType": "summary",
+   "twitterSiteHandle": "@YouTubeMusic",
+   "schemaDotOrgType": "http://schema.org/VideoObject",
+   "noindex": false,
+   "unlisted": false,
+   "paid": false,
+   "familySafe": false,
+   "tags": [
+    "RPG",
+    "E3 2014",
+    "e3",
+    "Gameplay Trailer",
+    "witcher",
+    "the witcher",
+    "the witcher 3",
+    "e3 trailer",
+    "e3 2014 trailer",
+    "witcher 3 e3 trailer",
+    "witcher 3 e3",
+    "witcher e3",
+    "sword of destiny",
+    "wild hunt",
+    "thewitcher",
+    "trailer",
+    "gameplay trailer"
+   ],
+   "availableCountries": [
+    "AD",
+    "AE",
+    "AF",
+    "AG",
+    "AI",
+    "AL",
+    "AM",
+    "AO",
+    "AQ",
+    "AR",
+    "AS",
+    "AT",
+    "AU",
+    "AW",
+    "AX",
+    "AZ",
+    "BA",
+    "BB",
+    "BD",
+    "BE",
+    "BF",
+    "BG",
+    "BH",
+    "BI",
+    "BJ",
+    "BL",
+    "BM",
+    "BN",
+    "BO",
+    "BQ",
+    "BR",
+    "BS",
+    "BT",
+    "BV",
+    "BW",
+    "BY",
+    "BZ",
+    "CA",
+    "CC",
+    "CD",
+    "CF",
+    "CG",
+    "CH",
+    "CI",
+    "CK",
+    "CL",
+    "CM",
+    "CN",
+    "CO",
+    "CR",
+    "CU",
+    "CV",
+    "CW",
+    "CX",
+    "CY",
+    "CZ",
+    "DE",
+    "DJ",
+    "DK",
+    "DM",
+    "DO",
+    "DZ",
+    "EC",
+    "EE",
+    "EG",
+    "EH",
+    "ER",
+    "ES",
+    "ET",
+    "FI",
+    "FJ",
+    "FK",
+    "FM",
+    "FO",
+    "FR",
+    "GA",
+    "GB",
+    "GD",
+    "GE",
+    "GF",
+    "GG",
+    "GH",
+    "GI",
+    "GL",
+    "GM",
+    "GN",
+    "GP",
+    "GQ",
+    "GR",
+    "GS",
+    "GT",
+    "GU",
+    "GW",
+    "GY",
+    "HK",
+    "HM",
+    "HN",
+    "HR",
+    "HT",
+    "HU",
+    "ID",
+    "IE",
+    "IL",
+    "IM",
+    "IN",
+    "IO",
+    "IQ",
+    "IR",
+    "IS",
+    "IT",
+    "JE",
+    "JM",
+    "JO",
+    "JP",
+    "KE",
+    "KG",
+    "KH",
+    "KI",
+    "KM",
+    "KN",
+    "KP",
+    "KR",
+    "KW",
+    "KY",
+    "KZ",
+    "LA",
+    "LB",
+    "LC",
+    "LI",
+    "LK",
+    "LR",
+    "LS",
+    "LT",
+    "LU",
+    "LV",
+    "LY",
+    "MA",
+    "MC",
+    "MD",
+    "ME",
+    "MF",
+    "MG",
+    "MH",
+    "MK",
+    "ML",
+    "MM",
+    "MN",
+    "MO",
+    "MP",
+    "MQ",
+    "MR",
+    "MS",
+    "MT",
+    "MU",
+    "MV",
+    "MW",
+    "MX",
+    "MY",
+    "MZ",
+    "NA",
+    "NC",
+    "NE",
+    "NF",
+    "NG",
+    "NI",
+    "NL",
+    "NO",
+    "NP",
+    "NR",
+    "NU",
+    "NZ",
+    "OM",
+    "PA",
+    "PE",
+    "PF",
+    "PG",
+    "PH",
+    "PK",
+    "PL",
+    "PM",
+    "PN",
+    "PR",
+    "PS",
+    "PT",
+    "PW",
+    "PY",
+    "QA",
+    "RE",
+    "RO",
+    "RS",
+    "RU",
+    "RW",
+    "SA",
+    "SB",
+    "SC",
+    "SD",
+    "SE",
+    "SG",
+    "SH",
+    "SI",
+    "SJ",
+    "SK",
+    "SL",
+    "SM",
+    "SN",
+    "SO",
+    "SR",
+    "SS",
+    "ST",
+    "SV",
+    "SX",
+    "SY",
+    "SZ",
+    "TC",
+    "TD",
+    "TF",
+    "TG",
+    "TH",
+    "TJ",
+    "TK",
+    "TL",
+    "TM",
+    "TN",
+    "TO",
+    "TR",
+    "TT",
+    "TV",
+    "TW",
+    "TZ",
+    "UA",
+    "UG",
+    "UM",
+    "US",
+    "UY",
+    "UZ",
+    "VA",
+    "VC",
+    "VE",
+    "VG",
+    "VI",
+    "VN",
+    "VU",
+    "WF",
+    "WS",
+    "YE",
+    "YT",
+    "ZA",
+    "ZM",
+    "ZW"
+   ],
+   "pageOwnerDetails": {
+    "name": "The Witcher",
+    "externalChannelId": "UCzybXLxv08IApdjdN0mJhEg",
+    "youtubeProfileUrl": "http://www.youtube.com/@thewitcher"
+   },
+   "videoDetails": {
+    "externalVideoId": "HtVdAasjOgU",
+    "durationSeconds": "142",
+    "durationIso8601": "PT2M22S"
+   },
+   "linkAlternates": [
+    {
+     "hrefUrl": "android-app://com.google.android.youtube/http/youtube.com/watch?v=HtVdAasjOgU"
+    },
+    {
+     "hrefUrl": "ios-app://544007664/http/youtube.com/watch?v=HtVdAasjOgU"
+    },
+    {
+     "hrefUrl": "https://www.youtube.com/oembed?format=json&url=https%3A%2F%2Fmusic.youtube.com%2Fwatch%3Fv%3DHtVdAasjOgU",
+     "title": "The Witcher 3: Wild Hunt - The Sword Of Destiny Trailer",
+     "alternateType": "application/json+oembed"
+    },
+    {
+     "hrefUrl": "https://www.youtube.com/oembed?format=xml&url=https%3A%2F%2Fmusic.youtube.com%2Fwatch%3Fv%3DHtVdAasjOgU",
+     "title": "The Witcher 3: Wild Hunt - The Sword Of Destiny Trailer",
+     "alternateType": "text/xml+oembed"
+    }
+   ],
+   "viewCount": "5770561",
+   "publishDate": "2014-06-05T11:07:43-07:00",
+   "category": "Gaming",
+   "uploadDate": "2014-06-05T11:07:43-07:00"
+  }
+ },
+ "trackingParams": "CAAQu2kiEwjAq5zUvouXAxU_g6wCHYkQA-TKAQTRfQ4M",
+ "adBreakHeartbeatParams": "Q0FBJTNE"
+}

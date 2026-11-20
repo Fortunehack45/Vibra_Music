@@ -1,0 +1,20 @@
+{
+  "results": {
+    "songs": {
+      "data": [
+        {
+          "id": "1111111111",
+          "attributes": {
+            "name": "Blinding Lights",
+            "artistName": "Tribute Act",
+            "albumName": "Tribute to the Weeknd",
+            "url": "https://music.apple.com/us/album/tribute/1111111111?i=1111111111",
+            "editorialVideo": {
+              "motionDetailSquare": { "video": "https://example.com/apple/wrong-artist.m3u8" }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

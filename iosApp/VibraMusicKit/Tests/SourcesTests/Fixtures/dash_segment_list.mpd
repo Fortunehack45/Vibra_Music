@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<MPD xmlns="urn:mpeg:dash:schema:mpd:2011" type="static" mediaPresentationDuration="PT10S">
+  <BaseURL>media/</BaseURL>
+  <Period duration="PT10S">
+    <AdaptationSet mimeType="audio/mp4" codecs="mp4a.40.2">
+      <Representation id="aac" bandwidth="256000" audioSamplingRate="44100">
+        <BaseURL>track.mp4</BaseURL>
+        <SegmentList timescale="1000" duration="4000">
+          <Initialization range="0-863"/>
+          <SegmentURL mediaRange="864-65000"/>
+          <SegmentURL mediaRange="65001-130000"/>
+          <SegmentURL mediaRange="130001-160000"/>
+        </SegmentList>
+      </Representation>
+    </AdaptationSet>
+  </Period>
+</MPD>

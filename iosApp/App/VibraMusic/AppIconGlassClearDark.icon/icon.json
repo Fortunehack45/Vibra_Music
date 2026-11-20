@@ -1,0 +1,176 @@
+{
+  "fill-specializations": [
+    {
+      "value": {
+        "linear-gradient": [
+          "srgb:0.54118,0.54118,0.56471,1.00000",
+          "srgb:0.36863,0.36863,0.39216,1.00000"
+        ],
+        "orientation": {
+          "start": {
+            "x": 0.5,
+            "y": 0
+          },
+          "stop": {
+            "x": 0.5,
+            "y": 1
+          }
+        }
+      }
+    }
+  ],
+  "groups": [
+    {
+      "layers": [
+        {
+          "name": "wave-top",
+          "image-name": "wave-top.svg",
+          "glass": true,
+          "position": {
+            "scale": 1,
+            "translation-in-points": [
+              0,
+              0
+            ]
+          },
+          "fill-specializations": [
+            {
+              "value": {
+                "solid": "srgb:1.00000,1.00000,1.00000,0.90000"
+              }
+            }
+          ]
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.45
+      },
+      "translucency": {
+        "enabled": true,
+        "value": 0.6
+      },
+      "refractivity": {
+        "enabled": true,
+        "strength": 1.0,
+        "depth": 1.0
+      },
+      "specular": true,
+      "lighting": "individual"
+    },
+    {
+      "layers": [
+        {
+          "name": "wave-middle",
+          "image-name": "wave-middle.svg",
+          "glass": true,
+          "position": {
+            "scale": 1,
+            "translation-in-points": [
+              0,
+              0
+            ]
+          },
+          "fill-specializations": [
+            {
+              "value": {
+                "solid": "srgb:1.00000,1.00000,1.00000,0.70000"
+              }
+            }
+          ]
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.45
+      },
+      "translucency": {
+        "enabled": true,
+        "value": 0.6
+      },
+      "refractivity": {
+        "enabled": true,
+        "strength": 1.0,
+        "depth": 1.0
+      },
+      "specular": true,
+      "lighting": "individual"
+    },
+    {
+      "layers": [
+        {
+          "name": "wave-bottom",
+          "image-name": "wave-bottom.svg",
+          "glass": true,
+          "position": {
+            "scale": 1,
+            "translation-in-points": [
+              0,
+              0
+            ]
+          },
+          "fill-specializations": [
+            {
+              "value": {
+                "solid": "srgb:1.00000,1.00000,1.00000,0.50000"
+              }
+            }
+          ]
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.45
+      },
+      "translucency": {
+        "enabled": true,
+        "value": 0.6
+      },
+      "refractivity": {
+        "enabled": true,
+        "strength": 1.0,
+        "depth": 1.0
+      },
+      "specular": true,
+      "lighting": "individual"
+    },
+    {
+      "layers": [
+        {
+          "name": "white",
+          "image-name": "glow-white.png",
+          "glass": false,
+          "position": {
+            "scale": 1,
+            "translation-in-points": [
+              0,
+              0
+            ]
+          },
+          "hidden-specializations": [
+            {
+              "appearance": "dark",
+              "value": true
+            }
+          ]
+        },
+        {
+          "name": "shade",
+          "image-name": "glow-shade.png",
+          "glass": false,
+          "position": {
+            "scale": 1,
+            "translation-in-points": [
+              0,
+              0
+            ]
+          }
+        }
+      ],
+      "specular": false
+    }
+  ],
+  "supported-platforms": {
+    "squares": "shared"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "name": "Test index",
+  "category:music": [
+    {"id": "echo", "name": "Echo", "author": "tests", "version": "1.0.0", "download": "echo.js", "tags": ["FLAC", "Lossless"]},
+    {"id": "template", "name": "Template", "download": "https://modules.example.com/lib/template.js", "labels": ["HIGH"]}
+  ],
+  "category:testing": [
+    {"id": "hidden", "name": "Hidden", "download": "hidden.js"}
+  ],
+  "category:ricky_modules": [
+    {"id": "echo", "name": "Echo duplicate", "download": "echo.js"}
+  ]
+}

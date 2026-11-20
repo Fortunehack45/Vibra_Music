@@ -1,0 +1,26 @@
+{
+  "configurations": [
+    {
+      "id": "6F1C2B3A-0000-4000-8000-000000000002",
+      "name": "Default",
+      "options": {}
+    }
+  ],
+  "defaultOptions": {
+    "targetForVariableExpansion": {
+      "containerPath": "container:VibraMusic.xcodeproj",
+      "identifier": "BC0000000000000000000011",
+      "name": "Vibra Music"
+    }
+  },
+  "testTargets": [
+    {
+      "target": {
+        "containerPath": "container:VibraMusic.xcodeproj",
+        "identifier": "BC0000000000000000000053",
+        "name": "VibraMusicUITests"
+      }
+    }
+  ],
+  "version": 1
+}

@@ -1,0 +1,21 @@
+{
+  "tracks": {
+    "items": [
+      {
+        "title": "Blinding Lights",
+        "artists": [{ "name": "Karaoke Tribute" }],
+        "album": { "title": "Karaoke Hits", "videoCover": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" }
+      },
+      {
+        "title": "Blinding Lights",
+        "artists": [{ "name": "The Weeknd" }],
+        "album": { "title": "After Hours (Deluxe)" }
+      },
+      {
+        "title": "Blinding Lights",
+        "artists": [{ "name": "The Weeknd" }],
+        "album": { "title": "After Hours", "videoCover": "01234567-89ab-cdef-0123-456789abcdef" }
+      }
+    ]
+  }
+}

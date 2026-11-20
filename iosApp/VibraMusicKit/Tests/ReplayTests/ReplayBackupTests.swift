@@ -85,10 +85,10 @@ final class ReplayBackupTests: XCTestCase {
 
     func testRefusals() {
         XCTAssertThrowsError(try ReplayBackup.decode(Data("not json".utf8))) { error in
-            XCTAssertEqual(error as? ReplayBackupError, .notAVibra MusicBackup)
+            XCTAssertEqual(error as? ReplayBackupError, .notAVibraMusicBackup)
         }
         XCTAssertThrowsError(try ReplayBackup.decode(Data("{}".utf8))) { error in
-            XCTAssertEqual(error as? ReplayBackupError, .notAVibra MusicBackup)
+            XCTAssertEqual(error as? ReplayBackupError, .notAVibraMusicBackup)
         }
         XCTAssertThrowsError(try ReplayBackup.decode(Data(#"{"app":"otherapp"}"#.utf8))) { error in
             XCTAssertEqual(error as? ReplayBackupError, .foreignBackup(app: "otherapp"))

@@ -2,7 +2,7 @@ import XCTest
 
 /// Verifies Search, driven the way a user does it, with a screenshot per step. Run it from the
 /// folder that holds `VibraMusic.xcworkspace`:
-/// `xcodebuild test -workspace VibraMusic.xcworkspace -scheme Vibra Music -testPlan Vibra MusicE2E
+/// `xcodebuild test -workspace VibraMusic.xcworkspace -scheme VibraMusic -testPlan VibraMusicE2E
 /// -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:VibraMusicUITests/SearchVerifyTests`.
 /// Results come from the live YouTube Music, so the last step waits for a row but keeps its
 /// screenshot either way: a stall shows up in the evidence instead of hiding behind a timeout.

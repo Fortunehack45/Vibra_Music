@@ -113,11 +113,11 @@ public enum ThemeAppearance: String, CaseIterable, Hashable, Sendable {
     }
 }
 
-/// The type scale (`Vibra MusicTypography`): heavy and tight, the backbone of the
+/// The type scale (`VibraMusicTypography`): heavy and tight, the backbone of the
 /// Apple Music look.
 ///
 /// Android bundles SF Pro Display to get this; on iOS it is simply the system
-/// font, so each style carries only size, weight and tracking (points ≈ sp).
+/// font, so each style carries only size, weight and tracking (points â‰ˆ sp).
 public struct ThemeTextStyle: Hashable, Sendable {
     public var size: CGFloat
     public var weight: Font.Weight

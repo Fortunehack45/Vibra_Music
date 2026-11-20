@@ -5,7 +5,7 @@ import WidgetKit
 /// The app's side of ``SystemIntentHandling``: the widget buttons and "play X", run against the
 /// player. Registered by its Objective-C name so the Shared intents can find it without the widget
 /// (which compiles the same intents) needing to know the app's types.
-@objc(Vibra MusicSystemIntentHandler)
+@objc(VibraMusicSystemIntentHandler)
 final class SystemIntentHandler: NSObject, SystemIntentHandling {
     @MainActor
     static func perform(_ action: WidgetTransportAction) async {

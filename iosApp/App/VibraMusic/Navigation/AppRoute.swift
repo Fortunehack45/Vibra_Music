@@ -2,9 +2,9 @@ import VibraMusicCore
 import Foundation
 
 // Ports the navigation state MainActivity.kt kept as a pile of flags (`selectedTab`, `detail`,
-// `showSettings`, `showHistory`, `libraryShowAll`…) as typed values a NavigationStack can hold.
+// `showSettings`, `showHistory`, `libraryShowAll`â€¦) as typed values a NavigationStack can hold.
 
-/// The four tabs, in Android's order (MainActivity's `TAB_HOME`…`TAB_SEARCH`).
+/// The four tabs, in Android's order (MainActivity's `TAB_HOME`â€¦`TAB_SEARCH`).
 enum AppTab: Int, CaseIterable, Identifiable, Hashable, Codable {
     case home = 0
     case explore = 1
@@ -22,7 +22,7 @@ enum AppTab: Int, CaseIterable, Identifiable, Hashable, Codable {
         }
     }
 
-    /// Vibra MusicIcons.Home / Explore / Library / Search as SF Symbols.
+    /// VibraMusicIcons.Home / Explore / Library / Search as SF Symbols.
     var symbol: String {
         switch self {
         case .home: return AppSymbol.home
@@ -62,7 +62,7 @@ enum NetworkLibraryKind: String, Hashable, Codable, CaseIterable, Identifiable {
 
 /// A page pushed onto a tab's NavigationStack.
 ///
-/// Android drew every one of these as an overlay over the tab (`detail`, `showSettings`, …); on iOS
+/// Android drew every one of these as an overlay over the tab (`detail`, `showSettings`, â€¦); on iOS
 /// they are ordinary pushes, so the back gesture and the tab's own history work as expected.
 enum AppRoute: Hashable {
     /// An album page. `seed` is the card or row it was opened from, drawn while the page loads.
@@ -75,8 +75,8 @@ enum AppRoute: Hashable {
     /// Offline backup: every song already whole on this device.
     case offlineBackup
     /// An on-device folder's page: Downloads over `.downloads`, Local Music (`local:all`) over
-    /// `.localMusic`. The folder rides in the route, so browse id → route → folder is one mapping
-    /// (`LocalFolder.browseId`) instead of two that drift — which is how the Local music card
+    /// `.localMusic`. The folder rides in the route, so browse id â†’ route â†’ folder is one mapping
+    /// (`LocalFolder.browseId`) instead of two that drift â€” which is how the Local music card
     /// opened Downloads.
     case folder(LocalFolder)
     case networkLibrary(NetworkLibraryKind)

@@ -4,7 +4,7 @@ import os
 // Ports data/DebugLog.kt onto os.Logger.
 
 /// The app's logging conventions: subsystem `com.fortune.vibramusic.ios`, category = module name.
-public enum Vibra MusicLogging {
+public enum VibraMusicLogging {
     public static let subsystem = "com.fortune.vibramusic.ios"
 
     /// A logger for `category` (use your module name: "Lyrics", "Downloads", …).
@@ -26,7 +26,7 @@ public enum DebugLog {
     public static func d(_ category: String, _ message: @autoclosure () -> String) {
         #if DEBUG
         let text = message()
-        Vibra MusicLogging.logger(category).debug("\(text, privacy: .public)")
+        VibraMusicLogging.logger(category).debug("\(text, privacy: .public)")
         DiagnosticLog.shared.record(.debug, category: category, track: TrackLog.currentTrack, message: text)
         #else
         file(.debug, category, message)
@@ -36,7 +36,7 @@ public enum DebugLog {
     public static func i(_ category: String, _ message: @autoclosure () -> String) {
         #if DEBUG
         let text = message()
-        Vibra MusicLogging.logger(category).info("\(text, privacy: .public)")
+        VibraMusicLogging.logger(category).info("\(text, privacy: .public)")
         DiagnosticLog.shared.record(.info, category: category, track: TrackLog.currentTrack, message: text)
         #else
         file(.info, category, message)
@@ -45,13 +45,13 @@ public enum DebugLog {
 
     public static func w(_ category: String, _ message: @autoclosure () -> String, error: Error? = nil) {
         let text = describe(message(), error)
-        Vibra MusicLogging.logger(category).warning("\(text, privacy: .public)")
+        VibraMusicLogging.logger(category).warning("\(text, privacy: .public)")
         DiagnosticLog.shared.record(.warning, category: category, track: TrackLog.currentTrack, message: text)
     }
 
     public static func e(_ category: String, _ message: @autoclosure () -> String, error: Error? = nil) {
         let text = describe(message(), error)
-        Vibra MusicLogging.logger(category).error("\(text, privacy: .public)")
+        VibraMusicLogging.logger(category).error("\(text, privacy: .public)")
         DiagnosticLog.shared.record(.error, category: category, track: TrackLog.currentTrack, message: text)
     }
 

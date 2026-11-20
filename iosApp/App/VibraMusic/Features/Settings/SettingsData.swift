@@ -138,7 +138,7 @@ struct SettingsBackup {
     private static func message(of error: Error) -> String {
         if let backup = error as? ReplayBackupError {
             switch backup {
-            case .notAVibra MusicBackup: return "That doesn't look like a Vibra Music backup"
+            case .notAVibraMusicBackup: return "That doesn't look like a Vibra Music backup"
             case .foreignBackup: return "That backup is from another app"
             case .newerSchema: return "That backup was written by a newer version of Vibra Music"
             }

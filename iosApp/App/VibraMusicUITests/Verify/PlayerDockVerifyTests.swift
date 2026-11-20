@@ -3,7 +3,7 @@ import XCTest
 /// Verifies that the player moves between the mini player and open by a tap, a pull and the close
 /// button, with the mini player's cover hidden while the player is in flight. Run it from the
 /// folder that holds `VibraMusic.xcworkspace`:
-/// `xcodebuild test -workspace VibraMusic.xcworkspace -scheme Vibra Music -testPlan Vibra MusicE2E
+/// `xcodebuild test -workspace VibraMusic.xcworkspace -scheme VibraMusic -testPlan VibraMusicE2E
 /// -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:VibraMusicUITests/PlayerDockVerifyTests`.
 /// A song comes from the live YouTube Music; the mini player appears whether or not it streams.
 final class PlayerDockVerifyTests: XCTestCase {
@@ -204,7 +204,7 @@ final class PlayerDockVerifyTests: XCTestCase {
             let art = try XCTUnwrap(sample.art, "no artwork rect mid-flight: \(sample.raw)")
             let landing = try XCTUnwrap(sample.open, "no open rect mid-flight: \(sample.raw)")
             // The place it was given moves while the cover's safe area arrives; the curve is to that place.
-            // y(t) = mini.y - t² (mini.y - landing.y); the probe's t and its rect are a frame apart.
+            // y(t) = mini.y - tÂ² (mini.y - landing.y); the probe's t and its rect are a frame apart.
             let t = sample.t
             let x = mini[0] + t * (landing[0] - mini[0])
             let width = mini[2] + t * (landing[2] - mini[2])
@@ -255,7 +255,7 @@ final class PlayerDockVerifyTests: XCTestCase {
         return false
     }
 
-    /// A probe value such as `t=0.430 mini=28,700,40,40 art=30,120,330,330 covered=1 presented=1 …`.
+    /// A probe value such as `t=0.430 mini=28,700,40,40 art=30,120,330,330 covered=1 presented=1 â€¦`.
     private struct DockSample {
         let raw: String
         init(_ raw: String) { self.raw = raw }
@@ -277,7 +277,7 @@ final class PlayerDockVerifyTests: XCTestCase {
         }
     }
 
-    /// The number after `key=` in a probe value such as `t=0.430 mini=… presented=1 holds=12`.
+    /// The number after `key=` in a probe value such as `t=0.430 mini=â€¦ presented=1 holds=12`.
     private func number(_ key: String, in value: String) -> Double? {
         value.split(separator: " ").first { $0.hasPrefix(key + "=") }.flatMap { Double($0.dropFirst(key.count + 1)) }
     }

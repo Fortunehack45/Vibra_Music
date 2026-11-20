@@ -1,6 +1,6 @@
 import XCTest
 
-/// End-to-end flows against the real app. Part of the Vibra MusicE2E test plan, not the default
+/// End-to-end flows against the real app. Part of the VibraMusicE2E test plan, not the default
 /// gate: they need the network and a live YouTube Music.
 final class LaunchUITests: XCTestCase {
     func testAppLaunches() {

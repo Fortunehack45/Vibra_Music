@@ -3,7 +3,7 @@ import XCTest
 /// Verifies the queue's "Previously played" history (Android v1.8.1, kushagrasinghx/Vibra Music#167),
 /// driven the way a user does it, with a screenshot per step. Run it from the folder that holds
 /// `VibraMusic.xcworkspace`:
-/// `xcodebuild test -workspace VibraMusic.xcworkspace -scheme Vibra Music -testPlan Vibra MusicE2E
+/// `xcodebuild test -workspace VibraMusic.xcworkspace -scheme VibraMusic -testPlan VibraMusicE2E
 /// -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:VibraMusicUITests/QueueHistoryVerifyTests`.
 /// The history builds from what the drive plays: two songs, so a skip leaves one played row.
 /// Streaming on a simulator sometimes never starts; the queue still moves on `next`, so the drive

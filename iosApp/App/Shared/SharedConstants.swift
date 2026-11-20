@@ -14,5 +14,5 @@ enum SharedConstants {
     /// The class the app registers under this Objective-C name to serve the widget's buttons and
     /// Siri. Looked up at run time because the widget and Share Extension are compiled from the same
     /// Shared sources but don't contain it (see ``SystemIntentBridge``).
-    static let intentHandlerClassName = "Vibra MusicSystemIntentHandler"
+    static let intentHandlerClassName = "VibraMusicSystemIntentHandler"
 }

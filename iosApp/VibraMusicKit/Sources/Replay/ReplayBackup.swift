@@ -22,7 +22,7 @@ public enum ReplayBackupError: Error, Hashable, Sendable {
     /// Not JSON, or not the shape of a backup at all. A half-applied import is worse than a
     /// refused one — it leaves settings from two devices mixed together with nothing to say which
     /// came from where — so anything that isn't one of ours is refused whole.
-    case notAVibra MusicBackup
+    case notAVibraMusicBackup
     /// From another app (`app` tag mismatch). The offending tag rides along for the error line.
     case foreignBackup(app: String)
     /// Written by a newer Vibra Music whose schema this build can't read. Refused rather than
@@ -128,7 +128,7 @@ public enum ReplayBackup {
         do {
             stored = try JSONDecoder().decode(Stored.self, from: data)
         } catch {
-            throw ReplayBackupError.notAVibra MusicBackup
+            throw ReplayBackupError.notAVibraMusicBackup
         }
         guard stored.app == appTag else {
             throw ReplayBackupError.foreignBackup(app: stored.app)
@@ -143,7 +143,7 @@ public enum ReplayBackup {
             // Only refuse when there is truly nothing — which, with defaults, we cannot tell from
             // `{}`. Android has the same shape; an export always stamps versionName/exportedAt, so
             // require at least one of them.
-            throw ReplayBackupError.notAVibra MusicBackup
+            throw ReplayBackupError.notAVibraMusicBackup
         }
         return ReplayBackupFile(
             versionName: stored.versionName, exportedAt: stored.exportedAt,

@@ -74,7 +74,7 @@ struct NothingPlayedError: Error, CustomLocalizedStringResourceConvertible {
     }
 }
 
-struct Vibra MusicShortcuts: AppShortcutsProvider {
+struct VibraMusicShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(
             intent: PlayMusicIntent(),

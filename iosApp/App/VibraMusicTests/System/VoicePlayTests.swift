@@ -82,7 +82,7 @@ final class VoicePlayTests: XCTestCase {
         _ = try await PlayMusicIntent().perform()
         _ = try await PlayMusicIntent(query: "Daft Punk").perform()
         XCTAssertEqual(RecordingIntentHandler.requests, [nil, "Daft Punk"])
-        XCTAssertEqual(Vibra MusicShortcuts.appShortcuts.count, 2)
+        XCTAssertEqual(VibraMusicShortcuts.appShortcuts.count, 2)
     }
 
     func testTheAppShortcutsFailWhenNothingPlays() async {

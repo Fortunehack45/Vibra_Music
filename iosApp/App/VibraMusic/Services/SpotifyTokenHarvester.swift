@@ -40,7 +40,7 @@ struct SpotifyTokenHarvester: CanvasSpotifyTokenHarvester {
 
     /// Receives the raw `/api/token` bodies the hook script posts.
     @MainActor private final class Bridge: NSObject, WKScriptMessageHandler {
-        static let name = "Vibra MusicSpotifyTokenBridge"
+        static let name = "VibraMusicSpotifyTokenBridge"
         private var waiter: CheckedContinuation<CanvasHarvestedToken?, Never>?
 
         func token(within timeout: Duration) async -> CanvasHarvestedToken? {

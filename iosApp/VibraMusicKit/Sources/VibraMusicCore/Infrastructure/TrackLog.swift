@@ -80,9 +80,9 @@ public final class TrackLog: @unchecked Sendable {
     // MARK: Writing
 
     /// Runs `operation` with every line it logs (including from child tasks) filed against `id`.
-    nonisolated(nonsending) public static func about<T>(
+    public static func about<T>(
         _ id: String?,
-        operation: nonisolated(nonsending) () async throws -> T
+        operation: () async throws -> T
     ) async rethrows -> T {
         try await $currentTrack.withValue(id, operation: operation)
     }
@@ -106,7 +106,7 @@ public final class TrackLog: @unchecked Sendable {
     /// Records a line (and mirrors it to os.Logger in debug builds and, for ``shared``, to the log file).
     public func log(_ level: Level, _ category: String, _ message: String, about: String? = TrackLog.currentTrack) {
         #if DEBUG
-        let logger = Vibra MusicLogging.logger(category)
+        let logger = VibraMusicLogging.logger(category)
         switch level {
         case .debug: logger.debug("\(message, privacy: .public)")
         case .info: logger.info("\(message, privacy: .public)")

@@ -1,6 +1,6 @@
 import Foundation
 
-/// ui/icons/Vibra MusicIcons.kt as SF Symbols. Android drew its own vectors to get Apple's look on a
+/// ui/icons/VibraMusicIcons.kt as SF Symbols. Android drew its own vectors to get Apple's look on a
 /// platform without it; on iOS the real symbols are the look, so each name maps onto one.
 enum AppSymbol {
     static let queue = "list.bullet"

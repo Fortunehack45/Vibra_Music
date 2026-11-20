@@ -1,8 +1,8 @@
 import XCTest
 
-/// Helpers for the verification drives in this folder, which run in the `Vibra MusicE2E` test plan.
+/// Helpers for the verification drives in this folder, which run in the `VibraMusicE2E` test plan.
 /// Each `capture` keeps a named screenshot in the result bundle, even when the test passes, so a
-/// run can be checked by eye in Xcode's test report. Name steps "1-launched", "2-…" so they sort in order.
+/// run can be checked by eye in Xcode's test report. Name steps "1-launched", "2-â€¦" so they sort in order.
 extension XCTestCase {
     func capture(_ app: XCUIApplication, _ name: String) {
         let shot = XCTAttachment(screenshot: app.screenshot())

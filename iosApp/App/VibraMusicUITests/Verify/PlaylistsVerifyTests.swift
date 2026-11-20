@@ -3,7 +3,7 @@ import XCTest
 /// Verifies Library and playlists, driven the way a user does it. A song goes into two
 /// playlists from one sheet, and a page's header carries its total play time. Run it from the
 /// folder that holds `VibraMusic.xcworkspace`:
-/// `xcodebuild test -workspace VibraMusic.xcworkspace -scheme Vibra Music -testPlan Vibra MusicE2E
+/// `xcodebuild test -workspace VibraMusic.xcworkspace -scheme VibraMusic -testPlan VibraMusicE2E
 /// -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:VibraMusicUITests/PlaylistsVerifyTests`.
 /// Launched with `-collectionsDemo`: the account is signed in and every write succeeds without
 /// being sent, while playlists and pages come from the live YouTube Music.
@@ -103,7 +103,7 @@ final class PlaylistsVerifyTests: XCTestCase {
 
         XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "screen.detail").firstMatch
             .waitForExistence(timeout: 25), "the album page did not open")
-        // The metadata line is uppercased: "ALBUM • 2001 • 14 TRACKS • 41 MIN", or "1H 25M".
+        // The metadata line is uppercased: "ALBUM â€¢ 2001 â€¢ 14 TRACKS â€¢ 41 MIN", or "1H 25M".
         let meta = app.staticTexts.matching(NSPredicate(format: "label MATCHES %@",
                                                         ".*([0-9]+ MIN|[0-9]+H [0-9]+M).*"))
             .firstMatch

@@ -1,7 +1,7 @@
 import XCTest
 
 /// Verifies sharing lyrics end to end. Run it from the folder that holds `VibraMusic.xcworkspace`:
-/// `xcodebuild test -workspace VibraMusic.xcworkspace -scheme Vibra Music -testPlan Vibra MusicE2E
+/// `xcodebuild test -workspace VibraMusic.xcworkspace -scheme VibraMusic -testPlan VibraMusicE2E
 /// -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:VibraMusicUITests/LyricsShareVerifyTests`.
 ///
 /// Android 1.8's share lyrics, driven the way a user does it: long-press a lyric line to start
@@ -103,8 +103,8 @@ final class LyricsShareVerifyTests: XCTestCase {
         return element.label == label
     }
 
-    /// The marking on a chosen line rides in the accessibility value — the selected trait belongs
-    /// to the line being sung — so that is where the drive reads what is picked.
+    /// The marking on a chosen line rides in the accessibility value â€” the selected trait belongs
+    /// to the line being sung â€” so that is where the drive reads what is picked.
     private func waitForValue(_ value: String, on element: XCUIElement, timeout: TimeInterval = 10) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {

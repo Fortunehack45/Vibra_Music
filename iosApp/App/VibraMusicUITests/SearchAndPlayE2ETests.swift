@@ -1,7 +1,7 @@
 import XCTest
 
 /// The app working end to end against the real YouTube Music: search, tap, hear it (the position
-/// advances), and an album played from its page. Part of the Vibra MusicE2E test plan: they need the
+/// advances), and an album played from its page. Part of the VibraMusicE2E test plan: they need the
 /// network. PORTING.md "YouTube Music API client" done criterion: a signed-out user searches
 /// "Daft Punk" and a song plays.
 final class SearchAndPlayE2ETests: XCTestCase {
@@ -37,7 +37,7 @@ final class SearchAndPlayE2ETests: XCTestCase {
         let started = try waitForPosition(atLeast: 0.5, timeout: 45)
         Thread.sleep(forTimeInterval: 5)
         let later = try position()
-        XCTAssertGreaterThan(later - started, 3, "playback did not advance: \(started) s → \(later) s")
+        XCTAssertGreaterThan(later - started, 3, "playback did not advance: \(started) s â†’ \(later) s")
     }
 
     func testAnAlbumOpenedFromSearchPlaysOneOfItsTracksOnShuffle() throws {

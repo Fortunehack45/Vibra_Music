@@ -3,7 +3,7 @@ import InnerTube
 import PlaybackQueue
 import SwiftUI
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// PORTING.md "Search": suggestions while typing, filters, the top result, paging, recent
 /// searches; and "Swipe to queue" on its song rows.

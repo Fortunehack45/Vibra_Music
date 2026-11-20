@@ -1,6 +1,6 @@
 import AudioCache
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// PORTING.md "Storage controls" — Done: "Clear song cache" frees the space it reports.
 final class SettingsStorageTests: XCTestCase {

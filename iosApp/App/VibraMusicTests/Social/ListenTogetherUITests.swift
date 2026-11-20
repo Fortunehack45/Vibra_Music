@@ -2,7 +2,7 @@ import VibraMusicCore
 import ListenTogether
 import SwiftUI
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// Listen Together (PORTING.md §2.9): create or join with a 6-character code, a QR code or a link;
 /// the host locks controls, removes people and sets the size; a custom server.

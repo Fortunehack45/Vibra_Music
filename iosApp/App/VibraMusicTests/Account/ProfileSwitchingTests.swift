@@ -2,7 +2,7 @@ import VibraMusicCore
 import InnerTube
 import SwiftUI
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// PORTING §2.2 "Multiple accounts and profiles": the selector lists every login's Personal and
 /// Brand profiles; switching, swiping the avatar, removing an account and signing out move the

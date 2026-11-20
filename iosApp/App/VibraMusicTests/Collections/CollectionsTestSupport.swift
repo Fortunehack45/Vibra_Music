@@ -5,7 +5,7 @@ import InnerTube
 import Replay
 import SwiftUI
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 // A fake of the Collections screens' outside world (YouTube Music, the account, downloads), and the
 // helpers that put a Collections screen on screen in the unit-test host.

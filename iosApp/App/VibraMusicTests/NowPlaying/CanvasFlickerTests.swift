@@ -1,6 +1,6 @@
 import Canvas
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// Regression tests for a Now Playing artwork flicker: the clip player tore
 /// itself down and rebuilt several times a second, and the full-bleed banner flipped with it.

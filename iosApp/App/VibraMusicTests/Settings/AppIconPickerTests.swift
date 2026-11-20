@@ -1,6 +1,6 @@
 import UIKit
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// The App icon row (Android 1.8.2 AppIcon.kt): what it offers must be what the build ships.
 @MainActor

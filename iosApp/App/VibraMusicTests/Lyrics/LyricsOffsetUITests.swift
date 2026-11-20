@@ -2,7 +2,7 @@ import VibraMusicCore
 import Lyrics
 import SwiftUI
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// PORTING.md "Lyrics offset": the listener shifts lyric timing.
 @MainActor

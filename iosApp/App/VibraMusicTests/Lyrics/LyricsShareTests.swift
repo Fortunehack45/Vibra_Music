@@ -1,7 +1,7 @@
 import VibraMusicCore
 import Lyrics
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// Share lyrics: long-press to start picking, taps to add or drop lines, a card's
 /// worth of characters, and the picture the picks make.

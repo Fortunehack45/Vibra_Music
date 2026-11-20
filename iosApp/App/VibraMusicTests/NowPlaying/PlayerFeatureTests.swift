@@ -7,7 +7,7 @@ import PlaybackPolicy
 import PlaybackQueue
 import SwiftUI
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 // One class per PORTING.md feature the player carries beyond the screen itself: the canvas, the
 // queue panel, shuffle and repeat, the output sheet, the pipeline, the sleep timer, revert /

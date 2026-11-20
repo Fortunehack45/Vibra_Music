@@ -2,7 +2,7 @@ import AudioCache
 import VibraMusicCore
 import SwiftUI
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// PORTING §2.11 "Settings screen with search": the rows, their order, and the filter.
 @MainActor

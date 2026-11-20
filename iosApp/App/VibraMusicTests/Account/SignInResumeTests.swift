@@ -2,7 +2,7 @@ import InnerTube
 import SwiftUI
 import WebKit
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// Covering a sign-in screen (a tab switch, a sheet over it) tears its web view down; uncovering it
 /// must pick the flow up again without replaying the last committed request, which on Google could

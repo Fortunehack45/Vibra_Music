@@ -3,7 +3,7 @@ import Replay
 import SwiftUI
 import Theming
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 // Follow-up fixes after integration: track rows are named by their song, screens expose their
 // children to UI tests and VoiceOver, and the Library's Replay entry draws Android's card and mesh.

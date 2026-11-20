@@ -5,7 +5,7 @@ import InnerTube
 import Observation
 import SwiftUI
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 // What a tap on Download finally tells the listener: the Wi-Fi hold said once, where
 // the tap was; "Download all" confirmed; a held row that names the hold. Driven through the real

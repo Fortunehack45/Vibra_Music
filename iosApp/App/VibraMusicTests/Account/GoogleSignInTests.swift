@@ -2,7 +2,7 @@ import VibraMusicCore
 import InnerTube
 import SwiftUI
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// PORTING §2.2 "Google sign-in": Google's real page in a web view, confirmed with "Use this
 /// profile" once YouTube Music has loaded; nothing is stored until the account manager accepts the

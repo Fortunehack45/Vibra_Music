@@ -3,7 +3,7 @@ import Automix
 import VibraMusicCore
 import Downloads
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// The first launch of a different build empties the caches the previous build wrote, as
 /// VibraMusicApplication.kt does, and nothing else.

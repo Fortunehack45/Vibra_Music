@@ -1,7 +1,7 @@
 import Lyrics
 import QuartzCore
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// The lyric clock when frames stop coming — the Simulator window covered, the app inactive or in
 /// the background, the screen locked, Now Playing under a sheet — and then start again. Right

@@ -2,7 +2,7 @@ import VibraMusicCore
 import Lyrics
 import SwiftUI
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// PORTING.md "Lyrics translation and romanization": translate into the app's language or a
 /// chosen one of ~130, or romanize.

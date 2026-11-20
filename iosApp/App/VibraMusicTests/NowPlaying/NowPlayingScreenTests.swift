@@ -3,7 +3,7 @@ import Lyrics
 import PlaybackQueue
 import SwiftUI
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// PORTING.md 2.3 "Now Playing screen" — done: the user can scrub, skip, and open the lyrics and
 /// queue panels.

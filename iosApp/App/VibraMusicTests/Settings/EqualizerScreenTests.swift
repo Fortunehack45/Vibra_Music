@@ -2,7 +2,7 @@ import AudioDSP
 import VibraMusicCore
 import SwiftUI
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// PORTING §2.7 "Equalizer": the tone pad, seven bands with sixteen presets, balance, and the
 /// screen in both modes.

@@ -4,7 +4,7 @@ import InnerTube
 import PlaybackQueue
 import SwiftUI
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 // The Collections view models (CollectionsStore) against a fake YouTube Music, one class per
 // PORTING.md feature.

@@ -1,5 +1,5 @@
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 @MainActor
 final class PlayerDockTests: XCTestCase {

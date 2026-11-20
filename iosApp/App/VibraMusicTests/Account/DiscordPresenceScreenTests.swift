@@ -3,7 +3,7 @@ import Integrations
 import Playback
 import SwiftUI
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// PORTING §2.9 "Discord Rich Presence": signing in (the web login's token harvest, or a pasted
 /// token verified first), the card's settings, and the live preview of what Discord will show.

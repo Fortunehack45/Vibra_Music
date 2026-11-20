@@ -1,7 +1,7 @@
 import VibraMusicCore
 import SwiftUI
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// PORTING.md "Home-screen widgets": the small and medium widgets show the current song, and
 /// play/pause works (MediaWidget.kt, MediaWidgetPill.kt, MediaWidgetActions.kt).

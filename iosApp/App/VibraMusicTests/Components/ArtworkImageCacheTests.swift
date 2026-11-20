@@ -1,6 +1,6 @@
 import VibraMusicCore
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// The decoded-artwork budget is a share of device RAM under an absolute ceiling, and
 /// a disk cache already over its budget is trimmed when the cache is created — not only after the

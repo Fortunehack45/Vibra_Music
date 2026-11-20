@@ -1,7 +1,7 @@
 import VibraMusicCore
 import Intents
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// PORTING.md "Voice “play X”": a spoken request plays the best match; a bare "play music" resumes
 /// (MusicLink.kt `MEDIA_PLAY_FROM_SEARCH`, MainActivity's `LinkRequest.Search(play = true)`).

@@ -2,7 +2,7 @@ import VibraMusicCore
 import Replay
 import SwiftUI
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 private func sample(_ period: ReplayPeriod = .thisYear) -> ReplaySummary { SocialSamples.summary(period: period) }
 

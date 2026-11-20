@@ -4,7 +4,7 @@ import InnerTube
 import Integrations
 import NetworkLibrary
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 // The app's own wiring between the player, the settings and the services behind them. Each test
 // drives the real call a screen makes and reads what arrives on the other side: a request on the

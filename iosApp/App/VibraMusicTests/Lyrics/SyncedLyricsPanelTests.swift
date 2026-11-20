@@ -2,7 +2,7 @@ import VibraMusicCore
 import Lyrics
 import SwiftUI
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// PORTING.md "Synced lyrics": line and word highlighting, duet sides, backing vocals,
 /// instrumental gaps, blur on unfocused lines — the panel's state, its clock and its renderer.

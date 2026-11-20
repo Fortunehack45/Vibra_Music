@@ -3,7 +3,7 @@ import InnerTube
 import PlaybackPolicy
 import StreamResolution
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// The app's real stream wiring (AppModel's resolver configuration, the app's HTTP
 /// session, the WebView PoToken provider) against YouTube, in the app process on the simulator.

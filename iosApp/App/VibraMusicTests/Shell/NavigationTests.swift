@@ -3,7 +3,7 @@ import PlaybackQueue
 import StreamResolution
 import SwiftUI
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// Deep links (PORTING.md "Deep links and sharing into the app"): each link lands on its screen.
 @MainActor

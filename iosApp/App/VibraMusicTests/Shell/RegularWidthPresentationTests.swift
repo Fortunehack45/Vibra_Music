@@ -1,6 +1,6 @@
 import SwiftUI
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// iPad and Mac windows use the regular-width tab bar, where a sheet or cover hung from the TabView
 /// does not inherit the objects injected on the root. The first view of each reads `AppModel`, which

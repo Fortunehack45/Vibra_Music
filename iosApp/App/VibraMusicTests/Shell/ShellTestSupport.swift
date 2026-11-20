@@ -6,7 +6,7 @@ import Playback
 import PlaybackPolicy
 import PlaybackQueue
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 // Fakes and fixtures for the app-shell tests. The package's VibraMusicTestSupport isn't linked into
 // the app's test bundle, so the few helpers these tests need live here.

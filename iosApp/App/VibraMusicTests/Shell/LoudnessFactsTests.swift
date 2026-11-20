@@ -2,7 +2,7 @@ import AudioDSP
 import VibraMusicCore
 import Playback
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// YouTube's loudness figure reaches every copy of a recording, not only the stream that carried it.
 final class LoudnessFactsTests: XCTestCase {

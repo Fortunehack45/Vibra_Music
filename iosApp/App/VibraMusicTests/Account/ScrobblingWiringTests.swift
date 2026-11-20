@@ -1,7 +1,7 @@
 import VibraMusicCore
 import Integrations
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// PORTING §2.9 "Scrobbling": the Last.fm password login, and what a played track sends to
 /// Last.fm and ListenBrainz.

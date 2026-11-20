@@ -1,7 +1,7 @@
 import VibraMusicCore
 import PlaybackQueue
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// The widget's now-playing snapshot in the App Group (PORTING.md "Home-screen widgets", app side).
 @MainActor

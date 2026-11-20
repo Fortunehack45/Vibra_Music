@@ -3,7 +3,7 @@ import Playback
 import PlaybackPolicy
 import SwiftUI
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// PORTING.md 2.3 "Landscape layout" — done: rotating the iPhone shows artwork and lyrics side by
 /// side.

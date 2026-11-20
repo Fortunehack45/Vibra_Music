@@ -2,7 +2,7 @@ import VibraMusicCore
 import Integrations
 import SwiftUI
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// PORTING §2.9 "Scrobbling": ListenBrainz by token, Last.fm by username and password, the
 /// switches that ask for credentials first, signing out of Last.fm, and the timing options.

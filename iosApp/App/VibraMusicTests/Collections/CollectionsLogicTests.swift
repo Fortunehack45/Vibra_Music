@@ -1,7 +1,7 @@
 import VibraMusicCore
 import InnerTube
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// The pure rules of DetailScreen.kt and LibraryScreen.kt: sorting, filtering, the header's two
 /// lines, the running-time footer, and the Library shelves' pin / sort / five-card rules.

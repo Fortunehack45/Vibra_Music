@@ -3,7 +3,7 @@ import Lyrics
 import PlaybackQueue
 import SwiftUI
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// The playing track's lyrics belong to the app, not to the player screen (Android: the lyrics
 /// state in MainViewModel, loaded from MainActivity's LaunchedEffect on the track). Closing the

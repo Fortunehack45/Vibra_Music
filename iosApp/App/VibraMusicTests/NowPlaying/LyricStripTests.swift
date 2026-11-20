@@ -2,7 +2,7 @@ import VibraMusicCore
 import Lyrics
 import SwiftUI
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// The one-line lyric over the scrubber (CurrentLyricLine): one line cut with "…", the words'
 /// leading edge fixed while lines hand over, the chevron right after the words.

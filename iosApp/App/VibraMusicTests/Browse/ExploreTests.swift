@@ -3,7 +3,7 @@ import InnerTube
 import PlaybackQueue
 import SwiftUI
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// PORTING.md "Explore": the Moods & Genres grid, and a category's playlists.
 @MainActor

@@ -2,7 +2,7 @@ import VibraMusicCore
 import Lyrics
 import SwiftUI
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// PORTING.md "Lyrics providers": 16 providers the listener turns on or off and reorders, and a
 /// picker to choose one for the current track.

@@ -1,7 +1,7 @@
 import VibraMusicCore
 import Replay
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// What the app does around Replay's numbers so they fill in: the album a track belongs to, and each
 /// artist's picture, page and genres (Android's ListeningRecorder `enriched` and ArtistFacts worker).

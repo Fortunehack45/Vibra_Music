@@ -1,6 +1,6 @@
 import SwiftUI
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 @MainActor
 final class AppSmokeTests: XCTestCase {

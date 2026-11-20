@@ -5,7 +5,7 @@ import Observation
 import Replay
 import SwiftUI
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 // Fakes and hosts for the Social tests: a party layer that records what it was asked, fixed
 // Replay data, and a window to lay a screen out in.

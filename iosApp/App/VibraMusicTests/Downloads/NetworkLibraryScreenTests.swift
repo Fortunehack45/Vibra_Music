@@ -3,7 +3,7 @@ import Downloads
 import NetworkLibrary
 import SwiftUI
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// PORTING §2.7 "SMB network library" and "WebDAV network library": browse the server as a library,
 /// say why a listing failed, and upload downloads to WebDAV (answering name clashes).

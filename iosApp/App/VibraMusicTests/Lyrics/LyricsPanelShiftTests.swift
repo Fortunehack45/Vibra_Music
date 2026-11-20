@@ -2,7 +2,7 @@ import VibraMusicCore
 import Lyrics
 import SwiftUI
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// The panel inside Now Playing's column (the player pads it by the gutter, the list bleeds back
 /// out to the screen edge): while the playing line hands over, no line moves sideways and nothing

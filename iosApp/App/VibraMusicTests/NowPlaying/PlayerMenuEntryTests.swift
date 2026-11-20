@@ -1,5 +1,5 @@
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// Android 89912638 (after 1.8): while the lyrics are up, the header's three-dot disc becomes the
 /// share entry — the same pick mode a long press on a line opens, with nothing preselected — and,

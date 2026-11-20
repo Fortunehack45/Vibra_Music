@@ -1,7 +1,7 @@
 import VibraMusicCore
 import SwiftUI
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// The shared artwork box against a widescreen source (Android's ContentScale.Crop on every
 /// AsyncImage: Common.kt's SongRowContent, MiniPlayer.kt, the sheets and the shelf cards). A

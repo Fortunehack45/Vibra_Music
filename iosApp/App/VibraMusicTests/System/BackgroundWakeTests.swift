@@ -1,7 +1,7 @@
 import Downloads
 import UIKit
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// A finished background download can launch the app with no window and so no `AppModel.current`;
 /// the wake must still reach the download queue instead of being handed back to iOS at once.

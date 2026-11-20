@@ -1,7 +1,7 @@
 import VibraMusicCore
 import UIKit
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// Share lyrics: the sheet that draws the picked passage, and the two things you can
 /// do to the picture — save it to Photos, or hand it to the share sheet.

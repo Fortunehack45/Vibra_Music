@@ -3,7 +3,7 @@ import Lyrics
 import SwiftUI
 import UIKit
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// Hosts `view` in a window at an iPhone's size and forces a layout pass, the way a screen is
 /// first shown. Returns the host so a test can look inside it.

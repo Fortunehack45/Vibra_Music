@@ -1,7 +1,7 @@
 import VibraMusicCore
 import SwiftUI
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// Regressions found in review: the cache slider follows the stored limit, and rows stay readable
 /// at accessibility text sizes.

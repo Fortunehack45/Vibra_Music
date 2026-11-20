@@ -1,5 +1,5 @@
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// HomeScreen.kt's shelf-title, strapline and card-subtitle translations (part of "Home feed").
 final class ShelfLocalizationTests: XCTestCase {

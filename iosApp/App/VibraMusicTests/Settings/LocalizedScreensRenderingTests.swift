@@ -1,7 +1,7 @@
 import VibraMusicCore
 import SwiftUI
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// Localization audit: the screens in the audit's scope must read from the generated `L10n`
 /// catalog rather than shipping English literals. These render a couple of them under the German

@@ -3,7 +3,7 @@ import InnerTube
 import PlaybackQueue
 import SwiftUI
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// PORTING.md "Home feed": YouTube Music's shelves, Recents first when signed in, more shelves as
 /// the end nears, pull to refresh; a song card starts a one-off, a collection opens its page.

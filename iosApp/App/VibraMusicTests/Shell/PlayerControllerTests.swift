@@ -4,7 +4,7 @@ import VibraMusicCore
 import Playback
 import PlaybackQueue
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// PlayerController wired to a real engine playing local files through a fake resolver: the queue
 /// drives the engine, the engine reports back, and the app's operations do what they say.

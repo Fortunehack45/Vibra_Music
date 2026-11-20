@@ -1,7 +1,7 @@
 import Theming
 import UIKit
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// Tint, mesh and blur read their colours from the bytes the artwork cache draws, so a cover is
 /// downloaded once. On Android one Coil cache serves the cover and its palette reads.

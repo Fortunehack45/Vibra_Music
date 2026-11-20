@@ -3,7 +3,7 @@ import VibraMusicCore
 import SwiftUI
 import Theming
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// The Canvas handoff on the player: the still art holds until the clip has a frame on screen, and
 /// the backdrop follows the clip's colours without ever passing through black.

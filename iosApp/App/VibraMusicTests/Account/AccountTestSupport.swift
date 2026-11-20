@@ -3,7 +3,7 @@ import Foundation
 import InnerTube
 import SwiftUI
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 // Helpers for the Account tests. Names carry "Account" so they can't collide with helpers other
 // areas keep in the same test bundle.

@@ -4,7 +4,7 @@ import InnerTube
 import Sources
 import SwiftUI
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 // Helpers for the Settings tests. Names carry "Settings" so they can't collide with helpers other
 // areas keep in the same test bundle.

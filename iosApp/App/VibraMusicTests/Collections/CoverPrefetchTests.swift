@@ -2,7 +2,7 @@ import VibraMusicCore
 import InnerTube
 import UIKit
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// A list loads the covers of the rows just below the screen, as UICollectionView prefetches, so a
 /// scroll finds them in memory and draws them on its first frame rather than fading them in.

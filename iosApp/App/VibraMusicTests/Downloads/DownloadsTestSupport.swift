@@ -5,7 +5,7 @@ import InnerTube
 import NetworkLibrary
 import SwiftUI
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 // A stand-in for the Downloads screens' outside world, over a real DownloadLibrary on a throwaway
 // store (so deletes really delete and free real bytes), and the helpers that host a Downloads screen

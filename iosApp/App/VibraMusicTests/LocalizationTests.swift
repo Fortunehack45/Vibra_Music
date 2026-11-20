@@ -1,6 +1,6 @@
 import SwiftUI
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// The string catalog is generated from the Android strings.xml files; these pin that the
 /// conversion kept every language, plural rules and the in-app language override working.

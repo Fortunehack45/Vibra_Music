@@ -2,7 +2,7 @@ import AudioCache
 import AVFoundation
 import VibraMusicCore
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// A playlist stream (an add-on's lossless or Atmos) played through the audio cache as one
 /// fragmented MP4: laid out from a kilobyte of each segment, each segment's audio fetched once,

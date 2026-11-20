@@ -1,7 +1,7 @@
 import VibraMusicCore
 import CarPlay
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// Canned folders for the car's tree, counting what was asked.
 @MainActor

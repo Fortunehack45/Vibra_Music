@@ -2,7 +2,7 @@ import VibraMusicCore
 import Replay
 import SwiftUI
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// PORTING §2.11 "Backup and restore": settings and listening stats as JSON, credentials left out.
 @MainActor

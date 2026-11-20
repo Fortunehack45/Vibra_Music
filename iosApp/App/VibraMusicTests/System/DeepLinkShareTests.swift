@@ -1,7 +1,7 @@
 import VibraMusicCore
 import UniformTypeIdentifiers
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// PORTING.md "Deep links and sharing into the app", the Share Extension half: a YouTube Music link
 /// shared from another app opens the right screen (MainActivity's `ACTION_SEND`).

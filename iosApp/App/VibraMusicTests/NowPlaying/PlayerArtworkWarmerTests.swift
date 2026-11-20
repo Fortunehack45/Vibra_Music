@@ -2,7 +2,7 @@ import VibraMusicCore
 import PlaybackQueue
 import Theming
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// A skip finds the next and previous tracks' cover, mesh, tint and blur already read, from one
 /// download each.

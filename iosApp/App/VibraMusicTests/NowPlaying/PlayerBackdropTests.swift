@@ -2,7 +2,7 @@ import VibraMusicCore
 import SwiftUI
 import Theming
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// PORTING.md 2.3 "Artwork-driven background" — done: the background colours change with each new
 /// song.

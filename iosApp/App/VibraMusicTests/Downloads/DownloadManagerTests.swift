@@ -2,7 +2,7 @@ import VibraMusicCore
 import Downloads
 import SwiftUI
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// PORTING §2.6 "Download songs, albums and playlists": the queue with progress, cancel and retry,
 /// as the manager sheet and the top-bar indicator show it.

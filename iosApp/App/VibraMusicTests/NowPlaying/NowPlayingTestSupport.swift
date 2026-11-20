@@ -3,7 +3,7 @@ import InnerTube
 import SwiftUI
 import Theming
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 // Helpers for the Now Playing tests: an app container that never touches the network, the
 // environment the player's views read, and a host that lays a view out in a real window.

@@ -2,7 +2,7 @@ import VibraMusicCore
 import NetworkLibrary
 import SwiftUI
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// A WebDAV track's cover, which the loader fetches with the server's login and keeps on disk.
 @MainActor

@@ -1,7 +1,7 @@
 import MediaPlayer
 import UIKit
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// The volume bar in Now Playing (`PlayerVolumeRow`) and in the output sheet
 /// (`SystemVolumeRow`) rode above the centre of the speaker glyph beside it, and at full volume

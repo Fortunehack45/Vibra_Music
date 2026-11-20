@@ -2,7 +2,7 @@ import VibraMusicCore
 import Sources
 import SwiftUI
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// PORTING §2.8 "Add-on sources (lossless)", "JioSaavn source", "Legacy JS module sources", and the
 /// SMB / WebDAV connection setup, as the Sources screen drives them.

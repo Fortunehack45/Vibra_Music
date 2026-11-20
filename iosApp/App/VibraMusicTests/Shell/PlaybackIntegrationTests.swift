@@ -10,7 +10,7 @@ import PlaybackPolicy
 import PlaybackQueue
 import Sources
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 // The four integration gaps the shell left: Automix's planner and the cache's renditions, the song
 // ↔ music video switch landing at the aligned position, the quality upgrade of a stream that came

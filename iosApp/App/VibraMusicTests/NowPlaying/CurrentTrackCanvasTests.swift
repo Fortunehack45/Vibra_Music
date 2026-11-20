@@ -2,7 +2,7 @@ import VibraMusicCore
 import Canvas
 import Playback
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// Records every request the service's session sends and answers none: these tests only need to
 /// know whether a download was started. Kept here rather than VibraMusicTestSupport's stub, whose

@@ -4,7 +4,7 @@ import InnerTube
 import SwiftUI
 import UIKit
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 // Test doubles for the Browse screens: recorded InnerTube answers served through a URLProtocol
 // (so the real InnerTubeClient and YTMusicRepository run end to end), a scripted catalogue for the

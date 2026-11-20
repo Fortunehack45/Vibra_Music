@@ -3,7 +3,7 @@ import VibraMusicCore
 import Foundation
 import Playback
 import XCTest
-@testable import Vibra Music
+@testable import VibraMusic
 
 /// The engine's `sourceRecovery` hook is wired to the app's sources: a download whose file has
 /// gone from under it streams, and a stream that dies is rebuilt on a clean cache.

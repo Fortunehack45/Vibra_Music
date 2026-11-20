@@ -49,7 +49,7 @@ enum SharedStrings {
     static var widgetNext: String { tr("widget_next", "Next") }
     static var widgetPrevious: String { tr("widget_previous", "Previous") }
     static var widgetArtwork: String { tr("widget_artwork", "Album art") }
-    static var widgetOpenVibra Music: String { tr("widget_open_vibramusic", "Open Vibra Music") }
+    static var widgetOpenVibraMusic: String { tr("widget_open_vibramusic", "Open Vibra Music") }
     static var widgetSquareLabel: String { tr("widget_square_label", "Now playing 2×2") }
     static var widgetWideLabel: String { tr("widget_wide_label", "Now playing 4×2") }
     static var widgetPillLabel: String { tr("widget_pill_label", "Now playing 4×1") }

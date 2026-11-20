@@ -76,7 +76,7 @@ public final class PlaybackQualityCeiling: Observable, @unchecked Sendable {
     /// `DirectSourceGate.isActive`): a party seeks every member to the host's position and expects
     /// the track to be there, and a start held for the sources would leave this phone behind.
     public var currentRequest: StreamRequest {
-        let (directSource, inParty) = lock.withLock { (directSource, inParty) }
+        let (directSource, inParty): (DirectSourceStream, Bool) = lock.withLock { (self.directSource, self.inParty) }
         return .playback(effectiveQuality, directSource: inParty ? .off : directSource)
     }
 

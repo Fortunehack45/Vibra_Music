@@ -1467,4 +1467,7 @@
     <string name="player_theme_simple_subtitle">Rozmyta okładka za całym odtwarzaczem</string>
     <string name="square_video_thumbnails">Square video thumbnails</string>
     <string name="square_video_thumbnails_subtitle">Show music videos as squares everywhere, including the player</string>
+    <string name="hide_status_bar_in_player">Ukryj pasek stanu w odtwarzaczu</string>
+    <string name="hide_status_bar_in_player_subtitle">Ukrywa zegar, baterię i ikony powiadomień, gdy główny odtwarzacz jest otwarty</string>
+    <string name="radio">Radio</string>
 </resources>

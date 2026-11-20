@@ -1429,4 +1429,7 @@
     <string name="player_theme_simple_subtitle">पूरे प्लेयर के पीछे धुंधला कवर</string>
     <string name="square_video_thumbnails">Square video thumbnails</string>
     <string name="square_video_thumbnails_subtitle">Show music videos as squares everywhere, including the player</string>
+    <string name="hide_status_bar_in_player">प्लेयर में स्टेटस बार छिपाएं</string>
+    <string name="hide_status_bar_in_player_subtitle">मुख्य प्लेयर खुला रहने पर घड़ी, बैटरी और नोटिफ़िकेशन आइकन छिपा देता है</string>
+    <string name="radio">Radio</string>
 </resources>

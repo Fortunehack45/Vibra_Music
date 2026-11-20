@@ -1401,4 +1401,7 @@
     <string name="player_theme_simple_subtitle">La portada difuminada detrás de todo el reproductor</string>
     <string name="square_video_thumbnails">Square video thumbnails</string>
     <string name="square_video_thumbnails_subtitle">Show music videos as squares everywhere, including the player</string>
+    <string name="hide_status_bar_in_player">Ocultar barra de estado en el reproductor</string>
+    <string name="hide_status_bar_in_player_subtitle">Oculta el reloj, la batería y los iconos de notificación mientras el reproductor principal está abierto</string>
+    <string name="radio">Radio</string>
 </resources>

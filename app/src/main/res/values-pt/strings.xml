@@ -1434,4 +1434,7 @@
     <string name="player_theme_simple_subtitle">A capa desfocada atrás de todo o reprodutor</string>
     <string name="square_video_thumbnails">Square video thumbnails</string>
     <string name="square_video_thumbnails_subtitle">Show music videos as squares everywhere, including the player</string>
+    <string name="hide_status_bar_in_player">Ocultar barra de status no player</string>
+    <string name="hide_status_bar_in_player_subtitle">Oculta o relógio, a bateria e os ícones de notificação enquanto o player principal está aberto</string>
+    <string name="radio">Radio</string>
 </resources>

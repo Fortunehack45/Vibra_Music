@@ -333,6 +333,9 @@
     <string name="stop_music_on_close_subtitle">Stops playback when swiped away from recent apps</string>
     <string name="hide_volume_bar">Hide volume bar</string>
     <string name="hide_volume_bar_subtitle">Removes the volume slider from the main player</string>
+    <string name="hide_status_bar_in_player">Hide status bar in player</string>
+    <string name="hide_status_bar_in_player_subtitle">Hides the clock, battery and notification icons while the main player is open</string>
+    <string name="radio">Radio</string>
     <string name="hide_song_status">Hide Song Status</string>
     <string name="hide_song_status_subtitle">Hides the “Playing from” or “Played by” text in the main player</string>
     <string name="off">Off</string>

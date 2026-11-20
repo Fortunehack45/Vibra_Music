@@ -1347,4 +1347,7 @@
     <string name="player_theme_simple_subtitle">Ảnh bìa làm mờ phía sau toàn bộ trình phát</string>
     <string name="square_video_thumbnails">Square video thumbnails</string>
     <string name="square_video_thumbnails_subtitle">Show music videos as squares everywhere, including the player</string>
+    <string name="hide_status_bar_in_player">Ẩn thanh trạng thái trong trình phát</string>
+    <string name="hide_status_bar_in_player_subtitle">Ẩn đồng hồ, pin và biểu tượng thông báo khi trình phát chính đang mở</string>
+    <string name="radio">Radio</string>
 </resources>

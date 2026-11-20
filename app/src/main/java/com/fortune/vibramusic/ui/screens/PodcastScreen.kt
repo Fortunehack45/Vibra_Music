@@ -152,7 +152,7 @@ fun PodcastScreen(
             // Screen Title
             item {
                 Text(
-                    text = stringResource(R.string.podcasts),
+                    text = stringResource(R.string.radio),
                     style = MaterialTheme.typography.displayLarge,
                     color = MaterialTheme.colorScheme.onBackground,
                     modifier = Modifier.padding(horizontal = PAGE_GUTTER, vertical = 8.dp),

@@ -1429,4 +1429,7 @@
     <string name="player_theme_simple_subtitle">Ein weich gezeichnetes Cover hinter dem gesamten Player</string>
     <string name="square_video_thumbnails">Square video thumbnails</string>
     <string name="square_video_thumbnails_subtitle">Show music videos as squares everywhere, including the player</string>
+    <string name="hide_status_bar_in_player">Statusleiste im Player ausblenden</string>
+    <string name="hide_status_bar_in_player_subtitle">Blendet Uhr, Akku und Benachrichtigungssymbole aus, solange der Hauptplayer geöffnet ist</string>
+    <string name="radio">Radio</string>
 </resources>

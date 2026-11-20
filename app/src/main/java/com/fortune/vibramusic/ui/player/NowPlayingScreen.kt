@@ -68,6 +68,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBars
@@ -159,7 +160,9 @@ import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import coil3.compose.AsyncImagePainter
+import com.fortune.vibramusic.ui.theme.HideStatusBar
 import com.fortune.vibramusic.ui.theme.StatusBarIcons
+import com.fortune.vibramusic.ui.theme.stableStatusBarInsets
 import com.fortune.vibramusic.ui.theme.rememberArtworkTopBandLuminance
 import com.fortune.vibramusic.ui.theme.rememberScreenOrientation
 import com.fortune.vibramusic.ui.theme.topBandScrimAlpha
@@ -669,6 +672,8 @@ fun NowPlayingScreen(
     // top treatment below, rather than a window-flag flip per cover, provides
     // their contrast and stays visually stable through artwork transitions.
     StatusBarIcons(dark = false)
+    val hideStatusBar by AppSettings.hideStatusBarInPlayer.collectAsStateWithLifecycle()
+    HideStatusBar(hideStatusBar)
 
     val playerHaze = remember { HazeState() }
     val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
@@ -1288,7 +1293,7 @@ fun NowPlayingScreen(
     val canvasFirstFadeFraction = if (renderedCanvasBottom > 0.dp) {
         (heroHeight.value * HERO_FADE_FRACTION / renderedCanvasBottom.value).coerceIn(0f, 1f)
     } else 0f
-    val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val statusBarTop = stableStatusBarInsets().asPaddingValues().calculateTopPadding()
     // What sits between the status bar and the artwork: the drag strip. Read
     // in three places — the strip itself,
     // the scrim drawn over it and the banner's own height — which all have to
@@ -2328,7 +2333,7 @@ fun NowPlayingScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .statusBarsPadding()
+                .windowInsetsPadding(stableStatusBarInsets())
                 .navigationBarsPadding()
                 // Observe unclaimed taps across the whole Canvas. Buttons and
                 // the compact metadata row consume their own taps first; empty
@@ -2702,11 +2707,11 @@ fun NowPlayingScreen(
                                         -(anchor.x),
                                         -(anchor.y + dockFrame.offset),
                                     )
-                                    val openRect = if (dockFrame.openWidth > 0f) {
-                                        Rect(dockFrame.openLeft, dockFrame.openTop, dockFrame.openLeft + dockFrame.openWidth, dockFrame.openTop + dockFrame.openHeight)
-                                    } else {
-                                        Rect(0f, 0f, width.toFloat(), height.toFloat())
-                                    }
+                                    val openW = with(density) { artSize().toPx() }
+                                    val openH = openW
+                                    val openL = with(density) { artStart().toPx() }
+                                    val openT = with(density) { (statusBarTop + topStrip + ART_BOX_TOP_PAD + artTop()).toPx() }
+                                    val openRect = Rect(openL, openT, openL + openW, openT + openH)
                                     val travel = dock.sheetTravel
                                     if (travel > 0f) {
                                         dockFrame.ride = ((miniInHost.top + dockFrame.offset - openRect.top) / travel).coerceIn(0f, 1f)

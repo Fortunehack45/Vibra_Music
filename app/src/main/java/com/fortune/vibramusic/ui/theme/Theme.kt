@@ -1,7 +1,12 @@
 package com.fortune.vibramusic.ui.theme
 
 import android.app.Activity
+import android.os.Build
+import android.view.WindowManager
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -155,6 +160,48 @@ fun StatusBarIcons(dark: Boolean) {
 }
 
 @Composable
+fun HideStatusBar(hidden: Boolean) {
+    val view = LocalView.current
+    if (view.isInEditMode) return
+    val window = findWindow(view) ?: return
+    DisposableEffect(window, hidden) {
+        if (!hidden) return@DisposableEffect onDispose {}
+        val controller = WindowCompat.getInsetsController(window, view)
+        val behavior = controller.systemBarsBehavior
+        // Before Android 15 a window left on the default cutout mode is only
+        // let into the cutout while the status bar is there to cover it: hide
+        // the bar and the whole window is pushed down below the camera, a black
+        // band where the artwork was. 15+ lays every window out edge to edge
+        // regardless, and the default there already reaches further than
+        // short edges would, so it is left alone.
+        val intoCutout = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P &&
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.VANILLA_ICE_CREAM &&
+            window.attributes.layoutInDisplayCutoutMode ==
+            WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT
+        if (intoCutout && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            window.attributes = window.attributes.apply {
+                layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            }
+        }
+        controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        controller.hide(WindowInsetsCompat.Type.statusBars())
+        onDispose {
+            controller.show(WindowInsetsCompat.Type.statusBars())
+            controller.systemBarsBehavior = behavior
+            if (intoCutout && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                window.attributes = window.attributes.apply {
+                    layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun stableStatusBarInsets(): WindowInsets = WindowInsets.statusBarsIgnoringVisibility
+
+@Composable
 fun HideSystemBars(hidden: Boolean) {
     val view = LocalView.current
     if (view.isInEditMode) return
@@ -173,7 +220,7 @@ fun HideSystemBars(hidden: Boolean) {
 }
 
 // Walks up the Compose view hierarchy to find a DialogWindowProvider (e.g. modal player) before falling back to Activity context.
-private fun findWindow(view: android.view.View): android.view.Window? {
+internal fun findWindow(view: android.view.View): android.view.Window? {
     var parent = view.parent
     while (parent != null) {
         if (parent is androidx.compose.ui.window.DialogWindowProvider) {

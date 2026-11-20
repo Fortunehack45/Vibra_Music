@@ -82,10 +82,12 @@ import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.IosShare
 import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.Radio
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Sort
 import androidx.compose.material.icons.rounded.Upgrade
 import com.fortune.vibramusic.data.listentogether.ServerConnectionState
+import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -519,10 +521,10 @@ private fun VibraMusicApp(
             setShown = { showNowPlaying = it },
         )
     }
-    val currentWindowInfo = LocalWindowInfo.current
-    val currentViewConfig = LocalViewConfiguration.current
-    playerSheetMotion.windowInfo = currentWindowInfo
-    playerSheetMotion.flingVelocity = currentViewConfig.maximumFlingVelocity
+    val reducePlayerMotion by AppSettings.reduceAnimation.collectAsStateWithLifecycle()
+    val activeDock = playerDock.takeIf { !reducePlayerMotion }
+    playerSheetMotion.windowInfo = LocalWindowInfo.current
+    playerSheetMotion.flingVelocity = with(LocalDensity.current) { PLAYER_PULL_FLING_VELOCITY.toPx() }
     // The far end of the relay from a widget's artwork. Cleared here rather than
     // where it was set, so the request is spent by being served — see
     // [PlayerDeepLink.handled]. The sheet itself is gated on there being a track,
@@ -1075,18 +1077,18 @@ private fun VibraMusicApp(
     val homeLabel = stringResource(R.string.home)
     val playLabel = stringResource(R.string.play)
     val exploreLabel = stringResource(R.string.explore)
-    val podcastsLabel = stringResource(R.string.podcasts)
+    val radioLabel = stringResource(R.string.radio)
     val libraryLabel = stringResource(R.string.library)
     val searchLabel = stringResource(R.string.search)
     val historyLabel = stringResource(R.string.history)
     val replayLabel = stringResource(R.string.replay)
     val queueLabel = stringResource(R.string.queue)
     val sharedLinkLabel = stringResource(R.string.shared_link)
-    val tabs = remember(homeLabel, exploreLabel, podcastsLabel, libraryLabel, searchLabel) {
+    val tabs = remember(homeLabel, exploreLabel, radioLabel, libraryLabel, searchLabel) {
         listOf(
             BottomTab(homeLabel, VibraMusicIcons.Home),
             BottomTab(exploreLabel, VibraMusicIcons.TabExplore),
-            BottomTab(podcastsLabel, VibraMusicIcons.Podcasts),
+            BottomTab(radioLabel, Icons.Rounded.Radio),
             BottomTab(libraryLabel, VibraMusicIcons.TabLibrary),
             BottomTab(searchLabel, VibraMusicIcons.TabSearch),
         )
@@ -3263,7 +3265,7 @@ private fun VibraMusicApp(
                                 playFrom(
                                     listOf(episode.toSong()),
                                     0,
-                                    QueueSource(podcastsLabel, PlaybackSourceType.PODCASTS),
+                                    QueueSource(radioLabel, PlaybackSourceType.PODCASTS),
                                 )
                             },
                             onShowClick = { show ->
@@ -3855,14 +3857,18 @@ private fun VibraMusicApp(
                                 isPlaying = player.isPlaying,
                                 isLoading = playPauseBusy,
                                 hazeState = hazeState,
-                                dock = playerDock,
+                                dock = activeDock,
                                 onPlayPause = {
                                     togglePlayPause()
                                 },
                                 onNext = { controller?.seekToNextMediaItem() },
                                 onPrevious = { controller?.seekToPrevious() },
-                                onExpand = { playerSheetMotion.open() },
-                                pull = playerSheetMotion,
+                                onExpand = if (reducePlayerMotion) {
+                                    { showNowPlaying = true }
+                                } else {
+                                    playerSheetMotion::open
+                                },
+                                pull = playerSheetMotion.takeIf { !reducePlayerMotion },
                                 controlsLocked = controlsLocked,
                                 onBlockedControl = showHostOnlyNotice,
                                 modifier = Modifier.fillMaxWidth(),
@@ -3886,14 +3892,12 @@ private fun VibraMusicApp(
         // ---- Now Playing ----
         if (playerRaised) {
             val sheetDensity = LocalDensity.current
-            val confirmSheetValue: (SheetValue) -> Boolean = remember(playerSheetMotion) {
-                { value ->
-                    if (value == SheetValue.Hidden) {
-                        playerSheetMotion.close()
-                        false
-                    } else {
-                        true
-                    }
+            val confirmSheetValue: (SheetValue) -> Boolean = { value ->
+                if (value == SheetValue.Hidden && !reducePlayerMotion) {
+                    playerSheetMotion.close()
+                    false
+                } else {
+                    true
                 }
             }
             val nowPlayingSheetState = rememberSaveable(
@@ -3914,7 +3918,9 @@ private fun VibraMusicApp(
             DisposableEffect(nowPlayingSheetState) {
                 playerSheetMotion.sheet = nowPlayingSheetState
                 playerDock.sheetOffset = playerSheetMotion::position
-                dismissNowPlaying = { playerSheetMotion.close() }
+                dismissNowPlaying = {
+                    if (reducePlayerMotion) showNowPlaying = false else playerSheetMotion.close()
+                }
                 onDispose {
                     playerDock.sheetOffset = null
                     playerSheetMotion.onSheetGone()
@@ -3924,18 +3930,18 @@ private fun VibraMusicApp(
             ModalBottomSheet(
                 onDismissRequest = { showNowPlaying = false },
                 sheetState = nowPlayingSheetState,
-                scrimColor = Color.Transparent,
+                scrimColor = if (reducePlayerMotion) BottomSheetDefaults.ScrimColor else Color.Transparent,
                 shape = PlayerSheetShape,
                 containerColor = Color.Transparent,
                 dragHandle = null,
                 contentWindowInsets = { WindowInsets(0, 0, 0, 0) },
                 sheetMaxWidth = Dp.Unspecified,
-                properties = ModalBottomSheetProperties(shouldDismissOnBackPress = false),
+                properties = ModalBottomSheetProperties(shouldDismissOnBackPress = reducePlayerMotion),
             ) {
-                BackHandler { playerSheetMotion.close() }
+                BackHandler(enabled = !reducePlayerMotion) { playerSheetMotion.close() }
                 val sheetWindow = (LocalView.current.parent as? DialogWindowProvider)?.window
-                DisposableEffect(sheetWindow) {
-                    playerSheetMotion.attachWindow(sheetWindow)
+                DisposableEffect(sheetWindow, reducePlayerMotion) {
+                    if (!reducePlayerMotion) playerSheetMotion.attachWindow(sheetWindow)
                     sheetWindow?.let { win ->
                         androidx.core.view.WindowCompat.setDecorFitsSystemWindows(win, false)
                         win.statusBarColor = android.graphics.Color.TRANSPARENT
@@ -3948,7 +3954,7 @@ private fun VibraMusicApp(
                         .offset { IntOffset(0, playerSheetMotion.contentOffsetPx()) }
                         .drawBehind {
                             val open = playerDock.openFraction()
-                            if (open > 0f && !(open >= 1f && playerDock.attached)) {
+                            if (!reducePlayerMotion && open > 0f && !(open >= 1f && playerDock.attached)) {
                                 val top = playerSheetMotion.position().takeUnless { it.isNaN() } ?: 0f
                                 drawRect(
                                     color = Color.Black.copy(alpha = PLAYER_SCRIM_ALPHA * open),
@@ -3963,7 +3969,7 @@ private fun VibraMusicApp(
                             playerSheetMotion.laidOut = true
                         },
                 ) {
-                    CompositionLocalProvider(LocalPlayerDock provides playerDock) {
+                    CompositionLocalProvider(LocalPlayerDock provides activeDock) {
                         nowPlaying(playerSong)
                     }
                 }
@@ -5494,6 +5500,7 @@ private const val SEEK_END_GUARD_MS = 1_000L
  * between that estimate and a particular page's real header.
  */
 private val DETAIL_TITLE_DROP = 320.dp
+private val PLAYER_PULL_FLING_VELOCITY = 400.dp
 
 private const val TAB_HOME = 0
 private const val TAB_EXPLORE = 1

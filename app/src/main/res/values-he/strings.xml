@@ -1434,4 +1434,7 @@
     <string name="player_theme_simple_subtitle">העטיפה מטושטשת מאחורי הנגן כולו</string>
     <string name="square_video_thumbnails">Square video thumbnails</string>
     <string name="square_video_thumbnails_subtitle">Show music videos as squares everywhere, including the player</string>
+    <string name="hide_status_bar_in_player">הסתרת שורת המצב בנגן</string>
+    <string name="hide_status_bar_in_player_subtitle">מסתיר את השעון, הסוללה וסמלי ההתראות כשהנגן הראשי פתוח</string>
+    <string name="radio">Radio</string>
 </resources>

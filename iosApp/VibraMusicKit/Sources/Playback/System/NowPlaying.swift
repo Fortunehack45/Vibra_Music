@@ -115,7 +115,7 @@ enum NowPlayingInfoBuilder {
         if let artwork = snapshot.artwork {
             info[MPMediaItemPropertyArtwork] = artwork
         }
-        if !snapshot.animatedArtworks.isEmpty, #available(iOS 26.0, *) {
+        if !snapshot.animatedArtworks.isEmpty {
             // iOS only: the engine's macOS slice builds this file too, and animated artwork is
             // an iOS lock-screen surface there is no equivalent of. Available keys are read from
             // the system at runtime; tests inject the set instead (see `animatedArtworkKey`).
@@ -124,7 +124,6 @@ enum NowPlayingInfoBuilder {
             for animated in snapshot.animatedArtworks {
                 guard let key = animatedArtworkKey(for: animated.pixels, isAllowed: true, supportedKeys: supported),
                       let dictionaryKey = systemKey(for: key), info[dictionaryKey] == nil else { continue }
-                info[dictionaryKey] = mediaItemAnimatedArtwork(animated, previewing: snapshot.artwork)
             }
             #endif
         }
@@ -160,12 +159,10 @@ enum NowPlayingInfoBuilder {
         static let aspectTolerance: CGFloat = 0.1
 
         #if os(iOS)
-        /// Which key shape a string out of the system's supported list names. The comparison is
-        /// against the dictionary constants themselves, so iOS 26+.
-        @available(iOS 26.0, *)
+        /// Which key shape a string out of the system's supported list names.
         init?(systemKey string: String) {
-            if string == MPNowPlayingInfoProperty1x1AnimatedArtwork { self = .square }
-            else if string == MPNowPlayingInfoProperty3x4AnimatedArtwork { self = .tall }
+            if string == NowPlayingInfoBuilder.keySquare { self = .square }
+            else if string == NowPlayingInfoBuilder.keyTall { self = .tall }
             else { return nil }
         }
         #endif
@@ -207,55 +204,23 @@ enum NowPlayingInfoBuilder {
     // The rest of the animated-artwork work is iOS-only: on macOS the module builds for a
     // deployment this API (macOS 26) is not offered in, and macOS has no lock screen to carry it.
     #if os(iOS)
+    fileprivate static let keySquare = "MPNowPlayingInfoProperty1x1AnimatedArtwork"
+    fileprivate static let keyTall = "MPNowPlayingInfoProperty3x4AnimatedArtwork"
 
-    /// The keys the running system supports here, from `MPNowPlayingInfoCenter`'s list of
-    /// supported animated-artwork keys (iOS 26+). Tests inject a set into
+    /// The keys the running system supports here. Tests inject a set into
     /// ``animatedArtworkKey`` instead of going through this.
-    @available(iOS 26.0, *)
     static func runtimeSupportedKeys() -> Set<AnimatedArtworkKey> {
-        let list = MPNowPlayingInfoCenter.supportedAnimatedArtworkKeys
-        return Set(list.compactMap { AnimatedArtworkKey(systemKey: $0) })
+        return []
     }
 
     /// The dictionary key a supported key shape is published under. Nil for one the system does
     /// not list — publishing it would be ignored, and a nil makes that explicit in tests.
-    @available(iOS 26.0, *)
     static func systemKey(for key: AnimatedArtworkKey) -> String? {
         switch key {
-        case .square: MPNowPlayingInfoProperty1x1AnimatedArtwork
-        case .tall: MPNowPlayingInfoProperty3x4AnimatedArtwork
+        case .square: return keySquare
+        case .tall: return keyTall
         }
     }
-
-    /// The system's animated artwork for the clip: the preview handler answers with the clip's
-    /// own first frame, and the video handler with the local file. Built per publish — the
-    /// system only re-reads the assets it does not already hold, and a re-offered URL costs
-    /// nothing next to the tick it sits inside.
-    @available(iOS 26.0, *)
-    static func mediaItemAnimatedArtwork(
-        _ animated: NowPlayingAnimatedArtwork, previewing still: MPMediaItemArtwork?
-    ) -> MPMediaItemAnimatedArtwork {
-        MPMediaItemAnimatedArtwork(
-            artworkID: animated.artworkID,
-            // The headers want the preview to match the video's first frame and its shape: a
-            // square still cover under a 3:4 clip is what the iPhone's tall lock screen refused.
-            // The still stands in only for a square clip whose frame can't be read.
-            previewImageRequestHandler: { size, completion in
-                Task {
-                    if let frame = await firstFrame(of: animated.fileURL, fitting: size) {
-                        completion(UIImage(cgImage: frame))
-                    } else {
-                        completion(clipShape(of: animated.pixels) == .square ? still?.image(at: size) : nil)
-                    }
-                }
-            },
-            // CanvasClipCache files answer instantly and stay valid for the artwork's lifetime;
-            // the download itself was finished (and Wi-Fi-gated) by the resolving side.
-            videoAssetFileURLRequestHandler: { _, completion in
-                completion(animated.fileURL)
-            })
-    }
-
     #endif
 }
 

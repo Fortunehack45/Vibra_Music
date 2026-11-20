@@ -224,11 +224,12 @@ jobs:
             app/build/outputs/apk/prod/release/checksums.txt
             app/build/outputs/bundle/prodRelease/*.aab
           body: |
-            ### Which APK should I download?
+            ### Which download should I choose?
             - **Universal (Recommended)**: [`VibraMusic-${{ env.RELEASE_TAG }}-Universal-AllDevices.apk`](https://github.com/Fortunehack45/Vibra_Music_Releases/releases/download/${{ env.RELEASE_TAG }}/VibraMusic-${{ env.RELEASE_TAG }}-Universal-AllDevices.apk) — **Works on ALL Android phones** (Android 6.0+, 32-bit & 64-bit).
             - **64-bit ARM Phones**: [`VibraMusic-${{ env.RELEASE_TAG }}-arm64-v8a.apk`](https://github.com/Fortunehack45/Vibra_Music_Releases/releases/download/${{ env.RELEASE_TAG }}/VibraMusic-${{ env.RELEASE_TAG }}-arm64-v8a.apk) — Optimized for modern 64-bit devices.
             - **32-bit / Older / Budget Phones**: [`VibraMusic-${{ env.RELEASE_TAG }}-armeabi-v7a.apk`](https://github.com/Fortunehack45/Vibra_Music_Releases/releases/download/${{ env.RELEASE_TAG }}/VibraMusic-${{ env.RELEASE_TAG }}-armeabi-v7a.apk) — For budget / older phones (Samsung Galaxy A01-A12, Redmi 9A/9C, Tecno, Infinix, etc.).
             - **PC Emulators / Chromebooks**: [`VibraMusic-${{ env.RELEASE_TAG }}-x86_64.apk`](https://github.com/Fortunehack45/Vibra_Music_Releases/releases/download/${{ env.RELEASE_TAG }}/VibraMusic-${{ env.RELEASE_TAG }}-x86_64.apk) — For x86_64 emulators and Chromebooks.
+            - **iOS (Unsigned .ipa)**: [`VibraMusic-${{ env.RELEASE_TAG }}-iOS-unsigned.ipa`](https://github.com/Fortunehack45/Vibra_Music_Releases/releases/download/${{ env.RELEASE_TAG }}/VibraMusic-${{ env.RELEASE_TAG }}-iOS-unsigned.ipa) — For iOS devices (sideload via AltStore, SideStore, TrollStore, or Sideloadly).
           generate_release_notes: true
           draft: false
           prerelease: false
@@ -248,11 +249,12 @@ jobs:
             app/build/outputs/apk/prod/release/checksums.txt
             app/build/outputs/bundle/prodRelease/*.aab
           body: |
-            ### Which APK should I download?
+            ### Which download should I choose?
             - **Universal (Recommended)**: [`VibraMusic-${{ env.RELEASE_TAG }}-Universal-AllDevices.apk`](https://github.com/Fortunehack45/Vibra_Music_Releases/releases/download/${{ env.RELEASE_TAG }}/VibraMusic-${{ env.RELEASE_TAG }}-Universal-AllDevices.apk) — **Works on ALL Android phones** (Android 6.0+, 32-bit & 64-bit).
             - **64-bit ARM Phones**: [`VibraMusic-${{ env.RELEASE_TAG }}-arm64-v8a.apk`](https://github.com/Fortunehack45/Vibra_Music_Releases/releases/download/${{ env.RELEASE_TAG }}/VibraMusic-${{ env.RELEASE_TAG }}-arm64-v8a.apk) — Optimized for modern 64-bit devices.
             - **32-bit / Older / Budget Phones**: [`VibraMusic-${{ env.RELEASE_TAG }}-armeabi-v7a.apk`](https://github.com/Fortunehack45/Vibra_Music_Releases/releases/download/${{ env.RELEASE_TAG }}/VibraMusic-${{ env.RELEASE_TAG }}-armeabi-v7a.apk) — For budget / older phones (Samsung Galaxy A01-A12, Redmi 9A/9C, Tecno, Infinix, etc.).
             - **PC Emulators / Chromebooks**: [`VibraMusic-${{ env.RELEASE_TAG }}-x86_64.apk`](https://github.com/Fortunehack45/Vibra_Music_Releases/releases/download/${{ env.RELEASE_TAG }}/VibraMusic-${{ env.RELEASE_TAG }}-x86_64.apk) — For x86_64 emulators and Chromebooks.
+            - **iOS (Unsigned .ipa)**: [`VibraMusic-${{ env.RELEASE_TAG }}-iOS-unsigned.ipa`](https://github.com/Fortunehack45/Vibra_Music_Releases/releases/download/${{ env.RELEASE_TAG }}/VibraMusic-${{ env.RELEASE_TAG }}-iOS-unsigned.ipa) — For iOS devices (sideload via AltStore, SideStore, TrollStore, or Sideloadly).
           generate_release_notes: true
           draft: false
           prerelease: false

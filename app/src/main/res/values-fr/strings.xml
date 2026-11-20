@@ -1430,4 +1430,7 @@
     <string name="player_theme_simple_subtitle">La pochette floutée derrière tout le lecteur</string>
     <string name="square_video_thumbnails">Square video thumbnails</string>
     <string name="square_video_thumbnails_subtitle">Show music videos as squares everywhere, including the player</string>
+    <string name="hide_status_bar_in_player">Masquer la barre d\'état dans le lecteur</string>
+    <string name="hide_status_bar_in_player_subtitle">Masque l\'heure, la batterie et les icônes de notification tant que le lecteur principal est ouvert</string>
+    <string name="radio">Radio</string>
 </resources>

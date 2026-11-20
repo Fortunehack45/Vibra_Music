@@ -254,6 +254,7 @@ fun SettingsScreen(
     val exportDownloads by AppSettings.exportDownloads.collectAsStateWithLifecycle()
     val stopOnTaskRemoved by AppSettings.stopOnTaskRemoved.collectAsStateWithLifecycle()
     val hideVolumeBar by AppSettings.hideVolumeBar.collectAsStateWithLifecycle()
+    val hideStatusBarInPlayer by AppSettings.hideStatusBarInPlayer.collectAsStateWithLifecycle()
     val hideSongStatus by AppSettings.hideSongStatus.collectAsStateWithLifecycle()
     val swipeToPlayNext by AppSettings.swipeToPlayNext.collectAsStateWithLifecycle()
     val dontRepeatSuggestions by AppSettings.dontRepeatSuggestions.collectAsStateWithLifecycle()
@@ -1513,6 +1514,25 @@ fun SettingsScreen(
                         )
                     },
                     onClick = { AppSettings.setHideVolumeBar(!hideVolumeBar) },
+                )
+            }
+            val hideStatusBarTitle = stringResource(R.string.hide_status_bar_in_player)
+            row(hideStatusBarTitle, "status bar", "immersive", "fullscreen", "player") {
+                SettingsRow(
+                    icon = Icons.Rounded.Fullscreen,
+                    title = hideStatusBarTitle,
+                    subtitle = stringResource(R.string.hide_status_bar_in_player_subtitle),
+                    trailing = {
+                        Switch(
+                            checked = hideStatusBarInPlayer,
+                            onCheckedChange = AppSettings::setHideStatusBarInPlayer,
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                checkedBorderColor = MaterialTheme.colorScheme.primary,
+                            ),
+                        )
+                    },
+                    onClick = { AppSettings.setHideStatusBarInPlayer(!hideStatusBarInPlayer) },
                 )
             }
             val hideSongStatusTitle = stringResource(R.string.hide_song_status)

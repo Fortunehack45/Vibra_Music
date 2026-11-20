@@ -1368,4 +1368,7 @@
     <string name="player_theme_simple_subtitle">La copertina sfocata dietro tutto il lettore</string>
     <string name="square_video_thumbnails">Square video thumbnails</string>
     <string name="square_video_thumbnails_subtitle">Show music videos as squares everywhere, including the player</string>
+    <string name="hide_status_bar_in_player">Nascondi barra di stato nel player</string>
+    <string name="hide_status_bar_in_player_subtitle">Nasconde orologio, batteria e icone delle notifiche mentre il player principale è aperto</string>
+    <string name="radio">Radio</string>
 </resources>

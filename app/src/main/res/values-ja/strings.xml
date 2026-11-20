@@ -1410,4 +1410,7 @@
     <string name="player_theme_simple_subtitle">ぼかしたカバーをプレーヤー全体の背景に表示します</string>
     <string name="square_video_thumbnails">Square video thumbnails</string>
     <string name="square_video_thumbnails_subtitle">Show music videos as squares everywhere, including the player</string>
+    <string name="hide_status_bar_in_player">プレイヤーでステータスバーを隠す</string>
+    <string name="hide_status_bar_in_player_subtitle">メインプレイヤーを開いている間、時計・バッテリー・通知アイコンを非表示にします</string>
+    <string name="radio">Radio</string>
 </resources>

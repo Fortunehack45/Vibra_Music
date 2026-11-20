@@ -263,10 +263,9 @@ final class CurrentTrackCanvas {
     }
 
     static func systemTallSkip() -> String? {
-        guard #available(iOS 26.0, *) else { return "not offered" }
         return tallSkip(
             isPhone: UIDevice.current.userInterfaceIdiom == .phone,
-            offers3x4: MPNowPlayingInfoCenter.supportedAnimatedArtworkKeys.contains(MPNowPlayingInfoProperty3x4AnimatedArtwork))
+            offers3x4: false)
     }
 
     private static func allowed(for app: AppModel?) -> Bool {

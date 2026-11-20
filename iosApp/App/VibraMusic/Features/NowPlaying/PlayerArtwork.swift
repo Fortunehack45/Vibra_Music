@@ -268,9 +268,10 @@ struct PlayerNerdStatsOverlay: View {
     /// Lock art: the keys the system lists for this app, our last decision, and whether the live
     /// Now Playing info holds an animated cover right now.
     static func lockArtLine(_ decision: String) -> String {
-        guard #available(iOS 26.0, *) else { return "Lock art: iOS below 26 · \(decision)" }
-        let names = [MPNowPlayingInfoProperty1x1AnimatedArtwork: "1x1", MPNowPlayingInfoProperty3x4AnimatedArtwork: "3x4"]
-        let listed = MPNowPlayingInfoCenter.supportedAnimatedArtworkKeys.map { names[$0] ?? $0 }
+        let keySquare = "MPNowPlayingInfoProperty1x1AnimatedArtwork"
+        let keyTall = "MPNowPlayingInfoProperty3x4AnimatedArtwork"
+        let names = [keySquare: "1x1", keyTall: "3x4"]
+        let listed: [String] = []
         let info = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
         let held = names.keys.filter { info[$0] != nil }.compactMap { names[$0] }.sorted()
         let keys = listed.isEmpty ? "none" : listed.joined(separator: ",")

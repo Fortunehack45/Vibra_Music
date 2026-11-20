@@ -153,9 +153,9 @@ enum AudioTap {
             unprepare: tapUnprepare,
             process: tapProcess
         )
-        var tap: MTAudioProcessingTap?
+        var tap: Unmanaged<MTAudioProcessingTap>?
         let status = MTAudioProcessingTapCreate(kCFAllocatorDefault, &callbacks, kMTAudioProcessingTapCreationFlag_PostEffects, &tap)
-        guard status == noErr, let tap else {
+        guard status == noErr, let tap = tap?.takeRetainedValue() else {
             retained.release()
             return nil
         }

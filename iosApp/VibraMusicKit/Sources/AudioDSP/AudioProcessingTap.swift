@@ -48,12 +48,12 @@ extension DSPChain {
             unprepare: dspTapUnprepare,
             process: dspTapProcess
         )
-        var tap: MTAudioProcessingTap?
+        var tap: Unmanaged<MTAudioProcessingTap>?
         let flags: MTAudioProcessingTapCreationFlags = placement == .postEffects
             ? kMTAudioProcessingTapCreationFlag_PostEffects
             : kMTAudioProcessingTapCreationFlag_PreEffects
         let status = MTAudioProcessingTapCreate(kCFAllocatorDefault, &callbacks, flags, &tap)
-        guard status == noErr, let tap else {
+        guard status == noErr, let tap = tap?.takeRetainedValue() else {
             Unmanaged<DSPChain>.fromOpaque(callbacks.clientInfo!).release()
             throw DSPTapError.creationFailed(status)
         }

@@ -413,6 +413,9 @@ object AppSettings {
     /** Freezes the main player's mesh gradient instead of letting it drift/crossfade. */
     val reduceAnimation = MutableStateFlow(false)
 
+    /** Enables curved optical edge refraction when scrolling horizontal carousels. */
+    val horizontalScrollRefraction = MutableStateFlow(true)
+
     /** Requests a sustained high-refresh UI. Off keeps Android's automatic policy. */
     val highPerformanceMode = MutableStateFlow(false)
 
@@ -1038,6 +1041,7 @@ object AppSettings {
         fullBleedDetailArtwork.value = prefs.getBoolean(KEY_FULL_BLEED_DETAIL_ARTWORK, false)
         disableBlendEffects.value = prefs.getBoolean(KEY_DISABLE_BLEND_EFFECTS, false)
         glassPerformance.value = prefs.getBoolean(KEY_GLASS_PERFORMANCE, false)
+        horizontalScrollRefraction.value = prefs.getBoolean(KEY_HORIZONTAL_SCROLL_REFRACTION, true)
         hideRecents.value = prefs.getBoolean(KEY_HIDE_RECENTS, false)
         hideHomeVideos.value = prefs.getBoolean(KEY_HIDE_HOME_VIDEOS, false)
         hideTopPicks.value = prefs.getBoolean(KEY_HIDE_TOP_PICKS, false)
@@ -1500,6 +1504,11 @@ object AppSettings {
     fun setHideStatusBarInPlayer(value: Boolean) {
         hideStatusBarInPlayer.value = value
         prefs.edit().putBoolean(KEY_HIDE_STATUS_BAR_IN_PLAYER, value).apply()
+    }
+
+    fun setHorizontalScrollRefraction(value: Boolean) {
+        horizontalScrollRefraction.value = value
+        prefs.edit().putBoolean(KEY_HORIZONTAL_SCROLL_REFRACTION, value).apply()
     }
 
     fun setHideSongStatus(value: Boolean) {
@@ -2361,6 +2370,7 @@ object AppSettings {
     private const val KEY_SMART_VERSION_ALIGNMENT = "smart_version_alignment"
     private const val KEY_REDUCE_BLUR = "reduce_dynamic_blur"
     private const val KEY_LIQUID_GLASS = "liquid_glass"
+    private const val KEY_HORIZONTAL_SCROLL_REFRACTION = "horizontal_scroll_refraction"
     private const val KEY_LIQUID_GLASS_DEFAULT_V1_7_5 = "liquid_glass_forced_on_v175"
     private const val KEY_LYRICS_BLUR = "lyrics_blur"
     private const val KEY_LYRICS_FADE_ANIMATION = "lyrics_fade_animation"

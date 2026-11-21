@@ -2097,7 +2097,8 @@ fun NowPlayingScreen(
                             // over, and takes it straight back if there is no
                             // clip mounted to hand it to.
                             alpha = heroVisible() *
-                                (1f - if (heroClip != null) canvasCover.floatValue else 0f)
+                                (1f - if (heroClip != null) canvasCover.floatValue else 0f) *
+                                dockT()
                             // The mask below erases part of what this layer
                             // drew, which it can only do in a buffer of its own.
                             compositingStrategy = CompositingStrategy.Offscreen
@@ -2132,7 +2133,7 @@ fun NowPlayingScreen(
                     // Paused for the whole collapse into the queue/lyrics panel
                     // and back, not just once it hands off to the still frame at
                     // p >= 0.5 — see [CanvasArtworkPlayer.pausedForTransition].
-                    pausedForTransition = collapseStarted,
+                    pausedForTransition = collapseStarted || docking(),
                     // Spotify's 9:16 Canvas is the phone background, so it
                     // covers every edge. Other providers retain the contained
                     // portrait treatment introduced for motion cover art.
@@ -2145,9 +2146,9 @@ fun NowPlayingScreen(
                     onAspectRatioChanged = { canvasAspect = it },
                     portraitRevealBounds = playerBounds,
                     presentationAlpha = if (spotifyCanvasFullscreen || canvasFirstPortrait) {
-                        { (1f - 2f * p()).coerceIn(0f, 1f) }
+                        { (1f - 2f * p()).coerceIn(0f, 1f) * dockT() }
                     } else {
-                        { 1f }
+                        { dockT() }
                     },
                     onRenderedChanged = { canvasRendered = it },
                     onFrameCaptured = {
@@ -2446,8 +2447,8 @@ fun NowPlayingScreen(
                                 bandBottom = bandTop +
                                     (ART_BOX_TOP_PAD + HEADER_HEIGHT).toPx()
                             } else {
-                                bandTop = dismissBandTop
-                                bandBottom = dismissBandBottom
+                                bandTop = if (heroMode) 0f else dismissBandTop
+                                bandBottom = if (heroMode) maxOf(dismissBandBottom, with(density) { heroHeight.toPx() }) else dismissBandBottom
                             }
                             if (y >= bandTop && y <= bandBottom) {
                                 if (!panelUp) {
@@ -2479,12 +2480,17 @@ fun NowPlayingScreen(
                             if (down.isConsumed) return@awaitEachGesture
                             // What detectVerticalDragGestures does, minus the
                             // callbacks: cross the slop, then hold the gesture
-                            // to the end so nothing downstream of the first
-                            // event reaches the sheet either.
-                            val drag = awaitVerticalTouchSlopOrCancellation(down.id) { change, _ ->
-                                change.consume()
+                            // ONLY for upward drags (overSlop < 0f) to isolate controls.
+                            // Downward drags (overSlop >= 0f) belong to sheet dismiss and
+                            // must pass through unconsumed so the player slides down smoothly.
+                            var consumedDrag = false
+                            val drag = awaitVerticalTouchSlopOrCancellation(down.id) { change, overSlop ->
+                                if (overSlop < 0f) {
+                                    change.consume()
+                                    consumedDrag = true
+                                }
                             }
-                            if (drag != null) verticalDrag(drag.id) { it.consume() }
+                            if (drag != null && consumedDrag) verticalDrag(drag.id) { it.consume() }
                         }
                     }
                     .padding(horizontal = PLAYER_GUTTER),
@@ -2707,10 +2713,18 @@ fun NowPlayingScreen(
                                         -(anchor.x),
                                         -(anchor.y + dockFrame.offset),
                                     )
-                                    val openW = with(density) { artSize().toPx() }
-                                    val openH = openW
-                                    val openL = with(density) { artStart().toPx() }
-                                    val openT = with(density) { (statusBarTop + topStrip + ART_BOX_TOP_PAD + artTop()).toPx() }
+                                    val openW = with(density) {
+                                        if (heroMode && playerBounds.width > 0) playerBounds.width.toFloat() else artSize().toPx()
+                                    }
+                                    val openH = with(density) {
+                                        if (heroMode && heroHeight > 0.dp) heroHeight.toPx() else openW
+                                    }
+                                    val openL = with(density) {
+                                        if (heroMode) 0f else artStart().toPx()
+                                    }
+                                    val openT = with(density) {
+                                        if (heroMode) 0f else (statusBarTop + topStrip + ART_BOX_TOP_PAD + artTop()).toPx()
+                                    }
                                     val openRect = Rect(openL, openT, openL + openW, openT + openH)
                                     val travel = dock.sheetTravel
                                     if (travel > 0f) {
@@ -2796,7 +2810,7 @@ fun NowPlayingScreen(
                             .hazeSource(playerHaze)
                             .graphicsLayer {
                                 val base = if (heroArtLoaded || canvasRendered) {
-                                    1f - heroVisible()
+                                    if (docking()) dockT() else 1f - heroVisible()
                                 } else {
                                     1f
                                 }

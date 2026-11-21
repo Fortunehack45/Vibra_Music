@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
+import com.fortune.vibramusic.ui.graphics.edgeRefraction
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -336,7 +337,9 @@ private fun RecentShelf(
         } else {
             BoxWithConstraints {
                 val cardWidth = heroCardWidth(maxWidth)
+                val heroRowState = rememberLazyListState()
                 LazyRow(
+                    state = heroRowState,
                     contentPadding = PaddingValues(horizontal = PAGE_GUTTER),
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
@@ -748,8 +751,10 @@ private fun HeroShelf(
         // into a height, so the card keeps its shape however it was arrived at.
         BoxWithConstraints {
             val cardWidth = heroCardWidth(maxWidth)
+            val heroRowState = rememberLazyListState()
             LazyRow(
-                state = rememberLazyListState(),
+                state = heroRowState,
+                modifier = Modifier.edgeRefraction(heroRowState),
                 contentPadding = PaddingValues(horizontal = PAGE_GUTTER),
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
             ) {
@@ -839,7 +844,10 @@ internal fun Shelf(
     Column(Modifier.padding(bottom = 26.dp)) {
         SectionHeader(shelf.title, shelf.subtitle)
         val isVideoShelf = shelf.title.contains("video", ignoreCase = true)
+        val shelfRowState = rememberLazyListState()
         LazyRow(
+            state = shelfRowState,
+            modifier = Modifier.edgeRefraction(shelfRowState),
             contentPadding = PaddingValues(horizontal = PAGE_GUTTER),
             horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {

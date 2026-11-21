@@ -7,6 +7,7 @@ import com.fortune.vibramusic.data.model.PodcastEpisode
 import com.fortune.vibramusic.data.model.PodcastFeed
 import com.fortune.vibramusic.data.model.PodcastShow
 import com.fortune.vibramusic.data.model.ShelfItem
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -22,9 +23,92 @@ object PodcastRepository {
     private const val TAG = "PodcastRepository"
     private const val BROWSE_PODCASTS = "FEpodcasts"
 
-    // Official InnerTube filter chips for Podcasts and Episodes
+    // Official InnerTube filter chips for Podcasts, Episodes, and Live Streams
     private const val FILTER_PODCASTS = "EgWKAQJQAWoSEBEQAxAJEAUQEBAEEAoQDhAV"
     private const val FILTER_EPISODES = "EgWKAQJIAWoSEBEQAxAJEAUQEBAEEAoQDhAV"
+    private const val FILTER_LIVE_STREAM = "EgJAAQ=="
+
+    /**
+     * Verified 24/7 evergreen live broadcasts used to guarantee that the Live Radio
+     * shelf is never empty, even during network glitches or regional restrictions.
+     */
+    private val EVERGREEN_LIVE_STATIONS = listOf(
+        PodcastEpisode(
+            id = "jfKfPfyJRdk",
+            videoId = "jfKfPfyJRdk",
+            title = "lofi hip hop radio - beats to relax/study to",
+            author = "Lofi Girl",
+            authorBrowseId = "UCSJ4gkVC6NrvII8umztf0Ow",
+            showTitle = "Lofi Girl 24/7 Live",
+            showBrowseId = null,
+            description = "Peaceful lofi beats 24/7 for focus and relaxation",
+            durationText = "LIVE",
+            publishedTimeText = "Streaming now",
+            thumbnailUrl = "https://i.ytimg.com/vi/jfKfPfyJRdk/hqdefault_live.jpg",
+            isLive = true,
+            hasVideo = true,
+        ),
+        PodcastEpisode(
+            id = "5yx6BWlEVcY",
+            videoId = "5yx6BWlEVcY",
+            title = "Chillhop Radio - jazzy & lofi hip hop beats",
+            author = "Chillhop Music",
+            authorBrowseId = "UCOxqgCwgOq3EWxwbF0zEvgA",
+            showTitle = "Chillhop Radio Live",
+            showBrowseId = null,
+            description = "Live 24/7 chillhop and jazzhop beats",
+            durationText = "LIVE",
+            publishedTimeText = "Streaming now",
+            thumbnailUrl = "https://i.ytimg.com/vi/5yx6BWlEVcY/hqdefault_live.jpg",
+            isLive = true,
+            hasVideo = true,
+        ),
+        PodcastEpisode(
+            id = "4xDzrJKXOOY",
+            videoId = "4xDzrJKXOOY",
+            title = "synthwave radio - chill synth / retro beats",
+            author = "Lofi Girl",
+            authorBrowseId = "UCSJ4gkVC6NrvII8umztf0Ow",
+            showTitle = "Synthwave Live Radio",
+            showBrowseId = null,
+            description = "Futuristic retro beats and synthwave tunes 24/7",
+            durationText = "LIVE",
+            publishedTimeText = "Streaming now",
+            thumbnailUrl = "https://i.ytimg.com/vi/4xDzrJKXOOY/hqdefault_live.jpg",
+            isLive = true,
+            hasVideo = true,
+        ),
+        PodcastEpisode(
+            id = "rUxyKA_-Mg4",
+            videoId = "rUxyKA_-Mg4",
+            title = "Coffee Shop Radio - 24/7 Relaxing Cafe BGM",
+            author = "Cafe Music BGM channel",
+            authorBrowseId = "UCHjvy345iK8s7rQ23Wp2-bA",
+            showTitle = "Cafe Music 24/7",
+            showBrowseId = null,
+            description = "Relaxing bossa nova and jazz piano from the coffee shop",
+            durationText = "LIVE",
+            publishedTimeText = "Streaming now",
+            thumbnailUrl = "https://i.ytimg.com/vi/rUxyKA_-Mg4/hqdefault_live.jpg",
+            isLive = true,
+            hasVideo = true,
+        ),
+        PodcastEpisode(
+            id = "WPni755-Krg",
+            videoId = "WPni755-Krg",
+            title = "Deep Focus - Ambient Music for Concentration",
+            author = "Relaxing Music",
+            authorBrowseId = null,
+            showTitle = "Deep Focus Radio",
+            showBrowseId = null,
+            description = "Continuous ambient soundscapes for deep flow and work",
+            durationText = "LIVE",
+            publishedTimeText = "Streaming now",
+            thumbnailUrl = "https://i.ytimg.com/vi/WPni755-Krg/hqdefault_live.jpg",
+            isLive = true,
+            hasVideo = true,
+        ),
+    )
 
     @Volatile
     private var cachedFeed: PodcastFeed? = null
@@ -157,17 +241,23 @@ object PodcastRepository {
     }
 
     /**
-     * Builds a comprehensive podcast feed quickly by querying top shows, trending episodes,
-     * and live podcast streams in parallel.
+     * Builds a comprehensive podcast and live radio feed quickly by querying top shows,
+     * trending episodes, and live YouTube broadcasts in parallel.
      */
     private suspend fun buildResilientPodcastFeed(): PodcastFeed = coroutineScope {
+        val liveRadioDeferred = async { fetchSearchShelf("live radio music", FILTER_LIVE_STREAM, "Live Radio Stations") }
+        val liveLoFiDeferred = async { fetchSearchShelf("24/7 lofi radio live", FILTER_LIVE_STREAM, "Chill & Lo-Fi 24/7") }
+        val livePodcastDeferred = async { fetchSearchShelf("live podcast talk", FILTER_LIVE_STREAM, "Live Broadcasts") }
+        val liveNewsDeferred = async { fetchSearchShelf("live news broadcast radio", FILTER_LIVE_STREAM, "Global News & Talk") }
         val topShowsDeferred = async { fetchSearchShelf("podcasts", FILTER_PODCASTS, "Top Shows") }
         val trendingEpisodesDeferred = async { fetchSearchShelf("podcast episodes", FILTER_EPISODES, "Trending Episodes") }
-        val liveDeferred = async { fetchSearchShelf("live podcast", null, "Live Broadcasts") }
 
+        val liveRadioShelf = liveRadioDeferred.await()
+        val liveLoFiShelf = liveLoFiDeferred.await()
+        val livePodcastShelf = livePodcastDeferred.await()
+        val liveNewsShelf = liveNewsDeferred.await()
         val topShowsShelf = topShowsDeferred.await()
         val trendingEpisodesShelf = trendingEpisodesDeferred.await()
-        val liveShelf = liveDeferred.await()
 
         val allShows = mutableListOf<PodcastShow>()
         val allEpisodes = mutableListOf<PodcastEpisode>()
@@ -183,7 +273,9 @@ object PodcastRepository {
                         is PodcastShow -> allShows.add(item)
                         is PodcastEpisode -> {
                             if (item.isLive || isLiveShelf) {
-                                val liveEp = if (!item.isLive) item.copy(isLive = true) else item
+                                val liveEp = if (!item.isLive) {
+                                    item.copy(isLive = true, durationText = "LIVE", publishedTimeText = "Streaming now")
+                                } else item
                                 liveBroadcasts.add(liveEp)
                                 allEpisodes.add(liveEp)
                             } else {
@@ -195,12 +287,26 @@ object PodcastRepository {
             }
         }
 
+        processShelf(liveRadioShelf, isLiveShelf = true)
+        processShelf(liveLoFiShelf, isLiveShelf = true)
+        processShelf(livePodcastShelf, isLiveShelf = true)
+        processShelf(liveNewsShelf, isLiveShelf = true)
         processShelf(topShowsShelf)
         processShelf(trendingEpisodesShelf)
-        processShelf(liveShelf, isLiveShelf = true)
+
+        // Safety fallback: guaranteed evergreen live stations so the radio/live section is never empty
+        val distinctLive = liveBroadcasts.distinctBy { it.videoId }.toMutableList()
+        if (distinctLive.size < 4) {
+            EVERGREEN_LIVE_STATIONS.forEach { fallback ->
+                if (distinctLive.none { it.videoId == fallback.videoId }) {
+                    distinctLive.add(fallback)
+                    allEpisodes.add(fallback)
+                }
+            }
+        }
 
         PodcastFeed(
-            liveBroadcasts = liveBroadcasts.distinctBy { it.videoId },
+            liveBroadcasts = distinctLive,
             continueListening = emptyList(),
             topShows = allShows.distinctBy { it.browseId },
             latestEpisodes = allEpisodes.distinctBy { it.videoId },
@@ -215,7 +321,7 @@ object PodcastRepository {
         query: String,
         params: String?,
         shelfTitle: String,
-    ): Pair<HomeShelf, List<Any>> = runCatching {
+    ): Pair<HomeShelf, List<Any>> = try {
         val response = Innertube.search(query, params)
         val tab = response.obj("contents")
             ?.obj("tabbedSearchResultsRenderer")
@@ -264,6 +370,8 @@ object PodcastRepository {
             val rawSub = flex.getOrNull(1)?.obj("musicResponsiveListItemFlexColumnRenderer")
                 ?.obj("text")?.runsText().orEmpty()
             val isLive = shelfTitle.contains("Live", ignoreCase = true) ||
+                shelfTitle.contains("Radio", ignoreCase = true) ||
+                params == FILTER_LIVE_STREAM ||
                 row.arr("badges")?.any {
                     (it as? JsonObject)?.obj("liveBadgeRenderer") != null ||
                         (it as? JsonObject)?.runsText()?.contains("LIVE", ignoreCase = true) == true
@@ -293,7 +401,7 @@ object PodcastRepository {
                     showBrowseId = meta.showBrowseId ?: browseId,
                     description = meta.showTitle ?: meta.author,
                     durationText = if (isLive) "LIVE" else meta.durationText,
-                    publishedTimeText = meta.publishedTimeText,
+                    publishedTimeText = if (isLive) "Streaming now" else meta.publishedTimeText,
                     thumbnailUrl = thumb,
                     isLive = isLive,
                     hasVideo = false,
@@ -304,7 +412,12 @@ object PodcastRepository {
         }
 
         Pair(HomeShelf(title = shelfTitle, items = shelfItems), domainItems)
-    }.getOrElse { Pair(HomeShelf(title = shelfTitle, items = emptyList()), emptyList()) }
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Log.w(TAG, "fetchSearchShelf failed for $shelfTitle: ${e.message}")
+        Pair(HomeShelf(title = shelfTitle, items = emptyList()), emptyList())
+    }
 
     /**
      * Loads a specific podcast show details and all its episodes.

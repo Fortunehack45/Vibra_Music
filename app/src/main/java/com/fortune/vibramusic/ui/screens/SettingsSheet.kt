@@ -2,6 +2,7 @@ package com.fortune.vibramusic.ui.screens
 
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.media.AudioFormat
 import android.media.audiofx.AudioEffect
 import android.net.Uri
@@ -1005,6 +1006,33 @@ fun SettingsScreen(
                         onCheckedChange = AppSettings::setGlassPerformance,
                     )
                 }
+            }
+            val horizontalRefractionTitle = "Horizontal Scroll Liquid Glass"
+            val horizontalRefractionSupported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+            val horizontalRefraction by AppSettings.horizontalScrollRefraction.collectAsStateWithLifecycle()
+            row(horizontalRefractionTitle, "glass", "scroll", "refraction", "wave", "edge", "carousel") {
+                SettingsRow(
+                    icon = Icons.Rounded.Waves,
+                    title = horizontalRefractionTitle,
+                    subtitle = if (horizontalRefractionSupported) {
+                        "Curved optical glass refraction at screen edges when scrolling carousels"
+                    } else {
+                        "Requires Android 13 or newer"
+                    },
+                    enabled = horizontalRefractionSupported,
+                    trailing = {
+                        Switch(
+                            checked = horizontalRefraction,
+                            onCheckedChange = AppSettings::setHorizontalScrollRefraction,
+                            enabled = horizontalRefractionSupported,
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                checkedBorderColor = MaterialTheme.colorScheme.primary,
+                            ),
+                        )
+                    },
+                    onClick = { AppSettings.setHorizontalScrollRefraction(!horizontalRefraction) },
+                )
             }
             val artistSignatureTitle = "Artist Signature API"
             row(artistSignatureTitle, "signature", "artist", "api", "vibra") {

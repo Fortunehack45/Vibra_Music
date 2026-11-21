@@ -314,7 +314,10 @@ private fun RecentShelf(
             }
             BoxWithConstraints {
                 val columnWidth = trackColumnWidth(maxWidth)
+                val listRowState = rememberLazyListState()
                 LazyRow(
+                    state = listRowState,
+                    modifier = Modifier.fillMaxWidth().edgeRefraction(listRowState),
                     contentPadding = PaddingValues(horizontal = PAGE_GUTTER),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
@@ -340,6 +343,7 @@ private fun RecentShelf(
                 val heroRowState = rememberLazyListState()
                 LazyRow(
                     state = heroRowState,
+                    modifier = Modifier.fillMaxWidth().edgeRefraction(heroRowState),
                     contentPadding = PaddingValues(horizontal = PAGE_GUTTER),
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
@@ -754,7 +758,7 @@ private fun HeroShelf(
             val heroRowState = rememberLazyListState()
             LazyRow(
                 state = heroRowState,
-                modifier = Modifier.edgeRefraction(heroRowState),
+                modifier = Modifier.fillMaxWidth().edgeRefraction(heroRowState),
                 contentPadding = PaddingValues(horizontal = PAGE_GUTTER),
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
             ) {
@@ -847,7 +851,7 @@ internal fun Shelf(
         val shelfRowState = rememberLazyListState()
         LazyRow(
             state = shelfRowState,
-            modifier = Modifier.edgeRefraction(shelfRowState),
+            modifier = Modifier.fillMaxWidth().edgeRefraction(shelfRowState),
             contentPadding = PaddingValues(horizontal = PAGE_GUTTER),
             horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {

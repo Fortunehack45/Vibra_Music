@@ -53,14 +53,6 @@ private const val EDGE_REFRACTION_SHADER = """
     }
 """
 
-private class ShaderRenderState {
-    var width: Float = 0f
-    var height: Float = 0f
-    var left: Float = -1f
-    var right: Float = -1f
-    var renderEffect: androidx.compose.ui.graphics.RenderEffect? = null
-}
-
 /**
  * Optical edge refraction for horizontal lists: creates a curved, liquid glass effect
  * at the screen edges as items scroll in or out.
@@ -72,7 +64,7 @@ private class ShaderRenderState {
 @Composable
 fun Modifier.edgeRefraction(
     state: LazyListState? = null,
-    edgeFraction: Float = 0.16f,
+    edgeFraction: Float = 0.18f,
     pull: Float = 0.62f,
     liftFraction: Float = 0.16f,
     chromaDp: Float = 3.5f,
@@ -97,7 +89,7 @@ fun Modifier.edgeRefraction(
     )
 
     val shader = remember { RuntimeShader(EDGE_REFRACTION_SHADER) }
-    val renderState = remember { ShaderRenderState() }
+    val cache = remember { arrayOfNulls<Any>(2) }
 
     return this.graphicsLayer {
         val s = size
@@ -107,29 +99,21 @@ fun Modifier.edgeRefraction(
             return@graphicsLayer
         }
 
-        val sizeChanged = s.width != renderState.width || s.height != renderState.height
-        val edgesChanged = left != renderState.left || right != renderState.right
-
-        if (sizeChanged) {
-            renderState.width = s.width
-            renderState.height = s.height
+        val key = listOf(s.width, s.height, left, right)
+        if (cache[0] != key) {
             shader.setFloatUniform("size", s.width, s.height)
             shader.setFloatUniform("edge", s.width * edgeFraction)
             shader.setFloatUniform("pull", pull)
             shader.setFloatUniform("lift", liftFraction)
             shader.setFloatUniform("chroma", chromaDp * density)
             shader.setFloatUniform("smear", smearDp * density)
-            renderState.renderEffect = RenderEffect.createRuntimeShaderEffect(shader, "content").asComposeRenderEffect()
-        }
-
-        if (sizeChanged || edgesChanged) {
-            renderState.left = left
-            renderState.right = right
             shader.setFloatUniform("leftOn", left)
             shader.setFloatUniform("rightOn", right)
+            cache[0] = key
+            cache[1] = RenderEffect.createRuntimeShaderEffect(shader, "content").asComposeRenderEffect()
         }
 
-        renderEffect = renderState.renderEffect
+        renderEffect = cache[1] as? androidx.compose.ui.graphics.RenderEffect
     }
 }
 

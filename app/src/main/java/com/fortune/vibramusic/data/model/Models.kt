@@ -98,6 +98,8 @@ data class Song(
     val playbackSourceId: String? = null,
     /** Full episode description or show notes for podcasts. */
     val description: String? = null,
+    /** Whether this item is an authentic live broadcast requiring an HLS manifest. */
+    val isLiveStream: Boolean = false,
 ) {
     /** Legacy derived property: true if and only if [queueTier] is [QueueTier.AUTOPLAY]. */
     val fromAutoplay: Boolean get() = queueTier == QueueTier.AUTOPLAY
@@ -323,6 +325,7 @@ data class PodcastEpisode(
         playbackSourceType = PlaybackSourceType.PODCASTS,
         playbackSourceId = showBrowseId ?: authorBrowseId,
         description = description,
+        isLiveStream = isLive,
     )
 }
 

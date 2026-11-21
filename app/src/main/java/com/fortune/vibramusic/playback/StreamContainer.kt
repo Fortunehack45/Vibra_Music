@@ -89,7 +89,18 @@ object StreamContainer {
      */
     fun manifestMimeOf(url: String): String? =
         declared[url]
-            ?: when (url.substringBefore('?').substringAfterLast('.').lowercase(Locale.ROOT)) {
+            ?: if (url.contains("manifest/hls", ignoreCase = true) ||
+                url.contains("hls_variant", ignoreCase = true) ||
+                url.contains("hls_playlist", ignoreCase = true) ||
+                url.substringBefore('?').endsWith(".m3u8", ignoreCase = true)
+            ) {
+                MimeTypes.APPLICATION_M3U8
+            } else if (url.contains("manifest/dash", ignoreCase = true) ||
+                url.contains("dash_playlist", ignoreCase = true) ||
+                url.substringBefore('?').endsWith(".mpd", ignoreCase = true)
+            ) {
+                MimeTypes.APPLICATION_MPD
+            } else when (url.substringBefore('?').substringAfterLast('.').lowercase(Locale.ROOT)) {
                 "m3u8" -> MimeTypes.APPLICATION_M3U8
                 "mpd" -> MimeTypes.APPLICATION_MPD
                 else -> null

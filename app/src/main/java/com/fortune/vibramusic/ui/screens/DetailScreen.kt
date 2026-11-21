@@ -47,6 +47,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
+import com.fortune.vibramusic.ui.graphics.edgeRefraction
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -603,6 +604,7 @@ fun DetailScreen(
                                     val topSongsState = rememberLazyListState()
                                     LazyRow(
                                         state = topSongsState,
+                                        modifier = Modifier.fillMaxWidth().edgeRefraction(topSongsState),
                                         contentPadding = PaddingValues(horizontal = ARTIST_CONTENT_GUTTER),
                                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                                         flingBehavior = rememberSnapFlingBehavior(lazyListState = topSongsState),
@@ -790,6 +792,7 @@ fun DetailScreen(
                             val carouselState = rememberLazyListState()
                             LazyRow(
                                 state = carouselState,
+                                modifier = Modifier.fillMaxWidth().edgeRefraction(carouselState),
                                 contentPadding = PaddingValues(horizontal = ARTIST_CONTENT_GUTTER),
                                 horizontalArrangement = Arrangement.spacedBy(14.dp),
                                 flingBehavior = rememberSnapFlingBehavior(lazyListState = carouselState),

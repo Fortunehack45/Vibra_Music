@@ -273,6 +273,13 @@ object StreamResolver {
         // real figure is ever known.
         NerdStats.onStreamPicked(videoId, stream.kbps)
         stream.loudnessDb?.let { loudness[videoId] = it }
+        if (stream.mimeType == "application/x-mpegURL" ||
+            stream.url.contains("manifest/hls", ignoreCase = true) ||
+            stream.url.contains("hls_variant", ignoreCase = true)
+        ) {
+            com.fortune.vibramusic.playback.StreamContainer.declare(stream.url, "hls")
+            com.fortune.vibramusic.playback.StreamContainer.served(videoId, stream.url)
+        }
         remember(videoId, stream.url)
         return stream.url
     }

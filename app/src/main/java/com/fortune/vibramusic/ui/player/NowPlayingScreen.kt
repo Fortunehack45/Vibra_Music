@@ -2478,19 +2478,25 @@ fun NowPlayingScreen(
                             // finger. Holding it here would strand that list
                             // mid-handback, and the list would never scroll.
                             if (down.isConsumed) return@awaitEachGesture
-                            // What detectVerticalDragGestures does, minus the
-                            // callbacks: cross the slop, then hold the gesture
-                            // ONLY for upward drags (overSlop < 0f) to isolate controls.
-                            // Downward drags (overSlop >= 0f) belong to sheet dismiss and
-                            // must pass through unconsumed so the player slides down smoothly.
-                            var consumedDrag = false
-                            val drag = awaitVerticalTouchSlopOrCancellation(down.id) { change, overSlop ->
-                                if (overSlop < 0f) {
+                            // Cross touch slop: hold the gesture ONLY for upward drags (dy <= -touchSlop)
+                            // to isolate playback controls from accidental queue triggers. Downward drags
+                            // (dy >= touchSlop) belong to sheet dismissal and must pass through unconsumed
+                            // so the player slides down butter-smoothly with zero freezing.
+                            val touchSlop = viewConfiguration.touchSlop
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                if (change.isConsumed) break
+                                if (!change.pressed) break
+                                val dy = change.position.y - down.position.y
+                                if (dy <= -touchSlop) {
                                     change.consume()
-                                    consumedDrag = true
+                                    verticalDrag(change.id) { it.consume() }
+                                    break
+                                } else if (dy >= touchSlop) {
+                                    break
                                 }
                             }
-                            if (drag != null && consumedDrag) verticalDrag(drag.id) { it.consume() }
                         }
                     }
                     .padding(horizontal = PLAYER_GUTTER),
@@ -2860,7 +2866,7 @@ fun NowPlayingScreen(
                                 CanvasArtworkPlayer(
                                     canvas = clip,
                                     isPlaying = isPlaying,
-                                    pausedForTransition = collapseStarted,
+                                    pausedForTransition = collapseStarted || docking(),
                                     onRenderedChanged = { canvasRendered = it },
                                     onFrameCaptured = {
                                         if (!tabletArtworkBackdrop && !lyricsOpen && !queueOpen) {
@@ -3514,20 +3520,37 @@ private suspend fun AwaitPointerEventScope.dragQueueIn(
     // by nothing and snap the queue open on the first pixel of movement.
     if (travel < 1f) return
 
+    val touchSlop = viewConfiguration.touchSlop
     var pulled = 0f
-    val drag = awaitVerticalTouchSlopOrCancellation(down.id) { change, overSlop ->
-        if (overSlop < 0f) {
-            pulled = -overSlop
+    var dragChange: PointerInputChange? = null
+
+    // Monitor pointer moves: only consume when dragging UP past touch slop.
+    // If the movement is DOWN past touch slop, return immediately WITHOUT consuming,
+    // allowing the parent bottom sheet to handle dismissal smoothly with zero freezing.
+    while (true) {
+        val event = awaitPointerEvent()
+        val change = event.changes.firstOrNull { it.id == down.id } ?: break
+        if (change.isConsumed) break
+        if (!change.pressed) break
+
+        val dy = change.position.y - down.position.y
+        if (dy <= -touchSlop) {
+            pulled = -dy
             change.consume()
+            dragChange = change
+            break
+        } else if (dy >= touchSlop) {
+            // Dragging downward: immediately yield to the bottom sheet dismiss draggable
+            return
         }
     }
-    if (drag == null || pulled <= 0f) return
+    if (dragChange == null || pulled <= 0f) return
 
     onHold(true)
     val velocity = VelocityTracker()
-    velocity.addPointerInputChange(drag)
+    velocity.addPointerInputChange(dragChange)
     slide.floatValue = (pulled / travel).coerceIn(0f, 1f)
-    verticalDrag(drag.id) { change ->
+    verticalDrag(dragChange.id) { change ->
         velocity.addPointerInputChange(change)
         pulled -= change.positionChange().y
         slide.floatValue = (pulled / travel).coerceIn(0f, 1f)

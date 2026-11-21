@@ -31,6 +31,7 @@ import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import com.fortune.vibramusic.ui.graphics.edgeRefraction
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
@@ -127,6 +128,7 @@ internal fun TopPicksShelf(
             val cardWidth = topPickWidth(maxWidth)
             PausedWhileScrolling(rowState) {
                 LazyRow(
+                    modifier = Modifier.fillMaxWidth().edgeRefraction(rowState),
                     contentPadding = PaddingValues(horizontal = PAGE_GUTTER),
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                     state = rowState,
@@ -1220,6 +1222,7 @@ internal fun FindYourMoodShelf(onClick: (TopPickMood, String) -> Unit, onShowAll
     Column(Modifier.padding(bottom = 26.dp)) {
         SectionHeader(stringResource(R.string.find_your_mood), onShowAll = onShowAll)
         LazyRow(
+            modifier = Modifier.fillMaxWidth().edgeRefraction(rowState),
             contentPadding = PaddingValues(horizontal = PAGE_GUTTER),
             horizontalArrangement = Arrangement.spacedBy(14.dp),
             state = rowState,

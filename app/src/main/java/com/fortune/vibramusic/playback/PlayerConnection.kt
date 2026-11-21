@@ -18,6 +18,7 @@ import androidx.core.net.toUri
 import androidx.core.os.bundleOf
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.Player
 import androidx.media3.common.Timeline
 import androidx.media3.session.MediaController
@@ -426,6 +427,7 @@ fun MediaItem.toSong() = Song(
     localUri = mediaMetadata.extras?.getString(EXTRA_LOCAL_URI),
     localPath = mediaMetadata.extras?.getString(EXTRA_LOCAL_PATH),
     description = mediaMetadata.extras?.getString(EXTRA_DESCRIPTION),
+    isLiveStream = mediaMetadata.extras?.getBoolean(EXTRA_LIVE_STREAM) == true,
 )
 
 /** @see Song.fromAutoplay */
@@ -470,6 +472,7 @@ private const val EXTRA_PLAYBACK_SOURCE = "siren.playbackSource"
 private const val EXTRA_PLAYBACK_SOURCE_TYPE = "siren.playbackSourceType"
 private const val EXTRA_PLAYBACK_SOURCE_ID = "siren.playbackSourceId"
 private const val EXTRA_DESCRIPTION = "siren.description"
+private const val EXTRA_LIVE_STREAM = "siren.isLiveStream"
 
 /**
  * The artist and album pages this track hangs under, when they are known.
@@ -636,10 +639,15 @@ fun Song.toMediaItem(): MediaItem {
         // reach.
         else -> "siren://watch?v=$videoId${matchQuery()}"
     }
-    return MediaItem.Builder()
+    val builder = MediaItem.Builder()
         .setMediaId(videoId)
         .setUri(resolvePlaybackUri(uriString, localPath))
-    .setMediaMetadata(
+
+    if (isLiveStream) {
+        builder.setMimeType(MimeTypes.APPLICATION_M3U8)
+    }
+
+    return builder.setMediaMetadata(
         MediaMetadata.Builder()
             .setTitle(title)
             .setArtist(artist)
@@ -704,6 +712,7 @@ fun Song.toMediaItem(): MediaItem {
                             EXTRA_IS_VIDEO to isVideo,
                             EXTRA_VIDEO_ORIGIN to isVideoOrigin,
                             EXTRA_DESCRIPTION to description,
+                            EXTRA_LIVE_STREAM to isLiveStream,
                         ),
                     )
                 }

@@ -81,6 +81,7 @@ object Innertube {
 
     private const val MUSIC_BASE = "https://music.youtube.com/youtubei/v1"
     private const val MUSIC_ORIGIN = "https://music.youtube.com"
+    private const val YOUTUBE_BASE = "https://www.youtube.com/youtubei/v1"
     private const val YOUTUBE_ORIGIN = "https://www.youtube.com"
 
     /**
@@ -626,6 +627,35 @@ object Innertube {
             put("query", query)
             params?.let { put("params", it) }
         }
+
+    /**
+     * Queries main YouTube's InnerTube endpoint with the official LIVE filter ("EgJAAQ==")
+     * using the desktop WEB client, returning genuine active live broadcasts.
+     */
+    suspend fun searchYouTubeLive(query: String): JsonObject = withRetry {
+        client.post("$YOUTUBE_BASE/search") {
+            contentType(ContentType.Application.Json)
+            parameter("prettyPrint", "false")
+            parameter("hl", "en")
+            header("X-Origin", YOUTUBE_ORIGIN)
+            header("Origin", YOUTUBE_ORIGIN)
+            header("Referer", "$YOUTUBE_ORIGIN/")
+            setBody(
+                buildJsonObject {
+                    putJsonObject("context") {
+                        putJsonObject("client") {
+                            put("clientName", "WEB")
+                            put("clientVersion", "2.20250101.00.00")
+                            put("hl", "en")
+                            put("gl", "US")
+                        }
+                    }
+                    put("query", query)
+                    put("params", "EgJAAQ==")
+                },
+            )
+        }.body<JsonObject>()
+    }
 
     /** The next page of a filtered search result. */
     suspend fun searchContinuation(token: String): JsonObject = postMusic(

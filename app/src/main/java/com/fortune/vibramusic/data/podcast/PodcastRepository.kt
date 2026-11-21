@@ -242,13 +242,13 @@ object PodcastRepository {
 
     /**
      * Builds a comprehensive podcast and live radio feed quickly by querying top shows,
-     * trending episodes, and live YouTube broadcasts in parallel.
+     * trending episodes, and authentic live YouTube broadcasts in parallel.
      */
     private suspend fun buildResilientPodcastFeed(): PodcastFeed = coroutineScope {
-        val liveRadioDeferred = async { fetchSearchShelf("live radio music", FILTER_LIVE_STREAM, "Live Radio Stations") }
-        val liveLoFiDeferred = async { fetchSearchShelf("24/7 lofi radio live", FILTER_LIVE_STREAM, "Chill & Lo-Fi 24/7") }
-        val livePodcastDeferred = async { fetchSearchShelf("live podcast talk", FILTER_LIVE_STREAM, "Live Broadcasts") }
-        val liveNewsDeferred = async { fetchSearchShelf("live news broadcast radio", FILTER_LIVE_STREAM, "Global News & Talk") }
+        val liveRadioDeferred = async { fetchLiveSearchShelf("live radio music", "Live Radio Stations") }
+        val liveLoFiDeferred = async { fetchLiveSearchShelf("24/7 lofi radio live", "Chill & Lo-Fi 24/7") }
+        val livePodcastDeferred = async { fetchLiveSearchShelf("live podcast talk", "Live Broadcasts") }
+        val liveNewsDeferred = async { fetchLiveSearchShelf("live news broadcast radio", "Global News & Talk") }
         val topShowsDeferred = async { fetchSearchShelf("podcasts", FILTER_PODCASTS, "Top Shows") }
         val trendingEpisodesDeferred = async { fetchSearchShelf("podcast episodes", FILTER_EPISODES, "Trending Episodes") }
 
@@ -264,35 +264,38 @@ object PodcastRepository {
         val liveBroadcasts = mutableListOf<PodcastEpisode>()
         val shelves = mutableListOf<HomeShelf>()
 
-        fun processShelf(result: Pair<HomeShelf, List<Any>>, isLiveShelf: Boolean = false) {
+        fun addLiveShelf(result: Pair<HomeShelf, List<PodcastEpisode>>) {
+            val (shelf, items) = result
+            if (shelf.items.isNotEmpty()) {
+                shelves.add(shelf)
+                items.forEach { ep ->
+                    if (ep.isLive) {
+                        liveBroadcasts.add(ep)
+                        allEpisodes.add(ep)
+                    }
+                }
+            }
+        }
+
+        fun addRegularShelf(result: Pair<HomeShelf, List<Any>>) {
             val (shelf, items) = result
             if (shelf.items.isNotEmpty()) {
                 shelves.add(shelf)
                 items.forEach { item ->
                     when (item) {
                         is PodcastShow -> allShows.add(item)
-                        is PodcastEpisode -> {
-                            if (item.isLive || isLiveShelf) {
-                                val liveEp = if (!item.isLive) {
-                                    item.copy(isLive = true, durationText = "LIVE", publishedTimeText = "Streaming now")
-                                } else item
-                                liveBroadcasts.add(liveEp)
-                                allEpisodes.add(liveEp)
-                            } else {
-                                allEpisodes.add(item)
-                            }
-                        }
+                        is PodcastEpisode -> allEpisodes.add(item)
                     }
                 }
             }
         }
 
-        processShelf(liveRadioShelf, isLiveShelf = true)
-        processShelf(liveLoFiShelf, isLiveShelf = true)
-        processShelf(livePodcastShelf, isLiveShelf = true)
-        processShelf(liveNewsShelf, isLiveShelf = true)
-        processShelf(topShowsShelf)
-        processShelf(trendingEpisodesShelf)
+        addLiveShelf(liveRadioShelf)
+        addLiveShelf(liveLoFiShelf)
+        addLiveShelf(livePodcastShelf)
+        addLiveShelf(liveNewsShelf)
+        addRegularShelf(topShowsShelf)
+        addRegularShelf(trendingEpisodesShelf)
 
         // Safety fallback: guaranteed evergreen live stations so the radio/live section is never empty
         val distinctLive = liveBroadcasts.distinctBy { it.videoId }.toMutableList()
@@ -312,6 +315,111 @@ object PodcastRepository {
             latestEpisodes = allEpisodes.distinctBy { it.videoId },
             topicShelves = shelves,
         )
+    }
+
+    /**
+     * Queries main YouTube's InnerTube search with the official LIVE filter ("EgJAAQ==")
+     * using the desktop WEB client, returning genuine active live broadcasts.
+     * Only items with authentic LIVE badges are included.
+     */
+    private suspend fun fetchLiveSearchShelf(
+        query: String,
+        shelfTitle: String,
+    ): Pair<HomeShelf, List<PodcastEpisode>> = try {
+        val response = Innertube.searchYouTubeLive(query)
+        val sections = response.obj("contents")
+            ?.obj("twoColumnSearchResultsRenderer")
+            ?.obj("primaryContents")
+            ?.obj("sectionListRenderer")
+            ?.arr("contents") ?: JsonArray(emptyList())
+
+        val shelfItems = mutableListOf<ShelfItem>()
+        val episodes = mutableListOf<PodcastEpisode>()
+
+        for (sectionElem in sections) {
+            val itemSection = sectionElem.obj("itemSectionRenderer") ?: continue
+            val contents = itemSection.arr("contents") ?: continue
+            for (contentElem in contents) {
+                val video = contentElem.obj("videoRenderer") ?: continue
+                val videoId = video.str("videoId") ?: continue
+                val title = video.obj("title")?.arr("runs")?.firstOrNull()?.let { (it as? JsonObject)?.str("text") }
+                    ?: video.obj("title")?.runsText().orEmpty()
+                if (title.isBlank()) continue
+
+                // Check for authentic LIVE badge
+                val badges = video.arr("badges") ?: JsonArray(emptyList())
+                val hasLiveBadge = badges.any { badgeElem ->
+                    val badge = badgeElem.obj("metadataBadgeRenderer")
+                    badge?.str("label")?.equals("LIVE", ignoreCase = true) == true ||
+                        badge?.str("style")?.contains("LIVE", ignoreCase = true) == true
+                }
+                val overlays = video.arr("thumbnailOverlays") ?: JsonArray(emptyList())
+                val hasLiveOverlay = overlays.any { overlayElem ->
+                    val timeStatus = overlayElem.obj("thumbnailOverlayTimeStatusRenderer")
+                    timeStatus?.str("style")?.contains("LIVE", ignoreCase = true) == true ||
+                        timeStatus?.obj("text")?.runsText()?.contains("LIVE", ignoreCase = true) == true
+                }
+
+                if (!hasLiveBadge && !hasLiveOverlay) continue
+
+                val ownerRuns = video.obj("ownerText")?.arr("runs")
+                    ?: video.obj("shortBylineText")?.arr("runs")
+                val authorRun = ownerRuns?.firstOrNull() as? JsonObject
+                val author = authorRun?.str("text")?.takeIf { it.isNotBlank() } ?: "Live Radio"
+                val authorBrowseId = authorRun?.obj("navigationEndpoint")
+                    ?.obj("browseEndpoint")?.str("browseId")
+
+                val viewCountRuns = video.obj("viewCountText")?.arr("runs")
+                val viewers = if (viewCountRuns != null) {
+                    viewCountRuns.mapNotNull { (it as? JsonObject)?.str("text") }.joinToString("").trim()
+                } else {
+                    video.obj("viewCountText")?.str("simpleText") ?: "LIVE"
+                }
+
+                val thumbUrl = video.obj("thumbnail")?.bestThumbnailUrl()
+                    ?: "https://i.ytimg.com/vi/$videoId/hqdefault_live.jpg"
+
+                val episode = PodcastEpisode(
+                    id = videoId,
+                    videoId = videoId,
+                    title = title,
+                    author = author,
+                    authorBrowseId = authorBrowseId,
+                    showTitle = shelfTitle,
+                    showBrowseId = null,
+                    description = "$author • $viewers",
+                    durationText = "LIVE",
+                    publishedTimeText = viewers,
+                    thumbnailUrl = thumbUrl,
+                    isLive = true,
+                    hasVideo = true,
+                )
+                episodes.add(episode)
+
+                shelfItems.add(
+                    ShelfItem(
+                        title = title,
+                        subtitle = "$author • $viewers",
+                        thumbnailUrl = thumbUrl,
+                        videoId = videoId,
+                        browseId = null,
+                        isVideo = true,
+                    ),
+                )
+            }
+        }
+
+        Pair(
+            HomeShelf(
+                title = shelfTitle,
+                subtitle = "Streaming Live Now",
+                items = shelfItems,
+            ),
+            episodes,
+        )
+    } catch (e: Exception) {
+        Log.w(TAG, "fetchLiveSearchShelf failed for $shelfTitle: ${e.message}")
+        Pair(HomeShelf(shelfTitle, items = emptyList()), emptyList())
     }
 
     /**

@@ -21,6 +21,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
@@ -178,20 +179,40 @@ internal object SpotifyToken {
      */
     @SuppressLint("SetJavaScriptEnabled")
     private suspend fun harvestViaWebView(context: Context, cookie: String, isUserCookie: Boolean): HarvestedToken? {
+        val cleanCookie = if (cookie.contains("sp_dc=")) {
+            cookie.split(";")
+                .map { it.trim() }
+                .firstOrNull { it.startsWith("sp_dc=", ignoreCase = true) }
+                ?.substringAfter("=")
+                ?.trim('"', '\'', ';', ' ')
+                ?: cookie.trim().trim('"', '\'', ';', ' ')
+        } else {
+            cookie.substringBefore(";").trim('"', '\'', ';', ' ')
+        }
+        if (cleanCookie.isBlank()) {
+            Log.w(TAG, "empty cleanCookie for token harvest")
+            return null
+        }
+
         val deferred = CompletableDeferred<HarvestedToken?>()
 
         var webView: WebView? = null
         return try {
             val cookieManager = CookieManager.getInstance().apply {
                 setAcceptCookie(true)
-                setCookie("https://open.spotify.com/", "sp_dc=$cookie; Domain=.spotify.com; Path=/; Secure")
-                setCookie("https://accounts.spotify.com/", "sp_dc=$cookie; Domain=.spotify.com; Path=/; Secure")
+                setCookie("https://open.spotify.com", "sp_dc=$cleanCookie; Domain=.spotify.com; Path=/; Secure")
+                setCookie("https://open.spotify.com/", "sp_dc=$cleanCookie; Domain=.spotify.com; Path=/; Secure")
+                setCookie("https://accounts.spotify.com", "sp_dc=$cleanCookie; Domain=.spotify.com; Path=/; Secure")
+                setCookie("https://accounts.spotify.com/", "sp_dc=$cleanCookie; Domain=.spotify.com; Path=/; Secure")
                 flush()
             }
 
             webView = WebView(context).apply {
+                layoutParams = android.view.ViewGroup.LayoutParams(1, 1)
+                visibility = android.view.View.VISIBLE
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
+                settings.databaseEnabled = true
                 settings.userAgentString = CANVAS_UA
                 cookieManager.setAcceptThirdPartyCookies(this, true)
                 addJavascriptInterface(TokenBridge(deferred), BRIDGE_NAME)
@@ -253,17 +274,23 @@ internal object SpotifyToken {
         fun onTokenPayload(payload: String?) {
             if (payload.isNullOrBlank() || deferred.isCompleted) return
             runCatching {
-                val root = json.parseToJsonElement(payload).jsonObject
+                val element = json.parseToJsonElement(payload)
+                val root = runCatching { element.jsonObject }.getOrNull() ?: return
                 val token = root["accessToken"]?.jsonPrimitive?.contentOrNull
+                    ?: root["token"]?.jsonPrimitive?.contentOrNull
+                    ?: root["data"]?.let { runCatching { it.jsonObject["accessToken"]?.jsonPrimitive?.contentOrNull }.getOrNull() }
                 val anonymous = root["isAnonymous"]?.jsonPrimitive?.contentOrNull
                     ?.toBooleanStrictOrNull() ?: false
                 // The player also mints an anonymous token before the cookie
                 // takes effect; that one can't read canvases, so keep waiting
                 // for the logged-in one.
                 if (token.isNullOrBlank() || anonymous) return
-                val expiresAt = root["accessTokenExpirationTimestampMs"]?.jsonPrimitive?.contentOrNull
-                    ?.toLongOrNull()?.takeIf { it > System.currentTimeMillis() }
-                    ?: (System.currentTimeMillis() + DEFAULT_TOKEN_LIFETIME_MS)
+                val expMs = root["accessTokenExpirationTimestampMs"]?.jsonPrimitive?.contentOrNull?.toLongOrNull()
+                if (expMs != null && expMs <= System.currentTimeMillis() + 30_000L) {
+                    // Expired token from web storage; do not complete deferred, wait for fresh network fetch
+                    return
+                }
+                val expiresAt = expMs ?: (System.currentTimeMillis() + DEFAULT_TOKEN_LIFETIME_MS)
                 val clientId = root["clientId"]?.jsonPrimitive?.contentOrNull
                 deferred.complete(HarvestedToken(token, expiresAt, clientId))
             }
@@ -272,15 +299,38 @@ internal object SpotifyToken {
 
     private val HOOK_SCRIPT = """
         (function () {
-          if (window.__sirenTokenHook) return;
-          window.__sirenTokenHook = true;
-          try { window.localStorage.clear(); window.sessionStorage.clear(); } catch (e) {}
+          try {
+            Object.defineProperty(document, 'hidden', { value: false, writable: false });
+            Object.defineProperty(document, 'visibilityState', { value: 'visible', writable: false });
+          } catch (e) {}
+
           var report = function (body) {
             try { $BRIDGE_NAME.onTokenPayload(body); } catch (e) {}
           };
+
+          try {
+            for (var i = 0; i < localStorage.length; i++) {
+              var k = localStorage.key(i);
+              var v = localStorage.getItem(k);
+              if (v && v.indexOf('accessToken') !== -1) { report(v); }
+            }
+            for (var j = 0; j < sessionStorage.length; j++) {
+              var sk = sessionStorage.key(j);
+              var sv = sessionStorage.getItem(sk);
+              if (sv && sv.indexOf('accessToken') !== -1) { report(sv); }
+            }
+          } catch (e) {}
+
+          if (window.__sirenTokenHook) return;
+          window.__sirenTokenHook = true;
+
           var isToken = function (u) {
-            try { return String(u).indexOf('/api/token') !== -1; } catch (e) { return false; }
+            try {
+              var s = String(u);
+              return s.indexOf('/token') !== -1 || s.indexOf('access_token') !== -1 || s.indexOf('/get_access_token') !== -1;
+            } catch (e) { return false; }
           };
+
           var origFetch = window.fetch;
           if (origFetch) {
             window.fetch = function (input, init) {
@@ -296,11 +346,13 @@ internal object SpotifyToken {
               return result;
             };
           }
+
           var origOpen = XMLHttpRequest.prototype.open;
           XMLHttpRequest.prototype.open = function (method, url) {
             this.__sirenUrl = url;
             return origOpen.apply(this, arguments);
           };
+
           var origSend = XMLHttpRequest.prototype.send;
           XMLHttpRequest.prototype.send = function () {
             var xhr = this;

@@ -23,9 +23,10 @@ import coil3.memory.MemoryCache
 import coil3.request.crossfade
 import com.fortune.vibramusic.auth.AuthStore
 import com.fortune.vibramusic.data.canvas.CanvasCache
+import com.fortune.vibramusic.data.canvas.CanvasRepository
+import com.fortune.vibramusic.data.canvas.SpotifyToken
 import com.fortune.vibramusic.data.smb.SmbCoverFetcher
 import com.fortune.vibramusic.data.webdav.WebDavCoilAuth
-import com.fortune.vibramusic.data.canvas.SpotifyToken
 import com.fortune.vibramusic.playback.AudioCache
 import com.fortune.vibramusic.playback.LastPlayed
 import com.fortune.vibramusic.playback.OriginalVersion
@@ -180,6 +181,10 @@ class VibraMusicApplication : Application(), SingletonImageLoader.Factory {
 
         runCatching { SpotifyToken.init(this) }.onFailure { Log.w("VibraMusic", "Failed to init SpotifyToken", it) }
         runCatching { SpotifyToken.warmUp() }.onFailure { Log.w("VibraMusic", "Failed to warm up SpotifyToken", it) }
+        AppSettings.onSpotifySpdcTokenChanged = {
+            SpotifyToken.invalidate()
+            CanvasRepository.clear()
+        }
 
         runCatching {
             if (AppSettings.consumeVersionUpdate(BuildConfig.VERSION_CODE)) {

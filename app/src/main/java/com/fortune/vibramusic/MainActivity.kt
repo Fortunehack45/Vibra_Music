@@ -5088,7 +5088,11 @@ private fun VibraMusicApp(
         if (showSpotifyCanvasAuth) {
             BackHandler { showSpotifyCanvasAuth = false }
             SpotifyCanvasAuthScreen(
-                onNavigateUp = { showSpotifyCanvasAuth = false }
+                onNavigateUp = { showSpotifyCanvasAuth = false },
+                onOpenLogin = {
+                    showSpotifyCanvasAuth = false
+                    showSpotifyLogin = true
+                },
             )
         }
 

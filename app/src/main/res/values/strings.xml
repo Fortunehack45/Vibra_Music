@@ -681,6 +681,13 @@
     <string name="spotify_canvas_revert_builtin" translatable="false">Revert to built-in service</string>
     <string name="spotify_canvas_bring_your_own_title" translatable="false">Bring your own Spotify cookie (Optional)</string>
     <string name="spotify_canvas_bring_your_own_desc" translatable="false">The built-in service is active by default. If the service ever stops working, or if you prefer using your personal Spotify account, follow the guide below to provide your own cookie:</string>
+    <string name="spotify_canvas_login_button" translatable="false">Sign in with Spotify</string>
+    <string name="spotify_canvas_cookie_required_title" translatable="false">Spotify connection required</string>
+    <string name="spotify_canvas_cookie_required_desc" translatable="false">Spotify Canvas video backgrounds require a Spotify account session. Sign in with your Spotify account or enter your personal sp_dc cookie to activate Canvas.</string>
+    <string name="spotify_canvas_cookie_active_title" translatable="false">Spotify account connected</string>
+    <string name="spotify_canvas_cookie_active_desc" translatable="false">Canvas videos are loading using your connected Spotify session.</string>
+    <string name="spotify_canvas_disconnect_button" translatable="false">Disconnect Spotify session</string>
+    <string name="spotify_canvas_manual_entry_title" translatable="false">Or enter sp_dc cookie manually</string>
     <string name="spotify_canvas_guide_header" translatable="false">How to get your sp_dc cookie:</string>
     <string name="spotify_canvas_auto_hide">Auto-hide player controls</string>
     <string name="spotify_canvas_auto_hide_subtitle">Collapse the half-player after 5 seconds while Spotify Canvas is playing</string>

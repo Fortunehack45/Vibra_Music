@@ -39,20 +39,27 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.fortune.vibramusic.R
-import com.fortune.vibramusic.data.canvas.CanvasRepository
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.res.painterResource
+import com.fortune.vibramusic.data.canvas.TokenProvider
 import com.fortune.vibramusic.data.canvas.SpotifyToken
 import com.fortune.vibramusic.data.settings.AppSettings
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SpotifyCanvasAuthScreen(
-    onNavigateUp: () -> Unit
+    onNavigateUp: () -> Unit,
+    onOpenLogin: () -> Unit = {},
 ) {
     val currentToken by AppSettings.spotifySpdcToken.collectAsStateWithLifecycle()
     val autoHidePlayer by AppSettings.spotifyCanvasAutoHide.collectAsStateWithLifecycle()
     val prioritizeSpotify by AppSettings.prioritizeSpotifyCanvas.collectAsStateWithLifecycle()
     val canvasOverCellular by AppSettings.canvasOverCellular.collectAsStateWithLifecycle()
     var tokenInput by remember(currentToken) { mutableStateOf(currentToken) }
+
+    val builtIn = remember { TokenProvider.getSpdcToken() }
+    val hasBuiltIn = !builtIn.isNullOrBlank()
+    val hasUserToken = currentToken.isNotBlank() && (builtIn == null || currentToken.trim() != builtIn)
 
     Scaffold(
         topBar = {
@@ -82,42 +89,85 @@ fun SpotifyCanvasAuthScreen(
                     .fillMaxWidth()
                     .padding(bottom = 16.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = if (currentToken.isBlank()) {
-                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                    } else {
-                        MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
+                    containerColor = when {
+                        hasUserToken || hasBuiltIn -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                        else -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f)
                     }
                 )
             ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = if (currentToken.isBlank()) Icons.Rounded.CheckCircle else Icons.Rounded.Key,
-                        contentDescription = null,
-                        tint = if (currentToken.isBlank()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary,
-                        modifier = Modifier.padding(end = 12.dp)
-                    )
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = if (currentToken.isBlank()) {
-                                stringResource(R.string.spotify_canvas_builtin_active)
-                            } else {
-                                stringResource(R.string.spotify_canvas_custom_active)
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = when {
+                                hasUserToken || hasBuiltIn -> Icons.Rounded.CheckCircle
+                                else -> Icons.Rounded.Key
                             },
-                            style = MaterialTheme.typography.titleMedium,
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = if (currentToken.isBlank()) {
-                                stringResource(R.string.spotify_canvas_builtin_active_desc)
-                            } else {
-                                stringResource(R.string.spotify_canvas_custom_active_desc)
+                            contentDescription = null,
+                            tint = when {
+                                hasUserToken || hasBuiltIn -> MaterialTheme.colorScheme.primary
+                                else -> MaterialTheme.colorScheme.error
                             },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            modifier = Modifier.padding(end = 12.dp)
                         )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = when {
+                                    hasUserToken -> stringResource(R.string.spotify_canvas_cookie_active_title)
+                                    hasBuiltIn -> stringResource(R.string.spotify_canvas_builtin_active)
+                                    else -> stringResource(R.string.spotify_canvas_cookie_required_title)
+                                },
+                                style = MaterialTheme.typography.titleMedium,
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = when {
+                                    hasUserToken -> stringResource(R.string.spotify_canvas_cookie_active_desc)
+                                    hasBuiltIn -> stringResource(R.string.spotify_canvas_builtin_active_desc)
+                                    else -> stringResource(R.string.spotify_canvas_cookie_required_desc)
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    if (!hasUserToken && !hasBuiltIn) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Button(
+                            onClick = onOpenLogin,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_spotify),
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .padding(end = 8.dp)
+                                    .size(20.dp),
+                            )
+                            Text(stringResource(R.string.spotify_canvas_login_button))
+                        }
+                    } else if (hasUserToken) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        OutlinedButton(
+                            onClick = {
+                                AppSettings.setSpotifySpdcToken("")
+                                SpotifyToken.invalidate()
+                                tokenInput = ""
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(
+                                Icons.Rounded.Close,
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .padding(end = 8.dp)
+                                    .size(18.dp),
+                            )
+                            Text(stringResource(R.string.spotify_canvas_disconnect_button))
+                        }
                     }
                 }
             }
@@ -146,9 +196,9 @@ fun SpotifyCanvasAuthScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Bring-your-own section & guide
+            // Manual cookie entry
             Text(
-                text = stringResource(R.string.spotify_canvas_bring_your_own_title),
+                text = stringResource(R.string.spotify_canvas_manual_entry_title),
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(bottom = 6.dp)
             )
@@ -186,7 +236,7 @@ fun SpotifyCanvasAuthScreen(
             OutlinedTextField(
                 value = tokenInput,
                 onValueChange = { tokenInput = it },
-                label = { Text(stringResource(R.string.spotify_canvas_custom_optional)) },
+                label = { Text(stringResource(R.string.spdc_token)) },
                 placeholder = { Text(stringResource(R.string.spotify_canvas_placeholder)) },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -204,12 +254,11 @@ fun SpotifyCanvasAuthScreen(
                 }
             )
 
-            if (currentToken.isNotBlank()) {
+            if (currentToken.isNotBlank() && hasBuiltIn) {
                 OutlinedButton(
                     onClick = {
                         AppSettings.setSpotifySpdcToken("")
                         SpotifyToken.invalidate()
-                        CanvasRepository.clear()
                         tokenInput = ""
                     },
                     modifier = Modifier
@@ -224,7 +273,6 @@ fun SpotifyCanvasAuthScreen(
                 onClick = { 
                     AppSettings.setSpotifySpdcToken(tokenInput.trim())
                     SpotifyToken.invalidate()
-                    CanvasRepository.clear()
                     onNavigateUp()
                 },
                 modifier = Modifier.fillMaxWidth()

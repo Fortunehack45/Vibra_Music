@@ -70,7 +70,7 @@ private const val LOGIN_URL =
     "https://accounts.spotify.com/login?continue=https%3A%2F%2Fopen.spotify.com%2F"
 
 private const val LOGIN_USER_AGENT =
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+    "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"
 
 private const val LOGIN_LAYOUT_FIX = """
     (function () {
@@ -79,10 +79,7 @@ private const val LOGIN_LAYOUT_FIX = """
       var st = document.createElement('style');
       st.id = id;
       st.textContent =
-        'html, body { height: auto !important; min-height: 100% !important; overflow: visible !important; }' +
-        'body > div { height: auto !important; min-height: 100% !important; }' +
-        'main { position: static !important; height: auto !important; min-height: 100dvh !important;' +
-        ' max-height: none !important; overflow: visible !important; }';
+        'html, body { height: auto !important; min-height: 100% !important; overflow: visible !important; }';
       (document.head || document.documentElement).appendChild(st);
     })();
 """
@@ -256,7 +253,20 @@ private val SPOTIFY_COOKIE_URLS = listOf(
 )
 
 private val LOGIN_HOST_SUFFIXES = listOf(
-    "spotify.com", "scdn.co", "google.com", "gstatic.com", "facebook.com", "apple.com",
+    "spotify.com",
+    "spotifycdn.com",
+    "spotifycdn.net",
+    "scdn.co",
+    "arkoselabs.com",
+    "arkoselabs.net",
+    "funcaptcha.com",
+    "facebook.com",
+    "apple.com",
+    "google.com",
+    "gstatic.com",
+    "recaptcha.net",
+    "doubleclick.net",
+    "optimizely.com",
 )
 
 private fun hostMatches(uri: Uri?, suffixes: List<String>): Boolean {
@@ -372,9 +382,17 @@ fun SpotifyLoginScreen(
                         )
                         settings.javaScriptEnabled = true
                         settings.domStorageEnabled = true
+                        settings.databaseEnabled = true
                         settings.loadWithOverviewMode = true
                         settings.useWideViewPort = true
-                        settings.userAgentString = LOGIN_USER_AGENT
+                        settings.setSupportMultipleWindows(false)
+                        settings.javaScriptCanOpenWindowsAutomatically = true
+                        val defaultUa = settings.userAgentString
+                        settings.userAgentString = if (!defaultUa.isNullOrBlank()) {
+                            defaultUa.replace("; wv", "").replace("Version/4.0 ", "")
+                        } else {
+                            LOGIN_USER_AGENT
+                        }
                         if (Build.VERSION.SDK_INT >= 33) {
                             settings.isAlgorithmicDarkeningAllowed = false
                         } else if (Build.VERSION.SDK_INT >= 29) {
@@ -384,6 +402,32 @@ fun SpotifyLoginScreen(
                         setBackgroundColor(0xFF121212.toInt())
                         CookieManager.getInstance().setAcceptCookie(true)
                         CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+
+                        val checkSpdcCookie: () -> Unit = {
+                            if (!sent) {
+                                val cookieJar = CookieManager.getInstance()
+                                val raw = listOf(
+                                    "https://open.spotify.com",
+                                    "https://accounts.spotify.com",
+                                    "https://www.spotify.com",
+                                    "https://spotify.com"
+                                ).firstNotNullOfOrNull { u ->
+                                    runCatching { cookieJar.getCookie(u) }.getOrNull()?.takeIf { it.contains("sp_dc=") }
+                                }
+                                val token = raw?.split(";")
+                                    ?.map { it.trim() }
+                                    ?.firstOrNull { it.startsWith("sp_dc=") }
+                                    ?.substringAfter("=")
+                                    ?.trim('"', '\'', ';', ' ')
+                                    ?.takeIf { it.isNotBlank() }
+                                val builtIn = com.fortune.vibramusic.data.canvas.TokenProvider.getSpdcToken()
+                                if (token != null && (builtIn == null || token != builtIn)) {
+                                    sent = true
+                                    onConnected(token)
+                                }
+                            }
+                        }
+
                         webViewClient = object : WebViewClient() {
                             override fun shouldOverrideUrlLoading(
                                 view: WebView,
@@ -395,7 +439,16 @@ fun SpotifyLoginScreen(
                                     showGoogleNoticeDialog = true
                                     return true
                                 }
-                                return !isLoginHost(request.url)
+                                if (isLoginHost(request.url)) {
+                                    return false
+                                }
+                                if (request.isForMainFrame && (request.url.scheme == "http" || request.url.scheme == "https")) {
+                                    runCatching {
+                                        val intent = Intent(Intent.ACTION_VIEW, request.url)
+                                        context.startActivity(intent)
+                                    }
+                                }
+                                return true
                             }
 
                             override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
@@ -405,26 +458,15 @@ fun SpotifyLoginScreen(
                                     view.stopLoading()
                                     showGoogleNoticeDialog = true
                                     view.post { view.loadUrl(LOGIN_URL) }
+                                    return
                                 }
+                                checkSpdcCookie()
                             }
 
                             override fun onPageFinished(view: WebView, url: String?) {
+                                super.onPageFinished(view, url)
                                 if (isSpotifyHost(url?.toUri())) view.evaluateJavascript(LOGIN_LAYOUT_FIX, null)
-                                if (sent || url?.startsWith("https://open.spotify.com") != true) return
-                                val raw = runCatching { CookieManager.getInstance().getCookie("https://open.spotify.com") }.getOrNull() ?: return
-                                val token = raw.split(";")
-                                    .map { it.trim() }
-                                    .firstOrNull { it.startsWith("sp_dc=") }
-                                    ?.substringAfter("=")
-                                    ?.takeIf { it.isNotBlank() }
-                                    ?: return
-                                val builtIn = com.fortune.vibramusic.data.canvas.TokenProvider.getSpdcToken()
-                                if (builtIn != null && token == builtIn) {
-                                    // Ignore built-in token if somehow present; wait for user's own credentials
-                                    return
-                                }
-                                sent = true
-                                onConnected(token)
+                                checkSpdcCookie()
                             }
 
                             override fun onRenderProcessGone(

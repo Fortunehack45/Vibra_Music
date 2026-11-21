@@ -1841,9 +1841,19 @@ object AppSettings {
     var onSpotifySpdcTokenChanged: ((String) -> Unit)? = null
 
     fun setSpotifySpdcToken(value: String) {
-        spotifySpdcToken.value = value
-        prefs.edit().putString(KEY_SPOTIFY_SPDC_TOKEN, value).apply()
-        onSpotifySpdcTokenChanged?.invoke(value)
+        val clean = if (value.contains("sp_dc=")) {
+            value.split(";")
+                .map { it.trim() }
+                .firstOrNull { it.startsWith("sp_dc=", ignoreCase = true) }
+                ?.substringAfter("=")
+                ?.trim('"', '\'', ';', ' ')
+                ?: value.trim().trim('"', '\'', ';', ' ')
+        } else {
+            value.substringBefore(";").trim('"', '\'', ';', ' ')
+        }
+        spotifySpdcToken.value = clean
+        prefs.edit().putString(KEY_SPOTIFY_SPDC_TOKEN, clean).apply()
+        onSpotifySpdcTokenChanged?.invoke(clean)
     }
 
     fun setOnboardingCompleted(value: Boolean) {

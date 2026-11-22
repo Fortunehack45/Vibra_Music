@@ -49,6 +49,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -995,12 +998,12 @@ private fun sliderInk(): SliderInk? =
     }
 
 /**
- * Translucent circular button used for the track menu and the like control.
+ * Translucent circular liquid glass button used for the track menu and the like control.
  *
  * [active] brightens the disc rather than only the glyph: this sits on album
  * artwork of any colour, and a white icon on a white-ish sleeve has no tint
- * change left to make. The filled star carries the state as a shape too —
- * see [VibraMusicIcons.StarFilled].
+ * change left to make. The filled heart carries the state as a shape too —
+ * see [VibraMusicIcons.HeartFilled].
  */
 @Composable
 internal fun CircleGlyph(
@@ -1013,16 +1016,45 @@ internal fun CircleGlyph(
 ) {
     val haptics = rememberHaptics()
     val discAlpha by animateFloatAsState(
-        targetValue = if (active) 0.34f else CIRCLE_DISC_ALPHA,
+        targetValue = if (active) 0.36f else CIRCLE_DISC_ALPHA,
         label = "glyphDisc",
     )
     val chrome = LocalPlayerChrome.current
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale = remember { Animatable(1f) }
+    var hasPressed by remember { mutableStateOf(false) }
+
+    LaunchedEffect(isPressed) {
+        if (isPressed) {
+            hasPressed = true
+            scale.animateTo(
+                targetValue = 0.92f,
+                animationSpec = spring(dampingRatio = 0.8f, stiffness = 600f),
+            )
+        } else if (hasPressed) {
+            hasPressed = false
+            scale.animateTo(
+                targetValue = 1.10f,
+                animationSpec = spring(dampingRatio = 0.55f, stiffness = 500f),
+            )
+            scale.animateTo(
+                targetValue = 1f,
+                animationSpec = spring(dampingRatio = 0.62f, stiffness = 360f),
+            )
+        }
+    }
+
     Box(
         modifier = modifier
-            .size(34.dp)
+            .size(38.dp)
+            .graphicsLayer {
+                scaleX = scale.value
+                scaleY = scale.value
+            }
             .clip(CircleShape)
             .clickable(
-                interactionSource = remember { MutableInteractionSource() },
+                interactionSource = interactionSource,
                 indication = null,
             ) {
                 haptics.play(haptic)
@@ -1050,7 +1082,7 @@ internal fun CircleGlyph(
                 imageVector = glyph,
                 contentDescription = contentDescription,
                 tint = Color.White,
-                modifier = Modifier.size(19.dp),
+                modifier = Modifier.size(20.dp),
             )
         }
     }
@@ -1097,47 +1129,8 @@ internal fun Modifier.glassFrost(hazeState: HazeState?, flat: Boolean): Modifier
     }
 
 /**
- * The star and ⋯ discs beside the credits, behind one frost between them.
- *
- * One blur, cut to both circles, rather than one per disc: the two always move
- * together (a skip's slide, the collapse), and each would otherwise be blurred
- * again on every frame of it, side by side, from the same source.
- */
-@Composable
-internal fun GlassDiscPair(
-    hazeState: HazeState?,
-    /** See [BestPartPill]'s, which goes flat for the same reason. */
-    overlayOpen: () -> Boolean,
-    modifier: Modifier = Modifier,
-    content: @Composable RowScope.() -> Unit,
-) {
-    val reduceDynamicBlur by PlayerSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
-    val autoMixHold = rememberAutoMixFrostHold()
-    Box(modifier) {
-        Box(
-            Modifier
-                .matchParentSize()
-                .clip(DiscPairShape)
-                .glassFrost(hazeState, flat = reduceDynamicBlur || overlayOpen() || autoMixHold()),
-        )
-        Row(verticalAlignment = Alignment.CenterVertically, content = content)
-    }
-}
-
-/**
- * A disc at each end of a row as tall as one: both glyphs, or the ⋯ alone
- * (a row no wider than it is tall) for a guest, who gets no star.
- */
-private val DiscPairShape = GenericShape { size, _ ->
-    val d = size.height
-    addOval(Rect(0f, 0f, d, d))
-    if (size.width >= d * 1.5f) addOval(Rect(size.width - d, 0f, size.width, d))
-}
-
-/**
  * Glass's edge: a hairline rim, brighter along the top where the light would
- * catch it. One rim for the Best Part pill and the star and ⋯ discs, so they
- * read as the same material.
+ * catch it.
  */
 internal fun Modifier.glassRim(shape: Shape): Modifier = border(
     width = 1.dp,

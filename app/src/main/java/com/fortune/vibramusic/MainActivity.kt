@@ -174,8 +174,13 @@ import com.fortune.vibramusic.ui.screens.HistoryScreen
 import com.fortune.vibramusic.ui.screens.ListenTogetherScreen
 import com.fortune.vibramusic.ui.screens.PartyServerEditor
 import com.fortune.vibramusic.ui.player.ShareOptionsSheet
+import com.fortune.vibramusic.data.update.PlayAppUpdater
 import com.fortune.vibramusic.ui.screens.SettingsScreen
 import com.fortune.vibramusic.ui.screens.WearOsScreen
+import com.fortune.vibramusic.ui.screens.DriveBackupScreen
+import com.fortune.vibramusic.ui.screens.DriveDevicesScreen
+import com.fortune.vibramusic.ui.screens.DriveBackupAlerts
+import com.fortune.vibramusic.ui.screens.DriveBackupAlertsHost
 import com.fortune.vibramusic.ui.screens.SourceEditorAlert
 import com.fortune.vibramusic.ui.screens.SourcesScreen
 import com.fortune.vibramusic.ui.screens.SpotifyCanvasAuthScreen
@@ -362,6 +367,7 @@ class MainActivity : AppCompatActivity() {
         runCatching { JamInviteLink.consume(intent) }
         // Likewise for a link tapped or shared from another app — see [MusicLink].
         runCatching { MusicLink.consume(intent) }
+        runCatching { PlayAppUpdater.checkForUpdate(activity = this) }
         setContent {
             val theme by AppSettings.themeMode.collectAsStateWithLifecycle()
             val highPerformance by AppSettings.highPerformanceMode.collectAsStateWithLifecycle()
@@ -462,6 +468,11 @@ class MainActivity : AppCompatActivity() {
         JamInviteLink.consume(intent)
         MusicLink.consume(intent)
     }
+
+    override fun onResume() {
+        super.onResume()
+        runCatching { PlayAppUpdater.onResume(this) }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -560,6 +571,9 @@ private fun VibraMusicApp(
     var showListenTogether by remember { mutableStateOf(false) }
     var showEqualizer by remember { mutableStateOf(false) }
     var showWearOs by remember { mutableStateOf(false) }
+    var showDriveBackup by rememberSaveable { mutableStateOf(false) }
+    var showDriveDevices by rememberSaveable { mutableStateOf(false) }
+    val driveAlerts = remember { DriveBackupAlerts() }
     var showSpotifyCanvasAuth by remember { mutableStateOf(false) }
     var showSpotifyLogin by remember { mutableStateOf(false) }
     var showSpotifyLibrary by rememberSaveable { mutableStateOf(false) }
@@ -728,6 +742,8 @@ private fun VibraMusicApp(
         showSources = false
         showEqualizer = false
         showWearOs = false
+        showDriveBackup = false
+        showDriveDevices = false
         showHistory = false
         showDiscord = false
         libraryShowAll = null
@@ -796,6 +812,8 @@ private fun VibraMusicApp(
     LaunchedEffect(showSettings) {
         if (!showSettings) {
             showAccountScrobbling = false
+            showDriveBackup = false
+            showDriveDevices = false
         }
     }
 
@@ -1002,7 +1020,7 @@ private fun VibraMusicApp(
     val refreshing by viewModel.refreshing.collectAsStateWithLifecycle()
     val detailRefreshing by viewModel.detailRefreshing.collectAsStateWithLifecycle()
     val currentFeed = when {
-        showSettings || showAccountScrobbling || detail != null -> null
+        showSettings || showAccountScrobbling || showDriveBackup || showDriveDevices || detail != null -> null
         selectedTab == TAB_HOME -> MainViewModel.Feed.HOME
         selectedTab == TAB_EXPLORE -> MainViewModel.Feed.EXPLORE
         selectedTab == TAB_PODCASTS -> MainViewModel.Feed.PODCASTS
@@ -2405,6 +2423,8 @@ private fun VibraMusicApp(
                 showListenTogether = false
                 showEqualizer = false
                 showWearOs = false
+                showDriveBackup = false
+                showDriveDevices = false
                 showReplay = false
                 showHistory = false
                 showDiscord = false
@@ -2488,13 +2508,13 @@ private fun VibraMusicApp(
         }
         BackHandler(
             enabled = detail != null && !showSettings && !showAccountScrobbling && !showSources && !showListenTogether &&
-                !showEqualizer && !showReplay,
+                !showEqualizer && !showWearOs && !showDriveBackup && !showDriveDevices && !showReplay,
         ) { viewModel.closeDetail() }
         BackHandler(
             enabled = podcastShowState != null && detail == null && !showSettings && !showAccountScrobbling && !showSources && !showListenTogether &&
-                !showEqualizer && !showReplay,
+                !showEqualizer && !showWearOs && !showDriveBackup && !showDriveDevices && !showReplay,
         ) { viewModel.closePodcastShow() }
-        BackHandler(enabled = selectedMoodGenre != null && detail == null && podcastShowState == null && !showSettings && !showReplay) {
+        BackHandler(enabled = selectedMoodGenre != null && detail == null && podcastShowState == null && !showSettings && !showDriveBackup && !showDriveDevices && !showReplay) {
             viewModel.closeMoodGenre()
         }
         BackHandler(enabled = showDiscord) {
@@ -2515,10 +2535,16 @@ private fun VibraMusicApp(
         BackHandler(enabled = showWearOs) {
             showWearOs = false
         }
+        BackHandler(enabled = showDriveDevices) {
+            showDriveDevices = false
+        }
+        BackHandler(enabled = showDriveBackup && !showDriveDevices) {
+            showDriveBackup = false
+        }
         // One back step out of Settings, or out of any tab but Home, lands on
         // Home rather than exiting — only Home itself hands back to the system,
         // which is what actually closes/minimizes the app.
-        BackHandler(enabled = showSettings && !showAccountScrobbling && !showSources && !showListenTogether && !showEqualizer && !showWearOs) {
+        BackHandler(enabled = showSettings && !showAccountScrobbling && !showSources && !showListenTogether && !showEqualizer && !showWearOs && !showDriveBackup && !showDriveDevices) {
             showSettings = false
             // Only when Settings was the whole of what was on screen. Opened
             // over Replay or over a release page, closing it reveals that again
@@ -2587,6 +2613,8 @@ private fun VibraMusicApp(
                         showListenTogether -> "listen_together"
                         showEqualizer -> "equalizer"
                         showWearOs -> "wear_os"
+                        showDriveDevices -> "drive_devices"
+                        showDriveBackup -> "drive_backup"
                         // Above Replay, not below it. The top bar's account
                         // button sets `showSettings` from every page including
                         // this one, so with Replay winning the tie the button
@@ -2813,6 +2841,20 @@ private fun VibraMusicApp(
                         EqualizerScreen(contentPadding = listPadding)
                     } else if (key == "wear_os") {
                         WearOsScreen(contentPadding = listPadding, onBack = { showWearOs = false })
+                    } else if (key == "drive_devices") {
+                        DriveDevicesScreen(
+                            contentPadding = listPadding,
+                            onConfirmRestore = { device -> driveAlerts.restore = device },
+                            onDone = { showDriveDevices = false },
+                        )
+                    } else if (key == "drive_backup") {
+                        DriveBackupScreen(
+                            contentPadding = listPadding,
+                            onOpenDevices = { showDriveDevices = true },
+                            onConfirmDisconnect = { driveAlerts.disconnect = true },
+                            onConfirmRemove = { device -> driveAlerts.remove = device },
+                            onRename = { name -> driveAlerts.renaming = name },
+                        )
                     } else if (key == "settings") {
                         SettingsScreen(
                             windowWidth = windowWidth,
@@ -2828,6 +2870,7 @@ private fun VibraMusicApp(
                             onAccountScrobbling = { showAccountScrobbling = true },
                             onEqualizer = { showEqualizer = true },
                             onWearOs = { showWearOs = true },
+                            onOpenDriveBackup = { showDriveBackup = true },
                             onOpenReplay = {
                                 showSettings = false
                                 replayLandingPage = ReplayStoryPage.INTRO
@@ -2840,22 +2883,13 @@ private fun VibraMusicApp(
                             onSpotifyCanvasAuth = { showSpotifyCanvasAuth = true },
                             onAppLanguage = { showAppLanguage = true },
                             onCheckForUpdates = {
-                                try {
-                                    val playStoreIntent = Intent(
-                                        Intent.ACTION_VIEW,
-                                        Uri.parse("market://details?id=${context.packageName}"),
-                                    ).apply {
-                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                                    }
-                                    context.startActivity(playStoreIntent)
-                                } catch (e: Exception) {
-                                    val webIntent = Intent(
-                                        Intent.ACTION_VIEW,
-                                        Uri.parse("https://play.google.com/store/apps/details?id=${context.packageName}"),
-                                    ).apply {
-                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                    }
-                                    context.startActivity(webIntent)
+                                (context as? Activity)?.let { activity ->
+                                    PlayAppUpdater.requestUpdate(
+                                        activity = activity,
+                                        onNoUpdate = {
+                                            Toast.makeText(context, R.string.app_up_to_date, Toast.LENGTH_SHORT).show()
+                                        },
+                                    )
                                 }
                             },
                             contentPadding = listPadding,
@@ -3481,6 +3515,8 @@ private fun VibraMusicApp(
                         showListenTogether -> stringResource(R.string.listen_together)
                         showEqualizer -> stringResource(R.string.equalizer)
                         showWearOs -> "Wear OS"
+                        showDriveDevices -> stringResource(R.string.drive_devices_title)
+                        showDriveBackup -> stringResource(R.string.drive_backup_title)
                         showSettings -> stringResource(R.string.settings)
                         showReplay -> stringResource(R.string.replay)
                         podcastShowState != null -> podcastShow?.title.orEmpty()
@@ -3499,7 +3535,7 @@ private fun VibraMusicApp(
                     // the field takes that space — so its bar title is always up.
                     scrolled = when {
                         (showSpotifyLibrary && detail == null) ||
-                            showSettings || showAccountScrobbling || showSources || showListenTogether ||
+                            showSettings || showDriveBackup || showDriveDevices || showAccountScrobbling || showSources || showListenTogether ||
                             showEqualizer || showWearOs ||
                             showDiscord || showHistory ||
                             (libraryShowAll != null && detail == null) ||
@@ -3524,6 +3560,8 @@ private fun VibraMusicApp(
                         showListenTogether -> ({ showListenTogether = false })
                         showEqualizer -> ({ showEqualizer = false })
                         showWearOs -> ({ showWearOs = false })
+                        showDriveDevices -> ({ showDriveDevices = false })
+                        showDriveBackup -> ({ showDriveBackup = false })
                         showSettings -> ({ showSettings = false })
                         showReplay -> ({ showReplay = false })
                         podcastShowState != null -> ({ viewModel.closePodcastShow(); Unit })
@@ -3594,7 +3632,7 @@ private fun VibraMusicApp(
                             }
                         }
                         
-                        if (!showSettings && !showAccountScrobbling) {
+                        if (!showSettings && !showAccountScrobbling && !showDriveBackup && !showDriveDevices) {
                             // Left of the account photo, and only on a Library
                             // "Show all" grid — the same control the Downloads
                             // folder offers (see `LocalSearchField`), adapted to
@@ -5150,6 +5188,24 @@ private fun VibraMusicApp(
                     confirmJioSaavn = false
                 },
                 onDismiss = { confirmJioSaavn = false },
+            )
+        }
+
+        DriveBackupAlertsHost(
+            alerts = driveAlerts,
+            hazeState = hazeState,
+            onRestoreStarted = { showDriveDevices = false },
+        )
+
+        val isUpdateDownloaded by PlayAppUpdater.isUpdateDownloaded.collectAsStateWithLifecycle()
+        if (isUpdateDownloaded) {
+            ConfirmationAlert(
+                hazeState = hazeState,
+                title = stringResource(R.string.software_update),
+                description = stringResource(R.string.update_ready_restart),
+                confirmLabel = stringResource(R.string.install_now),
+                onConfirm = { PlayAppUpdater.completeUpdate() },
+                onDismiss = {},
             )
         }
 

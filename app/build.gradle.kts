@@ -448,6 +448,10 @@ dependencies {
     // ---- Google Drive backup: device Google sign-in ----
     implementation("com.google.android.gms:play-services-auth:21.3.0")
 
+    // ---- Google Play In-App Updates ----
+    implementation("com.google.android.play:app-update:2.1.0")
+    implementation("com.google.android.play:app-update-ktx:2.1.0")
+
     // ---- Room / SQLite (Local cache for TrackAnalysis & MixPlan) ----
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")

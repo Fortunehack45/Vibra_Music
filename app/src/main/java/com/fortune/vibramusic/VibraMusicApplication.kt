@@ -190,6 +190,11 @@ class VibraMusicApplication : Application(), SingletonImageLoader.Factory {
                 com.fortune.vibramusic.ui.player.AndroidPlayerHost(this)
             )
         }.onFailure { Log.e("VibraMusic", "Failed to install PlayerPlatform", it) }
+        runCatching {
+            com.fortune.vibramusic.ui.AppUi.install(
+                com.fortune.vibramusic.ui.AndroidAppUiHost(this)
+            )
+        }.onFailure { Log.e("VibraMusic", "Failed to install AppUi", it) }
         runCatching { com.fortune.vibramusic.download.PlaylistSync.init(this) }.onFailure { Log.w("VibraMusic", "Failed to init PlaylistSync", it) }
         runCatching { com.fortune.vibramusic.data.backup.DriveBackup.init(this) }.onFailure { Log.w("VibraMusic", "Failed to init DriveBackup", it) }
         com.fortune.vibramusic.data.innertube.StreamResolver.premiumAudio = { AppSettings.youtubePremiumAudio.value }
@@ -204,6 +209,7 @@ class VibraMusicApplication : Application(), SingletonImageLoader.Factory {
 
         runCatching { SpotifyToken.init(this) }.onFailure { Log.w("VibraMusic", "Failed to init SpotifyToken", it) }
         runCatching { SpotifyToken.warmUp() }.onFailure { Log.w("VibraMusic", "Failed to warm up SpotifyToken", it) }
+        runCatching { com.fortune.vibramusic.data.update.PlayAppUpdater.init(this) }.onFailure { Log.w("VibraMusic", "Failed to init PlayAppUpdater", it) }
         AppSettings.onSpotifySpdcTokenChanged = {
             SpotifyToken.invalidate()
             CanvasRepository.clear()

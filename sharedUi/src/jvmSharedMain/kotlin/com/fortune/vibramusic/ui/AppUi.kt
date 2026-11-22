@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.staticCompositionLocalOf
 import com.fortune.vibramusic.data.settings.LibrarySort
 import com.fortune.vibramusic.data.settings.LibraryViewType
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -33,6 +34,16 @@ interface AppUiHost {
     fun downloadedIds(): Set<String>
 }
 
+private object DefaultAppUiHost : AppUiHost {
+    override val swipeToPlayNext: StateFlow<Boolean> = MutableStateFlow(false)
+    override val homeRecentsViewType: StateFlow<LibraryViewType> = MutableStateFlow(LibraryViewType.LIST)
+    override fun setHomeRecentsViewType(value: LibraryViewType) {}
+    override val pinnedPlaylists: StateFlow<List<String>> = MutableStateFlow(emptyList())
+    override val librarySort: StateFlow<LibrarySort> = MutableStateFlow(LibrarySort.DEFAULT)
+    @Composable
+    override fun downloadedIds(): Set<String> = emptySet()
+}
+
 object AppUi {
     @Volatile
     private var installed: AppUiHost? = null
@@ -42,7 +53,7 @@ object AppUi {
     }
 
     val host: AppUiHost
-        get() = checkNotNull(installed) { "AppUi.install was not called" }
+        get() = installed ?: DefaultAppUiHost
 }
 
 /**

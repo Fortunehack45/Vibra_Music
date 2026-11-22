@@ -4252,17 +4252,13 @@ fun NowPlayingScreen(
                             // liking is about *this song*, and the row below is about
                             // how the queue plays. Guests get nothing to tap, since
                             // there's no account to record it against — except on a
-                            // local file or a finished download, whose star is the
+                            // local file or a finished download, whose heart is the
                             // device's own Liked playlist and needs no account.
-                            // One frost behind both discs — see [GlassDiscPair].
-                            GlassDiscPair(
-                                hazeState = playerHaze,
-                                overlayOpen = { overlayOpen.value },
-                            ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
                                 if (signedIn || song.localUri != null) {
                                     val liked = likeStatus == LikeStatus.LIKE
                                     CircleGlyph(
-                                        icon = if (liked) VibraMusicIcons.StarFilled else VibraMusicIcons.Star,
+                                        icon = if (liked) VibraMusicIcons.HeartFilled else VibraMusicIcons.Heart,
                                         contentDescription = stringResource(
                                             if (liked) Res.string.remove_from_liked else Res.string.like,
                                         ),

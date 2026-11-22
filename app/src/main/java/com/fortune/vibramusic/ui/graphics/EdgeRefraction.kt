@@ -28,6 +28,9 @@ private const val EDGE_REFRACTION_SHADER = """
     uniform float rightOn;
 
     half4 main(float2 p) {
+        if (p.x < 0.0 || p.x > size.x || p.y < 0.0 || p.y > size.y) {
+            return half4(0.0);
+        }
         float w = size.x;
         float tl = (1.0 - clamp(p.x / edge, 0.0, 1.0)) * leftOn;
         float tr = (1.0 - clamp((w - p.x) / edge, 0.0, 1.0)) * rightOn;
@@ -92,6 +95,7 @@ fun Modifier.edgeRefraction(
     val cache = remember { arrayOfNulls<Any>(2) }
 
     return this.graphicsLayer {
+        clip = true
         val s = size
         if (s.width <= 0f || s.height <= 0f) return@graphicsLayer
         if (left <= 0.001f && right <= 0.001f) {

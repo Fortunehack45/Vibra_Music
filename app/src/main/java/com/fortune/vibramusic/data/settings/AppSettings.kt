@@ -369,7 +369,7 @@ object AppSettings {
     val reduceAnimation = MutableStateFlow(false)
 
     /** Enables curved optical edge refraction when scrolling horizontal carousels. */
-    val horizontalScrollRefraction = MutableStateFlow(true)
+    val horizontalScrollRefraction = MutableStateFlow(false)
 
     /** Requests a sustained high-refresh UI. Off keeps Android's automatic policy. */
     val highPerformanceMode = MutableStateFlow(false)
@@ -1015,7 +1015,7 @@ object AppSettings {
         fullBleedDetailArtwork.value = prefs.getBoolean(KEY_FULL_BLEED_DETAIL_ARTWORK, false)
         disableBlendEffects.value = prefs.getBoolean(KEY_DISABLE_BLEND_EFFECTS, false)
         glassPerformance.value = prefs.getBoolean(KEY_GLASS_PERFORMANCE, false)
-        horizontalScrollRefraction.value = prefs.getBoolean(KEY_HORIZONTAL_SCROLL_REFRACTION, true)
+        horizontalScrollRefraction.value = prefs.getBoolean(KEY_HORIZONTAL_SCROLL_REFRACTION, false)
         youtubePremiumAudio.value = prefs.getBoolean(KEY_YOUTUBE_PREMIUM_AUDIO, false)
         _autoMixArtwork.value = com.fortune.vibramusic.ui.player.AutoMixArtworkPreferences(
             artTransition = prefs.getBoolean(KEY_AUTOMIX_ART_TRANSITION, false),

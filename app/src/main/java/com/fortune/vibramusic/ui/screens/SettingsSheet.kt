@@ -217,6 +217,7 @@ fun SettingsScreen(
     onSpotifyCanvasAuth: () -> Unit,
     onAppLanguage: () -> Unit,
     onWearOs: () -> Unit = {},
+    onOpenDriveBackup: () -> Unit = {},
     onCheckForUpdates: () -> Unit = {},
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier,
@@ -1449,6 +1450,13 @@ fun SettingsScreen(
                         )
                     },
                     onClick = { AppSettings.setReplayGenres(!replayGenres) },
+                )
+            }
+            val driveBackupTitle = stringResource(R.string.drive_backup_title)
+            row(driveBackupTitle, "drive", "backup", "cloud", "google") {
+                DriveBackupSettingsRow(
+                    title = driveBackupTitle,
+                    onClick = onOpenDriveBackup,
                 )
             }
             val exportDataTitle = stringResource(R.string.export_data)

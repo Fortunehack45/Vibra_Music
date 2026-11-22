@@ -13,6 +13,7 @@ import com.fortune.vibramusic.data.sources.addon.AddonException
 import com.fortune.vibramusic.data.sources.addon.DetectedFormat
 import com.fortune.vibramusic.data.sources.addon.SourceFormats
 import com.fortune.vibramusic.data.settings.AudioQuality
+import com.fortune.vibramusic.data.settings.permits
 import kotlinx.coroutines.flow.MutableStateFlow
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import kotlinx.serialization.Serializable

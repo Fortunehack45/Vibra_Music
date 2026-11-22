@@ -68,6 +68,7 @@ class BeatTracker(
         val beatInterval: Double,
         val firstBeat: Double,
         val beatConfidence: Double,
+        val meter: MeterHypothesis = MeterHypothesis(),
     )
 
     @Volatile private var session: OrtSession? = null

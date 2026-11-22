@@ -162,6 +162,23 @@ class AnalysisStore(
             .forEach { it.delete() }
     }
 
+    /** Returns all track IDs currently persisted in the store. */
+    fun allTrackIds(): List<String> {
+        return runCatching {
+            directory.listFiles()?.mapNotNull { f ->
+                if (f.isFile && f.extension == "json") f.nameWithoutExtension else null
+            }.orEmpty()
+        }.getOrDefault(emptyList())
+    }
+
+    /** Deletes the stored analysis for [trackId]. */
+    fun delete(trackId: String): Boolean {
+        if (trackId.isBlank()) return false
+        known.remove(trackId)
+        val file = File(directory, fileNameFor(trackId))
+        return if (file.exists()) file.delete() else false
+    }
+
     /** Hashed rather than used raw: a track id is not guaranteed to be a legal filename. */
     private fun fileNameFor(trackId: String): String = "${trackId.hashCode().toUInt()}_${trackId.length}.json"
 
@@ -272,7 +289,11 @@ class AnalysisStore(
         }
     }
 
-    private companion object {
+    companion object {
+        val analysisUpdates = kotlinx.coroutines.flow.MutableStateFlow(0L)
+        fun notifyUpdated(trackId: String? = null) {
+            analysisUpdates.value = System.currentTimeMillis()
+        }
         const val DIRECTORY = "smart_analysis"
 
         /**

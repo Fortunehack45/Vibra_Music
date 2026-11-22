@@ -89,27 +89,3 @@ object WebDavConfig {
         )
     }
 }
-
-/**
- * In-memory credentials for [com.fortune.vibramusic.data.Http]'s interceptor.
- *
- * Held outside SharedPreferences so the network layer never touches prefs:
- * [com.fortune.vibramusic.data.settings.AppSettings] publishes here on init and
- * on every WebDAV edit.
- */
-object WebDavAuth {
-    @Volatile var host: String? = null
-    @Volatile var authHeader: String? = null
-
-    fun update(url: String, username: String, password: String) {
-        host = WebDavConfig.hostOf(url)
-        authHeader = WebDavConfig.basicAuthHeader(username, password)
-    }
-
-    fun shouldAuthorize(requestHost: String): Boolean {
-        val expected = host ?: return false
-        val header = authHeader ?: return false
-        if (header.isBlank()) return false
-        return requestHost.equals(expected, ignoreCase = true)
-    }
-}

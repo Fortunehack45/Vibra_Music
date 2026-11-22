@@ -1,5 +1,7 @@
 package com.fortune.vibramusic.data.model
 
+import kotlinx.serialization.Serializable
+
 /** Identity of one occurrence in a live queue, independent of its timeline index. */
 data class QueueEntryIdentity(
     val mediaId: String,
@@ -568,6 +570,7 @@ data class ArtistPage(
  * A YouTube Music watch queue to start: what the `next` endpoint is asked for
  * when a station card is tapped.
  */
+@Serializable
 data class WatchTarget(
     val playlistId: String,
     val videoId: String? = null,

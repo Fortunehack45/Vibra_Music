@@ -136,6 +136,8 @@ data class TrackAnalysis(
      * a tempo outside 40–220 drops a pairing to a plain crossfade anyway.
      */
     val isUsable: Boolean get() = status == STATUS_READY && bpm > 0
+    val hasBeatGrid: Boolean get() = beats.isNotEmpty() || downbeats.isNotEmpty()
+    val isMetadataOnly: Boolean get() = isUsable && !hasBeatGrid
 
     companion object {
         const val STATUS_READY = "ready"

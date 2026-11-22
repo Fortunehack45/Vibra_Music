@@ -56,12 +56,6 @@ import kotlinx.coroutines.withContext
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-data class MusicVideoQualityUi(
-    val heights: List<Int> = emptyList(),
-    val held: Int? = null,
-    val activeHeight: Int? = null,
-)
-
 /**
  * A music video's picture: a second ExoPlayer, video only and silent,
  * held to the main player's clock.

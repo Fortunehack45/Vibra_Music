@@ -338,6 +338,11 @@ fun SongRow(
     searchPlayingStyle: Boolean = false,
     /** True while a Downloads row belongs to the current multi-selection. */
     selected: Boolean = false,
+    onSwipePlayNext: (() -> Unit)? = null,
+    mixBpm: Double? = null,
+    mixKey: String? = null,
+    mixRelativeToKey: String? = null,
+    mixActive: Boolean = false,
 ) {
     val haptics = rememberHaptics()
     val swipeStateHolder = remember { mutableStateOf<SwipeToDismissBoxState?>(null) }
@@ -490,6 +495,11 @@ private fun SongRowContent(
     activeTint: Color = MaterialTheme.colorScheme.primary,
     searchPlayingStyle: Boolean = false,
     selected: Boolean = false,
+    onSwipePlayNext: (() -> Unit)? = null,
+    mixBpm: Double? = null,
+    mixKey: String? = null,
+    mixRelativeToKey: String? = null,
+    mixActive: Boolean = false,
 ) {
     val titleColor by animateColorAsState(
         targetValue = if (isCurrent) activeTint else MaterialTheme.colorScheme.onBackground,

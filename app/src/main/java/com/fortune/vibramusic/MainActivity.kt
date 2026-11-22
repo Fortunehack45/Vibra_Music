@@ -4576,7 +4576,7 @@ private fun VibraMusicApp(
                             LocalPlaylistsStore.setMixEnabled(id, next)
                             AppSettings.setSongTransitionsEnabled(next)
                             if (next && target.songs.size > 1) {
-                                val analysisStore = com.fortune.vibramusic.playback.smart.AnalysisStore(context)
+                                val analysisStore = com.fortune.vibramusic.playback.smart.AnalysisStore { context.filesDir }
                                 LocalPlaylistsStore.reconcileTransitions(id, target.songs) { s ->
                                     analysisStore.load(s.videoId)
                                 }

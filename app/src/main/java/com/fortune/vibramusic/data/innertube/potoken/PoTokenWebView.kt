@@ -40,7 +40,7 @@ class PoTokenWebView private constructor(
     context: Context,
     // to be used exactly once only during initialization!
     private val continuation: Continuation<PoTokenWebView>,
-) {
+) : PoTokenMinter {
     private val webView = WebView(context)
     private val scope = MainScope()
 
@@ -57,7 +57,7 @@ class PoTokenWebView private constructor(
      * delivered reliably enough on its own; callers check this to recreate immediately.
      */
     @Volatile
-    var isDead: Boolean = false
+    override var isDead: Boolean = false
         private set
     private val poTokenContinuations =
         Collections.synchronizedMap(ArrayMap<String, Continuation<String>>())
@@ -258,7 +258,7 @@ class PoTokenWebView private constructor(
     //endregion
 
     //region Obtaining poTokens
-    suspend fun generatePoToken(identifier: String): String {
+    override suspend fun generatePoToken(identifier: String): String {
         if (isDead || closed) {
             // Fail fast (no fixed timeout wait): PoTokenGenerator's retry path recreates the
             // WebView from scratch.
@@ -345,7 +345,7 @@ class PoTokenWebView private constructor(
         popPoTokenContinuation(requestKey)?.resume(poToken)
     }
 
-    val isExpired: Boolean
+    override val isExpired: Boolean
         get() = Instant.now().isAfter(expirationInstant)
     //endregion
 
@@ -407,7 +407,7 @@ class PoTokenWebView private constructor(
         }
     }
 
-    fun close() {
+    override fun close() {
         if (closed) return
         closed = true
 

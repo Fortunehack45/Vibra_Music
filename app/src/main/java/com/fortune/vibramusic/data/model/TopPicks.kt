@@ -3,17 +3,6 @@ package com.fortune.vibramusic.data.model
 import kotlinx.serialization.Serializable
 
 /**
- * A YouTube Music watch queue to start: what the `next` endpoint is asked for
- * when a station card is tapped.
- */
-@Serializable
-data class WatchTarget(
-    val playlistId: String,
-    val videoId: String? = null,
-    val params: String? = null,
-)
-
-/**
  * The cards of Home's "Top Picks for You" row, in the order they're laid out.
  */
 @Serializable

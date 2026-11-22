@@ -28,6 +28,7 @@ import android.media.MediaDataSource
 import android.net.Uri
 import android.os.Process
 import android.util.Log
+import java.io.File
 import androidx.media3.common.util.UnstableApi
 import com.fortune.vibramusic.data.YtMusicRepository
 import com.fortune.vibramusic.data.listentogether.ListenTogether
@@ -61,8 +62,30 @@ import java.util.Locale
 @UnstableApi
 class TrackAnalyzer(private val context: Context, private val cache: AudioCache) {
 
-    private val tracker = BeatTracker(context)
-    private val vocals = VocalTracker(context)
+    private val tracker = BeatTracker(
+        modelPath = {
+            val file = File(context.filesDir, BeatTracker.MODEL_ASSET)
+            if (!file.exists() || file.length() == 0L) {
+                context.assets.open(BeatTracker.MODEL_ASSET).use { input ->
+                    file.outputStream().use { output -> input.copyTo(output) }
+                }
+            }
+            file.absolutePath
+        },
+        inferenceThreads = { AppSettings.automixPerformanceMode.value.inferenceThreads },
+    )
+    private val vocals = VocalTracker(
+        modelPath = {
+            val file = File(context.filesDir, VocalTracker.MODEL_ASSET)
+            if (!file.exists() || file.length() == 0L) {
+                context.assets.open(VocalTracker.MODEL_ASSET).use { input ->
+                    file.outputStream().use { output -> input.copyTo(output) }
+                }
+            }
+            file.absolutePath
+        },
+        inferenceThreads = { AppSettings.automixPerformanceMode.value.inferenceThreads },
+    )
 
     /**
      * Whether analysis is switched off entirely right now.
@@ -132,7 +155,7 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
     private val restoreAttempted = ConcurrentHashMap.newKeySet<String>()
 
     /** Results that survive the process, so a track is measured once and stays measured. */
-    private val store = AnalysisStore(context)
+    private val store = AnalysisStore { context.filesDir }
 
     /**
      * Cache keys of renditions that decoded short despite the cache calling them
@@ -1134,9 +1157,9 @@ class TrackAnalyzer(private val context: Context, private val cache: AudioCache)
                     ?: features.vocalActivityMask,
                 vocalProbability = features.vocalProbability,
                 meter = headGrid?.meter ?: tailGrid?.meter ?: MeterHypothesis(),
-                loudnessLufs = features.loudnessLufs,
-                peakDbfs = features.peakDbfs,
-                dynamicRangeDb = features.dynamicRangeDb,
+                loudnessLufs = features.loudnessLufs ?: -70.0,
+                peakDbfs = features.peakDbfs ?: -70.0,
+                dynamicRangeDb = features.dynamicRangeDb ?: 0.0,
                 beats = finalBeats,
                 gridSource = gridSource,
                 modelLoaded = modelLoaded,

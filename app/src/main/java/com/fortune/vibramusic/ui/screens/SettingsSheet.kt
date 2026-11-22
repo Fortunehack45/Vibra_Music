@@ -2787,7 +2787,7 @@ private fun SongTransitionsRows(
             )
             RowDivider()
             TransitionStyleRow(
-                icon = VibraMusicIcons.Crossfade,
+                icon = Icons.Rounded.Tune,
                 title = stringResource(R.string.crossfade),
                 subtitle = stringResource(R.string.crossfade_style_subtitle),
                 selected = transitions.style == SongTransitionStyle.CROSSFADE,

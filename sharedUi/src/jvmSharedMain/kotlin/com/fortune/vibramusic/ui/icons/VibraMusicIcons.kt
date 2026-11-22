@@ -863,4 +863,165 @@ object VibraMusicIcons {
     private const val AIRPLAY_INSET = AIRPLAY_TRIANGLE_STROKE / 2f
     private const val AIRPLAY_WIDTH = 25.9668f + AIRPLAY_INSET * 2f
     private const val AIRPLAY_HEIGHT = 25.6348f + AIRPLAY_INSET * 2f
+
+    /** Jump back 15 seconds icon for podcast playback. */
+    val Replay15: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "bc_replay_15",
+            defaultWidth = 24.dp, defaultHeight = 24.dp,
+            viewportWidth = 24f, viewportHeight = 24f,
+        ).apply {
+            path(
+                stroke = stroke,
+                strokeLineWidth = 1.8f,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round,
+            ) {
+                moveTo(12f, 4f)
+                arcToRelative(8f, 8f, 0f, isMoreThanHalf = true, isPositiveArc = false, 7.8f, 6.2f)
+            }
+            path(fill = stroke) {
+                moveTo(12f, 1.5f)
+                lineTo(12f, 6.5f)
+                lineTo(7.5f, 4f)
+                close()
+            }
+            path(
+                stroke = stroke,
+                strokeLineWidth = 1.8f,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round,
+            ) {
+                moveTo(9f, 12f)
+                lineTo(10.5f, 11f)
+                lineTo(10.5f, 16.5f)
+            }
+            path(
+                stroke = stroke,
+                strokeLineWidth = 1.8f,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round,
+            ) {
+                moveTo(15.5f, 11.2f)
+                lineTo(13.2f, 11.2f)
+                lineTo(13.2f, 13.5f)
+                lineTo(14.5f, 13.5f)
+                arcToRelative(1.5f, 1.5f, 0f, isMoreThanHalf = false, isPositiveArc = true, 1.5f, 1.5f)
+                lineTo(16f, 15f)
+                arcToRelative(1.5f, 1.5f, 0f, isMoreThanHalf = false, isPositiveArc = true, -1.5f, 1.5f)
+                lineTo(13f, 16.5f)
+            }
+        }.build()
+    }
+
+    /** Jump forward 30 seconds icon for podcast playback. */
+    val Forward30: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "bc_forward_30",
+            defaultWidth = 24.dp, defaultHeight = 24.dp,
+            viewportWidth = 24f, viewportHeight = 24f,
+        ).apply {
+            path(
+                stroke = stroke,
+                strokeLineWidth = 1.8f,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round,
+            ) {
+                moveTo(12f, 4f)
+                arcToRelative(8f, 8f, 0f, isMoreThanHalf = true, isPositiveArc = true, -7.8f, 6.2f)
+            }
+            path(fill = stroke) {
+                moveTo(12f, 1.5f)
+                lineTo(12f, 6.5f)
+                lineTo(16.5f, 4f)
+                close()
+            }
+            path(
+                stroke = stroke,
+                strokeLineWidth = 1.8f,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round,
+            ) {
+                moveTo(9f, 11.5f)
+                lineTo(11.5f, 11.5f)
+                lineTo(10.2f, 13.5f)
+                lineTo(11.5f, 13.5f)
+                arcToRelative(1.5f, 1.5f, 0f, isMoreThanHalf = false, isPositiveArc = true, 1.5f, 1.5f)
+                lineTo(13f, 15f)
+                arcToRelative(1.5f, 1.5f, 0f, isMoreThanHalf = false, isPositiveArc = true, -1.5f, 1.5f)
+                lineTo(9f, 16.5f)
+            }
+            path(
+                stroke = stroke,
+                strokeLineWidth = 1.8f,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round,
+            ) {
+                moveTo(15f, 12f)
+                arcToRelative(1.2f, 1.2f, 0f, isMoreThanHalf = false, isPositiveArc = true, 1.2f, -1.2f)
+                lineTo(16f, 10.8f)
+                arcToRelative(1.2f, 1.2f, 0f, isMoreThanHalf = false, isPositiveArc = true, 1.2f, 1.2f)
+                lineTo(17.2f, 15.3f)
+                arcToRelative(1.2f, 1.2f, 0f, isMoreThanHalf = false, isPositiveArc = true, -1.2f, 1.2f)
+                lineTo(15f, 16.5f)
+                arcToRelative(1.2f, 1.2f, 0f, isMoreThanHalf = false, isPositiveArc = true, -1.2f, -1.2f)
+                close()
+            }
+        }.build()
+    }
+
+    /** Speedometer gauge icon for playback speed control. */
+    val Speed: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "bc_speed",
+            defaultWidth = 24.dp, defaultHeight = 24.dp,
+            viewportWidth = 24f, viewportHeight = 24f,
+        ).apply {
+            path(
+                stroke = stroke,
+                strokeLineWidth = STROKE,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round,
+            ) {
+                moveTo(4.5f, 17f)
+                arcToRelative(8.5f, 8.5f, 0f, isMoreThanHalf = true, isPositiveArc = true, 15f, 0f)
+                moveTo(12f, 14f)
+                lineTo(16f, 9.5f)
+            }
+            path(fill = stroke) {
+                moveTo(12f, 13f)
+                arcToRelative(1.5f, 1.5f, 0f, isMoreThanHalf = true, isPositiveArc = false, 0f, 3f)
+                arcToRelative(1.5f, 1.5f, 0f, isMoreThanHalf = true, isPositiveArc = false, 0f, -3f)
+            }
+        }.build()
+    }
+
+    /** Show Notes document icon for podcast episode details. */
+    val Notes: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "bc_notes",
+            defaultWidth = 24.dp, defaultHeight = 24.dp,
+            viewportWidth = 24f, viewportHeight = 24f,
+        ).apply {
+            path(
+                stroke = stroke,
+                strokeLineWidth = STROKE,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round,
+            ) {
+                moveTo(5f, 4.5f)
+                lineTo(15f, 4.5f)
+                lineTo(19f, 8.5f)
+                lineTo(19f, 19.5f)
+                lineTo(5f, 19.5f)
+                close()
+                moveTo(8.5f, 11f)
+                lineTo(15.5f, 11f)
+                moveTo(8.5f, 14.5f)
+                lineTo(15.5f, 14.5f)
+                moveTo(8.5f, 17.5f)
+                lineTo(13f, 17.5f)
+            }
+        }.build()
+    }
 }

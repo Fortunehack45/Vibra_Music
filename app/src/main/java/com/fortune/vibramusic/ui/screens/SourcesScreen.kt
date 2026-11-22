@@ -60,6 +60,7 @@ import com.fortune.vibramusic.data.settings.AppSettings
 import com.fortune.vibramusic.data.smb.SmbRepository
 import com.fortune.vibramusic.data.webdav.WebDavRepository
 import com.fortune.vibramusic.data.settings.AudioQuality
+import com.fortune.vibramusic.data.settings.permits
 import com.fortune.vibramusic.data.sources.AddonSource
 import com.fortune.vibramusic.data.sources.SourceConfig
 import com.fortune.vibramusic.data.sources.SourceHealth

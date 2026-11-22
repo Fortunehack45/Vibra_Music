@@ -107,6 +107,9 @@ object TrackFeatures {
         val lowEnergyCurve: List<EnergySample>,
         val mixInCandidates: List<MixCandidate>,
         val mixOutCandidates: List<MixCandidate>,
+        val loudnessLufs: Double? = null,
+        val peakDbfs: Double? = null,
+        val dynamicRangeDb: Double? = null,
     )
 
     fun parse(root: JsonObject): Features = Features(
@@ -132,6 +135,9 @@ object TrackFeatures {
         lowEnergyCurve = root.energyCurve("lowEnergyCurve"),
         mixInCandidates = root.cuePoints("mixInCandidates"),
         mixOutCandidates = root.cuePoints("mixOutCandidates"),
+        loudnessLufs = root["loudnessLufs"]?.jsonPrimitive?.contentOrNull?.toDoubleOrNull(),
+        peakDbfs = root["peakDbfs"]?.jsonPrimitive?.contentOrNull?.toDoubleOrNull(),
+        dynamicRangeDb = root["dynamicRangeDb"]?.jsonPrimitive?.contentOrNull?.toDoubleOrNull(),
     )
 
     private fun JsonObject.number(name: String): Double =

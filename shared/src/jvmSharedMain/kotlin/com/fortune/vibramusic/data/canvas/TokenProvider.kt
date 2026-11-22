@@ -5,4 +5,9 @@ package com.fortune.vibramusic.data.canvas
  */
 fun interface TokenProvider {
     fun getSpdcToken(): String?
+
+    companion object {
+        var current: TokenProvider? = null
+        fun getSpdcToken(): String? = current?.getSpdcToken()
+    }
 }

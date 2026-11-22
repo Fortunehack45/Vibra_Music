@@ -131,14 +131,28 @@ class VibraMusicApplication : Application(), SingletonImageLoader.Factory {
 
         val backgroundInit = thread(name = "startup-init") {
             runCatching { SourceRegistry.init(this) }.onFailure { Log.w("VibraMusic", "Failed to init SourceRegistry", it) }
-            runCatching { InnerTubeXResolver.init(this) }.onFailure { Log.w("VibraMusic", "Failed to init InnerTubeXResolver", it) }
+            runCatching {
+                InnerTubeXResolver.init(
+                    filesDir = filesDir,
+                    store = object : InnerTubeXResolver.ConfigStore {
+                        val sp = getSharedPreferences("innertubex_player_config", Context.MODE_PRIVATE)
+                        override fun getString(key: String): String? = sp.getString(key, null)
+                        override fun getLong(key: String): Long? = if (sp.contains(key)) sp.getLong(key, 0L) else null
+                        override fun putString(key: String, value: String) { sp.edit().putString(key, value).apply() }
+                        override fun putLong(key: String, value: Long) { sp.edit().putLong(key, value).apply() }
+                    },
+                    poTokenProvider = com.fortune.vibramusic.data.innertube.potoken.PoTokenGenerator(
+                        createMinter = { com.fortune.vibramusic.data.innertube.potoken.PoTokenWebView.getNewPoTokenGenerator(this@VibraMusicApplication) }
+                    ).asTokenProvider(),
+                )
+            }.onFailure { Log.w("VibraMusic", "Failed to init InnerTubeXResolver", it) }
             runCatching { CanvasCache.init(this) }.onFailure { Log.w("VibraMusic", "Failed to init CanvasCache", it) }
             runCatching { com.fortune.vibramusic.data.lyrics.CustomLyricsStore.init(this) }.onFailure { Log.w("VibraMusic", "Failed to init CustomLyricsStore", it) }
             runCatching { com.fortune.vibramusic.data.LocalLikesStore.init(this) }.onFailure { Log.w("VibraMusic", "Failed to init LocalLikesStore", it) }
             runCatching { com.fortune.vibramusic.data.LocalPlaylistsStore.init(this) }.onFailure { Log.w("VibraMusic", "Failed to init LocalPlaylistsStore", it) }
             runCatching { com.fortune.vibramusic.playback.smart.MetaSchedulerHolder.init(this) }.onFailure { Log.w("VibraMusic", "Failed to init MetaSchedulerHolder", it) }
             runCatching {
-                val smartStore = com.fortune.vibramusic.playback.smart.AnalysisStore(this)
+                val smartStore = com.fortune.vibramusic.playback.smart.AnalysisStore { this.filesDir }
                 com.fortune.vibramusic.playback.smart.AcousticCatalogService.purgeFabricatedMeta(this, smartStore)
             }.onFailure { Log.w("VibraMusic", "Failed to init AnalysisStore", it) }
         }
@@ -179,6 +193,7 @@ class VibraMusicApplication : Application(), SingletonImageLoader.Factory {
         runCatching { com.fortune.vibramusic.download.PlaylistSync.init(this) }.onFailure { Log.w("VibraMusic", "Failed to init PlaylistSync", it) }
         runCatching { com.fortune.vibramusic.data.backup.DriveBackup.init(this) }.onFailure { Log.w("VibraMusic", "Failed to init DriveBackup", it) }
         com.fortune.vibramusic.data.innertube.StreamResolver.premiumAudio = { AppSettings.youtubePremiumAudio.value }
+        com.fortune.vibramusic.data.canvas.TokenProvider.current = com.fortune.vibramusic.data.canvas.DefaultTokenProvider
 
         runCatching {
             val builtIn = com.fortune.vibramusic.data.canvas.TokenProvider.getSpdcToken()

@@ -30,45 +30,10 @@ import kotlinx.coroutines.flow.asStateFlow
  * [hourly] is what the ceiling costs in data over an hour of listening, which
  * is the only part of this a user actually cares about on a metered plan.
  */
-enum class AudioQuality(
-    val maxKbps: Int,
-    val label: String,
-    val detail: String,
-    val hourly: String,
-) {
-    LOW(64, "Low", "~64 kbps · smallest download", "29 MB/hr"),
-    MEDIUM(Int.MAX_VALUE, "Medium", "Best available · ~171 kbps Opus", "77 MB/hr"),
-    HIGH(Int.MAX_VALUE, "High", "JioSaavn up to 320kbps, YouTube fallback", "144 MB/hr"),
-    LOSSLESS(Int.MAX_VALUE, "Lossless", "Your addons + JioSaavn, bit-exact where available", "300+ MB/hr"),
-    ;
-
-    /**
-     * Whether a stream started under this ceiling may be served by [kind].
-     *
-     * Asked per stream rather than written into
-     * [SourceConfig.enabled][com.fortune.vibramusic.data.sources.SourceConfig.enabled],
-     * which is what this used to do — an `applyQualityPreset` call flipped the
-     * module and JioSaavn switches the moment a rung was picked. Two things
-     * were wrong with that and both were reported together: picking a rung for
-     * *mobile data* turned the sources off while sitting on Wi-Fi, and nothing
-     * turned them back on when the connection changed, so a Wi-Fi ceiling of
-     * Lossless still had no lossless source to reach. A ceiling is a property
-     * of the connection in force; the switches on the Sources screen are the
-     * user's standing choice. Storing the first in the second lost the second.
-     *
-     * [SourceKind.YOUTUBE] is permitted on every rung: it is what [maxKbps]
-     * caps, and it is the only source that can answer at all when the ones
-     * above it are skipped.
-     */
-    fun permits(kind: SourceKind): Boolean = when (this) {
-        LOSSLESS -> true
-        // No lossless answer is wanted here, and a source that can serve one is
-        // the slow half of the list: an addon fronting several catalogues walks
-        // all of them before it answers, which is seconds spent to land on a
-        // transcode JioSaavn already has at 320.
-        HIGH -> !kind.canServeLossless
-        MEDIUM, LOW -> kind == SourceKind.YOUTUBE
-    }
+fun AudioQuality.permits(kind: SourceKind): Boolean = when (this) {
+    AudioQuality.LOSSLESS -> true
+    AudioQuality.HIGH -> !kind.canServeLossless
+    AudioQuality.MEDIUM, AudioQuality.LOW -> kind == SourceKind.YOUTUBE
 }
 
 /**
@@ -140,31 +105,12 @@ enum class EqualizerMode {
     MANUAL,
 }
 
-/** CPU budget for Automix's background analysis, not its audible mix algorithm. */
-enum class AutomixPerformanceMode(val inferenceThreads: Int) {
-    EFFICIENT(1),
-    BALANCED(2),
-    PERFORMANCE(4),
-}
-
 /** Stable persisted ordering for each on-device music library. */
 enum class LocalMusicSort {
     TITLE_ASC,
     TITLE_DESC,
     DATE_ADDED,
     DATE_MODIFIED,
-}
-
-/**
- * Stable persisted ordering for a Library "Show all" grid — playlists or
- * albums. A card there only ever carries a title, so unlike [LocalMusicSort]
- * there is nothing date-based to offer.
- */
-enum class LibrarySort {
-    /** Whatever order the shelf itself arrived in — YouTube Music's own. */
-    DEFAULT,
-    TITLE_ASC,
-    TITLE_DESC,
 }
 
 /**
@@ -183,19 +129,6 @@ enum class SongSort {
     DATE_ADDED_ASC,
     DATE_ADDED_DESC,
     SMART_FLOW,
-}
-
-/** Display mode for music lists: compact rows or grid cards. */
-enum class LibraryViewType {
-    LIST,
-    GRID,
-}
-
-/** The surface that was last open inside the expanded player. */
-enum class LastPlayerScreen {
-    MAIN,
-    LYRICS,
-    QUEUE,
 }
 
 /**
@@ -2600,112 +2533,4 @@ object AppSettings {
     private const val KEY_DISCORD_BUTTON_2_VISIBLE = "discord_button_2_visible"
     private const val KEY_DISCORD_INFO_DISMISSED = "discord_info_dismissed"
     private const val KEY_LAST_VERSION_CODE = "last_version_code"
-}
-
-/**
- * Where one track stands in Automix's analysis.
- *
- * The three no-result states are kept apart because they call for different
- * reactions: [WAITING] resolves itself once bytes arrive, [ANALYSING] resolves
- * itself in a few seconds, and [FAILED] never resolves at all. From outside
- * they look identical, which is precisely why the line has to say which.
- */
-enum class TrackAnalysisState {
-    /** Nothing in flight and no result — usually waiting on bytes to arrive. */
-    WAITING,
-
-    /** Decode and inference running now; a result is a few seconds away. */
-    ANALYSING,
-
-    /** Measured, with a tempo the planner can actually use. */
-    ANALYSED,
-
-    /**
-     * Measured off the track's opening, with the whole-track pass running now to
-     * replace those numbers with better ones.
-     *
-     * Its own state rather than either neighbour, because it is genuinely both:
-     * reporting [ANALYSING] made a track that was already usable look like it
-     * had gone backwards, and reporting [ANALYSED] would hide that the cue and
-     * the tempo are about to move.
-     */
-    REFINING,
-
-    /**
-     * Tried and came back with nothing usable — a decode error, or audio that
-     * yielded no tempo. Distinct from [WAITING] because nothing further will
-     * happen on its own: waiting is a matter of time, this is not.
-     */
-    FAILED,
-}
-
-/**
- * Both sides of the next transition, for stats for nerds.
- *
- * A transition needs *both* tracks measured before it can beat-match or cue the
- * incoming one into its arrangement, so reporting them separately is what makes
- * a plain crossfade explicable rather than mysterious.
- */
-data class SmartAnalysis(
-    val current: TrackAnalysisState = TrackAnalysisState.WAITING,
-    val next: TrackAnalysisState = TrackAnalysisState.WAITING,
-)
-
-/**
- * A span of the playing track, in fractions of its duration, that the next
- * transition is planned to occupy.
- */
-data class TransitionWindow(val start: Float, val end: Float)
-
-/**
- * One side of an Automix blend as the mix popup draws it: the track's card and
- * a three-band waveform of the stretch of it around the blend.
- */
-class MixDeck(
-    val title: String,
-    val artist: String,
-    val artworkUrl: String?,
-    /** The analysed tempo, or 0 when there is none. */
-    val bpm: Double,
-    /** As the analyzer names it — "A♭ minor" — or blank. */
-    val key: String,
-    val durationMs: Long,
-    val waveStart: Double,
-    val waveEnd: Double,
-    val low: FloatArray = FloatArray(0),
-    val mid: FloatArray = FloatArray(0),
-    val high: FloatArray = FloatArray(0),
-    val analysing: Boolean = false,
-    val decoding: Boolean = false,
-) {
-    fun withWave(low: FloatArray, mid: FloatArray, high: FloatArray, start: Double, end: Double) = MixDeck(
-        title, artist, artworkUrl, bpm, key, durationMs, start, end, low, mid, high, analysing, decoding,
-    )
-
-    fun withDecoding(decoding: Boolean) = if (decoding == this.decoding) this else MixDeck(
-        title, artist, artworkUrl, bpm, key, durationMs, waveStart, waveEnd, low, mid, high, analysing, decoding,
-    )
-}
-
-/**
- * An Automix blend laid out for the mix popup. Times are in each track's own
- * seconds; the blend runs [outStart]..[outEnd] on the outgoing track while the
- * incoming one covers [inStart]..[inEnd].
- */
-class MixTransitionView(
-    val outgoing: MixDeck,
-    val incoming: MixDeck,
-    val outStart: Double,
-    val outEnd: Double,
-    val inStart: Double,
-    val inEnd: Double,
-    val beats: Int,
-    val beatMarks: FloatArray,
-    val fadeOut: FloatArray,
-    val fadeIn: FloatArray,
-    val bassSwapAt: Float = -1f,
-) {
-    fun withDecks(outgoing: MixDeck, incoming: MixDeck) = MixTransitionView(
-        outgoing, incoming, outStart, outEnd, inStart, inEnd, beats, beatMarks, fadeOut, fadeIn, bassSwapAt,
-    )
 }

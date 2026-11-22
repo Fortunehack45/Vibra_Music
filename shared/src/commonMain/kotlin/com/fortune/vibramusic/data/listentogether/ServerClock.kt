@@ -93,5 +93,6 @@ class ServerClock(
         private const val WINDOW = 12
         private const val SAMPLE_TTL_MS = 120_000L
         private val monotonicOrigin = TimeSource.Monotonic.markNow()
+        fun localNowMs(): Long = monotonicOrigin.elapsedNow().inWholeMilliseconds
     }
 }

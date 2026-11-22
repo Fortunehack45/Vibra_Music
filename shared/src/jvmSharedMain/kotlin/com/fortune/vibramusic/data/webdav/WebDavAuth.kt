@@ -17,6 +17,20 @@ object WebDavAuth {
         authHeader = header
     }
 
+    fun update(url: String, username: String, password: String) {
+        val parsedHost = runCatching {
+            val trimmed = url.trim()
+            val uri = if (trimmed.contains("://")) java.net.URI(trimmed) else java.net.URI("http://$trimmed")
+            uri.host
+        }.getOrNull()
+        val header = if (username.isNotBlank() || password.isNotBlank()) {
+            val userPass = "$username:$password"
+            val encoded = java.util.Base64.getEncoder().encodeToString(userPass.toByteArray(Charsets.UTF_8))
+            "Basic $encoded"
+        } else null
+        update(parsedHost, header)
+    }
+
     fun shouldAuthorize(requestHost: String): Boolean {
         val expected = host ?: return false
         val header = authHeader ?: return false

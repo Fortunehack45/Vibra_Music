@@ -179,6 +179,7 @@ data class JoinRequest(
     val avatarUrl: String? = null,
     val maxMembers: Int? = null,
     val autoplayEnabled: Boolean? = null,
+    val initialTrack: PartyTrack? = null,
 )
 
 @Serializable

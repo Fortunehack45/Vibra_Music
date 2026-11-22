@@ -308,7 +308,7 @@ fun DetailScreen(
 ) {
     val rawSongs = (page.songs as? UiState.Success)?.data.orEmpty()
     val context = androidx.compose.ui.platform.LocalContext.current
-    val store = remember(context) { com.fortune.vibramusic.playback.smart.AnalysisStore(context) }
+    val store = remember(context) { com.fortune.vibramusic.playback.smart.AnalysisStore { context.filesDir } }
     val songs = remember(rawSongs, songSort) {
         rawSongs.sortedForDetail(songSort) { song ->
             store.load(song.videoId)

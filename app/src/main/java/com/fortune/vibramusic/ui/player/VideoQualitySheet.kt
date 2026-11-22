@@ -462,4 +462,5 @@ private fun QualityRow(
     }
 }
 
-private val ROW_SHAPE = RoundedCornerShape(16.dp)
+private val ROW_SHAPE = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
+

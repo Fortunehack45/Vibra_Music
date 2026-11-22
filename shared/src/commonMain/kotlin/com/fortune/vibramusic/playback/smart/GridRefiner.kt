@@ -55,6 +55,7 @@ object GridRefiner {
         val isSteadyTempo: Boolean,
         val tempoStability: Double,
         val gridSource: String = "refined_model",
+        val meter: MeterHypothesis = MeterHypothesis(),
     )
 
     /**

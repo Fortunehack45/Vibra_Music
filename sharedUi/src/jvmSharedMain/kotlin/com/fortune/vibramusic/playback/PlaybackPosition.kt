@@ -28,7 +28,6 @@ import androidx.compose.runtime.snapshots.Snapshot
 class PlaybackPosition {
     /** The latest reading of the playhead. Written through [report], with the time it was taken. */
     var positionMs by mutableLongStateOf(0L)
-        private set
 
     /**
      * When [positionMs] was read off the player, on the [System.nanoTime] clock.

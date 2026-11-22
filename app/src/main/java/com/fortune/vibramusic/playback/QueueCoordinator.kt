@@ -15,24 +15,6 @@ import java.util.UUID
 private fun Player.queueTierAt(index: Int): QueueTier = getMediaItemAt(index).queueTier
 
 /**
- * Information about where a queue or track was started from in the UI.
- */
-data class QueueSource(
-    val title: String,
-    val type: PlaybackSourceType,
-    val id: String? = null,
-)
-
-/**
- * Result of constructing a context queue, containing the reconstructed timeline
- * and the 0-based start index representing the user's tapped track.
- */
-data class ContextQueueResult(
-    val timeline: List<Song>,
-    val startIndex: Int,
-)
-
-/**
  * Headless orchestrator for two-tier Spotify-style queue operations.
  *
  * Owns timeline construction, tier assignment, deterministic queue identity assignment,

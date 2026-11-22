@@ -1213,12 +1213,12 @@ object ListenTogether {
      */
     fun partyPositionMs(): Long? {
         val playback = _state.value.playback
-        playback.track ?: return null
+        val track = playback.track ?: return null
         if (!playback.isPlaying) return playback.positionMs
         val serverNow = clock.serverNowMs() ?: return playback.effectivePositionMs
         val elapsed = (serverNow - playback.anchorMs).coerceAtLeast(0)
         val position = playback.positionMs + elapsed
-        val duration = playback.track.durationMs
+        val duration = track.durationMs
         return if (duration != null) minOf(position, duration) else position
     }
 

@@ -47,6 +47,7 @@ data class AddonManifest(
     @SerialName("allowDownloads") val allowDownloads: JsonElement? = null,
     @SerialName("checkValidLossless") val checkValidLossless: JsonElement? = null,
     @SerialName("bitchordAuth") val bitchordAuth: JsonElement? = null,
+    @SerialName("vibramusicAuth") val vibramusicAuth: JsonElement? = null,
     /**
      * The settings schema the addon declares, when it declares one.
      *
@@ -79,7 +80,8 @@ data class AddonManifest(
      * settled by asking the endpoints, not by refusing here.
      */
     val isPlayable: Boolean get() = resources.isEmpty() || declares("search")
-    val requiresBitChordAuth: Boolean get() = bitchordAuth.asFlag() ?: false
+    val requiresBitChordAuth: Boolean get() = (vibramusicAuth ?: bitchordAuth).asFlag() ?: false
+    val requiresVibraAuth: Boolean get() = requiresBitChordAuth
     val downloadsAllowed: Boolean get() = allowDownloads.asFlag() ?: true
     val requiresLosslessOutput: Boolean get() = checkValidLossless.asFlag() ?: false
 

@@ -86,6 +86,7 @@ fun SongInfoSheet(
                 .padding(bottom = 32.dp)
                 .verticalScroll(rememberScrollState()),
         ) {
+            val albumName = song.albumName
             // Header: Track Artwork + Title + Artist
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -134,9 +135,9 @@ fun SongInfoSheet(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    if (!song.albumName.isNullOrBlank()) {
+                    if (!albumName.isNullOrBlank()) {
                         Text(
-                            text = song.albumName,
+                            text = albumName,
                             style = MaterialTheme.typography.labelSmall,
                             color = Color.White.copy(alpha = 0.6f),
                             maxLines = 1,
@@ -172,11 +173,11 @@ fun SongInfoSheet(
                     title = "Release",
                     value = song.durationText ?: "Available on Vibra Music",
                 )
-                if (!song.albumName.isNullOrBlank()) {
+                if (!albumName.isNullOrBlank()) {
                     SongInfoRow(
                         icon = Icons.Rounded.Album,
                         title = "Album",
-                        value = song.albumName,
+                        value = albumName,
                     )
                 }
                 SongInfoRow(

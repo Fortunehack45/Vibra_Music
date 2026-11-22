@@ -313,6 +313,8 @@ val newPipeExtractorStripped = tasks.register<org.gradle.api.tasks.bundling.Jar>
 }
 
 dependencies {
+    implementation(project(":shared"))
+    implementation(project(":sharedUi"))
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 
     // ---- Compose (Material 3) ----
@@ -334,6 +336,7 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.8.5")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
+    implementation("androidx.lifecycle:lifecycle-process:2.8.7")
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.appcompat:appcompat:1.7.0")
     debugImplementation("androidx.compose.ui:ui-tooling")
@@ -355,6 +358,9 @@ dependencies {
     // progressive, and the extractors try to sniff XML as audio
     // (ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED). See withResolvedStreamType.
     implementation("androidx.media3:media3-exoplayer-dash:1.11.0")
+    // The lyrics share's video: a canvas clip, blurred, with the card laid over it.
+    implementation("androidx.media3:media3-transformer:1.11.0")
+    implementation("androidx.media3:media3-effect:1.11.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-guava:1.9.0")
 
     // ---- Images: Coil 3 + Palette (dominant colors for the mesh gradient) ----
@@ -437,6 +443,9 @@ dependencies {
     // ---- Smartwatch Wear OS Support ----
     implementation("com.google.android.gms:play-services-wearable:20.0.1")
     implementation("androidx.wear:wear-remote-interactions:1.1.0")
+
+    // ---- Google Drive backup: device Google sign-in ----
+    implementation("com.google.android.gms:play-services-auth:21.3.0")
 
     // ---- Room / SQLite (Local cache for TrackAnalysis & MixPlan) ----
     implementation("androidx.room:room-runtime:2.6.1")

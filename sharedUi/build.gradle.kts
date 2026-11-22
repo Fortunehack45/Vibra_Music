@@ -124,7 +124,7 @@ android {
     namespace = "com.fortune.vibramusic.sharedui"
     compileSdk = 36
     defaultConfig {
-        minSdk = 26
+        minSdk = 24
     }
 }
 

@@ -1389,6 +1389,24 @@ object AudioCache {
     }
 
     /**
+     * A Media3 source factory pinned to this track's YouTube Opus audio, for
+     * components that run their own players or video exports (such as Replay
+     * Year stories or lyrics video sharing).
+     *
+     * Null until the cache and the player's upstream exist.
+     */
+    fun opusShareSource(videoId: String): Pair<DataSource.Factory, Uri>? {
+        if (!::cache.isInitialized) return null
+        val upstream = upstreamFactory ?: return null
+        val factory = CacheDataSource.Factory()
+            .setCache(cache)
+            .setUpstreamDataSourceFactory(upstream)
+            .setCacheKeyFactory { videoId }
+            .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+        return factory to Uri.parse(com.fortune.vibramusic.playback.smart.AutomixAnalysisSource.opusUri(videoId))
+    }
+
+    /**
      * Never fetches. For a fully cached rendition nothing should reach this; for
      * a partially cached one, throwing is how a read past the cached prefix
      * becomes an end-of-stream instead of a download.

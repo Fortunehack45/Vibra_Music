@@ -171,6 +171,14 @@ class VibraMusicApplication : Application(), SingletonImageLoader.Factory {
         runCatching { ArtistFacts.init(this) }.onFailure { Log.w("VibraMusic", "Failed to init ArtistFacts", it) }
         runCatching { AudioCache.init(this) }.onFailure { Log.w("VibraMusic", "Failed to init AudioCache", it) }
         runCatching { com.fortune.vibramusic.data.cache.OfflineCacheManager.init(this) }.onFailure { Log.w("VibraMusic", "Failed to init OfflineCacheManager", it) }
+        runCatching {
+            com.fortune.vibramusic.ui.player.PlayerPlatform.install(
+                com.fortune.vibramusic.ui.player.AndroidPlayerHost(this)
+            )
+        }.onFailure { Log.e("VibraMusic", "Failed to install PlayerPlatform", it) }
+        runCatching { com.fortune.vibramusic.download.PlaylistSync.init(this) }.onFailure { Log.w("VibraMusic", "Failed to init PlaylistSync", it) }
+        runCatching { com.fortune.vibramusic.data.backup.DriveBackup.init(this) }.onFailure { Log.w("VibraMusic", "Failed to init DriveBackup", it) }
+        com.fortune.vibramusic.data.innertube.StreamResolver.premiumAudio = { AppSettings.youtubePremiumAudio.value }
 
         runCatching {
             val builtIn = com.fortune.vibramusic.data.canvas.TokenProvider.getSpdcToken()

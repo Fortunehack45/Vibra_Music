@@ -52,9 +52,11 @@ fun SpotifyCanvasAuthScreen(
     onOpenLogin: () -> Unit = {},
 ) {
     val currentToken by AppSettings.spotifySpdcToken.collectAsStateWithLifecycle()
+    val disableSpotify by AppSettings.disableSpotifyCanvas.collectAsStateWithLifecycle()
     val autoHidePlayer by AppSettings.spotifyCanvasAutoHide.collectAsStateWithLifecycle()
     val prioritizeSpotify by AppSettings.prioritizeSpotifyCanvas.collectAsStateWithLifecycle()
     val canvasOverCellular by AppSettings.canvasOverCellular.collectAsStateWithLifecycle()
+    val context = androidx.compose.ui.platform.LocalContext.current
     var tokenInput by remember(currentToken) { mutableStateOf(currentToken) }
 
     val builtIn = remember { TokenProvider.getSpdcToken() }
@@ -134,7 +136,7 @@ fun SpotifyCanvasAuthScreen(
                         }
                     }
 
-                    if (!hasUserToken && !hasBuiltIn) {
+                    if (!hasUserToken) {
                         Spacer(modifier = Modifier.height(12.dp))
                         Button(
                             onClick = onOpenLogin,
@@ -153,6 +155,7 @@ fun SpotifyCanvasAuthScreen(
                         Spacer(modifier = Modifier.height(12.dp))
                         OutlinedButton(
                             onClick = {
+                                com.fortune.vibramusic.auth.clearSpotifyWebSession()
                                 AppSettings.setSpotifySpdcToken("")
                                 SpotifyToken.invalidate()
                                 tokenInput = ""
@@ -174,10 +177,18 @@ fun SpotifyCanvasAuthScreen(
 
             // Toggles
             SpotifyCanvasSettingToggle(
+                title = stringResource(R.string.disable_spotify_canvas),
+                subtitle = stringResource(R.string.disable_spotify_canvas_subtitle),
+                checked = disableSpotify,
+                onCheckedChange = AppSettings::setDisableSpotifyCanvas,
+            )
+
+            SpotifyCanvasSettingToggle(
                 title = stringResource(R.string.spotify_canvas_auto_hide),
                 subtitle = stringResource(R.string.spotify_canvas_auto_hide_subtitle),
                 checked = autoHidePlayer,
                 onCheckedChange = AppSettings::setSpotifyCanvasAutoHide,
+                enabled = !disableSpotify,
             )
 
             SpotifyCanvasSettingToggle(
@@ -185,6 +196,7 @@ fun SpotifyCanvasAuthScreen(
                 subtitle = stringResource(R.string.prioritize_spotify_canvas_subtitle),
                 checked = prioritizeSpotify,
                 onCheckedChange = AppSettings::setPrioritizeSpotifyCanvas,
+                enabled = !disableSpotify,
             )
 
             SpotifyCanvasSettingToggle(
@@ -192,6 +204,7 @@ fun SpotifyCanvasAuthScreen(
                 subtitle = null,
                 checked = canvasOverCellular,
                 onCheckedChange = AppSettings::setCanvasOverCellular,
+                enabled = !disableSpotify,
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -230,6 +243,21 @@ fun SpotifyCanvasAuthScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         lineHeight = MaterialTheme.typography.bodySmall.lineHeight * 1.2f
                     )
+                    Spacer(Modifier.height(10.dp))
+                    OutlinedButton(
+                        onClick = {
+                            runCatching {
+                                val intent = android.content.Intent(
+                                    android.content.Intent.ACTION_VIEW,
+                                    android.net.Uri.parse("https://open.spotify.com")
+                                )
+                                context.startActivity(intent)
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(stringResource(R.string.open_in_browser))
+                    }
                 }
             }
 
@@ -257,6 +285,7 @@ fun SpotifyCanvasAuthScreen(
             if (currentToken.isNotBlank() && hasBuiltIn) {
                 OutlinedButton(
                     onClick = {
+                        com.fortune.vibramusic.auth.clearSpotifyWebSession()
                         AppSettings.setSpotifySpdcToken("")
                         SpotifyToken.invalidate()
                         tokenInput = ""
@@ -289,11 +318,12 @@ private fun SpotifyCanvasSettingToggle(
     subtitle: String? = null,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
+    enabled: Boolean = true,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onCheckedChange(!checked) }
+            .clickable(enabled = enabled) { onCheckedChange(!checked) }
             .padding(vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -305,18 +335,20 @@ private fun SpotifyCanvasSettingToggle(
             Text(
                 text = title,
                 style = MaterialTheme.typography.bodyLarge,
+                color = if (enabled) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.45f),
             )
             if (!subtitle.isNullOrBlank()) {
                 Text(
                     text = subtitle,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = if (enabled) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f),
                 )
             }
         }
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,
+            enabled = enabled,
         )
     }
 }

@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.ui.player
+package com.fortune.vibramusic.ui.player
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable

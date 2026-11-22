@@ -14,6 +14,7 @@ import com.fortune.vibramusic.data.sources.SourceKind
 import com.fortune.vibramusic.playback.EqLayout
 import com.fortune.vibramusic.playback.EqualizerPreset
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * Stream bitrate ceiling on the YouTube fallback path — MEDIUM, HIGH and
@@ -250,6 +251,7 @@ object AppSettings {
      * not one portable audio file.
      */
     val exportDownloads = MutableStateFlow(true)
+    val syncDownloadedPlaylists = MutableStateFlow(false)
 
     /** Whether the active network charges for data. `null` while offline. */
     val meteredConnection = MutableStateFlow<Boolean?>(null)
@@ -410,6 +412,26 @@ object AppSettings {
     /** Put the playing track's codec, bitrate and sample rate on the player. */
     val showNerdStats = MutableStateFlow(false)
 
+    /**
+     * The "Best Part" button on the player's artwork, which skips to the part of
+     * the song listeners replay most. On unless turned off.
+     */
+    val showBestPart = MutableStateFlow(true)
+    val showListenTogetherButton = MutableStateFlow(false)
+    val hideLyricsPreview = MutableStateFlow(false)
+    val lyricsCardLogo = MutableStateFlow(true)
+    val showQueueHistory = MutableStateFlow(false)
+    val showTotalDuration = MutableStateFlow(false)
+    val smartMixBlend = MutableStateFlow<MixBlend?>(null)
+    val smartMixView = MutableStateFlow<MixTransitionView?>(null)
+    val smartMixProgress = MutableStateFlow(0f)
+    val automixDetail = MutableStateFlow<String?>(null)
+
+    val downloadLikedSongs = MutableStateFlow(false)
+    val youtubePremiumAudio = MutableStateFlow(false)
+    private val _autoMixArtwork = MutableStateFlow(com.fortune.vibramusic.ui.player.AutoMixArtworkPreferences())
+    val autoMixArtwork = _autoMixArtwork.asStateFlow()
+
     /** Freezes the main player's mesh gradient instead of letting it drift/crossfade. */
     val reduceAnimation = MutableStateFlow(false)
 
@@ -509,11 +531,20 @@ object AppSettings {
      */
     val canvasOverCellular = MutableStateFlow(true)
 
+    val disableSpotifyCanvas = MutableStateFlow(false)
+
     /** Automatically collapses the lower controls after Spotify Canvas settles. */
     val spotifyCanvasAutoHide = MutableStateFlow(true)
 
     /** Tries Spotify before Apple Music and the other animated-art providers. */
     val prioritizeSpotifyCanvas = MutableStateFlow(true)
+    val effectiveSpotifyCanvasAutoHide = MutableStateFlow(true)
+    val effectivePrioritizeSpotifyCanvas = MutableStateFlow(true)
+
+    private fun updateEffectiveSpotifyCanvasSettings() {
+        effectiveSpotifyCanvasAutoHide.value = spotifyCanvasAutoHide.value && !disableSpotifyCanvas.value
+        effectivePrioritizeSpotifyCanvas.value = prioritizeSpotifyCanvas.value && !disableSpotifyCanvas.value
+    }
 
     /**
      * Secondary artist art: a user-hosted artist-signature API used only when
@@ -931,6 +962,8 @@ object AppSettings {
         downloadQuality.value = readDownloadQuality()
         wifiOnlyDownloads.value = prefs.getBoolean(KEY_WIFI_ONLY_DOWNLOADS, true)
         exportDownloads.value = prefs.getBoolean(KEY_EXPORT_DOWNLOADS, true)
+        syncDownloadedPlaylists.value = prefs.getBoolean(KEY_SYNC_DOWNLOADED_PLAYLISTS, false)
+        downloadLikedSongs.value = prefs.getBoolean(KEY_DOWNLOAD_LIKED_SONGS, false)
         if (!prefs.getBoolean(KEY_FORCE_MIX_AND_FLOW_OFF_V3, false)) {
             prefs.edit()
                 .putBoolean(KEY_FORCE_MIX_AND_FLOW_OFF_V3, true)
@@ -985,6 +1018,12 @@ object AppSettings {
         shuffleEnabled.value = prefs.getBoolean(KEY_SHUFFLE_ENABLED, false)
         repeatMode.value = prefs.getInt(KEY_REPEAT_MODE, Player.REPEAT_MODE_OFF)
         showNerdStats.value = prefs.getBoolean(KEY_NERD_STATS, false)
+        showBestPart.value = prefs.getBoolean(KEY_BEST_PART, true)
+        showListenTogetherButton.value = prefs.getBoolean(KEY_LISTEN_TOGETHER_BUTTON, false)
+        hideLyricsPreview.value = prefs.getBoolean(KEY_HIDE_LYRICS_PREVIEW, false)
+        lyricsCardLogo.value = prefs.getBoolean(KEY_LYRICS_CARD_LOGO, true)
+        showQueueHistory.value = prefs.getBoolean(KEY_SHOW_QUEUE_HISTORY, false)
+        showTotalDuration.value = prefs.getBoolean(KEY_SHOW_TOTAL_DURATION, false)
         reduceAnimation.value = prefs.getBoolean(KEY_REDUCE_ANIMATION, false)
         highPerformanceMode.value = prefs.getBoolean(KEY_HIGH_PERFORMANCE_MODE, false)
         performanceRefreshRate.value = normalizePerformanceRefreshRate(
@@ -1033,8 +1072,10 @@ object AppSettings {
 
         animatedCanvas.value = prefs.getBoolean(KEY_ANIMATED_CANVAS, true)
         canvasOverCellular.value = prefs.getBoolean(KEY_CANVAS_OVER_CELLULAR, true)
+        disableSpotifyCanvas.value = prefs.getBoolean(KEY_DISABLE_SPOTIFY_CANVAS, false)
         spotifyCanvasAutoHide.value = prefs.getBoolean(KEY_SPOTIFY_CANVAS_AUTO_HIDE, true)
         prioritizeSpotifyCanvas.value = prefs.getBoolean(KEY_PRIORITIZE_SPOTIFY_CANVAS, true)
+        updateEffectiveSpotifyCanvasSettings()
         signatureApiEnabled.value = prefs.getBoolean(KEY_SIGNATURE_API_ENABLED, false)
         signatureApiUrl.value = prefs.getString(KEY_SIGNATURE_API_URL, "") ?: ""
         fullBleedArtwork.value = prefs.getBoolean(KEY_FULL_BLEED_ARTWORK, true)
@@ -1042,6 +1083,11 @@ object AppSettings {
         disableBlendEffects.value = prefs.getBoolean(KEY_DISABLE_BLEND_EFFECTS, false)
         glassPerformance.value = prefs.getBoolean(KEY_GLASS_PERFORMANCE, false)
         horizontalScrollRefraction.value = prefs.getBoolean(KEY_HORIZONTAL_SCROLL_REFRACTION, true)
+        youtubePremiumAudio.value = prefs.getBoolean(KEY_YOUTUBE_PREMIUM_AUDIO, false)
+        _autoMixArtwork.value = com.fortune.vibramusic.ui.player.AutoMixArtworkPreferences(
+            artTransition = prefs.getBoolean(KEY_AUTOMIX_ART_TRANSITION, false),
+            miniPlayerTransition = prefs.getBoolean(KEY_AUTOMIX_MINI_ART_TRANSITION, false),
+        )
         hideRecents.value = prefs.getBoolean(KEY_HIDE_RECENTS, false)
         hideHomeVideos.value = prefs.getBoolean(KEY_HIDE_HOME_VIDEOS, false)
         hideTopPicks.value = prefs.getBoolean(KEY_HIDE_TOP_PICKS, false)
@@ -1278,6 +1324,16 @@ object AppSettings {
         prefs.edit().putBoolean(KEY_WIFI_ONLY_DOWNLOADS, value).apply()
     }
 
+    fun setSyncDownloadedPlaylists(value: Boolean) {
+        syncDownloadedPlaylists.value = value
+        prefs.edit().putBoolean(KEY_SYNC_DOWNLOADED_PLAYLISTS, value).apply()
+    }
+
+    fun setDownloadLikedSongs(value: Boolean) {
+        downloadLikedSongs.value = value
+        prefs.edit().putBoolean(KEY_DOWNLOAD_LIKED_SONGS, value).apply()
+    }
+
     fun setSongTransitionsEnabled(value: Boolean) {
         writeSongTransitions(songTransitions.value.copy(enabled = value))
         if (!value) {
@@ -1478,6 +1534,36 @@ object AppSettings {
         prefs.edit().putBoolean(KEY_NERD_STATS, value).apply()
     }
 
+    fun setShowBestPart(value: Boolean) {
+        showBestPart.value = value
+        prefs.edit().putBoolean(KEY_BEST_PART, value).apply()
+    }
+
+    fun setShowListenTogetherButton(value: Boolean) {
+        showListenTogetherButton.value = value
+        prefs.edit().putBoolean(KEY_LISTEN_TOGETHER_BUTTON, value).apply()
+    }
+
+    fun setHideLyricsPreview(value: Boolean) {
+        hideLyricsPreview.value = value
+        prefs.edit().putBoolean(KEY_HIDE_LYRICS_PREVIEW, value).apply()
+    }
+
+    fun setLyricsCardLogo(value: Boolean) {
+        lyricsCardLogo.value = value
+        prefs.edit().putBoolean(KEY_LYRICS_CARD_LOGO, value).apply()
+    }
+
+    fun setShowQueueHistory(value: Boolean) {
+        showQueueHistory.value = value
+        prefs.edit().putBoolean(KEY_SHOW_QUEUE_HISTORY, value).apply()
+    }
+
+    fun setShowTotalDuration(value: Boolean) {
+        showTotalDuration.value = value
+        prefs.edit().putBoolean(KEY_SHOW_TOTAL_DURATION, value).apply()
+    }
+
     fun setThemeMode(value: ThemeMode) {
         themeMode.value = value
         prefs.edit().putString(KEY_THEME, value.name).apply()
@@ -1510,6 +1596,35 @@ object AppSettings {
         horizontalScrollRefraction.value = value
         prefs.edit().putBoolean(KEY_HORIZONTAL_SCROLL_REFRACTION, value).apply()
     }
+
+    fun setYoutubePremiumAudio(value: Boolean) {
+        youtubePremiumAudio.value = value
+        prefs.edit().putBoolean(KEY_YOUTUBE_PREMIUM_AUDIO, value).apply()
+        com.fortune.vibramusic.data.innertube.StreamResolver.forgetResolved()
+    }
+
+    fun setAutoMixArtTransition(value: Boolean) {
+        val previous = _autoMixArtwork.value
+        if (previous.artTransition == value) return
+        _autoMixArtwork.value = previous.copy(
+            artTransition = value,
+            skipArtworkThrough = artworkCutoff(previous.skipArtworkThrough),
+        )
+        prefs.edit().putBoolean(KEY_AUTOMIX_ART_TRANSITION, value).apply()
+    }
+
+    fun setAutoMixMiniPlayerTransition(value: Boolean) {
+        val previous = _autoMixArtwork.value
+        if (previous.miniPlayerTransition == value) return
+        _autoMixArtwork.value = previous.copy(
+            miniPlayerTransition = value,
+            skipMiniThrough = artworkCutoff(previous.skipMiniThrough),
+        )
+        prefs.edit().putBoolean(KEY_AUTOMIX_MINI_ART_TRANSITION, value).apply()
+    }
+
+    private fun artworkCutoff(previous: Long): Long =
+        maxOf(previous, com.fortune.vibramusic.playback.AutoMixVisualFeed.state.value?.generation ?: 0L)
 
     fun setHideSongStatus(value: Boolean) {
         hideSongStatus.value = value
@@ -1714,13 +1829,22 @@ object AppSettings {
         prefs.edit().putBoolean(KEY_CANVAS_OVER_CELLULAR, value).apply()
     }
 
+    fun setDisableSpotifyCanvas(value: Boolean) {
+        disableSpotifyCanvas.value = value
+        updateEffectiveSpotifyCanvasSettings()
+        prefs.edit().putBoolean(KEY_DISABLE_SPOTIFY_CANVAS, value).apply()
+        com.fortune.vibramusic.data.canvas.CanvasRepository.clear()
+    }
+
     fun setSpotifyCanvasAutoHide(value: Boolean) {
         spotifyCanvasAutoHide.value = value
+        updateEffectiveSpotifyCanvasSettings()
         prefs.edit().putBoolean(KEY_SPOTIFY_CANVAS_AUTO_HIDE, value).apply()
     }
 
     fun setPrioritizeSpotifyCanvas(value: Boolean) {
         prioritizeSpotifyCanvas.value = value
+        updateEffectiveSpotifyCanvasSettings()
         prefs.edit().putBoolean(KEY_PRIORITIZE_SPOTIFY_CANVAS, value).apply()
         com.fortune.vibramusic.data.canvas.CanvasRepository.clear()
     }
@@ -2329,6 +2453,8 @@ object AppSettings {
     private const val KEY_QUALITY_DOWNLOAD = "audio_quality_download"
     private const val KEY_LOW_QUALITY_MIGRATED = "low_quality_default_migrated_v2"
     private const val KEY_WIFI_ONLY_DOWNLOADS = "wifi_only_downloads"
+    private const val KEY_SYNC_DOWNLOADED_PLAYLISTS = "sync_downloaded_playlists"
+    private const val KEY_DOWNLOAD_LIKED_SONGS = "download_liked_songs"
     private const val KEY_EXPORT_DOWNLOADS = "export_downloads"
     private const val KEY_MIX_FORCE_DEFAULT_OFF_V2 = "mix_force_default_off_v2"
     private const val KEY_FORCE_MIX_AND_FLOW_OFF_V3 = "force_mix_and_flow_off_v3"
@@ -2364,6 +2490,12 @@ object AppSettings {
     private const val KEY_SHUFFLE_ENABLED = "shuffle_enabled"
     private const val KEY_REPEAT_MODE = "repeat_mode"
     private const val KEY_NERD_STATS = "show_nerd_stats"
+    private const val KEY_BEST_PART = "show_best_part"
+    private const val KEY_LISTEN_TOGETHER_BUTTON = "show_listen_together_button"
+    private const val KEY_HIDE_LYRICS_PREVIEW = "hide_lyrics_preview"
+    private const val KEY_LYRICS_CARD_LOGO = "lyrics_card_logo"
+    private const val KEY_SHOW_QUEUE_HISTORY = "show_queue_history"
+    private const val KEY_SHOW_TOTAL_DURATION = "show_total_duration"
     private const val KEY_CACHE_LIMIT = "audio_cache_limit_bytes"
     private const val KEY_REDUCE_ANIMATION = "reduce_animation"
     private const val KEY_HIGH_PERFORMANCE_MODE = "high_performance_mode"
@@ -2388,11 +2520,15 @@ object AppSettings {
     private const val KEY_TRANSLATION_LANGUAGE = "translation_language"
     private const val KEY_ANIMATED_CANVAS = "animated_canvas"
     private const val KEY_CANVAS_OVER_CELLULAR = "canvas_over_cellular"
+    private const val KEY_DISABLE_SPOTIFY_CANVAS = "disable_spotify_canvas"
     private const val KEY_SPOTIFY_CANVAS_AUTO_HIDE = "spotify_canvas_auto_hide"
     private const val KEY_PRIORITIZE_SPOTIFY_CANVAS = "prioritize_spotify_canvas"
     private const val KEY_SIGNATURE_API_ENABLED = "signature_api_enabled"
     private const val KEY_SIGNATURE_API_URL = "signature_api_url"
     private const val KEY_MIGRATED_CANVAS_V52 = "migrated_canvas_defaults_v52"
+    private const val KEY_YOUTUBE_PREMIUM_AUDIO = "youtube_premium_audio"
+    private const val KEY_AUTOMIX_ART_TRANSITION = "automix_art_transition"
+    private const val KEY_AUTOMIX_MINI_ART_TRANSITION = "automix_mini_art_transition"
     private const val KEY_FULL_BLEED_ARTWORK = "full_bleed_artwork"
     private const val KEY_FULL_BLEED_DETAIL_ARTWORK = "full_bleed_detail_artwork"
     private const val KEY_DISABLE_BLEND_EFFECTS = "disable_blend_effects"

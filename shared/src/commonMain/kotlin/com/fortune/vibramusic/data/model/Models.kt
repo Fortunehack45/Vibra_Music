@@ -1,5 +1,13 @@
 package com.fortune.vibramusic.data.model
 
+/** Identity of one occurrence in a live queue, independent of its timeline index. */
+data class QueueEntryIdentity(
+    val mediaId: String,
+    val queueEntryId: String?,
+    /** Zero-based occurrence among entries with the same media and queue-entry ids. */
+    val occurrence: Int,
+)
+
 /** Tier of an item in the playback queue. */
 enum class QueueTier {
     /** Explicitly queued by user ("Play Next", "Add to Queue", or preserved user queue). */
@@ -119,6 +127,10 @@ data class Song(
     val playbackSourceType: PlaybackSourceType? = null,
     /** Browse id for an album, playlist, or other source page. */
     val playbackSourceId: String? = null,
+    /** Full episode description or show notes for podcasts. */
+    val description: String? = null,
+    /** Whether this item is an authentic live broadcast requiring an HLS manifest. */
+    val isLiveStream: Boolean = false,
 ) {
     /** Legacy derived property: true if and only if [queueTier] is [QueueTier.AUTOPLAY]. */
     val fromAutoplay: Boolean get() = queueTier == QueueTier.AUTOPLAY
@@ -149,6 +161,8 @@ data class Song(
         playbackSource: String? = null,
         playbackSourceType: PlaybackSourceType? = null,
         playbackSourceId: String? = null,
+        description: String? = null,
+        isLiveStream: Boolean = false,
     ) : this(
         videoId = videoId,
         title = title,
@@ -175,6 +189,8 @@ data class Song(
         playbackSource = playbackSource,
         playbackSourceType = playbackSourceType,
         playbackSourceId = playbackSourceId,
+        description = description,
+        isLiveStream = isLiveStream,
     )
 }
 
@@ -284,8 +300,9 @@ const val NOTIFICATION_ART_PX = 544
  * track had artwork at all.
  */
 const val PLAYER_ART_PX = 1200
+const val PLAYER_ART_MEMORY_CACHE_KEY_EXTRA = "vibramusic_player_art_px"
 
-enum class BrowseType { ALBUM, ARTIST, PLAYLIST, OTHER }
+enum class BrowseType { ALBUM, ARTIST, PLAYLIST, PODCAST_SHOW, OTHER }
 
 /** A queue-level origin shown above Now Playing, in the style of Spotify. */
 enum class PlaybackSourceType {
@@ -294,6 +311,7 @@ enum class PlaybackSourceType {
     HISTORY,
     REPLAY,
     EXPLORE,
+    PODCASTS,
     BROWSE,
     SHARED_LINK,
     QUEUE,
@@ -333,6 +351,7 @@ data class ShelfItem(
     val thumbnailUrl: String?,
     val videoId: String?,
     val browseId: String?,
+    val isVideo: Boolean = false,
 )
 
 /** The signed-in Google account, as YouTube Music reports it. */
@@ -539,6 +558,20 @@ data class ArtistPage(
     val monthlyListenerCount: String? = null,
     /** The header's subscribe button, when the page carries one. */
     val subscription: SubscriptionState? = null,
+    /** The header's Mix button: the artist's radio, them and the artists around them. */
+    val radio: WatchTarget? = null,
+    /** The header's Shuffle button: the artist's own catalogue, shuffled. */
+    val shuffle: WatchTarget? = null,
+)
+
+/**
+ * A YouTube Music watch queue to start: what the `next` endpoint is asked for
+ * when a station card is tapped.
+ */
+data class WatchTarget(
+    val playlistId: String,
+    val videoId: String? = null,
+    val params: String? = null,
 )
 
 /**

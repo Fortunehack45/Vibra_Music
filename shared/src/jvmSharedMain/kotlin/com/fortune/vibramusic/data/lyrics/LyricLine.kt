@@ -546,7 +546,7 @@ private fun smooth(fraction: Float) = fraction * fraction * (3f - 2f * fraction)
 private fun LyricWord.canGrow(): Boolean {
     val length = text.length
     if (length == 0 || length > GROW_MAX_CHARS) return false
-    if ('-' in text || text.any { it.isBlockScript() || it.isJoinedScript() }) return false
+    if ('-' in text || text.none { it.isLetter() } || text.any { it.isBlockScript() || it.isJoinedScript() }) return false
     val held = endMs - startMs
     return when {
         length == 1 -> held >= GROW_MIN_SOLO_MS

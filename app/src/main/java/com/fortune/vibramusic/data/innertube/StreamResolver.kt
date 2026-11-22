@@ -61,6 +61,16 @@ object StreamResolver {
 
     private const val TAG = "Vibra Music"
 
+    var premiumAudio: () -> Boolean = { false }
+
+    /**
+     * Drops the remembered stream URLs, so the next play of a track resolves
+     * afresh — for a setting that changes which stream a resolve picks.
+     */
+    fun forgetResolved() {
+        recent.clear()
+    }
+
     /** Past this, an extractor fetch is worth flagging rather than just noting. */
     private const val SLOW_FETCH_MS = 2000L
 
@@ -497,7 +507,7 @@ object StreamResolver {
         val skip = mutableSetOf<String>()
         repeat(INNERTUBEX_ATTEMPTS) {
             val found = try {
-                InnerTubeXResolver.extract(videoId, maxKbps, skip, requireM4a)
+                InnerTubeXResolver.extract(videoId, maxKbps, skip, requireM4a, premium = premiumAudio())
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

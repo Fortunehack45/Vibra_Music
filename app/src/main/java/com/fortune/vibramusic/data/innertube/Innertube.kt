@@ -69,6 +69,10 @@ object Innertube {
             }
         }
 
+    internal val currentRegion: String
+        get() = AppCompatDelegate.getApplicationLocales().get(0)?.country?.ifEmpty { null }
+            ?: Locale.getDefault().country.ifEmpty { "US" }
+
     private val acceptLanguageHeader: String
         get() {
             val lang = currentLanguage
@@ -92,6 +96,13 @@ object Innertube {
      */
     private const val WEB_REMIX_VERSION = "1.20250101.01.00"
     private const val WEB_REMIX_CLIENT_ID = "67"
+
+    /**
+     * The plain youtube.com client, for [webNext] only. Kept in step with the
+     * WEB entry in [PlayerClient]; `next` is lenient about an old version.
+     */
+    private const val WEB_CLIENT_VERSION = "2.20260708.00.00"
+    private const val WEB_CLIENT_ID = "1"
 
     private const val TAG = "Vibra Music"
 
@@ -620,6 +631,41 @@ object Innertube {
     suspend fun player(videoId: String): JsonObject = postMusicAnonymous("player") {
         put("videoId", videoId)
         put("isAudioOnly", true)
+    }
+
+    /**
+     * youtube.com's own `next` answer for [videoId], asked as the plain WEB
+     * client rather than YouTube Music.
+     *
+     * Only for what YouTube Music's answer leaves out: the "Most replayed"
+     * heat markers the Replay year story uses to start each song on its best
+     * part. Same video, same timeline, but only youtube.com's watch page
+     * carries the curve.
+     */
+    suspend fun webNext(videoId: String): JsonObject = withRetry(attempts = 2) {
+        client.post("$YOUTUBE_ORIGIN/youtubei/v1/next") {
+            contentType(ContentType.Application.Json)
+            parameter("prettyPrint", "false")
+            header("User-Agent", WEB_USER_AGENT)
+            header("Origin", YOUTUBE_ORIGIN)
+            header("Referer", "$YOUTUBE_ORIGIN/")
+            header("X-YouTube-Client-Name", WEB_CLIENT_ID)
+            header("X-YouTube-Client-Version", WEB_CLIENT_VERSION)
+            header("Accept-Language", acceptLanguageHeader)
+            setBody(
+                buildJsonObject {
+                    putJsonObject("context") {
+                        putJsonObject("client") {
+                            put("clientName", "WEB")
+                            put("clientVersion", WEB_CLIENT_VERSION)
+                            put("hl", currentLanguage)
+                            put("gl", currentRegion)
+                        }
+                    }
+                    put("videoId", videoId)
+                },
+            )
+        }.body<JsonObject>()
     }
 
     suspend fun search(query: String, params: String? = null): JsonObject =

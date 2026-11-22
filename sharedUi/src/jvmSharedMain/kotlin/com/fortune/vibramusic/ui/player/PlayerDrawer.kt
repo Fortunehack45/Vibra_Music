@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.ui.player
+package com.fortune.vibramusic.ui.player
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -54,11 +54,8 @@ import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.fortune.vibramusic.ui.components.optimizedHazeEffect
 import com.fortune.vibramusic.ui.utils.containSheetGestures
 import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
-import dev.chrisbanes.haze.materials.HazeMaterials
 import kotlin.math.roundToInt
 
 internal val DRAWER_SHAPE = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp)
@@ -97,7 +94,6 @@ private const val DISMISS_DRAG_FRACTION = 0.25f
  * lyrics card goes up in this same shell rather than in a second one that would
  * have to re-learn the drag gesture, the scrim fade and the frosted material.
  */
-@OptIn(ExperimentalHazeMaterialsApi::class)
 @Composable
 fun PlayerDrawer(
     hazeState: HazeState,
@@ -106,9 +102,14 @@ fun PlayerDrawer(
     modifier: Modifier = Modifier,
     /** Air between the title and whatever the drawer opens with. */
     titleGap: Dp = 14.dp,
+    /**
+     * The tallest the drawer grows before its rows scroll. Most drawers are a
+     * list and want the cap; one whose actions sit at the bottom — the lyrics
+     * share — asks for more so they are on screen without a scroll.
+     */
+    maxHeight: Dp = 560.dp,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    val reduceDynamicBlur by PlayerSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
 
     // How far the drawer has been dragged down, in pixels. Released, it either
     // springs back or goes — see [DISMISS_DRAG_FRACTION].
@@ -199,7 +200,7 @@ fun PlayerDrawer(
             modifier = Modifier
                 // Capped so a phone full of rows scrolls inside the drawer
                 // rather than growing one into a full-screen page.
-                .heightIn(max = 560.dp)
+                .heightIn(max = maxHeight)
                 // Capped before the fill, so [Modifier.fillMaxWidth] fills to
                 // the cap rather than to the window. Centred by the parent's
                 // own BottomCenter alignment once it is narrower.
@@ -208,18 +209,9 @@ fun PlayerDrawer(
                 .onSizeChanged { height = it.height }
                 .offset { IntOffset(0, offset.roundToInt()) }
                 .clip(DRAWER_SHAPE)
-                .then(
-                    if (reduceDynamicBlur) {
-                        Modifier.background(Color(0xFF121212))
-                    } else {
-                        Modifier
-                            .optimizedHazeEffect(
-                                state = hazeState,
-                                style = HazeMaterials.regular(Color(0xFF141414)),
-                            )
-                            .background(Color(0xFF121212).copy(alpha = 0.9f))
-                    }
-                )
+                // The ⋯ menu's frost, so the drawers and the menu read as one
+                // material over the player — see [playerMenuSurface].
+                .playerMenuSurface(DRAWER_SHAPE, hazeState)
                 .clickable(
                     indication = null,
                     interactionSource = remember { MutableInteractionSource() },

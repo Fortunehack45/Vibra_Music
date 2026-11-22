@@ -181,6 +181,16 @@ import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import java.util.Locale
 
+@Composable
+internal fun SettingsPageTitle(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.titleLarge,
+        color = MaterialTheme.colorScheme.onBackground,
+        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp),
+    )
+}
+
 /**
  * Grouped settings, in the shape phones have taught people to expect: inset
  * cards of rows, a leading glyph per row, the current value on the right, and a
@@ -2010,7 +2020,7 @@ fun SettingsScreen(
 }
 
 /** "3 months of listening" 鈥� the unit a backup is actually measured in. */
-private fun Context.countOfMonths(months: Int): String = if (months == 0) {
+internal fun Context.countOfMonths(months: Int): String = if (months == 0) {
     getString(R.string.no_listening_history)
 } else {
     resources.getQuantityString(R.plurals.listening_month_count, months, months)
@@ -3085,63 +3095,9 @@ internal fun SegmentedControl(
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    disabled: Set<Int> = emptySet(),
 ) {
-    val haptics = LocalHapticFeedback.current
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(MaterialTheme.colorScheme.outline)
-            // Enough of a margin for the track to read as a track. At 2dp the
-            // selected pill sat all but flush against the container's own edge,
-            // so the two rounded rectangles merged into one shape and the
-            // control stopped looking like something with a position in it.
-            .padding(4.dp),
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        options.forEachIndexed { index, label ->
-            val chosen = index == selectedIndex
-            val pill by animateColorAsState(
-                targetValue = if (chosen) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    Color.Transparent
-                },
-                animationSpec = tween(160),
-                label = "segmentPill",
-            )
-            val labelColor by animateColorAsState(
-                targetValue = if (chosen) {
-                    MaterialTheme.colorScheme.onPrimary
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
-                animationSpec = tween(160),
-                label = "segmentLabel",
-            )
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(pill)
-                    .clickable(enabled = enabled) {
-                        if (!chosen) {
-                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            onSelect(index)
-                        }
-                    }
-                    .padding(vertical = 9.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = labelColor,
-                    maxLines = 1,
-                )
-            }
-        }
-    }
+    com.fortune.vibramusic.ui.components.PillSegmentedControl(options, selectedIndex, onSelect, modifier, enabled, disabled)
 }
 
 @Composable
@@ -3161,3 +3117,71 @@ private fun PlayerTheme.description(): String = stringResource(
         PlayerTheme.SIMPLE -> R.string.player_theme_simple_subtitle
     },
 )
+
+/**
+ * A card of options, one of them ticked: the body of every choice page. A
+ * label and a dimmer line under it per option; [enabled] greys out the ones
+ * this device can't take.
+ */
+@Composable
+internal fun <T> ChoiceGroup(
+    options: List<T>,
+    selected: T,
+    label: @Composable (T) -> String,
+    footer: String?,
+    detail: (@Composable (T) -> String)? = null,
+    enabled: (T) -> Boolean = { true },
+    /** Set where the card is one of several on its page rather than the whole of it. */
+    header: String? = null,
+    onSelect: (T) -> Unit,
+) {
+    val haptics = LocalHapticFeedback.current
+    SettingsGroup(header = header, footer = footer, topSpacing = 0.dp) {
+        options.forEachIndexed { index, option ->
+            if (index > 0) {
+                HorizontalDivider(
+                    modifier = Modifier.padding(start = ROW_INSET),
+                    thickness = 0.5.dp,
+                    color = MaterialTheme.colorScheme.outline,
+                )
+            }
+            val available = enabled(option)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(enabled = available) {
+                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onSelect(option)
+                    }
+                    .alpha(if (available) 1f else 0.45f)
+                    .heightIn(min = 52.dp)
+                    .padding(horizontal = ROW_INSET, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = label(option),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onBackground,
+                    )
+                    detail?.let {
+                        Text(
+                            text = it(option),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                if (option == selected) {
+                    Spacer(Modifier.width(12.dp))
+                    Icon(
+                        androidx.compose.material.icons.Icons.Rounded.Check,
+                        contentDescription = stringResource(R.string.selected),
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            }
+        }
+    }
+}

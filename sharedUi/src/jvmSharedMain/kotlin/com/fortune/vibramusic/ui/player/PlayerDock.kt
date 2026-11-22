@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.ui.player
+package com.fortune.vibramusic.ui.player
 
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf

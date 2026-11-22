@@ -461,3 +461,5 @@ private fun QualityRow(
         }
     }
 }
+
+private val ROW_SHAPE = RoundedCornerShape(16.dp)

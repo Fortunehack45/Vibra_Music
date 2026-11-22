@@ -327,7 +327,7 @@ private fun StatusLine(state: WatchPairingState) {
 }
 
 @Composable
-private fun PrimaryButton(text: String, enabled: Boolean, onClick: () -> Unit) {
+internal fun PrimaryButton(text: String, enabled: Boolean, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()

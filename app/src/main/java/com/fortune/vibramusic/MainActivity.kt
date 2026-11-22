@@ -293,7 +293,7 @@ import com.fortune.vibramusic.ui.screens.LibraryGridPage
 import com.fortune.vibramusic.ui.screens.LibraryScreen
 import com.fortune.vibramusic.ui.screens.SPOTIFY_BROWSE_ID
 import com.fortune.vibramusic.ui.screens.SpotifyLibraryScreen
-import com.fortune.vibramusic.ui.screens.SpotifyLoginScreen
+import com.fortune.vibramusic.auth.SpotifyLoginScreen
 import com.fortune.vibramusic.ui.components.SpotifyImportAlert
 import com.fortune.vibramusic.data.spotify.SPOTIFY_PAGE_PREFIX
 import com.fortune.vibramusic.data.model.isUnresolvedSpotify
@@ -1448,7 +1448,7 @@ private fun VibraMusicApp(
                     playbackSourceId = song.videoId,
                 )
                 val existingSongs = if (AppSettings.dontRepeatSuggestions.value) {
-                    val queueSongs = (0 until controller.mediaItemCount).map { controller.getMediaItemAt(it).toSong() }
+                    val queueSongs: List<Song> = (0 until controller.mediaItemCount).map { controller.getMediaItemAt(it).toSong() }
                     listOf(seed) + queueSongs
                 } else {
                     listOf(seed)
@@ -2257,6 +2257,12 @@ private fun VibraMusicApp(
             },
             onNext = { controller?.seekToNextMediaItem() },
             onPrevious = { controller?.seekToPrevious() },
+            previousRestarts = {
+                controller?.let {
+                    it.currentPosition > it.maxSeekToPreviousPosition || !it.hasPreviousMediaItem()
+                } ?: true
+            },
+            currentPlaybackSong = { controller?.currentMediaItem?.toSong() },
             onBlockedControl = showHostOnlyNotice,
             onSeekFraction = { fraction ->
                 controller?.let { player ->
@@ -2365,19 +2371,21 @@ private fun VibraMusicApp(
                     )
                 }
             },
-            onOpenArtist = { id ->
+            onOpenArtist = { id, name ->
                 showNowPlaying = false
-                val isShow = id.startsWith("MPSP")
-                if (isShow) {
+                if (id != null && id.startsWith("MPSP")) {
                     viewModel.openPodcastShow(id)
+                } else if (id != null) {
+                    viewModel.openDetail(id, name, context.getString(R.string.artist), null, BrowseType.ARTIST)
                 } else {
-                    viewModel.openDetail(
-                        id,
-                        displayedSong.artist,
-                        context.getString(R.string.artist),
-                        null,
-                        BrowseType.ARTIST,
-                    )
+                    scope.launch {
+                        val found = YtMusicRepository.findArtistPageId(name).getOrNull()
+                        if (found != null) {
+                            viewModel.openDetail(found, name, context.getString(R.string.artist), null, BrowseType.ARTIST)
+                        } else {
+                            android.widget.Toast.makeText(context, context.getString(R.string.couldnt_find, name), android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    }
                 }
             },
             onOpenPlaybackSource = openSource@{
@@ -2396,7 +2404,7 @@ private fun VibraMusicApp(
                 showSources = false
                 showListenTogether = false
                 showEqualizer = false
-        showWearOs = false
+                showWearOs = false
                 showReplay = false
                 showHistory = false
                 showDiscord = false
@@ -2443,12 +2451,9 @@ private fun VibraMusicApp(
             lyricsSource = lyricsSource,
             lyricsProviderStates = lyricsProviderStates,
             onSelectLyricsProvider = viewModel::selectLyricsProvider,
-            onSaveCustomLyrics = viewModel::saveCustomLyrics,
-            onResetCustomLyrics = viewModel::resetCustomLyrics,
             lyricsUnavailable = lyricsChecked && lyrics.isNullOrEmpty(),
             lyricsOffsetOpen = showLyricsOffset,
             onDismissLyricsOffset = { showLyricsOffset = false },
-            onMinimize = { dismissNowPlaying?.invoke() ?: run { playerSheetMotion.close() } },
             onListenTogether = {
                 // The player is a sheet over the page, so it has to come down
                 // for the page to be read at all.
@@ -2462,27 +2467,6 @@ private fun VibraMusicApp(
                     QueueCoordinator.clearUserQueue(c)
                 }
             },
-            onSmartReorderQueue = {
-                controller?.let { c ->
-                    val store = AnalysisStore(context)
-                    val success = QueueShuffle.smartReorderUpcoming(c) { item ->
-                        store.load(item.mediaId) ?: TrackAnalysis(
-                            status = TrackAnalysis.STATUS_READY,
-                            trackId = item.mediaId,
-                            bpm = item.localConfiguration?.uri?.getQueryParameter("bpm")?.toDoubleOrNull() ?: 0.0,
-                        )
-                    }
-                    if (success) {
-                        android.widget.Toast.makeText(context, "Queue reordered for optimal flow", android.widget.Toast.LENGTH_SHORT).show()
-                    }
-                }
-            },
-            playbackSpeed = player.playbackSpeed,
-            onPlaybackSpeedChange = { speed ->
-                AppSettings.setPlaybackSpeed(speed)
-                controller?.setPlaybackSpeed(speed)
-            },
-            hasAlternateVersion = displayedSong.hasYouTubeOriginal() || displayedSong.playbackSourceType == PlaybackSourceType.PODCASTS,
         )
     }
 
@@ -3010,22 +2994,24 @@ private fun VibraMusicApp(
                                 )
                             },
                             onSectionItemClick = { item ->
-                                if (item.browseId != null) {
-                                    val targetType = if (item.browseId.startsWith("VL") || item.browseId.startsWith("PL")) {
+                                val browseId = item.browseId
+                                val videoId = item.videoId
+                                if (browseId != null) {
+                                    val targetType = if (browseId.startsWith("VL") || browseId.startsWith("PL")) {
                                         BrowseType.PLAYLIST
                                     } else {
                                         BrowseType.ALBUM
                                     }
                                     viewModel.openDetail(
-                                        browseId = item.browseId,
+                                        browseId = browseId,
                                         title = item.title,
                                         subtitle = item.subtitle,
                                         thumbnailUrl = item.thumbnailUrl,
                                         type = targetType,
                                     )
-                                } else if (item.videoId != null) {
+                                } else if (videoId != null) {
                                     val song = Song(
-                                        videoId = item.videoId,
+                                        videoId = videoId,
                                         title = item.title,
                                         artist = item.subtitle.substringBefore(" · ").substringBefore("•").trim().ifBlank { page.title },
                                         albumName = page.title,
@@ -3174,17 +3160,19 @@ private fun VibraMusicApp(
                             ),
                             onMoodsShowAll = { showMoodGrid = true },
                             onItemClick = { item, shelfTitle ->
+                                val browseId = item.browseId
+                                val videoId = item.videoId
                                 val isVideoSection = item.isVideo ||
                                     shelfTitle.contains("video", ignoreCase = true) ||
                                     shelfTitle.contains("music videos", ignoreCase = true)
 
-                                if (item.browseId != null && item.browseId.startsWith("FEmusic_moods_and_genres_category")) {
-                                    val parts = item.browseId.split(":")
+                                if (browseId != null && browseId.startsWith("FEmusic_moods_and_genres_category")) {
+                                    val parts = browseId.split(":")
                                     val catBrowseId = parts[0]
                                     val catParams = parts.getOrNull(1)
                                     viewModel.openMoodGenre(com.fortune.vibramusic.data.model.MoodGenre(item.title, catBrowseId, catParams))
                                     selectedTab = TAB_EXPLORE
-                                } else if (item.videoId != null) {
+                                } else if (videoId != null) {
                                     val baseSong = shelfSong(item)
                                     val song = baseSong?.copy(isVideo = isVideoSection, isVideoOrigin = isVideoSection)
                                     if (song != null) {
@@ -3194,10 +3182,10 @@ private fun VibraMusicApp(
                                             QueueSource(shelfTitle, PlaybackSourceType.HOME),
                                         )
                                     }
-                                } else if (item.browseId != null && !item.browseId.startsWith("RDAMVM")) {
-                                    val isAlbum = item.browseId.startsWith("MPRE")
+                                } else if (browseId != null && !browseId.startsWith("RDAMVM")) {
+                                    val isAlbum = browseId.startsWith("MPRE")
                                     viewModel.openDetail(
-                                        browseId = item.browseId,
+                                        browseId = browseId,
                                         title = item.title,
                                         subtitle = item.subtitle,
                                         thumbnailUrl = item.thumbnailUrl,
@@ -3223,10 +3211,12 @@ private fun VibraMusicApp(
                                 state = moodGenreShelves,
                                 listState = moodGenreListState,
                                 onItemClick = { item ->
+                                    val videoId = item.videoId
+                                    val browseId = item.browseId
                                     when {
-                                        item.videoId != null -> playRadio(
+                                        videoId != null -> playRadio(
                                             Song(
-                                                videoId = item.videoId,
+                                                videoId = videoId,
                                                 title = item.title,
                                                 artist = InnertubeParser.artistFromSubtitle(item.subtitle),
                                                 thumbnailUrl = item.thumbnailUrl,
@@ -3237,8 +3227,8 @@ private fun VibraMusicApp(
                                                 category.browseId,
                                             ),
                                         )
-                                        item.browseId != null -> viewModel.openDetail(
-                                            browseId = item.browseId,
+                                        browseId != null -> viewModel.openDetail(
+                                            browseId = browseId,
                                             title = item.title,
                                             subtitle = item.subtitle,
                                             thumbnailUrl = item.thumbnailUrl,

@@ -825,7 +825,7 @@ var inviteTemplate = template.Must(template.New("invite").Parse(`<!DOCTYPE html>
     <div class="container">
         <div class="brand-header">
             <div class="brand-logo-group">
-                <div class="brand-logo">🎵</div>
+                <div class="brand-logo"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg></div>
                 <div class="brand-title">Vibra Music</div>
             </div>
             {{if .IsActive}}
@@ -860,7 +860,7 @@ var inviteTemplate = template.Must(template.New("invite").Parse(`<!DOCTYPE html>
                     {{if .CurrentSongThumb}}
                         <img src="{{.CurrentSongThumb}}" class="song-thumb" alt="Track thumbnail" />
                     {{else}}
-                        <div class="song-thumb" style="display:flex;align-items:center;justify-content:center;">🎵</div>
+                        <div class="song-thumb" style="display:flex;align-items:center;justify-content:center;"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg></div>
                     {{end}}
                     <div class="song-info">
                         <div class="song-title">{{.CurrentSongTitle}}</div>

@@ -1,0 +1,364 @@
+package com.fortune.vibramusic.ui.player
+
+import com.fortune.vibramusic.wear.WearBridge
+import android.content.Context
+import android.database.ContentObserver
+import android.media.AudioManager
+import android.os.Handler
+import android.os.Looper
+import android.provider.Settings
+import android.widget.Toast
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.fortune.vibramusic.data.canvas.CanvasArtwork
+import com.fortune.vibramusic.data.canvas.CanvasRepository
+import com.fortune.vibramusic.data.listentogether.ListenTogether
+import com.fortune.vibramusic.data.lyrics.LyricLine
+import com.fortune.vibramusic.data.lyrics.LyricsTranslation
+import com.fortune.vibramusic.data.model.Song
+import com.fortune.vibramusic.data.settings.AppSettings
+import com.fortune.vibramusic.data.settings.LastPlayerScreen
+import com.fortune.vibramusic.playback.MusicOnlyPlayback
+import com.fortune.vibramusic.playback.AudioOutputStatus
+import com.fortune.vibramusic.playback.audio.TransportType
+import com.fortune.vibramusic.playback.AudioRouting
+import com.fortune.vibramusic.playback.AutoMixVisualFeed
+
+import com.fortune.vibramusic.ui.components.backdrop.backdrops.SnapshotBackdrop
+import com.fortune.vibramusic.ui.components.backdrop.backdrops.rememberSnapshotBackdrop
+import com.fortune.vibramusic.ui.components.backdrop.backdrops.snapshotBackdropSource
+import com.fortune.vibramusic.ui.components.isGlassSupported
+import com.fortune.vibramusic.ui.components.menuBackdropFrost
+import dev.chrisbanes.haze.HazeState
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import java.util.Locale
+import kotlin.math.roundToInt
+
+/**
+ * The phone's answers to [PlayerHost]: AppSettings, the Media3 Canvas decoder,
+ * AudioRouting and the music stream's volume, the party, and the lyric
+ * translation endpoint — each exactly what the player read directly before it
+ * moved into the shared module.
+ */
+class AndroidPlayerHost(context: Context) : PlayerHost {
+    private val app = context.applicationContext
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val main = Handler(Looper.getMainLooper())
+
+    override val autoMixVisualState get() = AutoMixVisualFeed.state
+
+    override fun onAutoMixScrubIntent() = AutoMixVisualFeed.cancel()
+
+    @Composable
+    override fun autoMixIncomingReveal(
+        eased: () -> Float,
+        reducedMotion: () -> Boolean,
+        generation: Long,
+        blur: Boolean,
+    ): Modifier = androidAutoMixIncomingReveal(eased, reducedMotion, generation, blur)
+
+    override val supportsAutoMixCanvas: Boolean get() = true
+
+
+    override val settings: PlayerSettingsSource = object : PlayerSettingsSource {
+        override val animatedCanvas get() = AppSettings.animatedCanvas
+        override val audioQualityCellular get() = AppSettings.audioQualityCellular
+        override val audioQualityWifi get() = AppSettings.audioQualityWifi
+        override val canvasOverCellular get() = AppSettings.canvasOverCellular
+        override val fullBleedArtwork get() = AppSettings.fullBleedArtwork
+        override val showTotalDuration get() = AppSettings.showTotalDuration
+        override val hideSongStatus get() = AppSettings.hideSongStatus
+        override val hideLyricsPreview get() = AppSettings.hideLyricsPreview
+        override val showQueueHistory get() = AppSettings.showQueueHistory
+        override val hideVolumeBar get() = AppSettings.hideVolumeBar
+        override val hideStatusBar get() = AppSettings.hideStatusBarInPlayer
+        override val lastPlayerScreen get() = AppSettings.lastPlayerScreen
+        override val playerTheme get() = AppSettings.playerTheme
+        override val lyricsBlur get() = AppSettings.lyricsBlur
+        override val lyricsOffsetMs get() = AppSettings.lyricsOffsetMs
+        override val lyricsSourceOrder get() = AppSettings.lyricsSourceOrder
+        override val meteredConnection get() = AppSettings.meteredConnection
+        override val streamCeilingOverride get() = AppSettings.streamCeilingOverride
+        override val preferUsbDac get() = AppSettings.preferUsbDac
+        override val disableSpotifyCanvas get() = AppSettings.disableSpotifyCanvas
+        override val prioritizeSpotifyCanvas get() = AppSettings.effectivePrioritizeSpotifyCanvas
+        override val reduceAnimation get() = AppSettings.reduceAnimation
+        override val reduceDynamicBlur get() = AppSettings.reduceDynamicBlur
+        override val disableBlendEffects get() = AppSettings.disableBlendEffects
+        override val showNerdStats get() = AppSettings.showNerdStats
+        override val showBestPart get() = AppSettings.showBestPart
+        override val showListenTogetherButton get() = AppSettings.showListenTogetherButton
+        override val smartAnalysis get() = AppSettings.smartAnalysis
+        override val automixDetail get() = AppSettings.automixDetail
+        override val smartFadeEnabled get() = AppSettings.smartFadeEnabled
+        override val autoMixArtwork get() = AppSettings.autoMixArtwork
+        override val smartMixInProgress get() = AppSettings.smartMixInProgress
+        override val smartMixBlend get() = AppSettings.smartMixBlend
+        override val smartMixView get() = AppSettings.smartMixView
+        override val smartMixProgress get() = AppSettings.smartMixProgress
+        override val smartMixPreview get() = AppSettings.smartMixPreview
+        override val smartTransitionWindow get() = AppSettings.smartTransitionWindow
+        override val spotifyCanvasAutoHide get() = AppSettings.effectiveSpotifyCanvasAutoHide
+        override val syncedLyrics get() = AppSettings.syncedLyrics
+        override val translationLanguage get() = AppSettings.translationLanguage
+        override val versionAlignmentInProgress get() = AppSettings.versionAlignmentInProgress
+
+        override fun setLastPlayerScreen(value: LastPlayerScreen) = AppSettings.setLastPlayerScreen(value)
+        override fun setLyricsOffsetMs(value: Int) = AppSettings.setLyricsOffsetMs(value)
+        override fun setMixViewOpen(open: Boolean) {
+            AppSettings.mixViewOpen.value = open
+        }
+    }
+
+    override fun cachedCanvas(song: Song): CanvasArtwork? = CanvasRepository.cached(song)
+
+    override suspend fun canvasFor(song: Song): CanvasArtwork? = CanvasRepository.canvasFor(song)
+
+    override suspend fun bestPartMs(song: Song): Long? =
+        com.fortune.vibramusic.ui.replay.year.BestParts.startFor(app, song)
+            .takeIf { it.source != com.fortune.vibramusic.ui.replay.year.BestPartStart.Source.FALLBACK }
+            ?.startMs
+
+    @Composable
+    override fun CanvasVideo(spec: CanvasVideoSpec, modifier: Modifier) = AndroidCanvasVideo(spec, modifier)
+
+    override val musicVideoSupported: Boolean get() = true
+
+    @Composable
+    override fun MusicVideo(videoId: String, fit: Boolean, onRenderedChanged: (Boolean) -> Unit, modifier: Modifier) =
+        AndroidMusicVideo(videoId, fit, onRenderedChanged, modifier)
+
+    override fun showsMusicVideoPicture(videoId: String): Boolean = MusicOnlyPlayback.showsPicture(videoId)
+
+    override val musicVideoAspect: StateFlow<Float> get() = MusicVideoEngine.aspect
+
+    override val musicVideoQuality: StateFlow<MusicVideoQualityUi> get() = MusicVideoEngine.quality
+
+    override fun setMusicVideoQuality(height: Int?) = MusicVideoEngine.setQuality(height)
+
+    @Composable
+    override fun rememberRemoteArtworkUrl(song: Song?): String? =
+        com.fortune.vibramusic.ui.components.rememberRemoteArtworkUrl(song)
+
+    // Lazy, all three: the player is not the first thing the process does, and
+    // none of these objects should be woken for a launch that never opens it.
+    override val volume: SystemVolume by lazy { WatchAwareVolume(MusicStreamVolume(app), scope) }
+
+    @Composable
+    override fun rememberAudioOutputs(): List<AudioOutputDevice> {
+        val outputs = rememberAndroidAudioOutputs()
+        val watch by WearBridge.watchOutput.collectAsStateWithLifecycle()
+        // While the watch is the speaker no output of this phone is the one
+        // playing, so none of them is lit; the watch row is.
+        return if (watch.active) outputs.map { it.copy(isActive = false) } else outputs
+    }
+
+    @Composable
+    override fun rememberOutputPicker(onOpen: () -> Unit): () -> Unit = rememberAndroidOutputPicker(onOpen)
+
+    override fun selectAudioOutput(id: Int?) {
+        AudioRouting.select(id)
+        WearBridge.leaveWatchOutput()
+    }
+
+    override val watchOutput: StateFlow<WatchOutputUi> by lazy {
+        WearBridge.watchOutput
+            .map { WatchOutputUi(available = it.available, name = it.name, active = it.active) }
+            .stateIn(scope, SharingStarted.Eagerly, WatchOutputUi())
+    }
+
+    override fun refreshWatchOutput() = WearBridge.refreshWatchOutput(app)
+
+    override fun selectWatchOutput() {
+        WearBridge.selectWatchOutput()
+    }
+
+    override val outputFormat: StateFlow<OutputFormatUi> by lazy {
+        AudioOutputStatus.current.map { it.toOutputFormat() }
+            .stateIn(
+                scope,
+                SharingStarted.Eagerly,
+                AudioOutputStatus.current.value.toOutputFormat(),
+            )
+    }
+
+    override val party: StateFlow<PartyUi> by lazy {
+        ListenTogether.state
+            .map { it.toPartyUi() }
+            .stateIn(scope, SharingStarted.Eagerly, ListenTogether.state.value.toPartyUi())
+    }
+
+    override suspend fun translateLyrics(
+        trackId: String,
+        lines: List<LyricLine>,
+        targetLanguageTag: String,
+    ): LyricsTranslationResult =
+        when (val result = LyricsTranslation.translate(app, trackId, lines, targetLanguageTag)) {
+            is LyricsTranslation.Result.Translated -> LyricsTranslationResult.Translated(result.lines)
+            is LyricsTranslation.Result.SameLanguage -> LyricsTranslationResult.SameLanguage(result.language)
+            LyricsTranslation.Result.Unavailable -> LyricsTranslationResult.Unavailable
+        }
+
+    override suspend fun romanizeLyrics(
+        trackId: String,
+        lines: List<LyricLine>,
+        targetLanguageTag: String,
+    ): LyricsRomanizationResult =
+        when (val result = LyricsTranslation.romanize(app, trackId, lines, targetLanguageTag)) {
+            is LyricsTranslation.RomanizationResult.Romanized -> LyricsRomanizationResult.Romanized(result.lines)
+            LyricsTranslation.RomanizationResult.AlreadyRomanized -> LyricsRomanizationResult.AlreadyRomanized
+            LyricsTranslation.RomanizationResult.Unavailable -> LyricsRomanizationResult.Unavailable
+        }
+
+    override fun showMessage(message: String) {
+        main.post { Toast.makeText(app, message, Toast.LENGTH_SHORT).show() }
+    }
+
+    override val castState: StateFlow<CastUi> get() = MutableStateFlow(CastUi())
+
+    @Composable
+    override fun CastDialog(hazeState: HazeState, onDismiss: () -> Unit) = Unit
+
+    @Composable
+    override fun AudioPipelineDialog(hazeState: HazeState, isPlaying: Boolean, onDismiss: () -> Unit) =
+        com.fortune.vibramusic.ui.components.AudioPipelineDialog(
+            hazeState = hazeState,
+            onDismiss = onDismiss,
+            isPlaying = isPlaying,
+        )
+
+    // The ⋯ menu's own material: a still of the player, blurred under each
+    // panel exactly as [menuBackdropFrost] blurs it under the menu. Below
+    // Android 12 there is no RenderEffect to blur it with.
+    @Composable
+    override fun rememberPlayerFrost(): PlayerFrost? {
+        if (!isGlassSupported()) return null
+        val backdrop = rememberSnapshotBackdrop()
+        return remember(backdrop) { BackdropPlayerFrost(backdrop) }
+    }
+
+    // The phone is the platform that can turn picked lyrics into a picture: a
+    // bitmap, a canvas, the gallery and the chooser are all Android's here. The
+    // desktop has no answer to it, so it never sees the pick mode at all.
+    override val lyricsShareAvailable: Boolean get() = true
+
+    @Composable
+    override fun LyricsShareSheet(
+        hazeState: HazeState,
+        request: LyricsShareRequest,
+        onDismiss: () -> Unit,
+    ) = AndroidLyricsShareSheet(hazeState = hazeState, request = request, onDismiss = onDismiss)
+}
+
+/**
+ * The output's format line, and whether the track is reaching the DAC
+ * bit-perfect. On the exclusive output the format is the one written to
+ * the DAC, not the ordinary AudioTrack's, which is idle meanwhile.
+ */
+private fun AudioOutputStatus.Snapshot.toOutputFormat(): OutputFormatUi {
+    val encoding = AudioOutputStatus.encodingLabel(this)
+    val rate = actualSampleRateHz?.takeIf { it > 0 }
+    val format = if (rate == null) {
+        encoding
+    } else {
+        "$encoding · ${"%.1f".format(Locale.ROOT, rate / 1000f).removeSuffix(".0")} kHz"
+    }
+    val isDirect = transportType == TransportType.AUDIO_TRACK_DIRECT ||
+        transportType == TransportType.DIRECT_USB
+    return OutputFormatUi(
+        summary = format,
+        bitPerfect = isDirect,
+        dacLimited = false,
+    )
+}
+
+private fun ListenTogether.State.toPartyUi() = PartyUi(
+    inParty = inParty,
+    controlsLocked = controlsLocked,
+    members = members,
+    you = you,
+    code = code,
+)
+
+/**
+ * The volume bar's level: the watch's while it is active, the music stream's otherwise.
+ */
+private class WatchAwareVolume(
+    private val system: SystemVolume,
+    scope: CoroutineScope,
+) : SystemVolume {
+    override val level: StateFlow<Float> = combine(
+        system.level,
+        WearBridge.watchOutput,
+    ) { phone, watch ->
+        if (watch.active) watch.volume else phone
+    }.stateIn(scope, SharingStarted.Eagerly, system.level.value)
+
+    override fun set(level: Float) {
+        if (WearBridge.watchOutput.value.active) {
+            WearBridge.setWatchVolume(level)
+        } else {
+            system.set(level)
+        }
+    }
+
+    override fun refresh() = system.refresh()
+}
+
+/**
+ * The music stream's volume. Hardware keys and the system panel change it
+ * behind the app's back, so Settings is watched and the level follows.
+ */
+private class MusicStreamVolume(private val context: Context) : SystemVolume {
+    private val manager = context.getSystemService(AudioManager::class.java)
+    private val _level = MutableStateFlow(read())
+    override val level: StateFlow<Float> = _level.asStateFlow()
+
+    init {
+        context.contentResolver.registerContentObserver(
+            Settings.System.CONTENT_URI,
+            true,
+            object : ContentObserver(Handler(Looper.getMainLooper())) {
+                override fun onChange(selfChange: Boolean) = refresh()
+            },
+        )
+    }
+
+    private fun max(): Int = manager?.getStreamMaxVolume(AudioManager.STREAM_MUSIC)?.coerceAtLeast(1) ?: 15
+
+    private fun read(): Float =
+        (manager?.getStreamVolume(AudioManager.STREAM_MUSIC) ?: 0).toFloat() / max()
+
+    override fun set(level: Float) {
+        manager?.setStreamVolume(AudioManager.STREAM_MUSIC, (level * max()).roundToInt(), 0)
+    }
+
+    override fun refresh() {
+        _level.value = read()
+    }
+}
+
+private class BackdropPlayerFrost(private val backdrop: SnapshotBackdrop) : PlayerFrost {
+    @Composable
+    override fun Modifier.frostSource(): Modifier = snapshotBackdropSource(backdrop)
+
+    override fun capture() = backdrop.capture()
+
+    override fun release() = backdrop.release()
+
+    override fun Modifier.frostPanel(shape: Shape, fill: Color): Modifier = menuBackdropFrost(backdrop, shape, fill)
+}

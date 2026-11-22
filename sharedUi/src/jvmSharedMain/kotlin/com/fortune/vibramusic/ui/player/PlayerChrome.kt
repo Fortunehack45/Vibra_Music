@@ -12,10 +12,18 @@ import androidx.compose.ui.graphics.layer.drawLayer
 
 /**
  * Whether the player's glyphs and secondary text are blended into the backdrop
- * rather than laid over it. Off wherever it isn't provided, and while a Spotify
- * Canvas fills the screen: the video is free to go bright under the controls.
+ * rather than laid over it. Off wherever it isn't provided, and while a music
+ * video fills the landscape player: the video is free to go bright under the controls.
  */
 internal val LocalPlayerChrome = compositionLocalOf { false }
+
+/**
+ * Whether the boosted chrome (the bottom row, the bars, the timestamps) is
+ * dodged a touch less: over the mesh backdrops, which are already lit with
+ * the cover's own colours, the full boost read as too bright. The blurred
+ * cover and a Spotify Canvas, darker under the controls, keep it whole.
+ */
+internal val LocalChromeSoftened = compositionLocalOf { false }
 
 /**
  * How strong a control's "full" white is while the blend is on. Solid white comes
@@ -30,10 +38,14 @@ private const val CHROME_ALPHA_DROP = 0.15f
 @Composable
 @ReadOnlyComposable
 internal fun chromeWhite(alpha: Float): Color =
-    Color.White.copy(alpha = if (LocalPlayerChrome.current) (alpha - CHROME_ALPHA_DROP).coerceAtLeast(0f) else alpha)
+    Color.White.copy(alpha = if (LocalPlayerChrome.current) alpha - CHROME_ALPHA_DROP else alpha)
 
-/** What [vibrantChrome] content is drawn in: a neutral ink, so the hue is all the backdrop's. */
-internal val VibrantChromeInk = Color(0xFFB4B4B4).copy(alpha = (1f - CHROME_ALPHA_DROP).coerceAtLeast(0f))
+/**
+ * What [vibrantChrome] content is drawn in: a neutral ink, so the hue is all the backdrop's.
+ * Its grey sets the dodge's gain, 1 / (1 - grey): 0x99 is about 2.5x. At 0xB4 (3.4x) an
+ * already bright or saturated patch of artwork clipped to a flat, loud colour.
+ */
+internal val VibrantChromeInk = Color(0xFF999999).copy(alpha = 1f - CHROME_ALPHA_DROP)
 
 /**
  * Dodge multiplies, and nothing times black is still black. Laid under the dodge
@@ -63,7 +75,7 @@ fun Modifier.additiveChrome(enabled: Boolean): Modifier =
     }
 
 /**
- * Colour-dodges content drawn in [VibrantChromeInk], about 3.4x the backdrop, so
+ * Colour-dodges content drawn in [VibrantChromeInk], about 2.5x the backdrop, so
  * the artwork's colour comes back brighter and more saturated rather than paler.
  * Where the platform has no dodge the ink is added instead, as [additiveChrome].
  */

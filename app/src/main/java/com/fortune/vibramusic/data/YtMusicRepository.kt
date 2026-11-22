@@ -5,6 +5,9 @@ import com.fortune.vibramusic.data.innertube.Innertube
 import com.fortune.vibramusic.data.innertube.InnertubeParser
 import com.fortune.vibramusic.data.model.Account
 import com.fortune.vibramusic.data.model.AccountChannel
+import com.fortune.vibramusic.data.model.isExactArtistMatch
+import com.fortune.vibramusic.data.model.normalizedArtistName
+import com.fortune.vibramusic.data.model.BrowseType
 import com.fortune.vibramusic.data.model.ArtistPage
 import com.fortune.vibramusic.data.model.HomeFeed
 import com.fortune.vibramusic.data.model.HomeShelf
@@ -580,6 +583,16 @@ object YtMusicRepository {
         }
     }
 
+    suspend fun findArtistPageId(name: String): Result<String?> = call("artistByName:$name") {
+        if (normalizedArtistName(name).isEmpty()) return@call null
+        val filter = SearchFilter.ARTISTS
+        InnertubeParser.parseSearchPage(Innertube.search(name, filter.params)).rows
+            .filterIsInstance<SearchResult.Browse>()
+            .map { it.item }
+            .firstOrNull { it.type == BrowseType.ARTIST && isExactArtistMatch(it.title, name) }
+            ?.browseId
+    }
+
     /**
      * Finishes syncing the liked collection into [LikeState], following
      * [firstToken] page by page until the feed runs dry.
@@ -1019,9 +1032,10 @@ object YtMusicRepository {
             }
             val shelvesDeferred = page.sections.map { shelf ->
                 async {
-                    if (shelf.moreBrowseId != null) {
+                    val moreBrowseId = shelf.moreBrowseId
+                    if (moreBrowseId != null) {
                         val fullItems = runCatching {
-                            itemsPaged(shelf.moreBrowseId, shelf.moreParams)
+                            itemsPaged(moreBrowseId, shelf.moreParams)
                         }.getOrNull()
                         if (!fullItems.isNullOrEmpty()) {
                             shelf.copy(items = fullItems)

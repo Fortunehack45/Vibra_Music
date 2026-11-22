@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.ui.player
+package com.fortune.vibramusic.ui.player
 
 import androidx.compose.runtime.Composable
 import com.fortune.vibramusic.sharedui.resources.*

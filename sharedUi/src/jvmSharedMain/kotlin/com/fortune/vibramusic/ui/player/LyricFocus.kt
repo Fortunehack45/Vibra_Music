@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.ui.player
+package com.fortune.vibramusic.ui.player
 
 import com.fortune.vibramusic.data.lyrics.LyricLine
 

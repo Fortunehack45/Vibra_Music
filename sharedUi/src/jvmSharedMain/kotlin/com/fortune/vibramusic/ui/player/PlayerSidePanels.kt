@@ -1,4 +1,4 @@
-﻿package com.fortune.vibramusic.ui.player
+package com.fortune.vibramusic.ui.player
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -117,6 +117,7 @@ fun LyricsSidePanel(
                         onRevealControls = {},
                         onHideControls = {},
                         translationProgress = particleProgress,
+                        centerFocus = true,
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
@@ -151,6 +152,7 @@ fun QueueSidePanel(
         currentIndex = queueIndex,
         autoplayEnabled = autoplayEnabled,
         controlsLocked = rememberControlsLocked(),
+        hazeState = remember { HazeState() },
         onJumpTo = onJumpTo,
         onRemove = onRemove,
         onMove = onMove,

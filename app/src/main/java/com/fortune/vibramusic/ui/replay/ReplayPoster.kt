@@ -589,7 +589,7 @@ private fun drawFooter(canvas: Canvas, context: Context, type: Fonts) {
  * lettered stand-in the lists use, so a missing sleeve is a deliberate-looking
  * tile rather than a hole.
  */
-private fun drawArtwork(
+internal fun drawArtwork(
     canvas: Canvas,
     bitmap: Bitmap?,
     fallback: String,
@@ -688,7 +688,7 @@ private fun drawRuns(
  * on every version this app supports, so there is nothing to be gained by
  * keeping a second copy of the logo around at a fixed size.
  */
-private fun drawLogo(canvas: Canvas, context: Context, right: Float, baseline: Float) {
+internal fun drawLogo(canvas: Canvas, context: Context, right: Float, baseline: Float) {
     val logo = runCatching {
         ResourcesCompat.getDrawable(context.resources, R.drawable.ic_logo, null)
     }.getOrNull() ?: return
@@ -700,7 +700,7 @@ private fun drawLogo(canvas: Canvas, context: Context, right: Float, baseline: F
 }
 
 /** Trims [text] to [width], with an ellipsis, the way a single-line row would. */
-private fun ellipsised(text: String, paint: Paint, width: Float): String {
+internal fun ellipsised(text: String, paint: Paint, width: Float): String {
     if (paint.measureText(text) <= width) return text
     var end = text.length
     while (end > 1 && paint.measureText(text.take(end) + "…") > width) end--
@@ -716,7 +716,7 @@ private fun ellipsised(text: String, paint: Paint, width: Float): String {
  * missing font resource a slightly plainer picture rather than a crash on the
  * share button.
  */
-private class Fonts(context: Context) {
+internal class Fonts(context: Context) {
     private val heavy = font(context, R.font.sf_pro_display_heavy) ?: Typeface.DEFAULT_BOLD
     private val semibold = font(context, R.font.sf_pro_display_semibold) ?: Typeface.DEFAULT_BOLD
     private val regular = font(context, R.font.sf_pro_display_regular) ?: Typeface.DEFAULT
@@ -740,7 +740,7 @@ private class Fonts(context: Context) {
         runCatching { ResourcesCompat.getFont(context, id) }.getOrNull()
 }
 
-private suspend fun loadBitmap(context: Context, url: String): Bitmap? = runCatching {
+internal suspend fun loadBitmap(context: Context, url: String): Bitmap? = runCatching {
     val request = ImageRequest.Builder(context)
         .data(url.artworkAt(CARD_ART_PX))
         // Palette needs pixel access, and a hardware bitmap cannot be drawn
@@ -751,18 +751,18 @@ private suspend fun loadBitmap(context: Context, url: String): Bitmap? = runCatc
 }.getOrNull()
 
 /** 9:16, the shape the story cards are held to — see `StoryFrame`. */
-private const val POSTER_W = 1080
-private const val POSTER_H = 1920
+internal const val POSTER_W = 1080
+internal const val POSTER_H = 1920
 
-private const val MARGIN = 72f
+internal const val MARGIN = 72f
 
 /** The mark's drawn size. 730×484 in the vector, so this keeps its proportions. */
-private const val LOGO_W = 66f
-private const val LOGO_H = 44f
-private const val LOGO_GAP = 20f
+internal const val LOGO_W = 66f
+internal const val LOGO_H = 44f
+internal const val LOGO_GAP = 20f
 
 /** The width type and artwork are laid out in. */
-private const val CONTENT_W = POSTER_W - MARGIN * 2
+internal const val CONTENT_W = POSTER_W - MARGIN * 2
 
 /** Matches the 30sp the card on screen sets its sentence at, at 3x. */
 private const val HEADLINE_SIZE = 88f

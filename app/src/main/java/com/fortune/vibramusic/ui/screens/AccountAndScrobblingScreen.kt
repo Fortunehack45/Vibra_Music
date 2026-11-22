@@ -28,6 +28,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.fortune.vibramusic.R
+import com.fortune.vibramusic.auth.clearSpotifyWebSession
 import com.fortune.vibramusic.data.model.Account
 import com.fortune.vibramusic.data.settings.AppSettings
 import kotlin.math.roundToInt

@@ -82,7 +82,8 @@ object MediaTagger {
 
     /** Fetch artwork before publication so batch downloads can overlap it with audio. */
     internal fun artworkFor(context: Context, track: Song): Artwork? {
-        if (track.thumbnailUrl.isNullOrBlank()) {
+        val thumb = track.thumbnailUrl
+        if (thumb.isNullOrBlank()) {
             // Said out loud rather than returned as a quiet null. An album's own
             // track rows carry no artwork — the release is billed once in the
             // header — so a row that gets this far without having the release's
@@ -93,7 +94,7 @@ object MediaTagger {
             Log.d(TAG, "no artwork url for ${track.videoId}; saving it without a cover")
             return null
         }
-        cachedArtwork(context, track.thumbnailUrl)?.let { return it }
+        cachedArtwork(context, thumb)?.let { return it }
         return fetchCover(track)
     }
 

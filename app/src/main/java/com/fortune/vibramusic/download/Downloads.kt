@@ -21,6 +21,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -247,6 +250,75 @@ object Downloads {
         Log.d(TAG, "$videoId was downloaded but the file is gone; forgetting it")
         forget(videoId)
         null
+    }
+
+    /**
+     * Fetch [songs] here and now, for a caller with no window to start
+     * [DownloadService] from: Android refuses a background job that, so
+     * [PlaylistSync] does the work inside the job itself instead.
+     *
+     * Claims the tracks in [running] rather than queueing them in [pending], so
+     * the service can't pick up a track only to have it die with this job. They
+     * still show in the manager, and [cancel] still stops them.
+     *
+     * Holds its caller until every track has settled, and cancelling the caller
+     * abandons what is unfinished without trace.
+     *
+     * @return the ids nobody needs to come back to: saved, called off by the
+     *   listener, or already in flight from a tap. A track that failed, or was
+     *   never reached, is not among them.
+     */
+    internal suspend fun downloadNow(context: Context, songs: List<Song>, from: String?): Set<String> {
+        val handled = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+        val claimed = synchronized(lock) {
+            songs.filter { song ->
+                val id = song.videoId
+                if (id in pending || id in running) {
+                    handled += id
+                    false
+                } else {
+                    running[id] = null
+                    true
+                }
+            }
+        }
+        claimed.forEach { song ->
+            _active.update { it + (song.videoId to DownloadState.Queued) }
+            DownloadSession.queued(song, from)
+        }
+        val slots = Semaphore(BATCH_WORKERS)
+        try {
+            coroutineScope {
+                claimed.forEach { song ->
+                    launch {
+                        slots.withPermit {
+                            val id = song.videoId
+                            if (synchronized(lock) { id !in running }) {
+                                handled += id
+                                return@withPermit
+                            }
+                            if (!AppSettings.downloadsAllowedNow) return@withPermit
+                            val job = launch { run(context, song) }
+                            onRunning(id, job)
+                            job.join()
+                            val calledOff = synchronized(lock) { id !in running }
+                            if (calledOff || id in _saved.value) handled += id
+                        }
+                    }
+                }
+            }
+        } finally {
+            claimed.forEach { song ->
+                val id = song.videoId
+                onIdle(id)
+                val state = _active.value[id]
+                if (state is DownloadState.Queued || state is DownloadState.Running) {
+                    clear(id)
+                    DownloadSession.forget(id)
+                }
+            }
+        }
+        return handled
     }
 
     /**
@@ -1291,6 +1363,9 @@ object Downloads {
      * that show it as a toast so the two cannot drift apart.
      */
     internal const val WIFI_ONLY_REFUSAL = "Downloads are set to Wi-Fi only"
+
+    /** As `DownloadService.WORKERS`, whose reasoning is the same here. */
+    private const val BATCH_WORKERS = 4
 
     /** Dropped when the sheet is reopened; a failure is worth showing once. */
     fun dismissFailure(videoId: String) {

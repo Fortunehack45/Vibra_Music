@@ -1,5 +1,10 @@
 package com.fortune.vibramusic.ui.components
 
+import com.fortune.vibramusic.ui.components.backdrop.Backdrop
+import com.fortune.vibramusic.ui.components.backdrop.drawBackdrop
+import com.fortune.vibramusic.ui.components.backdrop.effects.blur
+import com.fortune.vibramusic.ui.components.backdrop.effects.colorControls
+
 import android.provider.Settings
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
@@ -235,6 +240,22 @@ fun IosMenuRow(
         trailing?.invoke()
     }
 }
+
+fun Modifier.menuBackdropFrost(backdrop: Backdrop, shape: Shape, fill: Color): Modifier = drawBackdrop(
+    backdrop = backdrop,
+    shape = { shape },
+    effects = {
+        colorControls(saturation = 1.8f)
+        blur(MENU_BLUR.toPx() * MENU_BACKDROP_SCALE)
+    },
+    highlight = null,
+    shadow = null,
+    onDrawSurface = { drawRect(fill) },
+    backdropScale = MENU_BACKDROP_SCALE,
+)
+
+private val MENU_BLUR = 24.dp
+private const val MENU_BACKDROP_SCALE = 0.25f
 
 /**
  * Floating Liquid Glass popup anchored to a button (e.g. three-dots).

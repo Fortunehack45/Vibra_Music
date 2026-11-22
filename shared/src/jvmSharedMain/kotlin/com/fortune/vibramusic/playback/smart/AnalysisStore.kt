@@ -42,7 +42,7 @@ import java.util.concurrent.ConcurrentHashMap
  * milliseconds: they are the bulk of the payload and nothing downstream can
  * tell the difference.
  */
-class AnalysisStore(
+open class AnalysisStore(
     /**
      * Where analyses are kept, resolved lazily.
      *
@@ -52,7 +52,7 @@ class AnalysisStore(
      * problem and no such type, so both now pass a directory and the laziness
      * stays where it was.
      */
-    private val directoryOf: () -> java.io.File,
+    private val directoryOf: () -> java.io.File = { File(System.getProperty("java.io.tmpdir"), "vibra_analyses") },
 ) {
 
     /**
@@ -76,7 +76,7 @@ class AnalysisStore(
     }
 
     /** Reads [trackId]'s stored analysis, or null when there isn't one. */
-    fun load(trackId: String): TrackAnalysis? {
+    open fun load(trackId: String): TrackAnalysis? {
         if (trackId.isBlank()) return null
         if (known[trackId] == false) return null
         val file = File(directory, fileNameFor(trackId))
@@ -108,7 +108,7 @@ class AnalysisStore(
      * tempo: a failure is cheap to rediscover and worth rediscovering, since
      * the reason for it is usually missing bytes rather than the track itself.
      */
-    fun save(trackId: String, analysis: TrackAnalysis) {
+    open fun save(trackId: String, analysis: TrackAnalysis) {
         if (trackId.isBlank() || !analysis.isUsable) return
         runCatching {
             directory.mkdirs()

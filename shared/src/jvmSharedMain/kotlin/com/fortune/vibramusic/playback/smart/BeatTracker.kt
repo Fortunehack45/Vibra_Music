@@ -154,6 +154,7 @@ class BeatTracker(
                 beats,
                 beatFrames.map { frame -> beatLogits.getOrElse(frame.roundToInt()) { 0f }.toDouble() },
             ),
+            meter = inferMeter(beats, downbeats),
         )
     }
 
@@ -236,6 +237,28 @@ class BeatTracker(
         /** Plausible musical tempo, used only to reject a grid the model clearly did not find. */
         private const val MIN_TEMPO = 40.0
         private const val MAX_TEMPO = 220.0
+
+        fun inferMeter(beats: List<Double>, downbeats: List<Double>): MeterHypothesis {
+            if (beats.size < 2 || downbeats.size < 2) {
+                return MeterHypothesis(beatsPerBar = 4, confidence = 0.5, isAmbiguous = true, reason = "Insufficient beats/downbeats")
+            }
+            val beatInterval = (beats.last() - beats.first()) / (beats.size - 1)
+            val downbeatInterval = (downbeats.last() - downbeats.first()) / (downbeats.size - 1)
+            if (beatInterval <= 0.0 || beatInterval.isNaN() || downbeatInterval <= 0.0 || downbeatInterval.isNaN()) {
+                return MeterHypothesis(beatsPerBar = 4, confidence = 0.5, isAmbiguous = true, reason = "Invalid beat/downbeat interval")
+            }
+            val ratio = downbeatInterval / beatInterval
+            val roundedRatio = Math.round(ratio).toInt().coerceIn(2, 12)
+            val error = abs(ratio - roundedRatio)
+            val confidence = (1.0 - error).coerceIn(0.0, 1.0)
+            val isAmbiguous = error > 0.25 || confidence < 0.75
+            return MeterHypothesis(
+                beatsPerBar = roundedRatio,
+                confidence = confidence,
+                isAmbiguous = isAmbiguous,
+                reason = "Inferred ratio $ratio (~$roundedRatio beats/bar)"
+            )
+        }
 
         private fun median(values: List<Double>): Double {
             if (values.isEmpty()) return 0.0

@@ -14,6 +14,7 @@ import com.fortune.vibramusic.data.model.LibraryState
 import com.fortune.vibramusic.data.model.LikeStatus
 import com.fortune.vibramusic.data.model.MoodGenre
 import com.fortune.vibramusic.data.model.MoodGenreSection
+import com.fortune.vibramusic.data.model.PlaybackSourceType
 import com.fortune.vibramusic.data.model.SearchResult
 import com.fortune.vibramusic.data.model.ShelfItem
 import com.fortune.vibramusic.data.model.Song
@@ -486,6 +487,10 @@ object InnertubeParser {
                         parseResponsiveListItem(renderer as? JsonObject, pageCredit)
                             ?.let { out[it.videoId] = it }
                     }
+                    node["musicMultiRowListItemRenderer"]?.let { renderer ->
+                        parseMultiRowListItem(renderer as? JsonObject, pageCredit)
+                            ?.let { out[it.videoId] = it }
+                    }
                     node.values.forEach(::walk)
                 }
                 is JsonArray -> node.forEach(::walk)
@@ -686,6 +691,79 @@ object InnertubeParser {
             // art where a catalogue track has square album cover art.
             isVideo = rowType == "video" || thumbnails.isNotSquare(),
             isExplicit = renderer.hasExplicitBadge(),
+        )
+    }
+
+    /**
+     * Parses a `musicMultiRowListItemRenderer`, typically used for podcast episodes.
+     */
+    private fun parseMultiRowListItem(
+        renderer: JsonObject?,
+        fallback: Credits = Credits(),
+    ): Song? {
+        if (renderer == null) return null
+        val videoId = renderer.o("onTap").o("watchEndpoint").s("videoId")
+            ?: renderer.o("navigationEndpoint").o("watchEndpoint").s("videoId")
+            ?: renderer.o("playbackEndpoint").o("watchEndpoint").s("videoId")
+            ?: renderer.o("playNavigationEndpoint").o("watchEndpoint").s("videoId")
+            ?: renderer.o("playlistItemData").s("videoId")
+            ?: renderer.o("overlay").o("musicItemThumbnailOverlayRenderer")
+                .o("content").o("musicPlayButtonRenderer")
+                .o("playNavigationEndpoint").o("watchEndpoint").s("videoId")
+            ?: return null
+
+        val title = renderer.o("title").runs()
+        if (title.isBlank()) return null
+
+        val subText = renderer.o("subtitle").runs()
+        val secondSubText = renderer.o("secondSubtitle").runs()
+        val allRuns = renderer.o("subtitle").a("runs").orEmpty() +
+            renderer.o("secondSubtitle").a("runs").orEmpty()
+        val parts = listOf(subText, secondSubText)
+            .filter { it.isNotBlank() }
+            .flatMap { it.split(" • ") }
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+
+        val duration = parts.lastOrNull { it.matches(DURATION) || it.matches(PODCAST_DURATION) }
+
+        val artist = parts.firstOrNull {
+            !it.matches(DURATION) &&
+                !it.matches(PODCAST_DURATION) &&
+                it.lowercase(Locale.ROOT) !in TYPE_WORDS &&
+                !it.matches(TALLY)
+        }
+
+        val credits = creditsOf(allRuns)
+        val creditedArtists = artistNamesFromRuns(allRuns)
+
+        val thumbnails = renderer.o("thumbnail").o("musicThumbnailRenderer")
+            .o("thumbnail").a("thumbnails")
+            ?: renderer.o("thumbnail").a("thumbnails")
+
+        val description = renderer.o("description").runs().ifBlank {
+            renderer.o("description").s("simpleText")
+        }
+
+        return Song(
+            videoId = videoId,
+            title = title,
+            artist = creditedArtists
+                ?: credits.artistName?.takeIf { it.isNotBlank() }
+                ?: artist
+                ?: fallback.artistName
+                ?: "Unknown artist",
+            thumbnailUrl = thumbnails.best(),
+            durationText = duration,
+            artistId = credits.artistId ?: fallback.artistId,
+            artists = completeArtistCredits(artist.orEmpty(), credits.artists.ifEmpty { fallback.artists }),
+            albumId = credits.albumId ?: fallback.albumId,
+            albumName = credits.albumName ?: fallback.albumName,
+            setVideoId = renderer.o("playlistItemData").s("playlistSetVideoId"),
+            isVideo = thumbnails.isNotSquare(),
+            isExplicit = renderer.hasExplicitBadge(),
+            description = description,
+            playbackSourceType = PlaybackSourceType.PODCASTS,
         )
     }
 
@@ -1480,6 +1558,9 @@ object InnertubeParser {
         }
 
     private val DURATION = Regex("""\d+:\d{2}""")
+    private val PODCAST_DURATION = Regex(
+        """(?i)^\d+:\d+(?::\d+)?$|^\d+\s*(?:hr|min|sec)s?(?:\s*\d+\s*(?:min|sec)s?)?$"""
+    )
     private val YEAR = Regex("""\d{4}""")
     /**
      * A counted quantity rather than a name — "12.4M plays", "13 songs",
@@ -1510,6 +1591,27 @@ object InnertubeParser {
      * "Daily Top Music Videos".
      */
     private val VIDEO_WORD = Regex("""\bvideos?\b""", RegexOption.IGNORE_CASE)
+
+    data class CaptionTrack(
+        val languageCode: String,
+        val name: String,
+        val baseUrl: String,
+    )
+
+    fun parseCaptionTracks(playerResponse: JsonObject): List<CaptionTrack> {
+        val tracks = playerResponse.o("captions")
+            ?.o("playerCaptionsTracklistRenderer")
+            ?.a("captionTracks") ?: return emptyList()
+        return tracks.mapNotNull { element ->
+            val trackObj = element as? JsonObject ?: return@mapNotNull null
+            val baseUrl = trackObj.s("baseUrl") ?: return@mapNotNull null
+            val languageCode = trackObj.s("languageCode") ?: ""
+            val name = trackObj.o("name")?.a("runs")?.firstOrNull().s("text")
+                ?: trackObj.o("name")?.s("simpleText")
+                ?: languageCode
+            CaptionTrack(languageCode = languageCode, name = name, baseUrl = baseUrl)
+        }
+    }
 }
 
 // ---- Tiny JSON navigation helpers (null-safe, never throw) ------------------

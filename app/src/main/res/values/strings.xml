@@ -142,8 +142,8 @@
     <string name="update_ready_body">vibra %1$s is ready to install.</string>
     <string name="update_failed_body">Couldn’t download vibra %1$s.</string>
     <string name="download_now">Download Now</string>
-    <string name="app_up_to_date">Vibra Music is up to date</string>
-    <string name="update_ready_restart">Restart to update</string>
+    <string name="app_up_to_date" translatable="false">Vibra Music is up to date</string>
+    <string name="update_ready_restart" translatable="false">Restart to update</string>
     <string name="install_now">Install Now</string>
     <string name="later">Later</string>
     <string name="remind_me_later">Remind Me Later</string>

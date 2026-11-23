@@ -1847,4 +1847,19 @@
     <string name="replay_year_summary_minutes">Minutes listened</string>
     <string name="replay_year_mute">Mute the story</string>
     <string name="replay_year_unmute">Unmute the story</string>
+
+    <!-- Google Drive Setup & Diagnostics -->
+    <string name="drive_connect_unregistered" translatable="false">Google Drive is not registered for this app\'s signing key on the Google Cloud Console.</string>
+    <string name="drive_setup_diagnostics" translatable="false">OAuth Setup &amp; Diagnostics</string>
+    <string name="drive_setup_diagnostics_subtitle" translatable="false">View package name, SHA-1 fingerprint, and configuration instructions</string>
+    <string name="drive_setup_dialog_title" translatable="false">Google Cloud Setup Guide</string>
+    <string name="drive_setup_dialog_body" translatable="false">To enable Google Drive backup:\n1. Open Google Cloud Console\n2. Go to APIs &amp; Services > Credentials\n3. Create OAuth Client ID (Android)\n4. Enter package name and SHA-1 below\n5. Enable Google Drive API</string>
+    <string name="drive_copy_package" translatable="false">Copy Package Name</string>
+    <string name="drive_copy_sha1" translatable="false">Copy SHA-1 Fingerprint</string>
+    <string name="drive_package_name_label" translatable="false">Package Name</string>
+    <string name="drive_sha1_label" translatable="false">SHA-1 Fingerprint</string>
+    <string name="drive_sha256_label" translatable="false">SHA-256 Fingerprint</string>
+    <string name="drive_tap_to_copy" translatable="false">Tap to copy</string>
+    <string name="drive_copied" translatable="false">Copied</string>
+    <string name="drive_view_setup_guide" translatable="false">View Setup Guide</string>
 </resources>

@@ -33,6 +33,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.GraphicEq
+import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Radio
 import androidx.compose.material3.Card
@@ -79,7 +80,6 @@ import com.fortune.vibramusic.ui.graphics.edgeRefraction
 import com.fortune.vibramusic.ui.haptics.Haptic
 import com.fortune.vibramusic.ui.haptics.rememberHaptics
 import com.fortune.vibramusic.ui.icons.VibraMusicIcons
-import com.fortune.vibramusic.ui.theme.VibraPurple
 
 private val TOP_FILTERS = listOf(
     "All",
@@ -678,8 +678,8 @@ private fun AppleRadioStationCard(
                 .size(152.dp)
                 .clip(RoundedCornerShape(16.dp))
                 .border(
-                    width = if (isCurrent) 2.dp else 1.dp,
-                    color = if (isCurrent) VibraPurple else Color.White.copy(alpha = 0.08f),
+                    width = 1.dp,
+                    color = Color.White.copy(alpha = 0.08f),
                     shape = RoundedCornerShape(16.dp),
                 )
                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
@@ -736,13 +736,13 @@ private fun AppleRadioStationCard(
                     .align(Alignment.BottomEnd)
                     .size(32.dp)
                     .clip(CircleShape)
-                    .background(if (isCurrent && isPlaying) VibraPurple else Color.White.copy(alpha = 0.9f)),
+                    .background(Color.White.copy(alpha = 0.9f)),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.PlayArrow,
-                    contentDescription = "Play",
-                    tint = if (isCurrent && isPlaying) Color.White else Color.Black,
+                    imageVector = if (isCurrent && isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                    contentDescription = stringResource(if (isCurrent && isPlaying) R.string.pause else R.string.play),
+                    tint = Color.Black,
                     modifier = Modifier.size(18.dp),
                 )
             }
@@ -754,7 +754,7 @@ private fun AppleRadioStationCard(
             text = episode.title,
             style = MaterialTheme.typography.bodyMedium.copy(
                 fontWeight = FontWeight.SemiBold,
-                color = if (isCurrent) VibraPurple else MaterialTheme.colorScheme.onBackground,
+                color = MaterialTheme.colorScheme.onBackground,
             ),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -922,7 +922,7 @@ private fun PodcastQuickEpisodeRow(
     onClick: () -> Unit,
 ) {
     val titleColor by animateColorAsState(
-        targetValue = if (isCurrent) VibraPurple else MaterialTheme.colorScheme.onBackground,
+        targetValue = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground,
         label = "podcast episode title",
     )
     Row(
@@ -973,7 +973,7 @@ private fun PodcastQuickEpisodeRow(
             Icon(
                 imageVector = Icons.Rounded.PlayArrow,
                 contentDescription = null,
-                tint = VibraPurple,
+                tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(18.dp),
             )
         }

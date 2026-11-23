@@ -37,6 +37,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
@@ -45,7 +47,6 @@ import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.semantics.Role
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.fortune.vibramusic.data.settings.AppSettings
-import com.fortune.vibramusic.ui.components.IosSwitch
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -304,7 +305,18 @@ internal fun AndroidLyricsShareSheet(
                     modifier = Modifier.weight(1f),
                 )
                 // The row is the toggle; the switch only shows its state.
-                IosSwitch(checked = showLogo, onCheckedChange = null)
+                Switch(
+                    checked = showLogo,
+                    onCheckedChange = null,
+                    colors = SwitchDefaults.colors(
+                        checkedTrackColor = MaterialTheme.colorScheme.primary,
+                        checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                        checkedBorderColor = MaterialTheme.colorScheme.primary,
+                        uncheckedTrackColor = Color.White.copy(alpha = 0.15f),
+                        uncheckedThumbColor = Color.White.copy(alpha = 0.7f),
+                        uncheckedBorderColor = Color.Transparent,
+                    ),
+                )
             }
 
             if (failed) {

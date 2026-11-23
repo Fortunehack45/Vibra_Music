@@ -15,6 +15,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.ConnectionPool
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -438,7 +441,13 @@ object StreamResolver {
             timed("$videoId InnerTubeX") { innerTubeXStream(videoId) }
                 ?: run {
                     TrackLog.w(TAG, "InnerTubeX found no usable stream for $videoId; falling back to extraction")
-                    timed("$videoId newPipeStream") { newPipeStream(videoId, ::pickForQuality) }
+                    try {
+                        timed("$videoId newPipeStream") { newPipeStream(videoId, ::pickForQuality) }
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        liveStreamManifest(videoId) ?: throw e
+                    }
                 }
         } catch (e: CancellationException) {
             throw e
@@ -787,17 +796,26 @@ object StreamResolver {
         mediaHeadersFor(url).forEach { (name, value) -> builder.header(name, value) }
         return try {
             prober.newCall(builder.build()).execute().use { response ->
+                if (response.code in REFUSAL_CODES) return Probe.REFUSED
+                if (response.code !in 200..299 && response.code != 416) return Probe.UNREACHABLE
+
+                // A refusal dressed as a success: an error page, or the
+                // consent/captcha interstitial, rather than audio.
+                val ct = response.header("Content-Type").orEmpty()
+                val isManifest = ct.contains("mpegurl", ignoreCase = true) ||
+                    ct.contains("application/dash+xml", ignoreCase = true) ||
+                    ct.contains("application/vnd.apple.mpegurl", ignoreCase = true)
+                val isAudio = ct.startsWith("audio/")
+                if (!isManifest && !isAudio) return Probe.REFUSED
+
+                // Headers can arrive long before a body that never does —
+                // exactly the shaping this whole path exists to sidestep.
+                // Manifests (.m3u8 / .mpd) are tiny playlist text files (often < 2 KB),
+                // so we only verify the source is not empty rather than requiring 16 KB.
+                val source = response.body?.source() ?: return Probe.UNREACHABLE
                 when {
-                    response.code in REFUSAL_CODES -> Probe.REFUSED
-                    response.code !in 200..299 && response.code != 416 -> Probe.UNREACHABLE
-                    // A refusal dressed as a success: an error page, or the
-                    // consent/captcha interstitial, rather than audio.
-                    response.header("Content-Type")?.startsWith("audio/") != true -> Probe.REFUSED
-                    // Headers can arrive long before a body that never does —
-                    // exactly the shaping this whole path exists to sidestep.
-                    // Insisting on the bytes is the point: a trickle that
-                    // yields its first byte and stalls is a failure too.
-                    response.body?.source()?.request(PROBE_READ_BYTES) != true -> Probe.UNREACHABLE
+                    isManifest && source.exhausted() -> Probe.UNREACHABLE
+                    !isManifest && !source.request(PROBE_READ_BYTES) -> Probe.UNREACHABLE
                     else -> Probe.OK
                 }
             }
@@ -880,6 +898,26 @@ object StreamResolver {
      * pays that transform four or five times instead: measured on-device at
      * 49.8s against 2.3s for the same track over the same connection.
      */
+    /**
+     * Resolves live streams and broadcasts via direct Innertube player response,
+     * extracting the HLS master playlist manifest URL when present.
+     */
+    private suspend fun liveStreamManifest(videoId: String): Stream? {
+        return try {
+            val resp = Innertube.player(videoId)
+            val hls = resp["streamingData"]?.jsonObject?.get("hlsManifestUrl")?.jsonPrimitive?.contentOrNull
+            if (!hls.isNullOrBlank()) {
+                TrackLog.d(TAG, "Innertube player returned live HLS stream for $videoId")
+                Stream(url = hls, kbps = 128, mimeType = "application/x-mpegURL")
+            } else null
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            TrackLog.w(TAG, "liveStreamManifest failed for $videoId: ${e.message}")
+            null
+        }
+    }
+
     private suspend fun newPipeStream(
         videoId: String,
         select: (List<Pair<Int, AudioStream>>) -> AudioStream?,
@@ -1020,7 +1058,22 @@ object StreamResolver {
                         it.deliveryMethod == DeliveryMethod.PROGRESSIVE_HTTP
                 }
             val stream = select(candidates.map { it.averageBitrate to it })
-                ?: error("Track unavailable: no audio streams")
+                ?: run {
+                    val hlsUrl = extractor.hlsUrl
+                    if (!hlsUrl.isNullOrBlank()) {
+                        TrackLog.d(
+                            TAG,
+                            "NewPipe picked live HLS stream for $videoId " +
+                                "(extraction held the gate ${MonotonicClock.nowMs() - waited}ms)",
+                        )
+                        return@withContext Stream(
+                            url = hlsUrl,
+                            kbps = 128,
+                            mimeType = "application/x-mpegURL",
+                        )
+                    }
+                    error("Track unavailable: no audio streams")
+                }
             TrackLog.d(
                 TAG,
                 "NewPipe picked ${stream.format?.name} @ ${stream.averageBitrate}kbps " +

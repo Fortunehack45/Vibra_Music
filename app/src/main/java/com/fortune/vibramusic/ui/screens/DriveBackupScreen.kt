@@ -7,19 +7,30 @@ import android.text.format.Formatter
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -27,13 +38,22 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.fortune.vibramusic.ui.haptics.Haptic
+import com.fortune.vibramusic.ui.haptics.rememberHaptics
 import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.common.api.CommonStatusCodes
 import com.fortune.vibramusic.R
@@ -42,7 +62,6 @@ import com.fortune.vibramusic.data.backup.DriveAuth
 import com.fortune.vibramusic.data.backup.DriveBackup
 import com.fortune.vibramusic.data.backup.RemoteDevice
 import com.fortune.vibramusic.data.backup.ReplaySync
-import com.fortune.vibramusic.ui.components.IosSwitch
 import com.fortune.vibramusic.ui.icons.SfIcons
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -101,6 +120,12 @@ fun DriveBackupScreen(
     val available = remember { DriveAuth.available(context) }
 
     var connectError by remember { mutableStateOf<String?>(null) }
+    var isUnregistered by remember { mutableStateOf(false) }
+    var showSetupGuide by remember { mutableStateOf(false) }
+
+    val sha1 = remember(context) { getCertificateFingerprint(context, "SHA-1") }
+    val sha256 = remember(context) { getCertificateFingerprint(context, "SHA-256") }
+
     // What to do once the consent sheet is answered: connecting is its own
     // errand, but "Sync now" on a lost grant should carry on afterwards.
     var afterSignIn by remember { mutableStateOf<(() -> Unit)?>(null) }
@@ -123,24 +148,49 @@ fun DriveBackupScreen(
         if (answer.resultCode != Activity.RESULT_OK && answer.data == null) {
             return@rememberLauncherForActivityResult
         }
+        fun handleDriveError(e: Throwable) {
+            if (e is ApiException && e.statusCode == CommonStatusCodes.CANCELED) return
+            val raw = e.message.orEmpty()
+            val unregistered = (e is ApiException && (e.statusCode == CommonStatusCodes.DEVELOPER_ERROR || e.statusCode == CommonStatusCodes.INTERNAL_ERROR)) ||
+                raw.contains("UNREGISTERED_ON_API_CONSOLE", ignoreCase = true) ||
+                raw.contains("DEVELOPER_ERROR", ignoreCase = true)
+            if (unregistered) {
+                isUnregistered = true
+                connectError = context.getString(R.string.drive_connect_unregistered)
+            } else {
+                connectError = raw.ifBlank { context.getString(R.string.unknown_error) }
+            }
+        }
+
         scope.launch {
             try {
                 DriveBackup.finishSignIn(context, answer.data)
                 then?.invoke()
             } catch (e: CancellationException) {
                 throw e
-            } catch (e: ApiException) {
-                if (e.statusCode != CommonStatusCodes.CANCELED) {
-                    connectError = e.message ?: context.getString(R.string.unknown_error)
-                }
-            } catch (e: Exception) {
-                connectError = e.message ?: context.getString(R.string.unknown_error)
+            } catch (e: Throwable) {
+                handleDriveError(e)
             }
         }
     }
 
     fun signIn(then: () -> Unit) {
         connectError = null
+        isUnregistered = false
+        fun handleDriveError(e: Throwable) {
+            if (e is ApiException && e.statusCode == CommonStatusCodes.CANCELED) return
+            val raw = e.message.orEmpty()
+            val unregistered = (e is ApiException && (e.statusCode == CommonStatusCodes.DEVELOPER_ERROR || e.statusCode == CommonStatusCodes.INTERNAL_ERROR)) ||
+                raw.contains("UNREGISTERED_ON_API_CONSOLE", ignoreCase = true) ||
+                raw.contains("DEVELOPER_ERROR", ignoreCase = true)
+            if (unregistered) {
+                isUnregistered = true
+                connectError = context.getString(R.string.drive_connect_unregistered)
+            } else {
+                connectError = raw.ifBlank { context.getString(R.string.unknown_error) }
+            }
+        }
+
         scope.launch {
             try {
                 when (val outcome = DriveBackup.beginSignIn(context)) {
@@ -155,8 +205,8 @@ fun DriveBackupScreen(
                 }
             } catch (e: CancellationException) {
                 throw e
-            } catch (e: Exception) {
-                connectError = e.message ?: context.getString(R.string.unknown_error)
+            } catch (e: Throwable) {
+                handleDriveError(e)
             }
         }
     }
@@ -262,6 +312,19 @@ fun DriveBackupScreen(
             }
         }
 
+        // ---- Diagnostics & Cloud Setup Guide ---------------------------------
+        if (isUnregistered || connectError != null || !connected) {
+            SettingsGroup(header = stringResource(R.string.drive_setup_diagnostics)) {
+                SettingsRow(
+                    icon = Icons.Rounded.Info,
+                    title = stringResource(R.string.drive_setup_dialog_title),
+                    subtitle = stringResource(R.string.drive_setup_diagnostics_subtitle),
+                    value = stringResource(R.string.drive_view_setup_guide),
+                    onClick = { showSetupGuide = true },
+                )
+            }
+        }
+
         // ---- This phone -----------------------------------------------------
         if (connected) {
             SettingsGroup(
@@ -309,10 +372,18 @@ fun DriveBackupScreen(
                 subtitle = stringResource(R.string.drive_over_cellular_subtitle),
                 enabled = ready,
                 trailing = {
-                    IosSwitch(
+                    Switch(
                         checked = settings.overCellular,
                         onCheckedChange = DriveBackup::setOverCellular,
                         enabled = ready,
+                        colors = SwitchDefaults.colors(
+                            checkedTrackColor = MaterialTheme.colorScheme.primary,
+                            checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                            checkedBorderColor = MaterialTheme.colorScheme.primary,
+                            uncheckedTrackColor = Color.White.copy(alpha = 0.15f),
+                            uncheckedThumbColor = Color.White.copy(alpha = 0.7f),
+                            uncheckedBorderColor = Color.Transparent,
+                        ),
                     )
                 },
                 onClick = { DriveBackup.setOverCellular(!settings.overCellular) },
@@ -372,6 +443,15 @@ fun DriveBackupScreen(
             )
         }
         Spacer(Modifier.height(32.dp))
+    }
+
+    if (showSetupGuide) {
+        DriveSetupGuideDialog(
+            packageName = context.packageName,
+            sha1 = sha1,
+            sha256 = sha256,
+            onDismiss = { showSetupGuide = false },
+        )
     }
 }
 
@@ -463,3 +543,158 @@ internal fun formatWhen(context: Context, millis: Long): String = DateUtils.form
     millis,
     DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_ABBREV_MONTH,
 )
+
+@Composable
+private fun DriveSetupGuideDialog(
+    packageName: String,
+    sha1: String,
+    sha256: String,
+    onDismiss: () -> Unit,
+) {
+    val clipboard = LocalClipboardManager.current
+    val haptics = rememberHaptics()
+    var copiedItem by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = stringResource(R.string.drive_setup_dialog_title),
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.drive_setup_dialog_body),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+
+                // Package name card
+                CredentialCopyCard(
+                    label = stringResource(R.string.drive_package_name_label),
+                    value = packageName,
+                    copied = copiedItem == packageName,
+                    onCopy = {
+                        haptics.play(Haptic.Tap)
+                        clipboard.setText(AnnotatedString(packageName))
+                        copiedItem = packageName
+                    },
+                )
+
+                // SHA-1 card
+                CredentialCopyCard(
+                    label = stringResource(R.string.drive_sha1_label),
+                    value = sha1,
+                    copied = copiedItem == sha1,
+                    onCopy = {
+                        haptics.play(Haptic.Tap)
+                        clipboard.setText(AnnotatedString(sha1))
+                        copiedItem = sha1
+                    },
+                )
+
+                // SHA-256 card
+                CredentialCopyCard(
+                    label = stringResource(R.string.drive_sha256_label),
+                    value = sha256,
+                    copied = copiedItem == sha256,
+                    onCopy = {
+                        haptics.play(Haptic.Tap)
+                        clipboard.setText(AnnotatedString(sha256))
+                        copiedItem = sha256
+                    },
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(
+                    text = stringResource(android.R.string.ok),
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+        },
+        containerColor = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(20.dp),
+    )
+}
+
+@Composable
+private fun CredentialCopyCard(
+    label: String,
+    value: String,
+    copied: Boolean,
+    onCopy: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+            .clickable(onClick = onCopy)
+            .padding(12.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                text = stringResource(if (copied) R.string.drive_copied else R.string.drive_tap_to_copy),
+                style = MaterialTheme.typography.labelSmall,
+                color = if (copied) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+            )
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+    }
+}
+
+private fun getCertificateFingerprint(context: Context, algorithm: String): String {
+    return try {
+        val packageInfo = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+            context.packageManager.getPackageInfo(
+                context.packageName,
+                android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES,
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            context.packageManager.getPackageInfo(
+                context.packageName,
+                android.content.pm.PackageManager.GET_SIGNATURES,
+            )
+        }
+        val signatures = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+            packageInfo.signingInfo?.let { si ->
+                if (si.hasMultipleSigners()) si.apkContentsSigners else si.signingCertificateHistory
+            }
+        } else {
+            @Suppress("DEPRECATION")
+            packageInfo.signatures
+        }
+        val cert = signatures?.firstOrNull()?.toByteArray() ?: return "Unavailable"
+        val md = java.security.MessageDigest.getInstance(algorithm)
+        val digest = md.digest(cert)
+        digest.joinToString(":") { "%02X".format(it) }
+    } catch (e: Exception) {
+        "Unavailable: ${e.message}"
+    }
+}

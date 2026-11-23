@@ -20,6 +20,7 @@ import androidx.media3.common.util.Clock
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSourceBitmapLoader
+import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.drm.DrmSessionManagerProvider
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.source.MediaSource
@@ -27,7 +28,9 @@ import androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy
 import androidx.media3.transformer.DefaultAssetLoaderFactory
 import androidx.media3.transformer.DefaultDecoderFactory
 import com.fortune.vibramusic.playback.AudioCache
+import com.fortune.vibramusic.data.Http
 import com.fortune.vibramusic.data.YtMusicRepository
+import com.fortune.vibramusic.data.canvas.CanvasCache
 import com.fortune.vibramusic.data.model.SearchFilter
 import com.fortune.vibramusic.data.model.SearchResult
 import com.fortune.vibramusic.data.model.Song
@@ -139,7 +142,8 @@ internal suspend fun exportLyricsVideo(
     portrait: Boolean,
 ): File? {
     val folder = File(context.cacheDir, SHARE_FOLDER).apply { mkdirs() }
-    val out = File(folder, VIDEO_FILE_NAME)
+    val fileName = if (clip != null) "lyrics_share_${clip.source.name.lowercase(Locale.ROOT)}.mp4" else VIDEO_FILE_NAME
+    val out = File(folder, fileName)
     val timeline = shareTimeline(request.lines)
     // H.264 wants even sides; the card's height is whatever its lines came to.
     val width = painter.width and 1.inv()
@@ -331,7 +335,11 @@ private val youTubeMatches = ConcurrentHashMap<String, String>()
 /** The clip's length, read off a muted player that is released straight after. */
 @androidx.annotation.OptIn(UnstableApi::class)
 private suspend fun probeLengthMs(context: Context, url: String): Long? = withContext(Dispatchers.Main) {
-    val player = ExoPlayer.Builder(context).build()
+    val player = ExoPlayer.Builder(context)
+        .setMediaSourceFactory(
+            DefaultMediaSourceFactory(CanvasCache.dataSourceFactory(OkHttpDataSource.Factory(Http.client))),
+        )
+        .build()
     try {
         withTimeoutOrNull(PROBE_TIMEOUT_MS) {
             suspendCancellableCoroutine { cont ->
@@ -403,7 +411,10 @@ private suspend fun transform(
                         context,
                         DefaultDecoderFactory.Builder(context).build(),
                         Clock.DEFAULT,
-                        RoutingSourceFactory(DefaultMediaSourceFactory(context), songFactory),
+                        RoutingSourceFactory(
+                            DefaultMediaSourceFactory(CanvasCache.dataSourceFactory(OkHttpDataSource.Factory(Http.client))),
+                            songFactory,
+                        ),
                         DataSourceBitmapLoader(context),
                     ),
                 )

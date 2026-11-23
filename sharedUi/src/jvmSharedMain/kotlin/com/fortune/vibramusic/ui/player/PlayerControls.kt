@@ -1012,6 +1012,7 @@ internal fun CircleGlyph(
     onClick: () -> Unit,
     active: Boolean = false,
     haptic: Haptic = Haptic.Tap,
+    hazeState: HazeState? = null,
     modifier: Modifier = Modifier,
 ) {
     val haptics = rememberHaptics()
@@ -1020,6 +1021,7 @@ internal fun CircleGlyph(
         label = "glyphDisc",
     )
     val chrome = LocalPlayerChrome.current
+    val reduceDynamicBlur by PlayerSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale = remember { Animatable(1f) }
@@ -1053,6 +1055,7 @@ internal fun CircleGlyph(
                 scaleY = scale.value
             }
             .clip(CircleShape)
+            .glassFrost(hazeState, flat = reduceDynamicBlur)
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,

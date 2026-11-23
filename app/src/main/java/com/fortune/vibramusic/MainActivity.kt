@@ -3298,7 +3298,7 @@ private fun VibraMusicApp(
                                     title = show.title,
                                     subtitle = show.author,
                                     thumbnailUrl = show.thumbnailUrl,
-                                    type = com.fortune.vibramusic.data.model.BrowseType.PODCAST_SHOW,
+                                    type = MainViewModel.browseTypeOf(show.browseId, com.fortune.vibramusic.data.model.BrowseType.PODCAST_SHOW),
                                 )
                             },
                             onAddToQueue = { episode ->

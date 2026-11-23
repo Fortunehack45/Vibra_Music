@@ -237,6 +237,7 @@ fun SettingsScreen(
     val dolbyAtmosSupported = DeviceCodecs.playsDolbyAtmos
     val spatialAudio by AppSettings.spatialAudio.collectAsStateWithLifecycle()
     val nerdStats by AppSettings.showNerdStats.collectAsStateWithLifecycle()
+    val showBestPart by AppSettings.showBestPart.collectAsStateWithLifecycle()
     val reduceAnimation by AppSettings.reduceAnimation.collectAsStateWithLifecycle()
     val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
     val liquidGlass by AppSettings.liquidGlass.collectAsStateWithLifecycle()
@@ -1653,6 +1654,25 @@ fun SettingsScreen(
                         )
                     },
                     onClick = { AppSettings.setShowNerdStats(!nerdStats) },
+                )
+            }
+            val showBestPartTitle = stringResource(R.string.show_best_part)
+            row(showBestPartTitle, "best", "part", "chorus", "skip") {
+                SettingsRow(
+                    icon = Icons.Rounded.AutoAwesome,
+                    title = showBestPartTitle,
+                    subtitle = stringResource(R.string.show_best_part_subtitle),
+                    trailing = {
+                        Switch(
+                            checked = showBestPart,
+                            onCheckedChange = AppSettings::setShowBestPart,
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                checkedBorderColor = MaterialTheme.colorScheme.primary,
+                            ),
+                        )
+                    },
+                    onClick = { AppSettings.setShowBestPart(!showBestPart) },
                 )
             }
             val checkForUpdatesTitle = "Check for updates"

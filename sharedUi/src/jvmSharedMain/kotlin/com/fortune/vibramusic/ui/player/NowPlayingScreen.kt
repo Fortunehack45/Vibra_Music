@@ -4265,6 +4265,7 @@ fun NowPlayingScreen(
                                         onClick = onToggleLike,
                                         active = liked,
                                         haptic = if (liked) Haptic.ToggleOff else Haptic.ToggleOn,
+                                        hazeState = playerHaze,
                                     )
                                     Spacer(Modifier.width(8.dp))
                                 }
@@ -4307,6 +4308,7 @@ fun NowPlayingScreen(
                                     } else {
                                         Haptic.Tap
                                     },
+                                    hazeState = playerHaze,
                                     modifier = Modifier.menuAnchor(),
                                 )
                             }

@@ -34,8 +34,9 @@ class BrowseTypeTest {
     @Test
     fun `resolves MPSP and fallback PODCAST_SHOW as BrowseType PODCAST_SHOW`() {
         assertEquals(BrowseType.PODCAST_SHOW, MainViewModel.browseTypeOf("MPSP1234567890"))
-        assertEquals(BrowseType.PODCAST_SHOW, MainViewModel.browseTypeOf("VL1234567890", fallback = BrowseType.PODCAST_SHOW))
         assertEquals(BrowseType.PODCAST_SHOW, MainViewModel.browseTypeOf("some_show_id", fallback = BrowseType.PODCAST_SHOW))
+        assertEquals(BrowseType.PLAYLIST, MainViewModel.browseTypeOf("VL1234567890", fallback = BrowseType.PODCAST_SHOW))
+        assertEquals(BrowseType.ALBUM, MainViewModel.browseTypeOf("MPREb_987654321", fallback = BrowseType.PODCAST_SHOW))
     }
 
     @Test

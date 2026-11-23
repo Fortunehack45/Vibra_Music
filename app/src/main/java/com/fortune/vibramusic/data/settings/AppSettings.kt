@@ -347,9 +347,9 @@ object AppSettings {
 
     /**
      * The "Best Part" button on the player's artwork, which skips to the part of
-     * the song listeners replay most. On unless turned off.
+     * the song listeners replay most. Off by default; toggleable in Settings.
      */
-    val showBestPart = MutableStateFlow(true)
+    val showBestPart = MutableStateFlow(false)
     val showListenTogetherButton = MutableStateFlow(false)
     val hideLyricsPreview = MutableStateFlow(false)
     val lyricsCardLogo = MutableStateFlow(true)
@@ -951,7 +951,7 @@ object AppSettings {
         shuffleEnabled.value = prefs.getBoolean(KEY_SHUFFLE_ENABLED, false)
         repeatMode.value = prefs.getInt(KEY_REPEAT_MODE, Player.REPEAT_MODE_OFF)
         showNerdStats.value = prefs.getBoolean(KEY_NERD_STATS, false)
-        showBestPart.value = prefs.getBoolean(KEY_BEST_PART, true)
+        showBestPart.value = prefs.getBoolean(KEY_BEST_PART, false)
         showListenTogetherButton.value = prefs.getBoolean(KEY_LISTEN_TOGETHER_BUTTON, false)
         hideLyricsPreview.value = prefs.getBoolean(KEY_HIDE_LYRICS_PREVIEW, false)
         lyricsCardLogo.value = prefs.getBoolean(KEY_LYRICS_CARD_LOGO, true)

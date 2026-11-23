@@ -10,8 +10,6 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshState
 
 import com.fortune.vibramusic.ui.components.PullToRefresh
 import androidx.compose.ui.graphics.CompositingStrategy
-import com.fortune.vibramusic.ui.graphics.smootherStep
-import com.fortune.vibramusic.ui.graphics.FADE_CURVE_STOPS
 import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
@@ -205,7 +203,6 @@ private val SLEEVE_SHADOW = 18.dp
 
 private const val FULL_BLEED_MAX_HEIGHT = 0.62f
 private const val FULL_BLEED_FADE_FRACTION = 0.42f
-private val FULL_BLEED_TITLE_OVERLAP = 44.dp
 
 /** Shuffle and Add to Library either side of the release page's Play pill. */
 private val RELEASE_SIDE_BUTTON = 50.dp
@@ -906,11 +903,6 @@ private fun ReleaseHeader(
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .layout { measurable, constraints ->
-                        val placeable = measurable.measure(constraints)
-                        val height = (placeable.height - FULL_BLEED_TITLE_OVERLAP.roundToPx()).coerceAtLeast(0)
-                        layout(placeable.width, height) { placeable.place(0, 0) }
-                    }
                     .aspectRatio(1f),
             ) {
                 AsyncImage(
@@ -918,23 +910,7 @@ private fun ReleaseHeader(
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     onState = { artFailed = it is AsyncImagePainter.State.Error },
-                    modifier = Modifier
-                        .matchParentSize()
-                        .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
-                        .drawWithContent {
-                            drawContent()
-                            drawRect(
-                                brush = Brush.verticalGradient(
-                                    colorStops = Array(FADE_CURVE_STOPS + 1) { i ->
-                                        val t = i / FADE_CURVE_STOPS.toFloat()
-                                        t to Color.Black.copy(alpha = 1f - smootherStep(t))
-                                    },
-                                    startY = size.height * (1f - FULL_BLEED_FADE_FRACTION),
-                                    endY = size.height,
-                                ),
-                                blendMode = BlendMode.DstIn,
-                            )
-                        },
+                    modifier = Modifier.matchParentSize(),
                 )
                 canvas?.let { clip ->
                     CanvasArtworkPlayer(
@@ -943,6 +919,17 @@ private fun ReleaseHeader(
                         modifier = Modifier.matchParentSize(),
                     )
                 }
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .fillMaxHeight(FULL_BLEED_FADE_FRACTION)
+                        .align(Alignment.BottomCenter)
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(Color.Transparent, palette.background),
+                            ),
+                        ),
+                )
             }
         } else Box(
             Modifier

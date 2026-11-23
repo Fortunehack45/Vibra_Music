@@ -1,7 +1,5 @@
 package com.fortune.vibramusic.ui.replay
 
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -33,6 +31,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -57,6 +56,7 @@ import com.fortune.vibramusic.data.stats.ArtistFacts
 import com.fortune.vibramusic.data.stats.ReplayPeriod
 import com.fortune.vibramusic.data.stats.ReplaySummary
 import com.fortune.vibramusic.ui.components.PAGE_GUTTER
+import com.fortune.vibramusic.ui.components.PillSegmentedControl
 import com.fortune.vibramusic.ui.icons.VibraMusicIcons
 import com.fortune.vibramusic.ui.player.MeshGradientBackground
 import com.fortune.vibramusic.ui.player.rememberArtworkColors
@@ -269,7 +269,7 @@ private fun Heading(state: ReplayState, onPeriodChange: (ReplayPeriod) -> Unit, 
             color = textColor.copy(alpha = 0.6f),
         )
         Spacer(Modifier.height(14.dp))
-        PeriodPicker(state.period, onPeriodChange, dark)
+        PeriodPicker(state.period, onPeriodChange)
         Spacer(Modifier.height(18.dp))
     }
 }
@@ -283,36 +283,16 @@ private fun Heading(state: ReplayState, onPeriodChange: (ReplayPeriod) -> Unit, 
  * would make it a lie for the first thirty days of every month.
  */
 @Composable
-private fun PeriodPicker(selected: ReplayPeriod, onSelect: (ReplayPeriod) -> Unit, dark: Boolean) {
+private fun PeriodPicker(selected: ReplayPeriod, onSelect: (ReplayPeriod) -> Unit) {
     val context = LocalContext.current
-    val textColor = if (dark) Color.White else Color.Black
-    Row(
-        Modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(textColor.copy(alpha = 0.10f))
-            .padding(3.dp),
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        ReplayPeriod.entries.forEach { period ->
-            val active = period == selected
-            val background by animateColorAsState(
-                if (active) textColor.copy(alpha = 0.92f) else Color.Transparent,
-                tween(160),
-                label = "periodChip",
-            )
-            Text(
-                text = period.localizedChip(context),
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.W700,
-                color = if (active) if (dark) Color.Black else Color.White else textColor.copy(alpha = 0.75f),
-                modifier = Modifier
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(background)
-                    .clickable { onSelect(period) }
-                    .padding(horizontal = 14.dp, vertical = 8.dp),
-            )
-        }
-    }
+    val options = remember(context) { ReplayPeriod.entries.map { it.localizedChip(context) } }
+    val selectedIndex = ReplayPeriod.entries.indexOf(selected).coerceAtLeast(0)
+    PillSegmentedControl(
+        options = options,
+        selectedIndex = selectedIndex,
+        onSelect = { index -> onSelect(ReplayPeriod.entries[index]) },
+        modifier = Modifier.fillMaxWidth(),
+    )
 }
 
 // -- The cards ---------------------------------------------------------------

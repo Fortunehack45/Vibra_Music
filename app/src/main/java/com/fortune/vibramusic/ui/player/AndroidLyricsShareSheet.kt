@@ -158,7 +158,7 @@ internal fun AndroidLyricsShareSheet(
     var exporting by remember(request) { mutableStateOf(false) }
     var exported by remember(request) { mutableStateOf<Pair<Any, File>?>(null) }
     suspend fun videoFile(): File? {
-        val look = listOf(clip, story, showLogo)
+        val look = listOf(background, clip?.url, clip?.portraitUrl, story, showLogo)
         exported?.takeIf { it.first == look && it.second.exists() }?.let { return it.second }
         exporting = true
         return try {

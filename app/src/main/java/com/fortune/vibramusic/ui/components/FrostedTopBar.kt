@@ -1,5 +1,7 @@
 package com.fortune.vibramusic.ui.components
 
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -29,8 +31,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.CornerBasedShape
@@ -126,9 +128,10 @@ private fun leadingInset(hasBack: Boolean): Dp = if (hasBack) BackInset else Wor
  * too tight and content is clipped under the bar, too loose and every page
  * opens on a band of empty space.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun topBarHeight(): Dp =
-    WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + TopBarContentHeight
+    WindowInsets.statusBarsIgnoringVisibility.asPaddingValues().calculateTopPadding() + TopBarContentHeight
 
 /**
  * Where page content should start: clear of the bar, plus [TopBarContentGap].
@@ -152,6 +155,7 @@ fun topBarContentPadding(): Dp = topBarHeight() + TopBarContentGap
  * Apple Music behaviour: the big in-list header owns the title at rest;
  * once the list scrolls, the small centered title fades in.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun FrostedTopBar(
     title: String,
@@ -204,7 +208,7 @@ fun FrostedTopBar(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .statusBarsPadding()
+                .windowInsetsPadding(WindowInsets.statusBarsIgnoringVisibility)
                 .height(TopBarContentHeight),
         ) {
             /* Temporarily hidden: keep the scrolling center-title implementation

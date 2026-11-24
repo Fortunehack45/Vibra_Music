@@ -88,7 +88,7 @@ Grab the latest signed APK from the [Releases](https://github.com/Fortunehack45/
 
 Join the community and stay connected with the latest updates, discussions, and news!
 
-[**Telegram Community**](https://t.me/vibramusictg) · [**Official Website**](https://fortuneadebayo.space/) · [**Developer (X / Twitter)**](https://x.com/OnNerd_eth) · [**GitHub Releases**](https://github.com/Fortunehack45/Vibra_Music_Releases)
+[**Telegram Community**](https://t.me/vibramusictg) · [**Official Website**](https://vibramusic.store/) · [**Developer (X / Twitter)**](https://x.com/OnNerd_eth) · [**GitHub Releases**](https://github.com/Fortunehack45/Vibra_Music_Releases)
 
 </div>
 

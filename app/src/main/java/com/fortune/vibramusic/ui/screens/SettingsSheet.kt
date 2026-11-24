@@ -1736,7 +1736,7 @@ fun SettingsScreen(
                     append("Telegram")
                 }
                 append("  ")
-                withLink(LinkAnnotation.Url("https://fortuneadebayo.space/", linkStyles)) {
+                withLink(LinkAnnotation.Url("https://vibramusic.store/", linkStyles)) {
                     append("Website")
                 }
                 append("\n~YouTube Music & Listen Together Backend")

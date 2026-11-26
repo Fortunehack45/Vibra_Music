@@ -182,6 +182,8 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="vibramusic" android:host="play" />
                 <data android:scheme="vibra" android:host="play" />
+                <data android:scheme="vibramusic" android:host="search" />
+                <data android:scheme="vibra" android:host="search" />
             </intent-filter>
 
             <!--

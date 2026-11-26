@@ -181,6 +181,20 @@ object MusicLink {
         if (scheme == "vibramusic" || scheme == "vibra") {
             val host = uri.host?.lowercase()
             val path = uri.path?.lowercase().orEmpty().trimStart('/')
+            if (host == "search" || path == "search" || path.startsWith("search/")) {
+                val query = (uri.getQueryParameter("q")
+                    ?: uri.getQueryParameter("query")
+                    ?: uri.getQueryParameter("title")
+                    ?: uri.getQueryParameter("name")
+                    ?: uri.getQueryParameter("music.title")
+                    ?: uri.getQueryParameter("media.name")
+                    ?: uri.getQueryParameter("media_name")).orEmpty().trim()
+                return if (query.isNotEmpty()) {
+                    LinkRequest.Search(query, play = false)
+                } else {
+                    LinkRequest.Resume
+                }
+            }
             if (host == "play" || path == "play" || path.startsWith("play/")) {
                 val query = (uri.getQueryParameter("query")
                     ?: uri.getQueryParameter("q")

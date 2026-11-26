@@ -3,6 +3,12 @@ package com.fortune.vibramusic.playback
 import com.fortune.vibramusic.playback.MusicOnlyPlayback
 import com.fortune.vibramusic.playback.asMusicOnlyOf
 import com.fortune.vibramusic.playback.DirectSourceGate
+import com.fortune.vibramusic.playback.AutoMixVisualFeed
+import com.fortune.vibramusic.playback.AutoMixVisualPhase
+import com.fortune.vibramusic.ui.player.discardBlockedAutoMixAmbient
+import com.fortune.vibramusic.ui.player.prefetchAutoMixArtwork
+import com.fortune.vibramusic.data.canvas.CanvasRepository
+import com.fortune.vibramusic.playback.toSong
 import kotlin.math.abs
 
 import android.app.PendingIntent
@@ -1085,6 +1091,7 @@ class PlaybackService : MediaLibraryService() {
             // The player this fired on, which is by definition the one the
             // session is currently pointed at.
             val exoPlayer = player ?: return
+            crossfade?.checkAutoMixVisualTimeline(exoPlayer)
             convertVideosAround(exoPlayer)
             if (exoPlayer.isPlaying) prefetchAround(exoPlayer)
             warmLoudnessFigures(exoPlayer)
@@ -1703,6 +1710,55 @@ class PlaybackService : MediaLibraryService() {
         refreshCustomLayouts()
     }
 
+    private var autoMixArtworkJob: Job? = null
+    private var autoMixArtworkGeneration: Long? = null
+
+    private fun allowsAutoMixArtwork(generation: Long, mini: Boolean = false): Boolean =
+        AppSettings.autoMixArtwork.value.allows(AppSettings.smartFadeEnabled.value, generation, mini)
+
+    private fun allowsAnyAutoMixArtwork(generation: Long): Boolean =
+        allowsAutoMixArtwork(generation) || allowsAutoMixArtwork(generation, mini = true)
+
+    private fun prefetchAutoMixIncoming(item: MediaItem) {
+        autoMixArtworkJob?.cancel()
+        val coverGeneration = AutoMixVisualFeed.state.value?.takeIf {
+            it.phase == AutoMixVisualPhase.ARMED && allowsAnyAutoMixArtwork(it.generation)
+        }?.generation
+        autoMixArtworkGeneration = coverGeneration
+        if (coverGeneration == null) return
+        autoMixArtworkJob = scope.launch {
+            val song = item.toSong()
+            launch {
+                if (allowsAutoMixArtwork(coverGeneration) &&
+                    AppSettings.animatedCanvas.value &&
+                    (AppSettings.meteredConnection.value != true || AppSettings.canvasOverCellular.value)
+                ) {
+                    CanvasRepository.canvasFor(song)
+                }
+            }
+
+            try {
+                val artUrl = song.thumbnailUrl
+                if (artUrl != null) {
+                    prefetchAutoMixArtwork(
+                        this@PlaybackService,
+                        artUrl,
+                        coverGeneration,
+                        prepareCover = { allowsAutoMixArtwork(it) },
+                        prepareMiniCover = { allowsAutoMixArtwork(it, mini = true) },
+                        isStillArmed = { gen ->
+                            AutoMixVisualFeed.pending(gen)?.phase == AutoMixVisualPhase.ARMED
+                        },
+                    )
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w("VibraMusic", "AutoMix artwork prefetch failed", e)
+            }
+        }
+    }
+
     private fun createCrossfadeController() = CrossfadeController(
             scope,
             active = { requireNotNull(player) },
@@ -1747,6 +1803,7 @@ class PlaybackService : MediaLibraryService() {
             versionSwapActive = { versionSwapJob?.isActive == true },
             trackVolumeFor = ::trackVolumeFor,
             onFadeFinished = { setupLoudnessEnhancer(player?.currentMediaItem?.mediaId) },
+            onArmAutoMixIncoming = ::prefetchAutoMixIncoming,
         )
 
     /** Favorite and Shuffle: the only actions shown on the phone notification. */
@@ -6176,6 +6233,25 @@ class PlaybackService : MediaLibraryService() {
 
     private fun observeSettings() {
         scope.launch {
+            AppSettings.autoMixArtwork.collect {
+                if (autoMixArtworkGeneration?.let { !allowsAnyAutoMixArtwork(it) } == true) {
+                    autoMixArtworkJob?.cancel()
+                    autoMixArtworkGeneration = null
+                }
+                discardBlockedAutoMixAmbient { allowsAutoMixArtwork(it) }
+            }
+        }
+        scope.launch {
+            AppSettings.smartFadeEnabled.collect { enabled ->
+                if (!enabled) {
+                    crossfade?.cancelAutoMixVisual()
+                    autoMixArtworkJob?.cancel()
+                    autoMixArtworkGeneration = null
+                    discardBlockedAutoMixAmbient { allowsAutoMixArtwork(it) }
+                }
+            }
+        }
+        scope.launch {
             AppSettings.skipSilence.collect { on -> eachPlayer { it.skipSilenceEnabled = on } }
         }
         scope.launch {
@@ -7034,6 +7110,12 @@ class PlaybackService : MediaLibraryService() {
          */
         private fun locked(): Boolean = ListenTogether.state.value.controlsLocked
 
+        private fun onAutoMixInterruptingIntent() {
+            crossfade.cancelAutoMixVisual()
+            onUserIntent()
+        }
+
+
         override fun play() {
             // Locked, this plays only here — the party carries on untouched and
             // this device rejoins it wherever it has got to. See
@@ -7063,7 +7145,7 @@ class PlaybackService : MediaLibraryService() {
 
         override fun pause() {
             if (lockedTransport(false)) return
-            onUserIntent()
+            onAutoMixInterruptingIntent()
             super.pause()
         }
 
@@ -7072,7 +7154,7 @@ class PlaybackService : MediaLibraryService() {
         // are not asking to move the party.
         override fun stop() {
             if (locked()) { super.stop(); return }
-            onUserIntent()
+            onAutoMixInterruptingIntent()
             super.stop()
         }
 
@@ -7088,45 +7170,45 @@ class PlaybackService : MediaLibraryService() {
         // reconcile anyway.
         override fun seekTo(positionMs: Long) {
             if (locked()) return
-            onUserIntent()
+            onAutoMixInterruptingIntent()
             crossfade.cancel()
             super.seekTo(positionMs)
         }
 
         override fun seekBack() {
             if (locked()) return
-            onUserIntent()
+            onAutoMixInterruptingIntent()
             super.seekBack()
         }
 
         override fun seekForward() {
             if (locked()) return
-            onUserIntent()
+            onAutoMixInterruptingIntent()
             super.seekForward()
         }
 
         override fun seekToPrevious() {
             if (locked()) return
-            onUserIntent()
+            onAutoMixInterruptingIntent()
             crossfade.cancel()
             super.seekToPrevious()
         }
 
         override fun seekToDefaultPosition() {
             if (locked()) return
-            onUserIntent()
+            onAutoMixInterruptingIntent()
             super.seekToDefaultPosition()
         }
 
         override fun seekToDefaultPosition(mediaItemIndex: Int) {
             if (locked()) return
-            onUserIntent()
+            onAutoMixInterruptingIntent()
             super.seekToDefaultPosition(mediaItemIndex)
         }
 
         override fun setMediaItems(mediaItems: List<MediaItem>, resetPosition: Boolean) {
             if (locked()) return
-            onUserIntent()
+            onAutoMixInterruptingIntent()
             crossfade.cancel()
             super.setMediaItems(mediaItems, resetPosition)
         }
@@ -7137,7 +7219,7 @@ class PlaybackService : MediaLibraryService() {
             startPositionMs: Long,
         ) {
             if (locked()) return
-            onUserIntent()
+            onAutoMixInterruptingIntent()
             crossfade.cancel()
             super.setMediaItems(mediaItems, startIndex, startPositionMs)
         }
@@ -7151,37 +7233,37 @@ class PlaybackService : MediaLibraryService() {
         // who can reorder it is still choosing the music.
         override fun addMediaItems(index: Int, mediaItems: List<MediaItem>) {
             if (locked()) return
-            onUserIntent()
+            onAutoMixInterruptingIntent()
             super.addMediaItems(index, mediaItems)
         }
 
         override fun addMediaItems(mediaItems: List<MediaItem>) {
             if (locked()) return
-            onUserIntent()
+            onAutoMixInterruptingIntent()
             super.addMediaItems(mediaItems)
         }
 
         override fun removeMediaItem(index: Int) {
             if (locked()) return
-            onUserIntent()
+            onAutoMixInterruptingIntent()
             super.removeMediaItem(index)
         }
 
         override fun removeMediaItems(fromIndex: Int, toIndex: Int) {
             if (locked()) return
-            onUserIntent()
+            onAutoMixInterruptingIntent()
             super.removeMediaItems(fromIndex, toIndex)
         }
 
         override fun moveMediaItem(currentIndex: Int, newIndex: Int) {
             if (locked()) return
-            onUserIntent()
+            onAutoMixInterruptingIntent()
             super.moveMediaItem(currentIndex, newIndex)
         }
 
         override fun moveMediaItems(fromIndex: Int, toIndex: Int, newIndex: Int) {
             if (locked()) return
-            onUserIntent()
+            onAutoMixInterruptingIntent()
             super.moveMediaItems(fromIndex, toIndex, newIndex)
         }
 
@@ -7197,7 +7279,7 @@ class PlaybackService : MediaLibraryService() {
 
         override fun clearMediaItems() {
             if (locked()) return
-            onUserIntent()
+            onAutoMixInterruptingIntent()
             super.clearMediaItems()
         }
 
@@ -7266,14 +7348,14 @@ class PlaybackService : MediaLibraryService() {
 
         override fun seekToNextMediaItem() {
             if (locked()) return
-            onUserIntent()
+            onAutoMixInterruptingIntent()
             crossfade.cancel()
             wrappedPlayer.seekToNextMediaItem()
         }
 
         override fun seekToNext() {
             if (locked()) return
-            onUserIntent()
+            onAutoMixInterruptingIntent()
             crossfade.onSkipRequested()
             wrappedPlayer.seekToNext()
         }

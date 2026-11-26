@@ -2850,6 +2850,20 @@ private fun SongTransitionsRows(
             RowDivider()
             when (transitions.style) {
                 SongTransitionStyle.AUTOMIX -> {
+                    val artwork by AppSettings.autoMixArtwork.collectAsStateWithLifecycle()
+                    SettingsSubRow(
+                        title = stringResource(R.string.automix_art_transition),
+                        subtitle = stringResource(R.string.automix_art_transition_subtitle),
+                        checked = artwork.artTransition,
+                        onCheckedChange = AppSettings::setAutoMixArtTransition,
+                    )
+                    SettingsSubRow(
+                        title = stringResource(R.string.automix_mini_art_transition),
+                        subtitle = stringResource(R.string.automix_mini_art_transition_subtitle),
+                        checked = artwork.miniPlayerTransition,
+                        onCheckedChange = AppSettings::setAutoMixMiniPlayerTransition,
+                    )
+                    RowDivider()
                     val mixOnNewPlaylists by AppSettings.mixEnableOnNewPlaylists.collectAsStateWithLifecycle()
                     val defaultBars by AppSettings.mixDefaultLengthBars.collectAsStateWithLifecycle()
                     val beatmatching by AppSettings.mixDefaultBeatmatching.collectAsStateWithLifecycle()

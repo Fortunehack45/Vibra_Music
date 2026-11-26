@@ -1018,8 +1018,8 @@ object AppSettings {
         horizontalScrollRefraction.value = prefs.getBoolean(KEY_HORIZONTAL_SCROLL_REFRACTION, false)
         youtubePremiumAudio.value = prefs.getBoolean(KEY_YOUTUBE_PREMIUM_AUDIO, false)
         _autoMixArtwork.value = com.fortune.vibramusic.ui.player.AutoMixArtworkPreferences(
-            artTransition = prefs.getBoolean(KEY_AUTOMIX_ART_TRANSITION, false),
-            miniPlayerTransition = prefs.getBoolean(KEY_AUTOMIX_MINI_ART_TRANSITION, false),
+            artTransition = prefs.getBoolean(KEY_AUTOMIX_ART_TRANSITION, true),
+            miniPlayerTransition = prefs.getBoolean(KEY_AUTOMIX_MINI_ART_TRANSITION, true),
         )
         hideRecents.value = prefs.getBoolean(KEY_HIDE_RECENTS, false)
         hideHomeVideos.value = prefs.getBoolean(KEY_HIDE_HOME_VIDEOS, false)

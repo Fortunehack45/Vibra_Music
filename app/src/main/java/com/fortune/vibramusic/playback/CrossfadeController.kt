@@ -15,7 +15,12 @@ import com.fortune.vibramusic.data.settings.AppSettings
 import com.fortune.vibramusic.data.settings.SmartAnalysis
 import com.fortune.vibramusic.data.settings.TrackAnalysisState
 import com.fortune.vibramusic.data.settings.TransitionWindow
+import com.fortune.vibramusic.data.model.QueueEntryIdentity
+import com.fortune.vibramusic.data.settings.MixBlend
+import com.fortune.vibramusic.playback.AutoMixVisualFeed
+import com.fortune.vibramusic.playback.AutoMixVisualTrack
 import com.fortune.vibramusic.playback.audio.TransitionProfile
+import kotlin.math.roundToInt
 import com.fortune.vibramusic.playback.mix.MixAutoPlanner
 import com.fortune.vibramusic.playback.mix.TransitionMode
 import com.fortune.vibramusic.playback.mix.TransitionPlan as MixTransitionPlan
@@ -180,6 +185,7 @@ class CrossfadeController(
     private val trackVolumeFor: (ExoPlayer) -> Float = { 1f },
     /** Invoked when a handed-off transition finishes or settles so session effects can reconcile cleanly. */
     private val onFadeFinished: () -> Unit = {},
+    private val onArmAutoMixIncoming: (MediaItem) -> Unit = {},
 ) {
 
     private enum class Phase {
@@ -209,6 +215,69 @@ class CrossfadeController(
     }
 
     private var phase = Phase.IDLE
+
+    private var visualGeneration: Long? = null
+    private var visualQueue: List<MediaItem> = emptyList()
+    private var visualCurrentIndex = C.INDEX_UNSET
+    private val visualDeckErrors = object : Player.Listener {
+        override fun onPlayerError(error: PlaybackException) = cancelAutoMixVisual()
+    }
+
+    fun cancelAutoMixVisual() = AutoMixVisualFeed.cancel(visualGeneration)
+
+    private fun armAutoMixVisual(out: ExoPlayer, into: ExoPlayer, nextIndex: Int, items: List<MediaItem>) {
+        clearAutoMixVisual()
+        fun trackAt(index: Int): AutoMixVisualTrack? {
+            val item = items.getOrNull(index) ?: return null
+            val entryId = item.queueEntryId
+            val ordinal = (0 until index).count {
+                val prior = items[it]
+                prior.mediaId == item.mediaId && prior.queueEntryId == entryId
+            }
+            return AutoMixVisualTrack(
+                QueueEntryIdentity(item.mediaId, entryId, ordinal),
+                index,
+                item.mediaMetadata.artworkUri?.toString(),
+            )
+        }
+        val from = trackAt(out.currentMediaItemIndex) ?: return
+        val to = trackAt(nextIndex) ?: return
+        visualQueue = items
+        visualCurrentIndex = from.armedIndex
+        visualGeneration = AutoMixVisualFeed.arm(from, to)
+        out.addListener(visualDeckErrors)
+        into.addListener(visualDeckErrors)
+    }
+
+    private fun clearAutoMixVisual() {
+        if (visualGeneration == null) return
+        cancelAutoMixVisual()
+        outgoing?.removeListener(visualDeckErrors)
+        incoming?.removeListener(visualDeckErrors)
+        visualGeneration = null
+        visualQueue = emptyList()
+        visualCurrentIndex = C.INDEX_UNSET
+    }
+
+    fun checkAutoMixVisualTimeline(player: ExoPlayer) {
+        val visual = AutoMixVisualFeed.pending(visualGeneration) ?: return
+        val index = player.currentMediaItemIndex
+        val trim = visualCurrentIndex - index
+        val retained = visualQueue.size - trim
+        if (index !in 0 until player.mediaItemCount || trim < 0 || (!handedOff && trim != 0) ||
+            retained > player.mediaItemCount || (0 until retained).any {
+                !sameVisualQueueItem(visualQueue[it + trim], player.getMediaItemAt(it))
+            } || (!handedOff && player.nextMediaItemIndex != visual.incoming.armedIndex)
+        ) {
+            cancelAutoMixVisual()
+        } else {
+            visualQueue = (0 until player.mediaItemCount).map(player::getMediaItemAt)
+            visualCurrentIndex = index
+        }
+    }
+
+    private fun sameVisualQueueItem(expected: MediaItem, actual: MediaItem?): Boolean =
+        actual != null && expected == actual && expected.queueEntryId == actual.queueEntryId
 
     /**
      * The player the session was on when this transition began — the one whose
@@ -453,6 +522,8 @@ class CrossfadeController(
     }
 
     fun release() {
+        clearAutoMixVisual()
+        AppSettings.smartMixBlend.value = null
         tickerJob?.cancel()
         tickerJob = null
         listeningTo?.removeListener(listener)
@@ -493,6 +564,8 @@ class CrossfadeController(
     fun cancel() {
         if (phase == Phase.IDLE) return
         Log.d(TAG, "cancel transition from phase=$phase handedOff=$handedOff")
+        clearAutoMixVisual()
+        AppSettings.smartMixBlend.value = null
         tickerJob?.cancel()
         AppSettings.smartMixInProgress.value = false
         AppSettings.smartTransitionWindow.value = null
@@ -1046,6 +1119,7 @@ class CrossfadeController(
 
         val items = (0 until out.mediaItemCount).map { out.getMediaItemAt(it) }
         queuedItemCount = items.size
+        if (smart) armAutoMixVisual(out, into, nextIndex, items)
 
         Log.d(
             TAG,
@@ -1071,7 +1145,10 @@ class CrossfadeController(
         // Before `setMediaItems`, so the standby's per-player audio state is
         // right for the incoming track from its very first decoded frame
         // rather than from the handoff, which is half a blend too late.
-        items.getOrNull(nextIndex)?.let(onArmIncoming)
+        items.getOrNull(nextIndex)?.let { nextItem ->
+            onArmIncoming(nextItem)
+            onArmAutoMixIncoming(nextItem)
+        }
         into.setMediaItems(items, nextIndex, (incomingCueTimeMs - preRollMs).coerceAtLeast(0L))
         // Buffers without sounding. Started for real in [startFade].
         into.playWhenReady = false
@@ -1178,6 +1255,7 @@ class CrossfadeController(
         // track the session player is no longer showing a position for.
         AppSettings.smartTransitionWindow.value = null
         phase = Phase.FADING
+        AutoMixVisualFeed.start(visualGeneration, audioSeconds = 0.0)
     }
 
     private fun performHandoff() {
@@ -1186,7 +1264,11 @@ class CrossfadeController(
         if (handedOff) return
         listenTo(into)
         handedOff = true
+        visualCurrentIndex = into.currentMediaItemIndex
         onHandoff(out, into)
+        val swap = (into.currentPosition - incomingCueTimeMs).coerceAtLeast(0L).toDouble() / 1000.0
+        val end = (if (activeProfile != null) fadeMs.coerceAtLeast(1000L) else fadeMs).toDouble() / 1000.0
+        AutoMixVisualFeed.swap(visualGeneration, swap, end)
         Log.d(TAG, "handoff performed at cue=${into.currentPosition}ms out=${out.currentPosition}ms")
     }
 
@@ -1299,6 +1381,7 @@ class CrossfadeController(
         // silently without cutting short the incoming track's rising curve.
         if (out != null && (out.playbackState == Player.STATE_ENDED || out.playbackState == Player.STATE_IDLE)) {
             out.volume = 0f
+            out.removeListener(visualDeckErrors)
             retire(out)
             outgoing = null
         }
@@ -1308,6 +1391,12 @@ class CrossfadeController(
         // setting that actually started it — a Automix normally runs with
         // [configuredFadeMs] at zero, and reading that as "turned off" would
         // end every Automix on its first tick.
+        val visualTime = elapsed.toDouble() / 1000.0
+        val visualEnd = span.toDouble() / 1000.0
+        AutoMixVisualFeed.advance(visualGeneration, visualTime, visualEnd)
+        if (progress >= 1f) AutoMixVisualFeed.complete(visualGeneration)
+        publishBlend(out ?: active(), player)
+
         val settingSwitchedOff = if (smartFadeActive) {
             !AppSettings.smartFadeEnabled.value
         } else {
@@ -1407,6 +1496,8 @@ class CrossfadeController(
      * away gracefully.
      */
     private fun bail() {
+        cancelAutoMixVisual()
+        AppSettings.smartMixBlend.value = null
         if (phase == Phase.IDLE || phase == Phase.BAILING) return
         Log.d(TAG, "bail from $phase")
         AppSettings.smartMixInProgress.value = false
@@ -1436,6 +1527,8 @@ class CrossfadeController(
     }
 
     private fun finish() {
+        clearAutoMixVisual()
+        AppSettings.smartMixBlend.value = null
         val wasHandedOff = handedOff
         if (phase != Phase.IDLE) {
             Log.d(TAG, "finish from $phase")
@@ -1819,9 +1912,10 @@ class CrossfadeController(
     private fun isRealMix(): Boolean = smartFadeActive && (
         render.style == TransitionStyle.DJ_BLEND ||
             render.style == TransitionStyle.DJ_FILTER ||
+            render.style == TransitionStyle.DJ_RISE ||
             incomingCueTimeMs > 0L ||
             incomingPlaybackRate != 1.0
-        )
+    )
 
     /** Equal-power pair: [riseGain]² + [fallGain]² = 1, so the blend never dips. */
     private fun riseGain(progress: Float): Float =
@@ -1836,6 +1930,75 @@ class CrossfadeController(
     // power. Nothing in this class renders the same audio twice now, so every
     // gain it applies is a gain against a genuinely different track, and
     // equal-power is right everywhere.
+
+    private val beatScratch = DoubleArray(2)
+
+    private fun publishBlend(out: ExoPlayer, into: ExoPlayer, force: Boolean = false) {
+        if (!smartFadeActive && !AppSettings.smartFadeEnabled.value) return
+        val session = if (handedOff) into else out
+        val playing = session.isPlaying
+        val last = AppSettings.smartMixBlend.value
+        if (!force && last != null && !playing && !last.playing) return
+
+        val outItem = out.currentMediaItem
+        val inItem = into.currentMediaItem
+        val sides = if (handedOff) {
+            listOfNotNull(inItem?.let { analysisFor(it) to into }, outItem?.let { analysisFor(it) to out })
+        } else {
+            listOfNotNull(outItem?.let { analysisFor(it) to out }, inItem?.let { analysisFor(it) to into })
+        }
+        var beatMs = 0f
+        var anchor = 0L
+        for ((analysis, player) in sides) {
+            if (!beatAt(analysis, player.currentPosition / 1000.0)) continue
+            val rate = player.playbackParameters.speed.toDouble().takeIf { it > 0.0 } ?: 1.0
+            val sinceBeat = beatScratch[0]
+            beatMs = (beatScratch[1] * 1000.0 / rate).toFloat()
+            anchor = System.nanoTime() - (sinceBeat / rate * 1e9).toLong()
+            break
+        }
+        if (!force && last != null && last.playing == playing && sameGrid(last, beatMs, anchor)) return
+        AppSettings.smartMixBlend.value = MixBlend(
+            beatMs = beatMs,
+            beatAnchorNanos = anchor,
+            playing = playing,
+        )
+    }
+
+    private fun sameGrid(last: MixBlend, beatMs: Float, anchor: Long): Boolean {
+        if (beatMs <= 0f || last.beatMs <= 0f) return beatMs <= 0f && last.beatMs <= 0f
+        if (abs(beatMs - last.beatMs) > beatMs * TEMPO_TOLERANCE) return false
+        val beatNanos = (beatMs * 1_000_000.0).toLong().coerceAtLeast(1L)
+        val offset = Math.floorMod(anchor - last.beatAnchorNanos, beatNanos)
+        return minOf(offset, beatNanos - offset) <= ANCHOR_TOLERANCE_NANOS
+    }
+
+    private fun beatAt(analysis: TrackAnalysis, positionSec: Double): Boolean {
+        val fromTempo = if (analysis.bpm > 0.0) 60.0 / analysis.bpm else 0.0
+        val interval = analysis.beatInterval
+        val nominal = when {
+            interval > 0.0 && (fromTempo <= 0.0 || abs(interval / fromTempo - 1.0) < 0.25) -> interval
+            fromTempo > 0.0 -> fromTempo
+            else -> return false
+        }
+        val downbeats = analysis.downbeats
+        val next = downbeats.binarySearch(positionSec).let { if (it >= 0) it + 1 else -it - 1 }
+        val origin: Double
+        var beat = nominal
+        if (next in 1 until downbeats.size) {
+            origin = downbeats[next - 1]
+            val bar = downbeats[next] - origin
+            val beatsInBar = (bar / nominal).roundToInt()
+            if (beatsInBar in 1..8) beat = bar / beatsInBar
+        } else {
+            origin = if (next >= 1) downbeats[next - 1] else analysis.firstBeat
+        }
+        val since = (positionSec - origin).coerceAtLeast(0.0)
+        val phase = since % beat
+        beatScratch[0] = phase
+        beatScratch[1] = beat
+        return true
+    }
 
     private companion object {
         const val TAG = "VibraMusicCrossfade"
@@ -2101,5 +2264,7 @@ class CrossfadeController(
         const val ARM_STEP_MS = 40L
         const val FADE_STEP_MS = 30L
         const val BAIL_STEP_MS = 15L
+        private const val TEMPO_TOLERANCE = 0.005f
+        private const val ANCHOR_TOLERANCE_NANOS = 25_000_000L
     }
 }

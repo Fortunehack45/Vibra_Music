@@ -45,6 +45,15 @@
     @android.webkit.JavascriptInterface <methods>;
 }
 
+# ---- Compose NowPlaying register-allocation boundary ------------------------
+# Keep NowPlayingScreen's extracted stage composables as distinct methods so
+# R8's single-caller inliner cannot merge them back into a single >256-register
+# method, which triggers an ART VerifyError (copy-reference BooleanConstant) on
+# Android 16+.
+-keepclassmembers class com.fortune.vibramusic.ui.player.NowPlaying*Kt {
+    static *** NowPlayingStage*(...);
+}
+
 # ---- JVM-only APIs ------------------------------------------------------------
 # Referenced by desktop-only paths in Rhino (JSR-223, java.beans, dynalink),
 # mbassy's EL filters, SMBJ's Kerberos and Ktor's IntelliJ debugger probe. None
